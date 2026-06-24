@@ -43,7 +43,7 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; href: string }[] 
 
 export function Footer() {
   return (
-    <footer className="bg-niki-navy text-white/70">
+    <footer className="bg-niki-navy pb-16 text-white/70 sm:pb-0">
       <Container className="grid grid-cols-2 gap-8 py-12 sm:grid-cols-4 lg:grid-cols-5">
         <div className="col-span-2 sm:col-span-4 lg:col-span-1">
           <div className="flex items-center gap-2">
