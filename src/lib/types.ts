@@ -152,6 +152,14 @@ export interface Product {
   gradientFrom: string;
   gradientTo: string;
   emoji: string;
+  /**
+   * Optional product image. Set this to override the default photo.
+   * Accepts a local path served from /public (e.g. "/products/my-photo.jpg")
+   * or any absolute URL (e.g. "https://...").
+   * When omitted, the app falls back to /products/<slug>.jpg, and if that
+   * file is missing it gracefully shows the gradient + emoji placeholder.
+   */
+  image?: string;
   preorderInfo?: PreorderInfo;
   serviceInfo?: ServiceInfo;
 }

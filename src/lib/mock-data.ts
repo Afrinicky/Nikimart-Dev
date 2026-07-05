@@ -585,6 +585,17 @@ export const foodProducts = products.filter((p) => p.productType === "food");
 export const officialProducts = products.filter((p) => p.isOfficial);
 export const featuredProducts = products.filter((p) => p.isFeatured);
 
+/**
+ * Resolves the image shown on a product card.
+ * Priority: an explicit `product.image` (URL or /public path) you set,
+ * otherwise the bundled default at /products/<slug>.jpg.
+ * To swap a photo: either set `image` on the product below, or drop a new
+ * file at public/products/<slug>.jpg (keeping the same name).
+ */
+export function getProductImage(product: Product): string {
+  return product.image ?? `/products/${product.slug}.jpg`;
+}
+
 export function getVendorById(id: string): Vendor | undefined {
   return vendors.find((v) => v.id === id);
 }
