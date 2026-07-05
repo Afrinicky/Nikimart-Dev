@@ -6,6 +6,8 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; href: string }[] 
     title: "Shop",
     links: [
       { label: "All Products", href: "/products" },
+      { label: "Global Shopping", href: "/global-shopping" },
+      { label: "Buy For Me", href: "/buy-for-me" },
       { label: "Preorder Deals", href: "/preorders" },
       { label: "Services", href: "/services" },
       { label: "Shop by Campus", href: "/campus" },
@@ -24,8 +26,10 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; href: string }[] 
     title: "Support",
     links: [
       { label: "Help Centre", href: "/help" },
-      { label: "Track an Order", href: "/orders" },
-      { label: "Contact Us", href: "/help" },
+      { label: "How It Works", href: "/how-it-works" },
+      { label: "Track an Order", href: "/order-tracking" },
+      { label: "Pickup Points", href: "/pickup-points" },
+      { label: "Buyer Protection", href: "/buyer-protection" },
     ],
   },
   {
