@@ -2,7 +2,7 @@ import Link from "next/link";
 import { GraduationCap, Heart, MapPin, Star, Truck } from "lucide-react";
 import type { Product } from "@/lib/types";
 import { discountPercent, formatPrice } from "@/lib/format";
-import { getVendorById } from "@/lib/mock-data";
+import { getProductImage, getVendorById } from "@/lib/mock-data";
 import { ProductImagePlaceholder } from "./ProductImagePlaceholder";
 import { Badge } from "@/components/ui/Badge";
 
@@ -24,6 +24,8 @@ export function ProductCard({ product }: { product: Product }) {
           gradientFrom={product.gradientFrom}
           gradientTo={product.gradientTo}
           emoji={product.emoji}
+          imageUrl={getProductImage(product)}
+          alt={product.name}
           className="aspect-square w-full transition-transform duration-500 group-hover:scale-105"
         />
 

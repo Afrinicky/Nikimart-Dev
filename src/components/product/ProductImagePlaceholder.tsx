@@ -4,17 +4,21 @@ export function ProductImagePlaceholder({
   gradientFrom,
   gradientTo,
   emoji,
+  imageUrl,
+  alt,
   className,
 }: {
   gradientFrom: string;
   gradientTo: string;
   emoji: string;
+  imageUrl?: string;
+  alt?: string;
   className?: string;
 }) {
   return (
     <div
       className={cn(
-        "relative flex items-center justify-center overflow-hidden",
+        "relative flex items-center justify-center overflow-hidden bg-white",
         className,
       )}
       style={{
@@ -31,6 +35,20 @@ export function ProductImagePlaceholder({
       <span className="relative text-4xl drop-shadow-sm sm:text-5xl" aria-hidden>
         {emoji}
       </span>
+
+      {/*
+        The real photo is layered over the gradient + emoji. If the image is
+        missing (404), this background simply doesn't paint and the emoji
+        placeholder shows through — no broken-image icons, no client JS.
+      */}
+      {imageUrl ? (
+        <span
+          role="img"
+          aria-label={alt}
+          className="absolute inset-0 bg-white bg-cover bg-center"
+          style={{ backgroundImage: `url("${imageUrl}")` }}
+        />
+      ) : null}
     </div>
   );
 }
