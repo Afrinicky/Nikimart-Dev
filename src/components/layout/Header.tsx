@@ -3,14 +3,15 @@ import { ClipboardList, HelpCircle, ShoppingCart, Store, User } from "lucide-rea
 import { SearchBar } from "./SearchBar";
 import { LocationSelector } from "./LocationSelector";
 import { Container } from "@/components/ui/Container";
+import { auth } from "@/lib/auth";
+import { isRole, ROLE_HOME, ROLE_LABELS } from "@/lib/roles";
 
-const ICON_LINKS = [
-  { href: "/login", label: "Account", icon: User },
-  { href: "/orders", label: "Orders", icon: ClipboardList },
-  { href: "/cart", label: "Cart", icon: ShoppingCart },
-];
+export async function Header() {
+  const session = await auth();
+  const role = session?.user && isRole(session.user.role) ? session.user.role : null;
+  const accountHref = role ? ROLE_HOME[role] : "/login";
+  const accountLabel = session?.user ? "Account" : "Sign in";
 
-export function Header() {
   return (
     <header className="sticky top-0 z-50 bg-niki-navy">
       <Container className="flex items-center gap-4 py-3">
@@ -36,25 +37,49 @@ export function Header() {
             <span>Help</span>
           </Link>
 
-          {ICON_LINKS.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className="flex flex-col items-center gap-0.5 rounded-xl px-2.5 py-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
-              aria-label={label}
-            >
-              <Icon className="h-5 w-5" />
-              <span className="hidden text-[10px] font-medium sm:block">{label}</span>
-            </Link>
-          ))}
+          <Link
+            href={accountHref}
+            className="flex flex-col items-center gap-0.5 rounded-xl px-2.5 py-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label={accountLabel}
+          >
+            <User className="h-5 w-5" />
+            <span className="hidden text-[10px] font-medium sm:block">{accountLabel}</span>
+          </Link>
 
           <Link
-            href="/sell"
-            className="ml-1 hidden shrink-0 items-center gap-1.5 rounded-full bg-niki-orange px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-niki-orange-light sm:flex"
+            href="/orders"
+            className="flex flex-col items-center gap-0.5 rounded-xl px-2.5 py-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="Orders"
           >
-            <Store className="h-4 w-4" />
-            Sell on NikiMart
+            <ClipboardList className="h-5 w-5" />
+            <span className="hidden text-[10px] font-medium sm:block">Orders</span>
           </Link>
+
+          <Link
+            href="/cart"
+            className="flex flex-col items-center gap-0.5 rounded-xl px-2.5 py-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="Cart"
+          >
+            <ShoppingCart className="h-5 w-5" />
+            <span className="hidden text-[10px] font-medium sm:block">Cart</span>
+          </Link>
+
+          {role && role !== "CUSTOMER" ? (
+            <Link
+              href={accountHref}
+              className="ml-1 hidden shrink-0 items-center gap-1.5 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/20 lg:flex"
+            >
+              {ROLE_LABELS[role]}
+            </Link>
+          ) : (
+            <Link
+              href="/sell"
+              className="ml-1 hidden shrink-0 items-center gap-1.5 rounded-full bg-niki-orange px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-niki-orange-light sm:flex"
+            >
+              <Store className="h-4 w-4" />
+              Sell on NikiMart
+            </Link>
+          )}
         </div>
       </Container>
 
