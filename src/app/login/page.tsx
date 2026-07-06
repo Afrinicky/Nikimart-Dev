@@ -1,13 +1,21 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
-import { Field, inputClass } from "@/components/ui/Field";
+import { LoginForm } from "@/components/auth/LoginForm";
+import { auth } from "@/lib/auth";
+import { isRole, ROLE_HOME } from "@/lib/roles";
 
 export const metadata: Metadata = {
   title: "Sign in — NikiMart",
 };
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const session = await auth();
+  if (session?.user) {
+    redirect(isRole(session.user.role) ? ROLE_HOME[session.user.role] : "/account");
+  }
+
   return (
     <Container className="flex justify-center py-14">
       <div className="w-full max-w-md rounded-3xl bg-white p-8 ring-1 ring-black/5">
@@ -22,23 +30,11 @@ export default function LoginPage() {
         <h1 className="mt-6 font-display text-2xl font-bold text-niki-ink">Welcome back</h1>
         <p className="mt-1 text-sm text-niki-ink/60">Sign in to your NikiMart account.</p>
 
-        <form className="mt-6 space-y-4">
-          <Field label="Email address" htmlFor="email">
-            <input id="email" type="email" placeholder="you@example.com" className={inputClass} />
-          </Field>
-          <Field label="Password" htmlFor="password">
-            <input id="password" type="password" placeholder="••••••••" className={inputClass} />
-          </Field>
-          <button
-            type="button"
-            className="w-full rounded-xl bg-niki-orange px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
-          >
-            Sign in
-          </button>
-        </form>
+        <LoginForm />
 
         <p className="mt-4 rounded-xl bg-niki-surface p-3 text-center text-xs text-niki-ink/50">
-          Accounts &amp; secure sign-in are being wired up — this is a visual preview.
+          Try a demo account, e.g. <span className="font-semibold">customer@nikimart.test</span> /{" "}
+          <span className="font-semibold">password123</span>.
         </p>
 
         <p className="mt-6 text-center text-sm text-niki-ink/60">
