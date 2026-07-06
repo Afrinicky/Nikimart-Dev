@@ -7,7 +7,10 @@ products across Ghana.
 Built with **Next.js 16** (App Router), **Tailwind CSS v4**, **Prisma**, and
 **Auth.js (NextAuth v5)**.
 
-## Getting started
+## Getting started (local)
+
+Requires a PostgreSQL database. You can run one locally or point at any hosted
+Postgres.
 
 ```bash
 # 1. Install dependencies (runs `prisma generate` automatically)
@@ -15,9 +18,10 @@ npm install
 
 # 2. Configure environment
 cp .env.example .env
-# then set AUTH_SECRET — generate one with: npx auth secret
+# set DATABASE_URL to your Postgres connection string
+# set AUTH_SECRET — generate one with: npx auth secret
 
-# 3. Create the database and apply migrations
+# 3. Create the database schema
 npm run db:migrate
 
 # 4. Seed demo data (catalog + demo accounts)
@@ -28,6 +32,28 @@ npm run dev
 ```
 
 Open http://localhost:3000.
+
+## Deploying to Vercel
+
+The app needs a **hosted Postgres** database — SQLite does not work on Vercel's
+serverless runtime. Vercel Postgres, Neon, Supabase, or Railway all work.
+
+1. **Provision Postgres.** In your Vercel project, add a Postgres database
+   (Storage → Create → Postgres). This injects `DATABASE_URL` automatically. If
+   you use another provider, copy its connection string instead.
+2. **Set environment variables** (Project → Settings → Environment Variables):
+   - `DATABASE_URL` — your Postgres connection string.
+   - `AUTH_SECRET` — a long random string (`npx auth secret`). **Login returns a
+     500 error if this is missing.**
+   - `AUTH_TRUST_HOST` — `true`.
+3. **Deploy.** The build runs `prisma migrate deploy` automatically, so the
+   schema is created on first deploy.
+4. **Seed (optional, once)** to load the catalog and demo accounts. From your
+   machine, with `DATABASE_URL` pointed at the production database:
+   ```bash
+   DATABASE_URL="<your-production-url>" npm run db:seed
+   ```
+   New customers can also just register at `/register` without seeding.
 
 ## Demo accounts
 
@@ -65,8 +91,8 @@ You can also register a brand-new customer at `/register`.
 
 Prisma schema (`prisma/schema.prisma`) covers the Auth.js tables plus the
 application domain: `Category`, `Vendor`, `Product`, `Order`, `OrderItem`,
-`PickupPoint`, and `Shipment`. SQLite is used for local development — swap the
-datasource `provider` to `postgresql` and update `DATABASE_URL` for production.
+`PickupPoint`, and `Shipment`. The datasource is PostgreSQL in every
+environment; set `DATABASE_URL` accordingly.
 
 ## Useful scripts
 
