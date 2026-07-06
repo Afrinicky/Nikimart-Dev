@@ -46,10 +46,15 @@ serverless runtime. Vercel Postgres, Neon, Supabase, or Railway all work.
    - `AUTH_SECRET` — a long random string (`npx auth secret`). **Login returns a
      500 error if this is missing.**
    - `AUTH_TRUST_HOST` — `true`.
-3. **Deploy.** The build runs `prisma migrate deploy` automatically, so the
-   schema is created on first deploy.
-4. **Seed (optional, once)** to load the catalog and demo accounts. From your
-   machine, with `DATABASE_URL` pointed at the production database:
+3. **Deploy.** The build succeeds and the storefront is live. Pages that use the
+   database (login, dashboards) are server-rendered on demand.
+4. **Create the tables — run once** from your machine, pointing at the
+   production database (use the direct / non-pooled URL if your provider gives
+   one):
+   ```bash
+   DATABASE_URL="<your-production-url>" npx prisma migrate deploy
+   ```
+5. **Seed (optional, once)** to load the catalog and demo accounts:
    ```bash
    DATABASE_URL="<your-production-url>" npm run db:seed
    ```
