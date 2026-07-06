@@ -60,6 +60,16 @@ serverless runtime. Vercel Postgres, Neon, Supabase, or Railway all work.
    ```
    New customers can also just register at `/register` without seeding.
 
+> **No local setup / can't open a direct DB connection?** Run
+> `npm run db:setup-sql` to generate `nikimart-neon-setup.sql`, then paste it
+> into your provider's SQL editor (e.g. the Neon SQL Editor). It creates the
+> schema **and** seeds the demo data in one shot, and is safe to re-run.
+
+> **Neon + Prisma note:** set the runtime `DATABASE_URL` to the **unpooled /
+> direct** connection string (Neon exposes it as `..._URL_UNPOOLED`). If you use
+> the pooled URL instead, append `?pgbouncer=true` or Prisma will error with
+> "prepared statement already exists".
+
 ## Demo accounts
 
 The seed creates one account per role. **Password for all: `password123`.**
