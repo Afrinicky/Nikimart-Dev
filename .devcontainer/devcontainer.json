@@ -1,0 +1,21 @@
+{
+  "name": "NikiMart Dev",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "NikiMart Web",
+      "onAutoForward": "openPreview"
+    }
+  },
+  "postCreateCommand": "rm -rf node_modules && npm ci",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  }
+}

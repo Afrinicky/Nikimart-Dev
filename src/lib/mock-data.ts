@@ -585,12 +585,89 @@ export const foodProducts = products.filter((p) => p.productType === "food");
 export const officialProducts = products.filter((p) => p.isOfficial);
 export const featuredProducts = products.filter((p) => p.isFeatured);
 
+/**
+ * Resolves the image shown on a product card.
+ * Priority: an explicit `product.image` (URL or /public path) you set,
+ * otherwise the bundled default at /products/<slug>.jpg.
+ * To swap a photo: either set `image` on the product below, or drop a new
+ * file at public/products/<slug>.jpg (keeping the same name).
+ */
+export function getProductImage(product: Product): string {
+  return product.image ?? `/products/${product.slug}.jpg`;
+}
+
 export function getVendorById(id: string): Vendor | undefined {
   return vendors.find((v) => v.id === id);
 }
 
+export function getVendorBySlug(slug: string): Vendor | undefined {
+  return vendors.find((v) => v.slug === slug);
+}
+
 export function getCategoryById(id: string): Category | undefined {
   return categories.find((c) => c.id === id);
+}
+
+export function getCategoryBySlug(slug: string): Category | undefined {
+  return categories.find((c) => c.slug === slug);
+}
+
+export function getProductBySlug(slug: string): Product | undefined {
+  return products.find((p) => p.slug === slug);
+}
+
+export function getProductsByCategoryId(categoryId: string): Product[] {
+  return products.filter((p) => p.categoryId === categoryId);
+}
+
+export function getProductsByVendorId(vendorId: string): Product[] {
+  return products.filter((p) => p.vendorId === vendorId);
+}
+
+export function getRelatedProducts(product: Product, limit = 6): Product[] {
+  return products
+    .filter((p) => p.id !== product.id && p.categoryId === product.categoryId)
+    .concat(products.filter((p) => p.id !== product.id && p.categoryId !== product.categoryId))
+    .slice(0, limit);
+}
+
+export interface ProductFilters {
+  q?: string;
+  category?: string; // category slug
+  badge?: string; // BadgeKind
+  type?: string; // ProductType
+  maxPrice?: number;
+  minPrice?: number;
+}
+
+export function filterProducts(filters: ProductFilters): Product[] {
+  let result = [...products];
+  if (filters.category) {
+    const cat = getCategoryBySlug(filters.category);
+    if (cat) result = result.filter((p) => p.categoryId === cat.id);
+  }
+  if (filters.badge) {
+    result = result.filter((p) => p.badges.includes(filters.badge as never));
+  }
+  if (filters.type) {
+    result = result.filter((p) => p.productType === filters.type);
+  }
+  if (typeof filters.maxPrice === "number") {
+    result = result.filter((p) => p.price <= filters.maxPrice!);
+  }
+  if (typeof filters.minPrice === "number") {
+    result = result.filter((p) => p.price >= filters.minPrice!);
+  }
+  if (filters.q) {
+    const q = filters.q.toLowerCase().trim();
+    result = result.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.description.toLowerCase().includes(q) ||
+        (getVendorById(p.vendorId)?.businessName.toLowerCase().includes(q) ?? false),
+    );
+  }
+  return result;
 }
 
 export function getProductsForLocation(locationId: string): Product[] {

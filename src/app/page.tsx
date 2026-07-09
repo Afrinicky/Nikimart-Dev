@@ -11,6 +11,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Hero } from "@/components/home/Hero";
+import { GlobalBand } from "@/components/home/GlobalBand";
 import { CategoryShowcase } from "@/components/home/CategoryShowcase";
 import { CampusShowcase } from "@/components/home/CampusShowcase";
 import { ProductSection } from "@/components/home/ProductSection";
@@ -36,6 +37,8 @@ export default function Home() {
   return (
     <>
       <Hero />
+
+      <GlobalBand />
 
       <CategoryShowcase />
 

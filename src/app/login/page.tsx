@@ -1,46 +1,49 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { Container } from "@/components/ui/Container";
+import { LoginForm } from "@/components/auth/LoginForm";
+import { auth } from "@/lib/auth";
+import { isRole, ROLE_HOME } from "@/lib/roles";
 
-export const metadata = {
-  title: "Login | NikiMart",
+export const metadata: Metadata = {
+  title: "Sign in — NikiMart",
 };
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const session = await auth();
+  if (session?.user) {
+    redirect(isRole(session.user.role) ? ROLE_HOME[session.user.role] : "/account");
+  }
+
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-6rem)] max-w-3xl flex-col items-center justify-center px-4 py-10 text-center">
-      <div className="w-full rounded-3xl border border-white/10 bg-niki-surface/95 p-8 shadow-xl shadow-black/10 backdrop-blur-xl sm:p-12">
-        <h1 className="text-3xl font-bold text-white sm:text-4xl">Login to NikiMart</h1>
-        <p className="mt-4 text-sm text-niki-slate-300 sm:text-base">
-          Welcome back! Please sign in to view your account, orders, and saved items.
+    <Container className="flex justify-center py-14">
+      <div className="w-full max-w-md rounded-3xl bg-white p-8 ring-1 ring-black/5">
+        <div className="flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-niki-orange to-niki-gold font-display text-lg font-bold text-niki-navy">
+            N
+          </span>
+          <span className="font-display text-xl font-bold text-niki-ink">
+            Niki<span className="text-niki-orange">Mart</span>
+          </span>
+        </div>
+        <h1 className="mt-6 font-display text-2xl font-bold text-niki-ink">Welcome back</h1>
+        <p className="mt-1 text-sm text-niki-ink/60">Sign in to your NikiMart account.</p>
+
+        <LoginForm />
+
+        <p className="mt-4 rounded-xl bg-niki-surface p-3 text-center text-xs text-niki-ink/50">
+          Try a demo account, e.g. <span className="font-semibold">customer@nikimart.test</span> /{" "}
+          <span className="font-semibold">password123</span>.
         </p>
 
-        <div className="mt-10 grid gap-4">
-          <button
-            type="button"
-            className="rounded-2xl bg-niki-orange px-5 py-3 text-sm font-semibold text-niki-navy transition hover:bg-orange-400"
-          >
-            Continue with Email
-          </button>
-          <button
-            type="button"
-            className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/20"
-          >
-            Continue with Google
-          </button>
-          <button
-            type="button"
-            className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/20"
-          >
-            Continue with Apple
-          </button>
-        </div>
-
-        <p className="mt-8 text-sm text-niki-slate-400">
-          Don&apos;t have an account?{' '}
-          <Link href="/signup" className="font-semibold text-white hover:text-niki-orange">
-            Create one
+        <p className="mt-6 text-center text-sm text-niki-ink/60">
+          New to NikiMart?{" "}
+          <Link href="/register" className="font-semibold text-niki-orange hover:underline">
+            Create an account
           </Link>
         </p>
       </div>
-    </div>
+    </Container>
   );
 }

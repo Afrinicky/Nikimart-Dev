@@ -1,0 +1,222 @@
+// NikiMart — Prisma schema (Phase 3 foundation)
+// Auth.js models + application domain (users, roles, vendors, products, orders,
+// pickup points, shipments). SQLite for local/dev; swap the datasource provider
+// and DATABASE_URL for Postgres in production.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Auth.js (NextAuth) core models
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  phone         String?
+  passwordHash  String?
+  // Role gates every dashboard. SQLite has no enums, so we store the role as a
+  // string constrained by the Role helper in src/lib/roles.ts.
+  role          String    @default("CUSTOMER")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts    Account[]
+  sessions    Session[]
+  vendor      Vendor?
+  orders      Order[]
+  pickupPoint PickupPoint?  @relation("PickupOperator")
+  shipments   Shipment[]    @relation("FreightAgent")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Catalog
+// ---------------------------------------------------------------------------
+
+model Category {
+  id           String    @id @default(cuid())
+  name         String
+  slug         String    @unique
+  icon         String
+  description  String
+  productCount Int       @default(0)
+  products     Product[]
+}
+
+model Vendor {
+  id                       String    @id @default(cuid())
+  slug                     String    @unique
+  businessName             String
+  // JSON-encoded string[] of SellerType values.
+  sellerTypes              String    @default("[]")
+  description              String
+  initials                 String
+  accentFrom               String
+  accentTo                 String
+  // JSON-encoded string[] of location ids.
+  locationIds              String    @default("[]")
+  verificationStatus       String    @default("pending")
+  rating                   Float     @default(0)
+  reviewCount              Int       @default(0)
+  totalSales               Int       @default(0)
+  isOfficial               Boolean   @default(false)
+  deliveryAvailable        Boolean   @default(false)
+  pickupAvailable          Boolean   @default(false)
+  sameDayDeliveryAvailable Boolean   @default(false)
+
+  ownerId String? @unique
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  products Product[]
+}
+
+model Product {
+  id                       String   @id @default(cuid())
+  slug                     String   @unique
+  name                     String
+  description              String
+  price                    Float
+  oldPrice                 Float?
+  stockQuantity            Int      @default(0)
+  productType              String   @default("in_stock")
+  // JSON-encoded string[] of BadgeKind values.
+  badges                   String   @default("[]")
+  // JSON-encoded string[] of location ids.
+  locationIds              String   @default("[]")
+  campusDeliveryAvailable  Boolean  @default(false)
+  pickupAvailable          Boolean  @default(false)
+  sameDayDeliveryAvailable Boolean  @default(false)
+  isOfficial               Boolean  @default(false)
+  isFeatured               Boolean  @default(false)
+  rating                   Float    @default(0)
+  reviewCount              Int      @default(0)
+  gradientFrom             String
+  gradientTo               String
+  emoji                    String
+  image                    String?
+  // JSON-encoded PreorderInfo / ServiceInfo objects (nullable).
+  preorderInfo             String?
+  serviceInfo              String?
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+  vendorId   String
+  vendor     Vendor   @relation(fields: [vendorId], references: [id])
+
+  orderItems OrderItem[]
+}
+
+// ---------------------------------------------------------------------------
+// Fulfilment
+// ---------------------------------------------------------------------------
+
+model Order {
+  id             String   @id @default(cuid())
+  orderNumber    String   @unique
+  status         String   @default("pending") // pending | paid | shipped | delivered | cancelled
+  subtotal       Float    @default(0)
+  deliveryFee    Float    @default(0)
+  total          Float    @default(0)
+  deliveryMethod String   @default("delivery") // delivery | pickup
+  address        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  pickupPointId String?
+  pickupPoint   PickupPoint? @relation(fields: [pickupPointId], references: [id])
+
+  items    OrderItem[]
+  shipment Shipment?
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  quantity  Int    @default(1)
+  unitPrice Float
+
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+}
+
+model PickupPoint {
+  id           String   @id @default(cuid())
+  name         String
+  code         String   @unique
+  locationName String
+  address      String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  operatorId String? @unique
+  operator   User?   @relation("PickupOperator", fields: [operatorId], references: [id], onDelete: SetNull)
+
+  orders Order[]
+}
+
+model Shipment {
+  id             String   @id @default(cuid())
+  trackingNumber String   @unique
+  status         String   @default("processing") // processing | in_transit | out_for_delivery | delivered
+  carrier        String   @default("NikiMart Freight")
+  origin         String
+  destination    String
+  eta            DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  freightAgentId String?
+  freightAgent   User?   @relation("FreightAgent", fields: [freightAgentId], references: [id], onDelete: SetNull)
+}
