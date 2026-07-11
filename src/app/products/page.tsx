@@ -4,7 +4,7 @@ import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { categories, filterProducts, getCategoryBySlug } from "@/lib/mock-data";
+import { filterProducts, getCategories, getCategoryBySlug, getVendorNameMap } from "@/lib/catalog";
 import { BADGE_LABELS } from "@/lib/types";
 import type { BadgeKind } from "@/lib/types";
 import Link from "next/link";
@@ -28,14 +28,17 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
   const maxPriceRaw = first(sp.maxPrice);
   const maxPrice = maxPriceRaw ? Number(maxPriceRaw) : undefined;
 
-  const results = filterProducts({
-    q,
-    category,
-    badge,
-    maxPrice: Number.isFinite(maxPrice) ? maxPrice : undefined,
-  });
-
-  const activeCategory = category ? getCategoryBySlug(category) : undefined;
+  const [results, categories, vendorNames, activeCategory] = await Promise.all([
+    filterProducts({
+      q,
+      category,
+      badge,
+      maxPrice: Number.isFinite(maxPrice) ? maxPrice : undefined,
+    }),
+    getCategories(),
+    getVendorNameMap(),
+    category ? getCategoryBySlug(category) : Promise.resolve(undefined),
+  ]);
 
   let title = "All Products";
   if (q) title = `Results for “${q}”`;
@@ -81,7 +84,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
         </div>
 
         {results.length > 0 ? (
-          <ProductGrid products={results} />
+          <ProductGrid products={results} vendorNames={vendorNames} />
         ) : (
           <EmptyState
             icon={<SearchX className="h-6 w-6" />}

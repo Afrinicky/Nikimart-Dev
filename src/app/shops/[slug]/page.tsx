@@ -5,32 +5,25 @@ import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { EmptyState } from "@/components/ui/EmptyState";
-import {
-  getProductsByVendorId,
-  getVendorBySlug,
-  locations,
-  vendors,
-} from "@/lib/mock-data";
+import { locations } from "@/lib/mock-data";
+import { getProductsByVendorId, getVendorBySlug } from "@/lib/catalog";
 import { SELLER_TYPE_LABELS } from "@/lib/types";
 
 type Params = Promise<{ slug: string }>;
 
-export function generateStaticParams() {
-  return vendors.map((v) => ({ slug: v.slug }));
-}
-
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
-  const vendor = getVendorBySlug(slug);
+  const vendor = await getVendorBySlug(slug);
   return { title: vendor ? `${vendor.businessName} — NikiMart` : "Shop — NikiMart" };
 }
 
 export default async function ShopDetailPage({ params }: { params: Params }) {
   const { slug } = await params;
-  const vendor = getVendorBySlug(slug);
+  const vendor = await getVendorBySlug(slug);
   if (!vendor) notFound();
 
-  const items = getProductsByVendorId(vendor.id);
+  const items = await getProductsByVendorId(vendor.id);
+  const vendorNames = { [vendor.id]: vendor.businessName };
   const locationNames = vendor.locationIds
     .map((id) => locations.find((l) => l.id === id)?.name)
     .filter(Boolean) as string[];
@@ -93,7 +86,7 @@ export default async function ShopDetailPage({ params }: { params: Params }) {
           icon={<Store className="h-5 w-5 text-niki-orange" />}
         />
         {items.length > 0 ? (
-          <ProductGrid products={items} />
+          <ProductGrid products={items} vendorNames={vendorNames} />
         ) : (
           <EmptyState
             title="No products listed yet"

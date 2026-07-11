@@ -2,13 +2,17 @@ import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProductGrid } from "@/components/product/ProductGrid";
-import { serviceProducts } from "@/lib/mock-data";
+import { getServiceProducts, getVendorNameMap } from "@/lib/catalog";
 
 export const metadata: Metadata = {
   title: "Services — NikiMart",
 };
 
-export default function ServicesPage() {
+export default async function ServicesPage() {
+  const [serviceProducts, vendorNames] = await Promise.all([
+    getServiceProducts(),
+    getVendorNameMap(),
+  ]);
   return (
     <>
       <PageHeader
@@ -18,7 +22,7 @@ export default function ServicesPage() {
       />
 
       <Container className="py-8">
-        <ProductGrid products={serviceProducts} />
+        <ProductGrid products={serviceProducts} vendorNames={vendorNames} />
       </Container>
     </>
   );

@@ -1,10 +1,11 @@
 import { LayoutGrid } from "lucide-react";
-import { categories } from "@/lib/mock-data";
+import { getCategories } from "@/lib/catalog";
 import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { CategoryCard } from "@/components/category/CategoryCard";
 
-export function CategoryShowcase() {
+export async function CategoryShowcase() {
+  const categories = await getCategories();
   return (
     <section className="py-10 sm:py-12">
       <Container>

@@ -6,29 +6,28 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
-  categories,
   getCategoryBySlug,
   getProductsByCategoryId,
-} from "@/lib/mock-data";
+  getVendorNameMap,
+} from "@/lib/catalog";
 
 type Params = Promise<{ slug: string }>;
 
-export function generateStaticParams() {
-  return categories.map((c) => ({ slug: c.slug }));
-}
-
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
-  const category = getCategoryBySlug(slug);
+  const category = await getCategoryBySlug(slug);
   return { title: category ? `${category.name} — NikiMart` : "Category — NikiMart" };
 }
 
 export default async function CategoryPage({ params }: { params: Params }) {
   const { slug } = await params;
-  const category = getCategoryBySlug(slug);
+  const category = await getCategoryBySlug(slug);
   if (!category) notFound();
 
-  const items = getProductsByCategoryId(category.id);
+  const [items, vendorNames] = await Promise.all([
+    getProductsByCategoryId(category.id),
+    getVendorNameMap(),
+  ]);
 
   return (
     <>
@@ -40,7 +39,7 @@ export default async function CategoryPage({ params }: { params: Params }) {
 
       <Container className="py-8">
         {items.length > 0 ? (
-          <ProductGrid products={items} />
+          <ProductGrid products={items} vendorNames={vendorNames} />
         ) : (
           <EmptyState
             icon={<PackageSearch className="h-6 w-6" />}

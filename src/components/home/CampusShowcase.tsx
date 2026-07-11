@@ -2,7 +2,8 @@
 
 import { GraduationCap, MapPin, PackageCheck, Truck } from "lucide-react";
 import { useLocation } from "@/components/providers/LocationProvider";
-import { getProductsForLocation, getVendorsForLocation, locations } from "@/lib/mock-data";
+import { locations } from "@/lib/mock-data";
+import type { Product, Vendor } from "@/lib/types";
 import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ScrollRail, RailItem } from "@/components/ui/ScrollRail";
@@ -10,12 +11,29 @@ import { cn } from "@/lib/cn";
 import { VendorCard } from "@/components/vendor/VendorCard";
 import { ProductCard } from "@/components/product/ProductCard";
 
-export function CampusShowcase() {
+function matchesLocation(ids: string[], locationId: string): boolean {
+  if (locationId === "any") return true;
+  return ids.includes(locationId) || ids.includes("any");
+}
+
+export function CampusShowcase({
+  products,
+  vendors,
+  vendorNames,
+}: {
+  products: Product[];
+  vendors: Vendor[];
+  vendorNames?: Record<string, string>;
+}) {
   const { selectedLocationId, setSelectedLocationId } = useLocation();
   const selected = locations.find((l) => l.id === selectedLocationId) ?? locations[0];
 
-  const vendorMatches = getVendorsForLocation(selectedLocationId).slice(0, 6);
-  const productMatches = getProductsForLocation(selectedLocationId).slice(0, 10);
+  const vendorMatches = vendors
+    .filter((v) => matchesLocation(v.locationIds, selectedLocationId))
+    .slice(0, 6);
+  const productMatches = products
+    .filter((p) => matchesLocation(p.locationIds, selectedLocationId))
+    .slice(0, 10);
   const sameDayCount = productMatches.filter((p) => p.sameDayDeliveryAvailable).length;
   const pickupCount = productMatches.filter((p) => p.pickupAvailable).length;
 
@@ -86,7 +104,7 @@ export function CampusShowcase() {
             <ScrollRail>
               {productMatches.map((product) => (
                 <RailItem key={product.id}>
-                  <ProductCard product={product} />
+                  <ProductCard product={product} vendorName={vendorNames?.[product.vendorId]} />
                 </RailItem>
               ))}
             </ScrollRail>
