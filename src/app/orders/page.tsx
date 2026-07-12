@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ClipboardList, MapPin, Truck } from "lucide-react";
+import { CheckCircle2, ClipboardList, MapPin, Truck } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -16,8 +16,13 @@ export const metadata: Metadata = {
   title: "My Orders — NikiMart",
 };
 
-export default async function OrdersPage() {
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ placed?: string }>;
+}) {
   const user = await requireUser();
+  const { placed } = await searchParams;
 
   const orders = await prisma.order.findMany({
     where: { userId: user.id },
@@ -33,6 +38,12 @@ export default async function OrdersPage() {
     <>
       <PageHeader title="My Orders" crumbs={[{ label: "Orders" }]} />
       <Container className="py-8">
+        {placed ? (
+          <div className="mb-6 flex items-center gap-3 rounded-2xl bg-niki-success/10 p-4 text-sm font-medium text-niki-success ring-1 ring-niki-success/20">
+            <CheckCircle2 className="h-5 w-5 shrink-0" />
+            Order <span className="font-bold">{placed}</span> placed successfully — thank you! Track it below.
+          </div>
+        ) : null}
         {orders.length === 0 ? (
           <EmptyState
             icon={<ClipboardList className="h-6 w-6" />}
