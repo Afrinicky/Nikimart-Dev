@@ -102,12 +102,34 @@ You can also register a brand-new customer at `/register`.
 | `/freight` | Freight, Admin         |
 | `/pickup`  | Pickup, Admin          |
 
+## Admin console
+
+Signed in as an **Admin**, `/admin` is a full operator console (tabbed shell):
+
+- **Products / Shops / Categories / Users** — create, edit, delete; shops have
+  verify/unverify; users have role assignment.
+- **Orders** — inline status changes.
+- **Pages** — a section-based **page builder** (see below).
+
+All admin mutations run through admin-only server actions (`requireAdmin`) and
+revalidate the storefront, so edits appear on the public site immediately.
+
+## Page builder
+
+The homepage (and any custom page under `/pages/<slug>`) is composed of ordered
+**section blocks** stored in the DB (`Page` / `PageSection`). From
+`/admin/pages` an admin can reorder, show/hide, edit, and add/remove blocks
+(hero, category grid, product rails bound to a collection, shop rails, campus,
+rich text, banners). Until a page is initialised in the DB the storefront falls
+back to built-in defaults, so the site renders even before the tables exist.
+
 ## Data model
 
 Prisma schema (`prisma/schema.prisma`) covers the Auth.js tables plus the
 application domain: `Category`, `Vendor`, `Product`, `Order`, `OrderItem`,
-`PickupPoint`, and `Shipment`. The datasource is PostgreSQL in every
-environment; set `DATABASE_URL` accordingly.
+`PickupPoint`, `Shipment`, and the page builder (`Page`, `PageSection`,
+`SiteSetting`). The datasource is PostgreSQL in every environment; set
+`DATABASE_URL` accordingly.
 
 ## Useful scripts
 

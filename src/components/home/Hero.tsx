@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, Clock3, GraduationCap, Sparkles, Store, Zap } from "lucide-react";
 import { Container } from "@/components/ui/Container";
-import { categories, locations, vendors } from "@/lib/mock-data";
+import { locations } from "@/lib/mock-data";
+import { getCategories, getVendors } from "@/lib/catalog";
 
 const DEAL_CARDS = [
   {
@@ -24,7 +25,8 @@ const DEAL_CARDS = [
   },
 ];
 
-export function Hero() {
+export async function Hero() {
+  const [categories, vendors] = await Promise.all([getCategories(), getVendors()]);
   return (
     <section className="niki-gradient-hero relative overflow-hidden">
       <div className="pointer-events-none absolute -left-24 top-10 h-72 w-72 rounded-full bg-niki-orange/20 blur-3xl" />

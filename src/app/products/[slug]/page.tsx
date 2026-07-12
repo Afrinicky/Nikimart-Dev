@@ -18,37 +18,37 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { ProductImagePlaceholder } from "@/components/product/ProductImagePlaceholder";
 import { Badge } from "@/components/ui/Badge";
+import { getProductImage } from "@/lib/mock-data";
 import {
-  getCategoryById,
+  getCategories,
   getProductBySlug,
-  getProductImage,
   getRelatedProducts,
   getVendorById,
-  products,
-} from "@/lib/mock-data";
+  getVendorNameMap,
+} from "@/lib/catalog";
 import { discountPercent, formatPrice } from "@/lib/format";
 
 type Params = Promise<{ slug: string }>;
 
-export function generateStaticParams() {
-  return products.map((p) => ({ slug: p.slug }));
-}
-
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getProductBySlug(slug);
   return { title: product ? `${product.name} — NikiMart` : "Product — NikiMart" };
 }
 
 export default async function ProductDetailPage({ params }: { params: Params }) {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const vendor = getVendorById(product.vendorId);
-  const category = getCategoryById(product.categoryId);
+  const [vendor, categories, related, vendorNames] = await Promise.all([
+    getVendorById(product.vendorId),
+    getCategories(),
+    getRelatedProducts(product),
+    getVendorNameMap(),
+  ]);
+  const category = categories.find((c) => c.id === product.categoryId);
   const discount = discountPercent(product.price, product.oldPrice);
-  const related = getRelatedProducts(product);
 
   const deliveryOptions = [
     product.sameDayDeliveryAvailable && { icon: Truck, label: "Same-day delivery available" },
@@ -196,7 +196,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         {related.length > 0 ? (
           <div className="mt-14">
             <SectionHeading title="You may also like" />
-            <ProductGrid products={related} />
+            <ProductGrid products={related} vendorNames={vendorNames} />
           </div>
         ) : null}
       </Container>

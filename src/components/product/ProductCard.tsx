@@ -2,12 +2,11 @@ import Link from "next/link";
 import { GraduationCap, Heart, MapPin, Star, Truck } from "lucide-react";
 import type { Product } from "@/lib/types";
 import { discountPercent, formatPrice } from "@/lib/format";
-import { getProductImage, getVendorById } from "@/lib/mock-data";
+import { getProductImage } from "@/lib/mock-data";
 import { ProductImagePlaceholder } from "./ProductImagePlaceholder";
 import { Badge } from "@/components/ui/Badge";
 
-export function ProductCard({ product }: { product: Product }) {
-  const vendor = getVendorById(product.vendorId);
+export function ProductCard({ product, vendorName }: { product: Product; vendorName?: string }) {
   const discount = discountPercent(product.price, product.oldPrice);
   const primaryBadges = product.badges.slice(0, 2);
 
@@ -47,9 +46,9 @@ export function ProductCard({ product }: { product: Product }) {
       </div>
 
       <div className="relative z-0 flex flex-1 flex-col gap-1.5 p-3 pointer-events-none">
-        {vendor ? (
+        {vendorName ? (
           <span className="truncate text-[11px] font-medium text-niki-ink/50">
-            {vendor.businessName}
+            {vendorName}
           </span>
         ) : null}
 

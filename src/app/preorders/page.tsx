@@ -2,13 +2,17 @@ import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProductGrid } from "@/components/product/ProductGrid";
-import { preorderProducts } from "@/lib/mock-data";
+import { getPreorderProducts, getVendorNameMap } from "@/lib/catalog";
 
 export const metadata: Metadata = {
   title: "Preorder Deals — NikiMart",
 };
 
-export default function PreordersPage() {
+export default async function PreordersPage() {
+  const [preorderProducts, vendorNames] = await Promise.all([
+    getPreorderProducts(),
+    getVendorNameMap(),
+  ]);
   return (
     <>
       <PageHeader
@@ -25,7 +29,7 @@ export default function PreordersPage() {
           rule, and refund policy on each product before ordering.
         </div>
 
-        <ProductGrid products={preorderProducts} />
+        <ProductGrid products={preorderProducts} vendorNames={vendorNames} />
       </Container>
     </>
   );

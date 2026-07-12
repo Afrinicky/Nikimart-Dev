@@ -4,9 +4,11 @@ import { cn } from "@/lib/cn";
 
 export function ProductGrid({
   products,
+  vendorNames,
   className,
 }: {
   products: Product[];
+  vendorNames?: Record<string, string>;
   className?: string;
 }) {
   return (
@@ -17,7 +19,7 @@ export function ProductGrid({
       )}
     >
       {products.map((product) => (
-        <ProductCard key={product.id} product={product} />
+        <ProductCard key={product.id} product={product} vendorName={vendorNames?.[product.vendorId]} />
       ))}
     </div>
   );

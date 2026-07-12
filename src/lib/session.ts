@@ -36,3 +36,12 @@ export async function requireDashboard(pathname: string): Promise<SessionUser> {
   }
   return user;
 }
+
+/** Guards an admin-only server action. Throws if the caller isn't an admin. */
+export async function requireAdmin(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") {
+    throw new Error("Forbidden: admin access required.");
+  }
+  return user;
+}

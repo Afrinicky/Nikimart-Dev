@@ -1,10 +1,6 @@
 import type { Metadata } from "next";
-import { ShieldCheck } from "lucide-react";
 import { Container } from "@/components/ui/Container";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
-import { LogoutButton } from "@/components/auth/LogoutButton";
-import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
@@ -15,8 +11,6 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminDashboardPage() {
-  const user = await requireDashboard("/admin");
-
   const [
     userCount,
     vendorCount,
@@ -42,22 +36,15 @@ export default async function AdminDashboardPage() {
 
   return (
     <>
-      <PageHeader
-        title="Admin Dashboard"
-        subtitle="Platform-wide overview of users, shops, products, and orders."
-        crumbs={[{ label: "Admin" }]}
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="flex items-center gap-2 rounded-full bg-niki-navy px-4 py-2 text-sm font-medium text-white">
-            <ShieldCheck className="h-4 w-4 text-niki-orange" />
-            {user.name}
-          </span>
-          <LogoutButton />
-        </div>
-      </PageHeader>
-
       <Container className="py-8">
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-niki-ink">Overview</h1>
+          <p className="mt-1 text-sm text-niki-ink/60">
+            Platform-wide metrics for users, shops, products, and orders.
+          </p>
+        </div>
+
+        <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard label="Total users" value={userCount} />
           <StatCard label="Shops" value={vendorCount} />
           <StatCard label="Products" value={productCount} />
