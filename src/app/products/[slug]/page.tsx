@@ -7,7 +7,6 @@ import {
   GraduationCap,
   MapPin,
   ShieldCheck,
-  ShoppingCart,
   Star,
   Store,
   Truck,
@@ -17,6 +16,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { ProductImagePlaceholder } from "@/components/product/ProductImagePlaceholder";
+import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { Badge } from "@/components/ui/Badge";
 import { getProductImage } from "@/lib/mock-data";
 import {
@@ -170,20 +170,21 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
               </div>
             ) : null}
 
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Link
-                href="/cart"
-                className="flex items-center gap-2 rounded-full bg-niki-orange px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-niki-orange/30 transition-colors hover:bg-niki-orange-light"
-              >
-                <ShoppingCart className="h-4 w-4" />
-                {product.productType === "service" ? "Book service" : "Add to cart"}
-              </Link>
-              <Link
-                href="/checkout"
-                className="flex items-center gap-2 rounded-full bg-niki-navy px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-niki-navy-light"
-              >
-                Buy now
-              </Link>
+            <div className="mt-7">
+              <AddToCartButton
+                addLabel={product.productType === "service" ? "Book service" : "Add to cart"}
+                item={{
+                  productId: product.id,
+                  slug: product.slug,
+                  name: product.name,
+                  price: product.price,
+                  emoji: product.emoji,
+                  gradientFrom: product.gradientFrom,
+                  gradientTo: product.gradientTo,
+                  image: product.image,
+                  vendorId: product.vendorId,
+                }}
+              />
             </div>
 
             <p className="mt-4 flex items-center gap-2 text-xs text-niki-ink/50">

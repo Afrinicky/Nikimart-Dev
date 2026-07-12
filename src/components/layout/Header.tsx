@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ClipboardList, HelpCircle, ShoppingCart, Store, User } from "lucide-react";
+import { ClipboardList, HelpCircle, Store, User } from "lucide-react";
 import { SearchBar } from "./SearchBar";
 import { LocationSelector } from "./LocationSelector";
+import { CartBadge } from "@/components/cart/CartBadge";
 import { Container } from "@/components/ui/Container";
 import { auth } from "@/lib/auth";
 import { isRole, ROLE_HOME, ROLE_LABELS } from "@/lib/roles";
@@ -55,14 +56,7 @@ export async function Header() {
             <span className="hidden text-[10px] font-medium sm:block">Orders</span>
           </Link>
 
-          <Link
-            href="/cart"
-            className="flex flex-col items-center gap-0.5 rounded-xl px-2.5 py-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
-            aria-label="Cart"
-          >
-            <ShoppingCart className="h-5 w-5" />
-            <span className="hidden text-[10px] font-medium sm:block">Cart</span>
-          </Link>
+          <CartBadge />
 
           {role && role !== "CUSTOMER" ? (
             <Link
