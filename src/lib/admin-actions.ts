@@ -7,6 +7,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 import { ROLES } from "@/lib/roles";
+import { buildProductData, parseImages, validateProduct } from "@/lib/product-form";
+import { syncProductImages } from "@/lib/product-images";
 
 export type CrudState = { error?: string; fieldErrors?: Record<string, string> };
 
@@ -65,56 +67,17 @@ function revalidateCatalog() {
 // PRODUCTS
 // ===========================================================================
 
-const productSchema = z.object({
-  name: z.string().trim().min(2, "Name is required."),
-  description: z.string().trim().min(1, "Description is required."),
-  price: z.number({ message: "Price is required." }).min(0, "Price must be ≥ 0."),
-  categoryId: z.string().trim().min(1, "Choose a category."),
-  vendorId: z.string().trim().min(1, "Choose a shop."),
-});
-
-function productData(fd: FormData) {
-  const name = str(fd, "name");
-  return {
-    name,
-    slug: optStr(fd, "slug") ? slugify(str(fd, "slug")) : slugify(name),
-    description: str(fd, "description"),
-    price: num(fd, "price") ?? 0,
-    oldPrice: num(fd, "oldPrice") ?? null,
-    stockQuantity: num(fd, "stockQuantity") ?? 0,
-    productType: str(fd, "productType") || "in_stock",
-    categoryId: str(fd, "categoryId"),
-    vendorId: str(fd, "vendorId"),
-    emoji: optStr(fd, "emoji") ?? "🛍️",
-    image: optStr(fd, "image") ?? null,
-    gradientFrom: optStr(fd, "gradientFrom") ?? "#0e1f36",
-    gradientTo: optStr(fd, "gradientTo") ?? "#07111f",
-    badges: JSON.stringify(csv(fd, "badges")),
-    locationIds: JSON.stringify(csv(fd, "locationIds").length ? csv(fd, "locationIds") : ["any"]),
-    isFeatured: bool(fd, "isFeatured"),
-    isOfficial: bool(fd, "isOfficial"),
-    pickupAvailable: bool(fd, "pickupAvailable"),
-    campusDeliveryAvailable: bool(fd, "campusDeliveryAvailable"),
-    sameDayDeliveryAvailable: bool(fd, "sameDayDeliveryAvailable"),
-  };
-}
-
 export async function createProduct(_prev: CrudState, fd: FormData): Promise<CrudState> {
   await requireAdmin();
-  const parsed = productSchema.safeParse({
-    name: str(fd, "name"),
-    description: str(fd, "description"),
-    price: num(fd, "price"),
-    categoryId: str(fd, "categoryId"),
-    vendorId: str(fd, "vendorId"),
-  });
+  const parsed = validateProduct(fd);
   if (!parsed.success) return zodErrors(parsed.error);
 
-  const data = productData(fd);
+  const data = buildProductData(fd);
   const existing = await prisma.product.findUnique({ where: { slug: data.slug } });
   if (existing) return { error: "Slug already in use.", fieldErrors: { slug: "Already exists." } };
 
-  await prisma.product.create({ data });
+  const product = await prisma.product.create({ data });
+  await syncProductImages(product.id, parseImages(fd));
   revalidatePath("/admin/products");
   revalidateCatalog();
   redirect("/admin/products");
@@ -122,20 +85,15 @@ export async function createProduct(_prev: CrudState, fd: FormData): Promise<Cru
 
 export async function updateProduct(id: string, _prev: CrudState, fd: FormData): Promise<CrudState> {
   await requireAdmin();
-  const parsed = productSchema.safeParse({
-    name: str(fd, "name"),
-    description: str(fd, "description"),
-    price: num(fd, "price"),
-    categoryId: str(fd, "categoryId"),
-    vendorId: str(fd, "vendorId"),
-  });
+  const parsed = validateProduct(fd);
   if (!parsed.success) return zodErrors(parsed.error);
 
-  const data = productData(fd);
+  const data = buildProductData(fd);
   const clash = await prisma.product.findFirst({ where: { slug: data.slug, NOT: { id } } });
   if (clash) return { error: "Slug already in use.", fieldErrors: { slug: "Already exists." } };
 
   await prisma.product.update({ where: { id }, data });
+  await syncProductImages(id, parseImages(fd));
   revalidatePath("/admin/products");
   revalidateCatalog();
   redirect("/admin/products");
@@ -415,8 +373,15 @@ export async function setOrderStatus(fd: FormData): Promise<void> {
   const status = str(fd, "status");
   if (id && ORDER_STATUSES.includes(status)) {
     await prisma.order.update({ where: { id }, data: { status } });
+    // A manual order-status change pins its shipment (stops auto-progression),
+    // and keeps the shipment stage roughly in sync for terminal states.
+    const shipmentData: { manualHold: boolean; status?: string } = { manualHold: true };
+    if (status === "delivered") shipmentData.status = "delivered";
+    await prisma.shipment.updateMany({ where: { orderId: id }, data: shipmentData });
     revalidatePath("/admin/orders");
     revalidatePath("/account");
+    revalidatePath("/freight");
+    revalidatePath("/pickup");
   }
 }
 

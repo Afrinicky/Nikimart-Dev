@@ -138,17 +138,31 @@ model Product {
   gradientFrom             String
   gradientTo               String
   emoji                    String
+  // Primary image (kept for backward-compat / fallback); the gallery lives in
+  // ProductImage. May be an http(s) URL or a data: URL.
   image                    String?
   // JSON-encoded PreorderInfo / ServiceInfo objects (nullable).
   preorderInfo             String?
   serviceInfo              String?
+  // JSON-encoded array of { label, value } key attributes (spec table).
+  attributes               String   @default("[]")
 
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id])
   vendorId   String
   vendor     Vendor   @relation(fields: [vendorId], references: [id])
 
+  images     ProductImage[]
   orderItems OrderItem[]
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // http(s) URL or a data: URL (base64) for device uploads.
+  url       String
+  order     Int     @default(0)
 }
 
 // ---------------------------------------------------------------------------
@@ -207,6 +221,8 @@ model Shipment {
   id             String   @id @default(cuid())
   trackingNumber String   @unique
   status         String   @default("processing") // processing | in_transit | out_for_delivery | delivered
+  // When true, a human set the status — automatic time-based progression stops.
+  manualHold     Boolean  @default(false)
   carrier        String   @default("NikiMart Freight")
   origin         String
   destination    String
@@ -250,4 +266,20 @@ model PageSection {
 model SiteSetting {
   key   String @id
   value String
+}
+
+model Faq {
+  id       String @id @default(cuid())
+  question String
+  answer   String
+  order    Int    @default(0)
+}
+
+model Location {
+  id       String  @id @default(cuid())
+  name     String
+  type     String  @default("city") // city | town | campus | institution | community
+  region   String
+  isActive Boolean @default(true)
+  order    Int     @default(0)
 }

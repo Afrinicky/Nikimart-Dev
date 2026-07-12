@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import type {
   BadgeKind,
   Category,
+  KeyAttribute,
   PreorderInfo,
   Product,
   ProductType,
@@ -66,7 +67,8 @@ export function mapVendor(v: PrismaVendor): Vendor {
   };
 }
 
-export function mapProduct(p: PrismaProduct): Product {
+export function mapProduct(p: PrismaProduct & { images?: { url: string }[] }): Product {
+  const gallery = (p.images ?? []).map((i) => i.url);
   return {
     id: p.id,
     slug: p.slug,
@@ -90,7 +92,9 @@ export function mapProduct(p: PrismaProduct): Product {
     gradientFrom: p.gradientFrom,
     gradientTo: p.gradientTo,
     emoji: p.emoji,
-    image: p.image ?? undefined,
+    image: gallery[0] ?? p.image ?? undefined,
+    images: gallery.length ? gallery : p.image ? [p.image] : [],
+    attributes: parseJSON<KeyAttribute[]>(p.attributes, []),
     preorderInfo: p.preorderInfo ? parseJSON<PreorderInfo | undefined>(p.preorderInfo, undefined) : undefined,
     serviceInfo: p.serviceInfo ? parseJSON<ServiceInfo | undefined>(p.serviceInfo, undefined) : undefined,
   };
@@ -113,7 +117,10 @@ export const getVendors = cache(async (): Promise<Vendor[]> => {
 });
 
 export const getProducts = cache(async (): Promise<Product[]> => {
-  const rows = await prisma.product.findMany({ orderBy: { name: "asc" } });
+  const rows = await prisma.product.findMany({
+    orderBy: { name: "asc" },
+    include: { images: { orderBy: { order: "asc" } } },
+  });
   return rows.map(mapProduct);
 });
 

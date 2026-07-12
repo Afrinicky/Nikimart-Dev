@@ -160,6 +160,15 @@ export interface Product {
    * file is missing it gracefully shows the gradient + emoji placeholder.
    */
   image?: string;
+  /** Gallery image URLs (http(s) or data: URLs). First is the primary. */
+  images?: string[];
+  /** Key attributes / spec table rows. */
+  attributes?: KeyAttribute[];
   preorderInfo?: PreorderInfo;
   serviceInfo?: ServiceInfo;
+}
+
+export interface KeyAttribute {
+  label: string;
+  value: string;
 }

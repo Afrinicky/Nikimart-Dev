@@ -15,7 +15,7 @@ type Params = Promise<{ id: string }>;
 export default async function EditProductPage({ params }: { params: Params }) {
   const { id } = await params;
   const [row, categories, vendors] = await Promise.all([
-    prisma.product.findUnique({ where: { id } }),
+    prisma.product.findUnique({ where: { id }, include: { images: { orderBy: { order: "asc" } } } }),
     prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.vendor.findMany({ orderBy: { businessName: "asc" }, select: { id: true, businessName: true } }),
   ]);

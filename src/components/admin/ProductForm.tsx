@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
+import { ProductImagesField } from "@/components/admin/ProductImagesField";
+import { KeyAttributesField } from "@/components/admin/KeyAttributesField";
 import type { CrudState } from "@/lib/admin-actions";
 import type { Product } from "@/lib/types";
 
@@ -22,12 +24,15 @@ export function ProductForm({
   vendors,
   product,
   submitLabel,
+  lockedVendorId,
 }: {
   action: Action;
   categories: { id: string; name: string }[];
   vendors: { id: string; businessName: string }[];
   product?: Product;
   submitLabel: string;
+  /** When set, the vendor is fixed (seller flow) — no shop picker is shown. */
+  lockedVendorId?: string;
 }) {
   const [state, formAction] = useActionState<CrudState, FormData>(action, {});
   const p = product;
@@ -78,18 +83,22 @@ export function ProductForm({
             ))}
           </select>
         </Field>
-        <Field label="Shop" htmlFor="vendorId" hint={state.fieldErrors?.vendorId}>
-          <select id="vendorId" name="vendorId" defaultValue={p?.vendorId ?? ""} required className={inputClass}>
-            <option value="" disabled>
-              Choose…
-            </option>
-            {vendors.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.businessName}
+        {lockedVendorId ? (
+          <input type="hidden" name="vendorId" value={lockedVendorId} />
+        ) : (
+          <Field label="Shop" htmlFor="vendorId" hint={state.fieldErrors?.vendorId}>
+            <select id="vendorId" name="vendorId" defaultValue={p?.vendorId ?? ""} required className={inputClass}>
+              <option value="" disabled>
+                Choose…
               </option>
-            ))}
-          </select>
-        </Field>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.businessName}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         <Field label="Product type" htmlFor="productType">
           <select id="productType" name="productType" defaultValue={p?.productType ?? "in_stock"} className={inputClass}>
             {PRODUCT_TYPES.map((t) => (
@@ -101,17 +110,18 @@ export function ProductForm({
         </Field>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Emoji" htmlFor="emoji" hint="Fallback icon">
+      <ProductImagesField initial={p?.images} />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Emoji" htmlFor="emoji" hint="Fallback icon when there's no image">
           <input id="emoji" name="emoji" defaultValue={p?.emoji ?? "🛍️"} className={inputClass} />
-        </Field>
-        <Field label="Image URL (optional)" htmlFor="image">
-          <input id="image" name="image" defaultValue={p?.image ?? ""} placeholder="/products/slug.jpg" className={inputClass} />
         </Field>
         <Field label="Badges (comma-separated)" htmlFor="badges" hint="e.g. in_stock, flash_sale">
           <input id="badges" name="badges" defaultValue={p?.badges.join(", ")} className={inputClass} />
         </Field>
       </div>
+
+      <KeyAttributesField initial={p?.attributes} />
 
       <fieldset className="rounded-xl bg-niki-surface p-4 ring-1 ring-black/5">
         <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-niki-ink/50">

@@ -1,20 +1,27 @@
 "use client";
 
 import { createContext, useContext, useState, type ReactNode } from "react";
-import { locations } from "@/lib/mock-data";
+import type { Location } from "@/lib/types";
 
 interface LocationContextValue {
+  locations: Location[];
   selectedLocationId: string;
   setSelectedLocationId: (id: string) => void;
 }
 
 const LocationContext = createContext<LocationContextValue | null>(null);
 
-export function LocationProvider({ children }: { children: ReactNode }) {
+export function LocationProvider({
+  children,
+  locations,
+}: {
+  children: ReactNode;
+  locations: Location[];
+}) {
   const [selectedLocationId, setSelectedLocationId] = useState<string>("any");
 
   return (
-    <LocationContext.Provider value={{ selectedLocationId, setSelectedLocationId }}>
+    <LocationContext.Provider value={{ locations, selectedLocationId, setSelectedLocationId }}>
       {children}
     </LocationContext.Provider>
   );
@@ -29,6 +36,6 @@ export function useLocation() {
 }
 
 export function useSelectedLocation() {
-  const { selectedLocationId } = useLocation();
+  const { locations, selectedLocationId } = useLocation();
   return locations.find((l) => l.id === selectedLocationId) ?? locations[0];
 }

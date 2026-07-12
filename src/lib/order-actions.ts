@@ -4,8 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-
-const DELIVERY_FEE = 20;
+import { getDeliveryFee } from "@/lib/settings";
 
 const payloadSchema = z.object({
   items: z
@@ -58,7 +57,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   }
 
   const subtotal = lineItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
-  const deliveryFee = data.deliveryMethod === "pickup" ? 0 : DELIVERY_FEE;
+  const deliveryFee = data.deliveryMethod === "pickup" ? 0 : await getDeliveryFee();
   const total = subtotal + deliveryFee;
 
   // A freight agent to carry delivery consignments, if one exists.

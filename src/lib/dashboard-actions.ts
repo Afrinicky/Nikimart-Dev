@@ -23,7 +23,7 @@ export async function advanceShipmentAction(formData: FormData) {
 
   await prisma.shipment.update({
     where: { id: shipmentId },
-    data: { status: next },
+    data: { status: next, manualHold: true },
   });
 
   // Keep the parent order in step with its shipment.
@@ -57,7 +57,7 @@ export async function markCollectedAction(formData: FormData) {
   if (order.shipment) {
     await prisma.shipment.update({
       where: { orderId },
-      data: { status: "delivered" },
+      data: { status: "delivered", manualHold: true },
     });
   }
 

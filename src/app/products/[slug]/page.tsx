@@ -15,10 +15,9 @@ import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ProductGrid } from "@/components/product/ProductGrid";
-import { ProductImagePlaceholder } from "@/components/product/ProductImagePlaceholder";
+import { ProductGallery } from "@/components/product/ProductGallery";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { Badge } from "@/components/ui/Badge";
-import { getProductImage } from "@/lib/mock-data";
 import {
   getCategories,
   getProductBySlug,
@@ -69,20 +68,21 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
 
       <Container className="py-8">
         <div className="grid gap-8 lg:grid-cols-2">
-          <div className="relative overflow-hidden rounded-3xl ring-1 ring-black/5">
-            <ProductImagePlaceholder
+          <div>
+            <ProductGallery
+              images={product.images ?? []}
               gradientFrom={product.gradientFrom}
               gradientTo={product.gradientTo}
               emoji={product.emoji}
-              imageUrl={getProductImage(product)}
               alt={product.name}
-              className="aspect-square w-full"
             />
-            <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
-              {product.badges.map((b) => (
-                <Badge key={b} kind={b} />
-              ))}
-            </div>
+            {product.badges.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {product.badges.map((b) => (
+                  <Badge key={b} kind={b} />
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div>
@@ -128,6 +128,26 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
             </div>
 
             <p className="mt-5 text-sm leading-relaxed text-niki-ink/70">{product.description}</p>
+
+            {product.attributes && product.attributes.length > 0 ? (
+              <div className="mt-6">
+                <h2 className="font-display text-sm font-bold uppercase tracking-wide text-niki-ink/70">
+                  Key attributes
+                </h2>
+                <div className="mt-2 overflow-hidden rounded-xl ring-1 ring-black/5">
+                  <table className="w-full text-sm">
+                    <tbody className="divide-y divide-black/5">
+                      {product.attributes.map((attr, i) => (
+                        <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-niki-surface"}>
+                          <th className="w-2/5 px-4 py-2.5 text-left font-medium text-niki-ink/60">{attr.label}</th>
+                          <td className="px-4 py-2.5 font-medium text-niki-ink">{attr.value}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
 
             {product.preorderInfo ? (
               <div className="mt-5 rounded-2xl bg-niki-gold/10 p-4 text-sm ring-1 ring-niki-gold/30">
