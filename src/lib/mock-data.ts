@@ -592,8 +592,11 @@ export const featuredProducts = products.filter((p) => p.isFeatured);
  * To swap a photo: either set `image` on the product below, or drop a new
  * file at public/products/<slug>.jpg (keeping the same name).
  */
-export function getProductImage(product: Product): string {
-  return product.image ?? `/products/${product.slug}.jpg`;
+export function getProductImage(product: Product): string | undefined {
+  // DB-driven: the primary gallery image, else the single image field.
+  // No hardcoded /products/<slug>.jpg fallback — a product with no images
+  // shows the gradient + emoji placeholder (and its images stay editable).
+  return product.images?.[0] ?? product.image;
 }
 
 export function getVendorById(id: string): Vendor | undefined {

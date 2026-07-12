@@ -109,7 +109,8 @@ async function main() {
       gradientFrom: p.gradientFrom,
       gradientTo: p.gradientTo,
       emoji: p.emoji,
-      image: p.image ?? null,
+      // Give seeded products their bundled photo as an editable primary image.
+      image: p.image ?? `/products/${p.slug}.jpg`,
       preorderInfo: p.preorderInfo ? JSON.stringify(p.preorderInfo) : null,
       serviceInfo: p.serviceInfo ? JSON.stringify(p.serviceInfo) : null,
       categoryId: p.categoryId,
