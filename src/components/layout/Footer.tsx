@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Container } from "@/components/ui/Container";
+import { getSettings } from "@/lib/settings";
 
 const FOOTER_COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
@@ -45,7 +46,8 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; href: string }[] 
   },
 ];
 
-export function Footer() {
+export async function Footer() {
+  const settings = await getSettings();
   return (
     <footer className="bg-niki-navy pb-16 text-white/70 sm:pb-0">
       <Container className="grid grid-cols-2 gap-8 py-12 sm:grid-cols-4 lg:grid-cols-5">
@@ -58,9 +60,10 @@ export function Footer() {
               Niki<span className="text-niki-orange">Mart</span>
             </span>
           </div>
-          <p className="mt-3 text-sm">Shop smart. Sell faster. Deliver closer.</p>
-          <p className="mt-3 text-xs text-white/40">
-            Buy local. Preorder global. Shop NikiMart.
+          <p className="mt-3 text-sm">{settings.footerTagline}</p>
+          <p className="mt-3 text-xs text-white/40">{settings.footerNote}</p>
+          <p className="mt-3 text-xs text-white/50">
+            {settings.supportEmail} · {settings.supportPhone}
           </p>
         </div>
 
@@ -85,12 +88,10 @@ export function Footer() {
 
       <div className="border-t border-white/10">
         <Container className="flex flex-col gap-3 py-5 text-xs text-white/40 sm:flex-row sm:items-center sm:justify-between">
-          <p>&copy; {new Date().getFullYear()} NikiMart. All rights reserved.</p>
-          <p className="max-w-xl">
-            NikiMart restricts dangerous, illegal, and age-restricted products including weapons,
-            alcohol, nicotine, drugs, gambling, adult content, counterfeit goods, and prescription
-            medicine.
+          <p>
+            &copy; {new Date().getFullYear()} {settings.copyrightName}. All rights reserved.
           </p>
+          <p className="max-w-xl">{settings.restrictionsText}</p>
         </Container>
       </div>
     </footer>

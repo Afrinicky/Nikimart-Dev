@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { categories, vendors, products } from "../src/lib/mock-data";
+import { categories, vendors, products, locations } from "../src/lib/mock-data";
 
 const prisma = new PrismaClient();
 
@@ -51,6 +51,18 @@ async function main() {
         description: c.description,
         productCount: c.productCount,
       },
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Locations — same ids as the static list so product/vendor tagging matches.
+  // -------------------------------------------------------------------------
+  for (const [index, l] of locations.entries()) {
+    const locData = { name: l.name, type: l.type, region: l.region, isActive: l.isActive, order: index };
+    await prisma.location.upsert({
+      where: { id: l.id },
+      update: locData,
+      create: { id: l.id, ...locData },
     });
   }
 
@@ -264,6 +276,24 @@ async function main() {
           },
         },
       },
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // FAQs (default Help-page entries, editable in the admin).
+  // -------------------------------------------------------------------------
+  const faqs = [
+    { id: "faq-delivery", question: "How does delivery and pickup work?", answer: "Many sellers offer same-day delivery, campus drop-off, or in-person pickup. The available options are shown on each product page and at checkout." },
+    { id: "faq-preorder", question: "How do preorders work?", answer: "Preorder items are imported on order. You pay a deposit to reserve your item, then settle the balance on arrival before delivery or pickup. Review each product's arrival estimate and refund policy first." },
+    { id: "faq-pay", question: "How do I pay?", answer: "NikiMart supports local payments including Mobile Money and card. You choose your payment method at checkout." },
+    { id: "faq-sell", question: "How do I become a seller?", answer: "Head to “Sell on NikiMart”, register your shop, complete quick verification, and start listing products, preorders, or services." },
+    { id: "faq-protection", question: "Is my purchase protected?", answer: "Yes. Orders are covered by NikiMart Buyer Protection. If something goes wrong, our support team helps resolve it." },
+  ];
+  for (const [index, f] of faqs.entries()) {
+    await prisma.faq.upsert({
+      where: { id: f.id },
+      update: { question: f.question, answer: f.answer, order: index },
+      create: { id: f.id, question: f.question, answer: f.answer, order: index },
     });
   }
 

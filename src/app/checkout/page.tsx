@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { CheckoutClient } from "@/components/cart/CheckoutClient";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getDeliveryFee } from "@/lib/settings";
 
 export const metadata: Metadata = {
   title: "Checkout — NikiMart",
@@ -41,7 +42,7 @@ export default async function CheckoutPage() {
             </p>
           </div>
         ) : (
-          <CheckoutClient pickupPoints={await getActivePickupPoints()} />
+          <CheckoutClient pickupPoints={await getActivePickupPoints()} deliveryFee={await getDeliveryFee()} />
         )}
       </Container>
     </>

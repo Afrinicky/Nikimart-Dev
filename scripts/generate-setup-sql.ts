@@ -12,7 +12,7 @@ import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import bcrypt from "bcryptjs";
-import { categories, vendors, products } from "../src/lib/mock-data";
+import { categories, vendors, products, locations } from "../src/lib/mock-data";
 
 const MIGRATIONS_DIR = path.join(process.cwd(), "prisma", "migrations");
 // All migrations, in chronological (name) order.
@@ -36,6 +36,9 @@ const TABLES = [
   "PageSection",
   "Page",
   "SiteSetting",
+  "Faq",
+  "Location",
+  "ProductImage",
   "Shipment",
   "OrderItem",
   "Order",
@@ -168,6 +171,27 @@ for (const o of orders) {
   );
 }
 out.push("");
+out.push("-- Locations (same ids as the app's static list) ---------------------");
+locations.forEach((l, i) => {
+  out.push(
+    `INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES (${q(l.id)}, ${q(l.name)}, ${q(l.type)}, ${q(l.region)}, ${b(l.isActive)}, ${n(i)});`,
+  );
+});
+out.push("");
+
+out.push("-- FAQs ----------------------------------------------------------------");
+const faqSeed = [
+  ["faq-delivery", "How does delivery and pickup work?", "Many sellers offer same-day delivery, campus drop-off, or in-person pickup. The available options are shown on each product page and at checkout."],
+  ["faq-preorder", "How do preorders work?", "Preorder items are imported on order. You pay a deposit to reserve your item, then settle the balance on arrival before delivery or pickup."],
+  ["faq-pay", "How do I pay?", "NikiMart supports local payments including Mobile Money and card. You choose your payment method at checkout."],
+  ["faq-sell", "How do I become a seller?", "Register your shop from “Sell on NikiMart”, complete quick verification, and start listing products."],
+  ["faq-protection", "Is my purchase protected?", "Yes. Orders are covered by NikiMart Buyer Protection."],
+];
+faqSeed.forEach(([id, question, answer], i) => {
+  out.push(`INSERT INTO "Faq" ("id","question","answer","order") VALUES (${q(id)}, ${q(question)}, ${q(answer)}, ${n(i)});`);
+});
+out.push("");
+
 out.push("COMMIT;");
 out.push("");
 

@@ -2,7 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, LayoutDashboard, LayoutTemplate, Package, ShoppingBag, Store, Users } from "lucide-react";
+import {
+  HelpCircle,
+  LayoutGrid,
+  LayoutDashboard,
+  LayoutTemplate,
+  MapPin,
+  Package,
+  Settings,
+  ShoppingBag,
+  Store,
+  Users,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const TABS = [
@@ -13,6 +24,9 @@ const TABS = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
   { href: "/admin/pages", label: "Pages", icon: LayoutTemplate },
+  { href: "/admin/locations", label: "Locations", icon: MapPin },
+  { href: "/admin/faqs", label: "FAQs", icon: HelpCircle },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
 export function AdminNav() {

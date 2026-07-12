@@ -265,3 +265,19 @@ model SiteSetting {
   key   String @id
   value String
 }
+
+model Faq {
+  id       String @id @default(cuid())
+  question String
+  answer   String
+  order    Int    @default(0)
+}
+
+model Location {
+  id       String  @id @default(cuid())
+  name     String
+  type     String  @default("city") // city | town | campus | institution | community
+  region   String
+  isActive Boolean @default(true)
+  order    Int     @default(0)
+}

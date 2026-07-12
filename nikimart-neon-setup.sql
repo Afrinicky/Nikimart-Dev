@@ -6,6 +6,9 @@ BEGIN;
 DROP TABLE IF EXISTS "PageSection" CASCADE;
 DROP TABLE IF EXISTS "Page" CASCADE;
 DROP TABLE IF EXISTS "SiteSetting" CASCADE;
+DROP TABLE IF EXISTS "Faq" CASCADE;
+DROP TABLE IF EXISTS "Location" CASCADE;
+DROP TABLE IF EXISTS "ProductImage" CASCADE;
 DROP TABLE IF EXISTS "Shipment" CASCADE;
 DROP TABLE IF EXISTS "OrderItem" CASCADE;
 DROP TABLE IF EXISTS "Order" CASCADE;
@@ -334,6 +337,29 @@ CREATE TABLE "ProductImage" (
 -- AddForeignKey
 ALTER TABLE "ProductImage" ADD CONSTRAINT "ProductImage_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+-- migration: 20260712144801_faqs_locations
+-- CreateTable
+CREATE TABLE "Faq" (
+    "id" TEXT NOT NULL,
+    "question" TEXT NOT NULL,
+    "answer" TEXT NOT NULL,
+    "order" INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT "Faq_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Location" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "type" TEXT NOT NULL DEFAULT 'city',
+    "region" TEXT NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "order" INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT "Location_pkey" PRIMARY KEY ("id")
+);
+
 -- 3. Prisma migration bookkeeping --------------------------------------
 CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
   "id" VARCHAR(36) PRIMARY KEY NOT NULL,
@@ -346,18 +372,20 @@ CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
   "applied_steps_count" INTEGER NOT NULL DEFAULT 0
 );
 INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
-VALUES ('ff97c2fa-e64b-4732-8f8d-c97d07d63b1f', '8959088ee31a93b09143007d1ed10e0533633c821e2fa58d9d2ffa63f496bbfa', now(), '20260706153330_init', now(), 1);
+VALUES ('cebc4597-504b-409b-abe4-033451687baa', '8959088ee31a93b09143007d1ed10e0533633c821e2fa58d9d2ffa63f496bbfa', now(), '20260706153330_init', now(), 1);
 INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
-VALUES ('497e0948-6ada-4264-82c8-354e90d8dc00', '1429f0dd86754159415f88a91cac91fc1df87bb49edd9c5b685bc9b597be786e', now(), '20260711235008_page_builder', now(), 1);
+VALUES ('41140cd8-edef-4fa3-9648-a21b96d4b325', '1429f0dd86754159415f88a91cac91fc1df87bb49edd9c5b685bc9b597be786e', now(), '20260711235008_page_builder', now(), 1);
 INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
-VALUES ('24cdaf4e-7244-4054-8084-b07b78740447', '150ff749889bb7322e4c2036e4c34af9db31046d5da3138ddcc3e8d9a6f4e84a', now(), '20260712142729_product_images_attributes', now(), 1);
+VALUES ('0ce047b7-493c-46a4-b4b5-b3df11d63e07', '150ff749889bb7322e4c2036e4c34af9db31046d5da3138ddcc3e8d9a6f4e84a', now(), '20260712142729_product_images_attributes', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('6e842849-eff6-4c25-a58a-59abc9e0b4c5', 'c8a149d9bc9fd8ed6b429262beff6739d41243e17379b3c38a48dbaa4f7d1e2b', now(), '20260712144801_faqs_locations', now(), 1);
 
 -- 4. Demo accounts (password for all: password123) --------------------
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-customer', 'Ama Mensah', 'customer@nikimart.test', '024 000 0001', '$2b$10$FxZWVRwI2mnXTzDyC70POOY8My3G9.HDN360GeMsQp5wtz8komrOO', 'CUSTOMER', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-seller', 'Kojo Owusu', 'seller@nikimart.test', '024 000 0002', '$2b$10$FxZWVRwI2mnXTzDyC70POOY8My3G9.HDN360GeMsQp5wtz8komrOO', 'SELLER', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-admin', 'Nana Adjei', 'admin@nikimart.test', '024 000 0003', '$2b$10$FxZWVRwI2mnXTzDyC70POOY8My3G9.HDN360GeMsQp5wtz8komrOO', 'ADMIN', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-freight', 'Yaw Boateng', 'freight@nikimart.test', '024 000 0004', '$2b$10$FxZWVRwI2mnXTzDyC70POOY8My3G9.HDN360GeMsQp5wtz8komrOO', 'FREIGHT', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-pickup', 'Efua Sarpong', 'pickup@nikimart.test', '024 000 0005', '$2b$10$FxZWVRwI2mnXTzDyC70POOY8My3G9.HDN360GeMsQp5wtz8komrOO', 'PICKUP', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-customer', 'Ama Mensah', 'customer@nikimart.test', '024 000 0001', '$2b$10$vo88bgVIhDrA2sQzSNo0z.A2JrB5gU6.UwFnz1h5V3gaHFheY/AP6', 'CUSTOMER', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-seller', 'Kojo Owusu', 'seller@nikimart.test', '024 000 0002', '$2b$10$vo88bgVIhDrA2sQzSNo0z.A2JrB5gU6.UwFnz1h5V3gaHFheY/AP6', 'SELLER', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-admin', 'Nana Adjei', 'admin@nikimart.test', '024 000 0003', '$2b$10$vo88bgVIhDrA2sQzSNo0z.A2JrB5gU6.UwFnz1h5V3gaHFheY/AP6', 'ADMIN', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-freight', 'Yaw Boateng', 'freight@nikimart.test', '024 000 0004', '$2b$10$vo88bgVIhDrA2sQzSNo0z.A2JrB5gU6.UwFnz1h5V3gaHFheY/AP6', 'FREIGHT', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-pickup', 'Efua Sarpong', 'pickup@nikimart.test', '024 000 0005', '$2b$10$vo88bgVIhDrA2sQzSNo0z.A2JrB5gU6.UwFnz1h5V3gaHFheY/AP6', 'PICKUP', now(), now());
 
 -- Categories ----------------------------------------------------------
 INSERT INTO "Category" ("id","name","slug","icon","description","productCount") VALUES ('cat-phones', 'Phones & Tablets', 'phones-tablets', 'smartphone', 'Smartphones, tablets and accessories', 482);
@@ -439,5 +467,28 @@ INSERT INTO "Shipment" ("id","trackingNumber","status","carrier","origin","desti
 INSERT INTO "Order" ("id","orderNumber","status","subtotal","deliveryFee","total","deliveryMethod","address","createdAt","updatedAt","userId","pickupPointId") VALUES ('order-1003', 'NM-1003', 'paid', 175, 20, 195, 'delivery', 'Ahodwo, Kumasi', now(), now(), 'usr-customer', NULL);
 INSERT INTO "OrderItem" ("id","quantity","unitPrice","orderId","productId") VALUES ('order-1003-i0', 1, 175, 'order-1003', 'prod-skincare');
 INSERT INTO "Shipment" ("id","trackingNumber","status","carrier","origin","destination","eta","createdAt","updatedAt","orderId","freightAgentId") VALUES ('ship-1003', 'NMF-1003', 'processing', 'NikiMart Freight', 'Kumasi Hub', 'Ahodwo, Kumasi', now() + interval '2 days', now(), now(), 'order-1003', 'usr-freight');
+
+-- Locations (same ids as the app's static list) ---------------------
+INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES ('any', 'Any Location', 'city', 'Nationwide', TRUE, 0);
+INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES ('ug', 'University of Ghana', 'campus', 'Greater Accra', TRUE, 1);
+INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES ('knust', 'KNUST', 'campus', 'Ashanti', TRUE, 2);
+INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES ('ucc', 'UCC', 'campus', 'Central', TRUE, 3);
+INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES ('upsa', 'UPSA', 'campus', 'Greater Accra', TRUE, 4);
+INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES ('stu', 'Sunyani Technical University', 'campus', 'Bono', TRUE, 5);
+INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES ('ntc', 'Nursing Training College', 'institution', 'Bono', TRUE, 6);
+INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES ('ttc', 'Teacher Training College', 'institution', 'Bono', TRUE, 7);
+INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES ('st-elizabeth', 'St. Elizabeth Hospital Community', 'community', 'Ahafo', TRUE, 8);
+INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES ('hwidiem', 'Hwidiem', 'town', 'Ahafo', TRUE, 9);
+INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES ('goaso', 'Goaso', 'town', 'Ahafo', TRUE, 10);
+INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES ('sunyani', 'Sunyani', 'city', 'Bono', TRUE, 11);
+INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES ('kumasi', 'Kumasi', 'city', 'Ashanti', TRUE, 12);
+INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES ('accra', 'Accra', 'city', 'Greater Accra', TRUE, 13);
+
+-- FAQs ----------------------------------------------------------------
+INSERT INTO "Faq" ("id","question","answer","order") VALUES ('faq-delivery', 'How does delivery and pickup work?', 'Many sellers offer same-day delivery, campus drop-off, or in-person pickup. The available options are shown on each product page and at checkout.', 0);
+INSERT INTO "Faq" ("id","question","answer","order") VALUES ('faq-preorder', 'How do preorders work?', 'Preorder items are imported on order. You pay a deposit to reserve your item, then settle the balance on arrival before delivery or pickup.', 1);
+INSERT INTO "Faq" ("id","question","answer","order") VALUES ('faq-pay', 'How do I pay?', 'NikiMart supports local payments including Mobile Money and card. You choose your payment method at checkout.', 2);
+INSERT INTO "Faq" ("id","question","answer","order") VALUES ('faq-sell', 'How do I become a seller?', 'Register your shop from “Sell on NikiMart”, complete quick verification, and start listing products.', 3);
+INSERT INTO "Faq" ("id","question","answer","order") VALUES ('faq-protection', 'Is my purchase protected?', 'Yes. Orders are covered by NikiMart Buyer Protection.', 4);
 
 COMMIT;

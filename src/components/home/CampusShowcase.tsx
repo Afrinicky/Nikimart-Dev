@@ -2,7 +2,6 @@
 
 import { GraduationCap, MapPin, PackageCheck, Truck } from "lucide-react";
 import { useLocation } from "@/components/providers/LocationProvider";
-import { locations } from "@/lib/mock-data";
 import type { Product, Vendor } from "@/lib/types";
 import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "@/components/ui/SectionHeading";
@@ -25,7 +24,7 @@ export function CampusShowcase({
   vendors: Vendor[];
   vendorNames?: Record<string, string>;
 }) {
-  const { selectedLocationId, setSelectedLocationId } = useLocation();
+  const { locations, selectedLocationId, setSelectedLocationId } = useLocation();
   const selected = locations.find((l) => l.id === selectedLocationId) ?? locations[0];
 
   const vendorMatches = vendors

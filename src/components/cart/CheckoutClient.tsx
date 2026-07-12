@@ -10,12 +10,12 @@ import { useCart } from "@/components/providers/CartProvider";
 import { formatPrice } from "@/lib/format";
 import { placeOrder } from "@/lib/order-actions";
 
-const DELIVERY_FEE = 20;
-
 export function CheckoutClient({
   pickupPoints,
+  deliveryFee: deliveryFeeRate,
 }: {
   pickupPoints: { id: string; name: string; locationName: string }[];
+  deliveryFee: number;
 }) {
   const { items, subtotal, clear, ready } = useCart();
   const router = useRouter();
@@ -26,7 +26,7 @@ export function CheckoutClient({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const deliveryFee = method === "pickup" ? 0 : DELIVERY_FEE;
+  const deliveryFee = method === "pickup" ? 0 : deliveryFeeRate;
   const total = subtotal + deliveryFee;
 
   if (!ready) {
@@ -89,7 +89,7 @@ export function CheckoutClient({
               <Truck className="h-5 w-5 text-niki-orange" />
               <span>
                 <span className="block text-sm font-semibold text-niki-ink">Delivery</span>
-                <span className="block text-xs text-niki-ink/60">{formatPrice(DELIVERY_FEE)} fee</span>
+                <span className="block text-xs text-niki-ink/60">{formatPrice(deliveryFeeRate)} fee</span>
               </span>
             </button>
             <button
