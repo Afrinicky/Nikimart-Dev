@@ -220,3 +220,34 @@ model Shipment {
   freightAgentId String?
   freightAgent   User?   @relation("FreightAgent", fields: [freightAgentId], references: [id], onDelete: SetNull)
 }
+
+// ---------------------------------------------------------------------------
+// Page builder — composable pages made of ordered section blocks.
+// ---------------------------------------------------------------------------
+
+model Page {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  title       String
+  isPublished Boolean       @default(true)
+  isSystem    Boolean       @default(false) // e.g. the home page can't be deleted
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  sections    PageSection[]
+}
+
+model PageSection {
+  id        String  @id @default(cuid())
+  pageId    String
+  page      Page    @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  type      String // hero | global_band | category_grid | product_rail | vendor_rail | campus | rich_text | banner
+  order     Int     @default(0)
+  isVisible Boolean @default(true)
+  // JSON-encoded block config (title, subtitle, collection, tone, body, …).
+  config    String  @default("{}")
+}
+
+model SiteSetting {
+  key   String @id
+  value String
+}

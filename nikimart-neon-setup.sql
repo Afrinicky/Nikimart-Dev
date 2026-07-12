@@ -3,6 +3,9 @@
 BEGIN;
 
 -- 1. Clean slate --------------------------------------------------------
+DROP TABLE IF EXISTS "PageSection" CASCADE;
+DROP TABLE IF EXISTS "Page" CASCADE;
+DROP TABLE IF EXISTS "SiteSetting" CASCADE;
 DROP TABLE IF EXISTS "Shipment" CASCADE;
 DROP TABLE IF EXISTS "OrderItem" CASCADE;
 DROP TABLE IF EXISTS "Order" CASCADE;
@@ -16,7 +19,8 @@ DROP TABLE IF EXISTS "VerificationToken" CASCADE;
 DROP TABLE IF EXISTS "User" CASCADE;
 DROP TABLE IF EXISTS "_prisma_migrations" CASCADE;
 
--- 2. Schema (from prisma migration) ------------------------------------
+-- 2. Schema (from all prisma migrations, in order) --------------------
+-- migration: 20260706153330_init
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
@@ -273,6 +277,46 @@ ALTER TABLE "Shipment" ADD CONSTRAINT "Shipment_orderId_fkey" FOREIGN KEY ("orde
 -- AddForeignKey
 ALTER TABLE "Shipment" ADD CONSTRAINT "Shipment_freightAgentId_fkey" FOREIGN KEY ("freightAgentId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
+-- migration: 20260711235008_page_builder
+-- CreateTable
+CREATE TABLE "Page" (
+    "id" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "isPublished" BOOLEAN NOT NULL DEFAULT true,
+    "isSystem" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Page_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PageSection" (
+    "id" TEXT NOT NULL,
+    "pageId" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "isVisible" BOOLEAN NOT NULL DEFAULT true,
+    "config" TEXT NOT NULL DEFAULT '{}',
+
+    CONSTRAINT "PageSection_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SiteSetting" (
+    "key" TEXT NOT NULL,
+    "value" TEXT NOT NULL,
+
+    CONSTRAINT "SiteSetting_pkey" PRIMARY KEY ("key")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Page_slug_key" ON "Page"("slug");
+
+-- AddForeignKey
+ALTER TABLE "PageSection" ADD CONSTRAINT "PageSection_pageId_fkey" FOREIGN KEY ("pageId") REFERENCES "Page"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
 -- 3. Prisma migration bookkeeping --------------------------------------
 CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
   "id" VARCHAR(36) PRIMARY KEY NOT NULL,
@@ -285,14 +329,16 @@ CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
   "applied_steps_count" INTEGER NOT NULL DEFAULT 0
 );
 INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
-VALUES ('46d1807c-99d9-44eb-b045-db325db09f49', '8959088ee31a93b09143007d1ed10e0533633c821e2fa58d9d2ffa63f496bbfa', now(), '20260706153330_init', now(), 1);
+VALUES ('ec0a9d8b-e79c-4b3f-94de-393d72174519', '8959088ee31a93b09143007d1ed10e0533633c821e2fa58d9d2ffa63f496bbfa', now(), '20260706153330_init', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('3f36c752-53cc-4e97-92f4-dd6394f623fb', '1429f0dd86754159415f88a91cac91fc1df87bb49edd9c5b685bc9b597be786e', now(), '20260711235008_page_builder', now(), 1);
 
 -- 4. Demo accounts (password for all: password123) --------------------
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-customer', 'Ama Mensah', 'customer@nikimart.test', '024 000 0001', '$2b$10$/PhQRxaeAho1gYSoP0BLZu2mqf3NFLJDm4iOVdKiQ22M0E6N1EvQS', 'CUSTOMER', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-seller', 'Kojo Owusu', 'seller@nikimart.test', '024 000 0002', '$2b$10$/PhQRxaeAho1gYSoP0BLZu2mqf3NFLJDm4iOVdKiQ22M0E6N1EvQS', 'SELLER', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-admin', 'Nana Adjei', 'admin@nikimart.test', '024 000 0003', '$2b$10$/PhQRxaeAho1gYSoP0BLZu2mqf3NFLJDm4iOVdKiQ22M0E6N1EvQS', 'ADMIN', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-freight', 'Yaw Boateng', 'freight@nikimart.test', '024 000 0004', '$2b$10$/PhQRxaeAho1gYSoP0BLZu2mqf3NFLJDm4iOVdKiQ22M0E6N1EvQS', 'FREIGHT', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-pickup', 'Efua Sarpong', 'pickup@nikimart.test', '024 000 0005', '$2b$10$/PhQRxaeAho1gYSoP0BLZu2mqf3NFLJDm4iOVdKiQ22M0E6N1EvQS', 'PICKUP', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-customer', 'Ama Mensah', 'customer@nikimart.test', '024 000 0001', '$2b$10$rQ4dlzEju6c4I1vP.ugXrOZ83Z0DtkrSzhTUcMtsxiACKqHGRm0ym', 'CUSTOMER', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-seller', 'Kojo Owusu', 'seller@nikimart.test', '024 000 0002', '$2b$10$rQ4dlzEju6c4I1vP.ugXrOZ83Z0DtkrSzhTUcMtsxiACKqHGRm0ym', 'SELLER', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-admin', 'Nana Adjei', 'admin@nikimart.test', '024 000 0003', '$2b$10$rQ4dlzEju6c4I1vP.ugXrOZ83Z0DtkrSzhTUcMtsxiACKqHGRm0ym', 'ADMIN', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-freight', 'Yaw Boateng', 'freight@nikimart.test', '024 000 0004', '$2b$10$rQ4dlzEju6c4I1vP.ugXrOZ83Z0DtkrSzhTUcMtsxiACKqHGRm0ym', 'FREIGHT', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-pickup', 'Efua Sarpong', 'pickup@nikimart.test', '024 000 0005', '$2b$10$rQ4dlzEju6c4I1vP.ugXrOZ83Z0DtkrSzhTUcMtsxiACKqHGRm0ym', 'PICKUP', now(), now());
 
 -- Categories ----------------------------------------------------------
 INSERT INTO "Category" ("id","name","slug","icon","description","productCount") VALUES ('cat-phones', 'Phones & Tablets', 'phones-tablets', 'smartphone', 'Smartphones, tablets and accessories', 482);

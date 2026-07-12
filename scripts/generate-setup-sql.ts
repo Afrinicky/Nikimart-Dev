@@ -15,10 +15,15 @@ import bcrypt from "bcryptjs";
 import { categories, vendors, products } from "../src/lib/mock-data";
 
 const MIGRATIONS_DIR = path.join(process.cwd(), "prisma", "migrations");
-const migrationName = readdirSync(MIGRATIONS_DIR).find((d) => /_init$/.test(d))!;
-const migrationSqlPath = path.join(MIGRATIONS_DIR, migrationName, "migration.sql");
-const migrationSql = readFileSync(migrationSqlPath, "utf8");
-const checksum = createHash("sha256").update(readFileSync(migrationSqlPath)).digest("hex");
+// All migrations, in chronological (name) order.
+const migrations = readdirSync(MIGRATIONS_DIR)
+  .filter((d) => /^\d+_/.test(d))
+  .sort()
+  .map((name) => {
+    const file = path.join(MIGRATIONS_DIR, name, "migration.sql");
+    const sql = readFileSync(file, "utf8");
+    return { name, sql, checksum: createHash("sha256").update(readFileSync(file)).digest("hex") };
+  });
 
 // ---- helpers ---------------------------------------------------------------
 const q = (v: string | null | undefined) =>
@@ -28,6 +33,9 @@ const b = (v: boolean) => (v ? "TRUE" : "FALSE");
 const j = (v: unknown) => q(JSON.stringify(v));
 
 const TABLES = [
+  "PageSection",
+  "Page",
+  "SiteSetting",
   "Shipment",
   "OrderItem",
   "Order",
@@ -50,9 +58,12 @@ out.push("");
 out.push("-- 1. Clean slate --------------------------------------------------------");
 for (const t of TABLES) out.push(`DROP TABLE IF EXISTS "${t}" CASCADE;`);
 out.push("");
-out.push("-- 2. Schema (from prisma migration) ------------------------------------");
-out.push(migrationSql.trim());
-out.push("");
+out.push("-- 2. Schema (from all prisma migrations, in order) --------------------");
+for (const m of migrations) {
+  out.push(`-- migration: ${m.name}`);
+  out.push(m.sql.trim());
+  out.push("");
+}
 out.push("-- 3. Prisma migration bookkeeping --------------------------------------");
 out.push(
   `CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
@@ -66,10 +77,12 @@ out.push(
   "applied_steps_count" INTEGER NOT NULL DEFAULT 0
 );`,
 );
-out.push(
-  `INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
-VALUES ('${crypto.randomUUID()}', '${checksum}', now(), '${migrationName}', now(), 1);`,
-);
+for (const m of migrations) {
+  out.push(
+    `INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('${crypto.randomUUID()}', '${m.checksum}', now(), '${m.name}', now(), 1);`,
+  );
+}
 out.push("");
 
 // ---- 4. Seed ---------------------------------------------------------------

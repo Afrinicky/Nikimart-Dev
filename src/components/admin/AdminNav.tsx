@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, LayoutDashboard, Package, ShoppingBag, Store, Users } from "lucide-react";
+import { LayoutGrid, LayoutDashboard, LayoutTemplate, Package, ShoppingBag, Store, Users } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const TABS = [
@@ -12,6 +12,7 @@ const TABS = [
   { href: "/admin/categories", label: "Categories", icon: LayoutGrid },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
+  { href: "/admin/pages", label: "Pages", icon: LayoutTemplate },
 ];
 
 export function AdminNav() {
