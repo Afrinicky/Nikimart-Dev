@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { advanceAllShipments } from "@/lib/tracking";
 
 // Advances all non-held shipments to their expected stage based on elapsed
-// time. Wired to a Vercel Cron (see vercel.json). Also safe to hit manually.
+// time. Wired to a daily Vercel Cron (see vercel.json; Hobby plans cap crons at
+// once/day). Day-to-day progression is handled on read; this is a backstop for
+// orders nobody views. Also safe to hit manually.
 // If CRON_SECRET is set, the request must include `Authorization: Bearer <secret>`.
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
