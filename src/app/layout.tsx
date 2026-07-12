@@ -30,6 +30,12 @@ export const metadata: Metadata = {
     "NikiMart connects buyers to trusted local shops, preorder sellers, campus vendors, service providers, and official NikiMart products across Ghana.",
 };
 
+// Every route depends on live database data plus per-request auth, cart, and
+// location, so nothing should be prerendered at build time. Forcing dynamic
+// rendering also keeps the build fully independent of the database (Preview
+// deployments don't need DATABASE_URL to build).
+export const dynamic = "force-dynamic";
+
 export default async function RootLayout({
   children,
 }: Readonly<{
