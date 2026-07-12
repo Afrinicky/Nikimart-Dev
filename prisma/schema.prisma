@@ -221,6 +221,8 @@ model Shipment {
   id             String   @id @default(cuid())
   trackingNumber String   @unique
   status         String   @default("processing") // processing | in_transit | out_for_delivery | delivered
+  // When true, a human set the status — automatic time-based progression stops.
+  manualHold     Boolean  @default(false)
   carrier        String   @default("NikiMart Freight")
   origin         String
   destination    String

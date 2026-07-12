@@ -360,6 +360,10 @@ CREATE TABLE "Location" (
     CONSTRAINT "Location_pkey" PRIMARY KEY ("id")
 );
 
+-- migration: 20260712150346_shipment_manual_hold
+-- AlterTable
+ALTER TABLE "Shipment" ADD COLUMN     "manualHold" BOOLEAN NOT NULL DEFAULT false;
+
 -- 3. Prisma migration bookkeeping --------------------------------------
 CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
   "id" VARCHAR(36) PRIMARY KEY NOT NULL,
@@ -372,20 +376,22 @@ CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
   "applied_steps_count" INTEGER NOT NULL DEFAULT 0
 );
 INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
-VALUES ('cebc4597-504b-409b-abe4-033451687baa', '8959088ee31a93b09143007d1ed10e0533633c821e2fa58d9d2ffa63f496bbfa', now(), '20260706153330_init', now(), 1);
+VALUES ('ce2fb7eb-1842-447f-a2db-c90579245853', '8959088ee31a93b09143007d1ed10e0533633c821e2fa58d9d2ffa63f496bbfa', now(), '20260706153330_init', now(), 1);
 INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
-VALUES ('41140cd8-edef-4fa3-9648-a21b96d4b325', '1429f0dd86754159415f88a91cac91fc1df87bb49edd9c5b685bc9b597be786e', now(), '20260711235008_page_builder', now(), 1);
+VALUES ('f166992c-132f-4ed1-8b33-71ace7320c57', '1429f0dd86754159415f88a91cac91fc1df87bb49edd9c5b685bc9b597be786e', now(), '20260711235008_page_builder', now(), 1);
 INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
-VALUES ('0ce047b7-493c-46a4-b4b5-b3df11d63e07', '150ff749889bb7322e4c2036e4c34af9db31046d5da3138ddcc3e8d9a6f4e84a', now(), '20260712142729_product_images_attributes', now(), 1);
+VALUES ('8b1abba8-b108-4a1c-8521-10bc3c313090', '150ff749889bb7322e4c2036e4c34af9db31046d5da3138ddcc3e8d9a6f4e84a', now(), '20260712142729_product_images_attributes', now(), 1);
 INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
-VALUES ('6e842849-eff6-4c25-a58a-59abc9e0b4c5', 'c8a149d9bc9fd8ed6b429262beff6739d41243e17379b3c38a48dbaa4f7d1e2b', now(), '20260712144801_faqs_locations', now(), 1);
+VALUES ('c9a1b15e-df4b-4ac9-9e0e-83a6d4ac04e3', 'c8a149d9bc9fd8ed6b429262beff6739d41243e17379b3c38a48dbaa4f7d1e2b', now(), '20260712144801_faqs_locations', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('5cafc921-ed47-417d-b00b-5d664f6fcb48', '76fa8103b605b0c024b046544a704e5c77a6d189602be1f5089017d3826ee5b3', now(), '20260712150346_shipment_manual_hold', now(), 1);
 
 -- 4. Demo accounts (password for all: password123) --------------------
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-customer', 'Ama Mensah', 'customer@nikimart.test', '024 000 0001', '$2b$10$vo88bgVIhDrA2sQzSNo0z.A2JrB5gU6.UwFnz1h5V3gaHFheY/AP6', 'CUSTOMER', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-seller', 'Kojo Owusu', 'seller@nikimart.test', '024 000 0002', '$2b$10$vo88bgVIhDrA2sQzSNo0z.A2JrB5gU6.UwFnz1h5V3gaHFheY/AP6', 'SELLER', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-admin', 'Nana Adjei', 'admin@nikimart.test', '024 000 0003', '$2b$10$vo88bgVIhDrA2sQzSNo0z.A2JrB5gU6.UwFnz1h5V3gaHFheY/AP6', 'ADMIN', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-freight', 'Yaw Boateng', 'freight@nikimart.test', '024 000 0004', '$2b$10$vo88bgVIhDrA2sQzSNo0z.A2JrB5gU6.UwFnz1h5V3gaHFheY/AP6', 'FREIGHT', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-pickup', 'Efua Sarpong', 'pickup@nikimart.test', '024 000 0005', '$2b$10$vo88bgVIhDrA2sQzSNo0z.A2JrB5gU6.UwFnz1h5V3gaHFheY/AP6', 'PICKUP', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-customer', 'Ama Mensah', 'customer@nikimart.test', '024 000 0001', '$2b$10$zkdbrjs5bqjEmV3tfGhCaO3v3XhW8kTgsluIo81ppY5JJv0YpigN6', 'CUSTOMER', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-seller', 'Kojo Owusu', 'seller@nikimart.test', '024 000 0002', '$2b$10$zkdbrjs5bqjEmV3tfGhCaO3v3XhW8kTgsluIo81ppY5JJv0YpigN6', 'SELLER', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-admin', 'Nana Adjei', 'admin@nikimart.test', '024 000 0003', '$2b$10$zkdbrjs5bqjEmV3tfGhCaO3v3XhW8kTgsluIo81ppY5JJv0YpigN6', 'ADMIN', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-freight', 'Yaw Boateng', 'freight@nikimart.test', '024 000 0004', '$2b$10$zkdbrjs5bqjEmV3tfGhCaO3v3XhW8kTgsluIo81ppY5JJv0YpigN6', 'FREIGHT', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-pickup', 'Efua Sarpong', 'pickup@nikimart.test', '024 000 0005', '$2b$10$zkdbrjs5bqjEmV3tfGhCaO3v3XhW8kTgsluIo81ppY5JJv0YpigN6', 'PICKUP', now(), now());
 
 -- Categories ----------------------------------------------------------
 INSERT INTO "Category" ("id","name","slug","icon","description","productCount") VALUES ('cat-phones', 'Phones & Tablets', 'phones-tablets', 'smartphone', 'Smartphones, tablets and accessories', 482);

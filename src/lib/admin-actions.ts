@@ -373,8 +373,15 @@ export async function setOrderStatus(fd: FormData): Promise<void> {
   const status = str(fd, "status");
   if (id && ORDER_STATUSES.includes(status)) {
     await prisma.order.update({ where: { id }, data: { status } });
+    // A manual order-status change pins its shipment (stops auto-progression),
+    // and keeps the shipment stage roughly in sync for terminal states.
+    const shipmentData: { manualHold: boolean; status?: string } = { manualHold: true };
+    if (status === "delivered") shipmentData.status = "delivered";
+    await prisma.shipment.updateMany({ where: { orderId: id }, data: shipmentData });
     revalidatePath("/admin/orders");
     revalidatePath("/account");
+    revalidatePath("/freight");
+    revalidatePath("/pickup");
   }
 }
 
