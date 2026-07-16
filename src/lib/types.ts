@@ -76,6 +76,8 @@ export interface Location {
   type: LocationType;
   region: string;
   isActive: boolean;
+  /** Delivery-fee zone multiplier (1 = standard; <1 nearer, >1 farther). */
+  deliveryZoneMultiplier?: number;
 }
 
 export interface Category {
@@ -97,6 +99,7 @@ export interface Vendor {
   accentFrom: string;
   accentTo: string;
   locationIds: string[];
+  originCountry: string;
   verificationStatus: VerificationStatus;
   rating: number;
   reviewCount: number;
@@ -152,6 +155,8 @@ export interface Product {
   gradientFrom: string;
   gradientTo: string;
   emoji: string;
+  /** Billable shipping weight in kg, used by the delivery-fee engine. */
+  shippingWeightKg?: number;
   /**
    * Optional product image. Set this to override the default photo.
    * Accepts a local path served from /public (e.g. "/products/my-photo.jpg")
@@ -162,6 +167,8 @@ export interface Product {
   image?: string;
   /** Gallery image URLs (http(s) or data: URLs). First is the primary. */
   images?: string[];
+  /** Origin country code inherited from the vendor (GH = local). */
+  originCountry?: string;
   /** Key attributes / spec table rows. */
   attributes?: KeyAttribute[];
   preorderInfo?: PreorderInfo;

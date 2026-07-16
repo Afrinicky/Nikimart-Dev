@@ -27,15 +27,19 @@ model User {
   // Role gates every dashboard. SQLite has no enums, so we store the role as a
   // string constrained by the Role helper in src/lib/roles.ts.
   role          String    @default("CUSTOMER")
+  // Default delivery address + preferred pickup centre (set at registration).
+  address       String?
+  preferredPickupId String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts    Account[]
-  sessions    Session[]
-  vendor      Vendor?
-  orders      Order[]
-  pickupPoint PickupPoint?  @relation("PickupOperator")
-  shipments   Shipment[]    @relation("FreightAgent")
+  accounts        Account[]
+  sessions        Session[]
+  vendor          Vendor?
+  orders          Order[]
+  pickupPoint     PickupPoint?  @relation("PickupOperator")
+  preferredPickup PickupPoint?  @relation("PreferredPickup", fields: [preferredPickupId], references: [id], onDelete: SetNull)
+  shipments       Shipment[]    @relation("FreightAgent")
 }
 
 model Account {
@@ -100,6 +104,8 @@ model Vendor {
   accentTo                 String
   // JSON-encoded string[] of location ids.
   locationIds              String    @default("[]")
+  // ISO-ish origin code: GH (local), CN, US, EU, AE. Non-GH = ships from abroad.
+  originCountry            String    @default("GH")
   verificationStatus       String    @default("pending")
   rating                   Float     @default(0)
   reviewCount              Int       @default(0)
@@ -138,6 +144,8 @@ model Product {
   gradientFrom             String
   gradientTo               String
   emoji                    String
+  // Billable shipping weight in kg (max of actual/volumetric) for delivery fees.
+  shippingWeightKg         Float    @default(0.5)
   // Primary image (kept for backward-compat / fallback); the gallery lives in
   // ProductImage. May be an http(s) URL or a data: URL.
   image                    String?
@@ -214,7 +222,8 @@ model PickupPoint {
   operatorId String? @unique
   operator   User?   @relation("PickupOperator", fields: [operatorId], references: [id], onDelete: SetNull)
 
-  orders Order[]
+  orders           Order[]
+  preferredByUsers User[]  @relation("PreferredPickup")
 }
 
 model Shipment {
@@ -282,4 +291,6 @@ model Location {
   region   String
   isActive Boolean @default(true)
   order    Int     @default(0)
+  // Delivery-fee zone multiplier (1 = standard; <1 nearer/cheaper, >1 farther).
+  deliveryZoneMultiplier Float @default(1)
 }

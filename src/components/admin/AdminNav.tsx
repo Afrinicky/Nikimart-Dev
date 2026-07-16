@@ -9,6 +9,7 @@ import {
   LayoutTemplate,
   MapPin,
   Package,
+  PackageCheck,
   Settings,
   ShoppingBag,
   Store,
@@ -25,6 +26,7 @@ const TABS = [
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
   { href: "/admin/pages", label: "Pages", icon: LayoutTemplate },
   { href: "/admin/locations", label: "Locations", icon: MapPin },
+  { href: "/admin/pickup-points", label: "Pickup", icon: PackageCheck },
   { href: "/admin/faqs", label: "FAQs", icon: HelpCircle },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];

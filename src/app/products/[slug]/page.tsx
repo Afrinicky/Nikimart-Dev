@@ -6,6 +6,7 @@ import {
   Check,
   GraduationCap,
   MapPin,
+  Plane,
   ShieldCheck,
   Star,
   Store,
@@ -26,6 +27,8 @@ import {
   getVendorNameMap,
 } from "@/lib/catalog";
 import { discountPercent, formatPrice } from "@/lib/format";
+import { countryByCode, estimatedArrival, isAbroad } from "@/lib/countries";
+import { getLeadDays } from "@/lib/settings";
 
 type Params = Promise<{ slug: string }>;
 
@@ -48,6 +51,11 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
   ]);
   const category = categories.find((c) => c.id === product.categoryId);
   const discount = discountPercent(product.price, product.oldPrice);
+
+  const abroad = isAbroad(product.originCountry);
+  const originCountry = countryByCode(product.originCountry);
+  const leadDays = abroad ? await getLeadDays(product.originCountry ?? "") : 0;
+  const arrivalDate = abroad ? estimatedArrival(leadDays) : null;
 
   const deliveryOptions = [
     product.sameDayDeliveryAvailable && { icon: Truck, label: "Same-day delivery available" },
@@ -129,6 +137,27 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
 
             <p className="mt-5 text-sm leading-relaxed text-niki-ink/70">{product.description}</p>
 
+            {abroad && arrivalDate ? (
+              <div className="mt-5 flex items-start gap-3 rounded-2xl bg-niki-trust/10 p-4 ring-1 ring-niki-trust/20">
+                <Plane className="mt-0.5 h-5 w-5 shrink-0 text-niki-trust" />
+                <div className="text-sm">
+                  <p className="font-semibold text-niki-trust">
+                    Shipped from abroad{originCountry ? ` · ${originCountry.flag} ${originCountry.name}` : ""}
+                  </p>
+                  <p className="mt-1 text-niki-ink/70">
+                    Estimated arrival:{" "}
+                    <span className="font-semibold text-niki-ink">
+                      {arrivalDate.toLocaleDateString("en-GH", { day: "numeric", month: "long", year: "numeric" })}
+                    </span>{" "}
+                    <span className="text-niki-ink/50">(~{leadDays} days)</span>
+                  </p>
+                  <p className="mt-1 text-xs text-niki-ink/50">
+                    Delivered to your door or pickup point once it clears customs.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
             {product.attributes && product.attributes.length > 0 ? (
               <div className="mt-6">
                 <h2 className="font-display text-sm font-bold uppercase tracking-wide text-niki-ink/70">
@@ -203,6 +232,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
                   gradientTo: product.gradientTo,
                   image: product.image,
                   vendorId: product.vendorId,
+                  weightKg: product.shippingWeightKg,
                 }}
               />
             </div>

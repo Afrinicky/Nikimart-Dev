@@ -80,6 +80,7 @@ async function main() {
       accentFrom: v.accentFrom,
       accentTo: v.accentTo,
       locationIds: JSON.stringify(v.locationIds),
+      originCountry: v.originCountry,
       verificationStatus: v.verificationStatus,
       rating: v.rating,
       reviewCount: v.reviewCount,

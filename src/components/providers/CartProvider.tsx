@@ -12,6 +12,8 @@ export interface CartItem {
   gradientTo: string;
   image?: string;
   vendorId: string;
+  /** Billable shipping weight in kg (for the delivery-fee engine). */
+  weightKg?: number;
   quantity: number;
 }
 

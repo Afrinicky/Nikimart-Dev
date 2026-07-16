@@ -71,6 +71,12 @@ export function ProductForm({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
+        <Field label="Shipping weight (kg)" htmlFor="shippingWeightKg" hint="Billable weight used for delivery fees">
+          <input id="shippingWeightKg" name="shippingWeightKg" type="number" step="0.1" min="0" defaultValue={p?.shippingWeightKg ?? 0.5} className={inputClass} />
+        </Field>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Category" htmlFor="categoryId" hint={state.fieldErrors?.categoryId}>
           <select id="categoryId" name="categoryId" defaultValue={p?.categoryId ?? ""} required className={inputClass}>
             <option value="" disabled>
