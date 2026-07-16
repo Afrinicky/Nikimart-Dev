@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Container } from "@/components/ui/Container";
+import { BrandLogo } from "@/components/ui/BrandLogo";
 import { getSettings } from "@/lib/settings";
 
 const FOOTER_COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
@@ -52,9 +53,7 @@ export async function Footer() {
       <Container className="grid grid-cols-2 gap-8 py-12 sm:grid-cols-4 lg:grid-cols-5">
         <div className="col-span-2 sm:col-span-4 lg:col-span-1">
           <div className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-niki-orange to-niki-gold font-display text-lg font-bold text-niki-navy">
-              N
-            </span>
+            <BrandLogo className="h-9 w-9" />
             <span className="font-display text-xl font-bold tracking-tight text-white">
               Niki<span className="text-niki-orange">Mart</span>
             </span>

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
 import { RegisterForm } from "@/components/auth/RegisterForm";
+import { BrandLogo } from "@/components/ui/BrandLogo";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isRole, ROLE_HOME } from "@/lib/roles";
@@ -23,9 +24,7 @@ export default async function RegisterPage() {
     <Container className="flex justify-center py-14">
       <div className="w-full max-w-md rounded-3xl bg-white p-8 ring-1 ring-black/5">
         <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-niki-orange to-niki-gold font-display text-lg font-bold text-niki-navy">
-            N
-          </span>
+          <BrandLogo className="h-9 w-9" />
           <span className="font-display text-xl font-bold text-niki-ink">
             Niki<span className="text-niki-orange">Mart</span>
           </span>

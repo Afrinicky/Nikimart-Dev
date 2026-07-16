@@ -4,6 +4,7 @@ import { SearchBar } from "./SearchBar";
 import { LocationSelector } from "./LocationSelector";
 import { SidebarNav } from "./SidebarNav";
 import { CartBadge } from "@/components/cart/CartBadge";
+import { BrandLogo } from "@/components/ui/BrandLogo";
 import { Container } from "@/components/ui/Container";
 import { auth } from "@/lib/auth";
 import { isRole, ROLE_HOME, ROLE_LABELS } from "@/lib/roles";
@@ -20,9 +21,7 @@ export async function Header() {
         <SidebarNav accountHref={accountHref} accountLabel={accountLabel} isAuthed={Boolean(session?.user)} />
 
         <Link href="/" className="flex shrink-0 items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-niki-orange to-niki-gold font-display text-lg font-bold text-niki-navy">
-            N
-          </span>
+          <BrandLogo className="h-9 w-9" />
           <span className="font-display text-xl font-bold tracking-tight text-white">
             Niki<span className="text-niki-orange">Mart</span>
           </span>
