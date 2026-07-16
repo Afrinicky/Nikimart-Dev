@@ -28,9 +28,15 @@ function revalidateChrome() {
 export async function updateSettings(_prev: SettingsState, fd: FormData): Promise<SettingsState> {
   await requireAdmin();
 
-  const fee = str(fd, "deliveryFee");
-  if (fee && !(Number(fee) >= 0)) {
-    return { error: "Delivery fee must be a number ≥ 0.", fieldErrors: { deliveryFee: "Invalid amount." } };
+  for (const [key, label] of [
+    ["deliveryFee", "Base delivery fee"],
+    ["deliveryPerKg", "Per-kg rate"],
+    ["pickupFee", "Pickup fee"],
+  ] as const) {
+    const v = str(fd, key);
+    if (v && !(Number(v) >= 0)) {
+      return { error: `${label} must be a number ≥ 0.`, fieldErrors: { [key]: "Invalid amount." } };
+    }
   }
 
   for (const key of SETTING_KEYS) {

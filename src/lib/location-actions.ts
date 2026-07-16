@@ -14,12 +14,14 @@ function str(fd: FormData, key: string): string {
 
 function data(fd: FormData) {
   const type = str(fd, "type");
+  const zone = Number(str(fd, "deliveryZoneMultiplier"));
   return {
     name: str(fd, "name"),
     type: TYPES.includes(type) ? type : "city",
     region: str(fd, "region"),
     isActive: fd.get("isActive") === "on",
     order: Number(str(fd, "order")) || 0,
+    deliveryZoneMultiplier: Number.isFinite(zone) && zone > 0 ? zone : 1,
   };
 }
 

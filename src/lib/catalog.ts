@@ -95,6 +95,7 @@ export function mapProduct(
     gradientFrom: p.gradientFrom,
     gradientTo: p.gradientTo,
     emoji: p.emoji,
+    shippingWeightKg: p.shippingWeightKg,
     image: gallery[0] ?? p.image ?? undefined,
     images: gallery.length ? gallery : p.image ? [p.image] : [],
     originCountry: p.vendor?.originCountry ?? "GH",

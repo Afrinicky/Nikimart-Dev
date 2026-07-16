@@ -16,7 +16,7 @@ export function LocationForm({
   submitLabel,
 }: {
   action: Action;
-  location?: { name: string; type: string; region: string; isActive: boolean; order: number };
+  location?: { name: string; type: string; region: string; isActive: boolean; order: number; deliveryZoneMultiplier?: number };
   submitLabel: string;
 }) {
   const [state, formAction] = useActionState<CrudState, FormData>(action, {});
@@ -46,6 +46,9 @@ export function LocationForm({
         </Field>
         <Field label="Order" htmlFor="order" hint="Lower numbers show first">
           <input id="order" name="order" type="number" defaultValue={l?.order ?? 0} className={inputClass} />
+        </Field>
+        <Field label="Delivery zone ×" htmlFor="deliveryZoneMultiplier" hint="1 = standard · <1 nearer/cheaper · >1 farther">
+          <input id="deliveryZoneMultiplier" name="deliveryZoneMultiplier" type="number" step="0.05" min="0.1" defaultValue={l?.deliveryZoneMultiplier ?? 1} className={inputClass} />
         </Field>
       </div>
 

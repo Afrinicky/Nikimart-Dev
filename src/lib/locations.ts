@@ -22,6 +22,7 @@ export const getLocations = cache(async (): Promise<Location[]> => {
         type: r.type as LocationType,
         region: r.region,
         isActive: r.isActive,
+        deliveryZoneMultiplier: r.deliveryZoneMultiplier,
       }));
     }
   } catch {
@@ -40,6 +41,7 @@ export async function getAllLocations(): Promise<(Location & { order: number })[
       type: r.type as LocationType,
       region: r.region,
       isActive: r.isActive,
+      deliveryZoneMultiplier: r.deliveryZoneMultiplier,
       order: r.order,
     }));
   } catch {

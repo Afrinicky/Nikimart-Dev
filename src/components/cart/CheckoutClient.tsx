@@ -2,31 +2,60 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CreditCard, MapPin, Truck } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Field, inputClass } from "@/components/ui/Field";
 import { useCart } from "@/components/providers/CartProvider";
 import { formatPrice } from "@/lib/format";
 import { placeOrder } from "@/lib/order-actions";
+import { quoteDeliveryFee, totalCartWeight, type DeliveryConfig } from "@/lib/delivery";
+
+interface Zone {
+  id: string;
+  name: string;
+  region: string;
+  multiplier: number;
+}
 
 export function CheckoutClient({
   pickupPoints,
-  deliveryFee: deliveryFeeRate,
+  zones,
+  config,
+  defaultAddress = "",
+  defaultPickupId = "",
 }: {
   pickupPoints: { id: string; name: string; locationName: string }[];
-  deliveryFee: number;
+  zones: Zone[];
+  config: DeliveryConfig;
+  defaultAddress?: string;
+  defaultPickupId?: string;
 }) {
   const { items, subtotal, clear, ready } = useCart();
   const router = useRouter();
 
   const [method, setMethod] = useState<"delivery" | "pickup">("delivery");
-  const [address, setAddress] = useState("");
-  const [pickupPointId, setPickupPointId] = useState(pickupPoints[0]?.id ?? "");
+  const [address, setAddress] = useState(defaultAddress);
+  const [zoneId, setZoneId] = useState(zones[0]?.id ?? "");
+  const [pickupPointId, setPickupPointId] = useState(
+    defaultPickupId && pickupPoints.some((p) => p.id === defaultPickupId)
+      ? defaultPickupId
+      : (pickupPoints[0]?.id ?? ""),
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const deliveryFee = method === "pickup" ? 0 : deliveryFeeRate;
+  const totalWeightKg = useMemo(
+    () => totalCartWeight(items.map((i) => ({ weightKg: i.weightKg, quantity: i.quantity }))),
+    [items],
+  );
+  const selectedZone = zones.find((z) => z.id === zoneId);
+  const deliveryFee = quoteDeliveryFee({
+    method,
+    totalWeightKg,
+    zoneMultiplier: selectedZone?.multiplier ?? 1,
+    config,
+  });
   const total = subtotal + deliveryFee;
 
   if (!ready) {
@@ -61,6 +90,7 @@ export function CheckoutClient({
       deliveryMethod: method,
       address: method === "delivery" ? address.trim() : undefined,
       pickupPointId: method === "pickup" ? pickupPointId : undefined,
+      destinationLocationId: method === "delivery" ? zoneId || undefined : undefined,
     });
     if (res.ok) {
       clear();
@@ -89,7 +119,7 @@ export function CheckoutClient({
               <Truck className="h-5 w-5 text-niki-orange" />
               <span>
                 <span className="block text-sm font-semibold text-niki-ink">Delivery</span>
-                <span className="block text-xs text-niki-ink/60">{formatPrice(deliveryFeeRate)} fee</span>
+                <span className="block text-xs text-niki-ink/60">Priced by weight &amp; area</span>
               </span>
             </button>
             <button
@@ -100,23 +130,38 @@ export function CheckoutClient({
               <MapPin className="h-5 w-5 text-niki-orange" />
               <span>
                 <span className="block text-sm font-semibold text-niki-ink">Pickup</span>
-                <span className="block text-xs text-niki-ink/60">Free</span>
+                <span className="block text-xs text-niki-ink/60">
+                  {config.pickupFee > 0 ? `${formatPrice(config.pickupFee)} at station` : "Free at station"}
+                </span>
               </span>
             </button>
           </div>
 
-          <div className="mt-5">
+          <div className="mt-5 space-y-4">
             {method === "delivery" ? (
-              <Field label="Delivery address" htmlFor="address">
-                <textarea
-                  id="address"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  rows={3}
-                  placeholder="Hall / hostel, room, area, city…"
-                  className={inputClass}
-                />
-              </Field>
+              <>
+                <Field label="Delivery address" htmlFor="address">
+                  <textarea
+                    id="address"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    rows={3}
+                    placeholder="Hall / hostel, room, area, city…"
+                    className={inputClass}
+                  />
+                </Field>
+                {zones.length > 0 ? (
+                  <Field label="Delivery area" htmlFor="zone" hint="Affects the delivery fee">
+                    <select id="zone" value={zoneId} onChange={(e) => setZoneId(e.target.value)} className={inputClass}>
+                      {zones.map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {z.name} — {z.region}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                ) : null}
+              </>
             ) : pickupPoints.length > 0 ? (
               <Field label="Pickup point" htmlFor="pickup">
                 <select id="pickup" value={pickupPointId} onChange={(e) => setPickupPointId(e.target.value)} className={inputClass}>
@@ -160,7 +205,12 @@ export function CheckoutClient({
             <dd className="font-medium text-niki-ink">{formatPrice(subtotal)}</dd>
           </div>
           <div className="flex justify-between text-niki-ink/70">
-            <dt>Delivery</dt>
+            <dt>
+              {method === "pickup" ? "Pickup" : "Delivery"}
+              {method === "delivery" ? (
+                <span className="block text-xs text-niki-ink/40">≈ {totalWeightKg.toFixed(1)} kg billable</span>
+              ) : null}
+            </dt>
             <dd className="font-medium text-niki-ink">{deliveryFee === 0 ? "Free" : formatPrice(deliveryFee)}</dd>
           </div>
           <div className="flex justify-between border-t border-black/5 pt-2 text-base font-bold text-niki-ink">

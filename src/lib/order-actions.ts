@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { getDeliveryFee } from "@/lib/settings";
+import { getDeliveryConfig } from "@/lib/settings";
+import { quoteDeliveryFee, totalCartWeight } from "@/lib/delivery";
 
 const payloadSchema = z.object({
   items: z
@@ -18,6 +19,7 @@ const payloadSchema = z.object({
   deliveryMethod: z.enum(["delivery", "pickup"]),
   address: z.string().trim().optional(),
   pickupPointId: z.string().trim().optional(),
+  destinationLocationId: z.string().trim().optional(),
 });
 
 export type PlaceOrderInput = z.infer<typeof payloadSchema>;
@@ -43,21 +45,44 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     return { ok: false, error: "Please choose a pickup point." };
   }
 
-  // Re-price from the database — never trust client-supplied prices.
+  // Re-price from the database — never trust client-supplied prices or weights.
   const ids = data.items.map((i) => i.productId);
-  const products = await prisma.product.findMany({ where: { id: { in: ids } } });
-  const priceById = new Map(products.map((p) => [p.id, p.price]));
+  const products = await prisma.product.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, price: true, shippingWeightKg: true },
+  });
+  const productById = new Map(products.map((p) => [p.id, p]));
 
   const lineItems = data.items
-    .filter((i) => priceById.has(i.productId))
-    .map((i) => ({ productId: i.productId, quantity: i.quantity, unitPrice: priceById.get(i.productId)! }));
+    .filter((i) => productById.has(i.productId))
+    .map((i) => ({
+      productId: i.productId,
+      quantity: i.quantity,
+      unitPrice: productById.get(i.productId)!.price,
+      weightKg: productById.get(i.productId)!.shippingWeightKg,
+    }));
 
   if (lineItems.length === 0) {
     return { ok: false, error: "None of the items in your cart are available." };
   }
 
   const subtotal = lineItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
-  const deliveryFee = data.deliveryMethod === "pickup" ? 0 : await getDeliveryFee();
+
+  // Delivery fee — recomputed server-side with the weight/zone engine.
+  const destinationLocation =
+    data.deliveryMethod === "delivery" && data.destinationLocationId
+      ? await prisma.location.findUnique({
+          where: { id: data.destinationLocationId },
+          select: { deliveryZoneMultiplier: true },
+        })
+      : null;
+  const deliveryConfig = await getDeliveryConfig();
+  const deliveryFee = quoteDeliveryFee({
+    method: data.deliveryMethod,
+    totalWeightKg: totalCartWeight(lineItems),
+    zoneMultiplier: destinationLocation?.deliveryZoneMultiplier ?? 1,
+    config: deliveryConfig,
+  });
   const total = subtotal + deliveryFee;
 
   // A freight agent to carry delivery consignments, if one exists.
@@ -87,7 +112,13 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
           address: data.deliveryMethod === "delivery" ? data.address : null,
           pickupPointId: data.deliveryMethod === "pickup" ? (pickupPoint?.id ?? null) : null,
           userId: user.id,
-          items: { create: lineItems },
+          items: {
+            create: lineItems.map((i) => ({
+              productId: i.productId,
+              quantity: i.quantity,
+              unitPrice: i.unitPrice,
+            })),
+          },
           shipment: {
             create: {
               trackingNumber: `NMF-${Date.now().toString(36).toUpperCase()}`,

@@ -6,7 +6,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { CheckoutClient } from "@/components/cart/CheckoutClient";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getDeliveryFee } from "@/lib/settings";
+import { getDeliveryConfig } from "@/lib/settings";
+import { getLocations } from "@/lib/locations";
 
 export const metadata: Metadata = {
   title: "Checkout — NikiMart",
@@ -14,6 +15,25 @@ export const metadata: Metadata = {
 
 export default async function CheckoutPage() {
   const session = await auth();
+
+  const checkout = session?.user
+    ? await (async () => {
+        const [pickupPoints, config, locations, profile] = await Promise.all([
+          getActivePickupPoints(),
+          getDeliveryConfig(),
+          getLocations(),
+          prisma.user.findUnique({
+            where: { id: session.user!.id },
+            select: { address: true, preferredPickupId: true },
+          }),
+        ]);
+        // Delivery zones = real places (drop the "Any Location" sentinel).
+        const zones = locations
+          .filter((l) => l.id !== "any")
+          .map((l) => ({ id: l.id, name: l.name, region: l.region, multiplier: l.deliveryZoneMultiplier ?? 1 }));
+        return { pickupPoints, config, zones, profile };
+      })()
+    : null;
 
   return (
     <>
@@ -41,9 +61,15 @@ export default async function CheckoutPage() {
               </Link>
             </p>
           </div>
-        ) : (
-          <CheckoutClient pickupPoints={await getActivePickupPoints()} deliveryFee={await getDeliveryFee()} />
-        )}
+        ) : checkout ? (
+          <CheckoutClient
+            pickupPoints={checkout.pickupPoints}
+            zones={checkout.zones}
+            config={checkout.config}
+            defaultAddress={checkout.profile?.address ?? ""}
+            defaultPickupId={checkout.profile?.preferredPickupId ?? ""}
+          />
+        ) : null}
       </Container>
     </>
   );

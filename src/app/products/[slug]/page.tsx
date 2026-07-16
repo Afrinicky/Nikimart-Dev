@@ -232,6 +232,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
                   gradientTo: product.gradientTo,
                   image: product.image,
                   vendorId: product.vendorId,
+                  weightKg: product.shippingWeightKg,
                 }}
               />
             </div>
