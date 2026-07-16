@@ -137,6 +137,7 @@ function vendorData(fd: FormData) {
     accentFrom: optStr(fd, "accentFrom") ?? "#FF8A00",
     accentTo: optStr(fd, "accentTo") ?? "#FFC107",
     locationIds: JSON.stringify(csv(fd, "locationIds").length ? csv(fd, "locationIds") : ["any"]),
+    originCountry: str(fd, "originCountry") || "GH",
     verificationStatus: str(fd, "verificationStatus") || "pending",
     rating: num(fd, "rating") ?? 0,
     reviewCount: num(fd, "reviewCount") ?? 0,

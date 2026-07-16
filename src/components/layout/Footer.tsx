@@ -8,7 +8,6 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; href: string }[] 
     links: [
       { label: "All Products", href: "/products" },
       { label: "Global Shopping", href: "/global-shopping" },
-      { label: "Buy For Me", href: "/buy-for-me" },
       { label: "Preorder Deals", href: "/preorders" },
       { label: "Services", href: "/services" },
       { label: "Shop by Campus", href: "/campus" },

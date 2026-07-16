@@ -97,6 +97,7 @@ export interface Vendor {
   accentFrom: string;
   accentTo: string;
   locationIds: string[];
+  originCountry: string;
   verificationStatus: VerificationStatus;
   rating: number;
   reviewCount: number;
@@ -162,6 +163,8 @@ export interface Product {
   image?: string;
   /** Gallery image URLs (http(s) or data: URLs). First is the primary. */
   images?: string[];
+  /** Origin country code inherited from the vendor (GH = local). */
+  originCountry?: string;
   /** Key attributes / spec table rows. */
   attributes?: KeyAttribute[];
   preorderInfo?: PreorderInfo;

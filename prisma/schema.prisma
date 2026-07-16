@@ -100,6 +100,8 @@ model Vendor {
   accentTo                 String
   // JSON-encoded string[] of location ids.
   locationIds              String    @default("[]")
+  // ISO-ish origin code: GH (local), CN, US, EU, AE. Non-GH = ships from abroad.
+  originCountry            String    @default("GH")
   verificationStatus       String    @default("pending")
   rating                   Float     @default(0)
   reviewCount              Int       @default(0)

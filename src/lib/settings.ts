@@ -14,6 +14,11 @@ export const SETTINGS_DEFAULTS = {
   restrictionsText:
     "NikiMart restricts dangerous, illegal, and age-restricted products including weapons, alcohol, nicotine, drugs, gambling, adult content, counterfeit goods, and prescription medicine.",
   copyrightName: "NikiMart",
+  // Overseas shipping lead times (days to arrive in Ghana), per origin.
+  leadDaysCN: "21",
+  leadDaysAE: "14",
+  leadDaysUS: "21",
+  leadDaysEU: "21",
 } as const;
 
 export type SettingKey = keyof typeof SETTINGS_DEFAULTS;
@@ -42,4 +47,12 @@ export async function getDeliveryFee(): Promise<number> {
   const settings = await getSettings();
   const fee = Number(settings.deliveryFee);
   return Number.isFinite(fee) && fee >= 0 ? fee : Number(SETTINGS_DEFAULTS.deliveryFee);
+}
+
+/** Configured overseas lead time (days) for an origin country code. */
+export async function getLeadDays(countryCode: string): Promise<number> {
+  const settings = await getSettings();
+  const key = `leadDays${countryCode}` as SettingKey;
+  const raw = key in settings ? Number(settings[key]) : NaN;
+  return Number.isFinite(raw) && raw >= 0 ? raw : 21;
 }

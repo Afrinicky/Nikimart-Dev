@@ -119,7 +119,7 @@ out.push("-- Vendors (first vendor owned by the seller demo account) -----------
 vendors.forEach((v, i) => {
   const ownerId = i === 0 ? "'usr-seller'" : "NULL";
   out.push(
-    `INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES (${q(v.id)}, ${q(v.slug)}, ${q(v.businessName)}, ${j(v.sellerTypes)}, ${q(v.description)}, ${q(v.initials)}, ${q(v.accentFrom)}, ${q(v.accentTo)}, ${j(v.locationIds)}, ${q(v.verificationStatus)}, ${n(v.rating)}, ${n(v.reviewCount)}, ${n(v.totalSales)}, ${b(v.isOfficial)}, ${b(v.deliveryAvailable)}, ${b(v.pickupAvailable)}, ${b(v.sameDayDeliveryAvailable)}, ${ownerId});`,
+    `INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","originCountry","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES (${q(v.id)}, ${q(v.slug)}, ${q(v.businessName)}, ${j(v.sellerTypes)}, ${q(v.description)}, ${q(v.initials)}, ${q(v.accentFrom)}, ${q(v.accentTo)}, ${j(v.locationIds)}, ${q(v.originCountry)}, ${q(v.verificationStatus)}, ${n(v.rating)}, ${n(v.reviewCount)}, ${n(v.totalSales)}, ${b(v.isOfficial)}, ${b(v.deliveryAvailable)}, ${b(v.pickupAvailable)}, ${b(v.sameDayDeliveryAvailable)}, ${ownerId});`,
   );
 });
 out.push("");

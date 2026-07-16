@@ -6,6 +6,7 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import type { CrudState } from "@/lib/admin-actions";
 import type { Vendor } from "@/lib/types";
+import { COUNTRIES } from "@/lib/countries";
 
 type Action = (prev: CrudState, fd: FormData) => Promise<CrudState>;
 
@@ -59,6 +60,16 @@ export function VendorForm({
           <input id="sellerTypes" name="sellerTypes" defaultValue={v?.sellerTypes.join(", ")} className={inputClass} />
         </Field>
       </div>
+
+      <Field label="Ships from" htmlFor="originCountry" hint="Non-Ghana sellers' products are marked “shipped from abroad”">
+        <select id="originCountry" name="originCountry" defaultValue={v?.originCountry ?? "GH"} className={inputClass}>
+          {COUNTRIES.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.flag} {c.name}
+            </option>
+          ))}
+        </select>
+      </Field>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Accent from" htmlFor="accentFrom">

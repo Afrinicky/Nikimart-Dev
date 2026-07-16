@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { GraduationCap, Heart, MapPin, Star, Truck } from "lucide-react";
+import { GraduationCap, Heart, MapPin, Plane, Star, Truck } from "lucide-react";
 import type { Product } from "@/lib/types";
+import { isAbroad } from "@/lib/countries";
 import { discountPercent, formatPrice } from "@/lib/format";
 import { getProductImage } from "@/lib/mock-data";
 import { ProductImagePlaceholder } from "./ProductImagePlaceholder";
@@ -49,6 +50,13 @@ export function ProductCard({ product, vendorName }: { product: Product; vendorN
         {vendorName ? (
           <span className="truncate text-[11px] font-medium text-niki-ink/50">
             {vendorName}
+          </span>
+        ) : null}
+
+        {isAbroad(product.originCountry) ? (
+          <span className="inline-flex w-fit items-center gap-1 rounded-full bg-niki-trust/10 px-2 py-0.5 text-[10px] font-semibold text-niki-trust">
+            <Plane className="h-3 w-3" />
+            Shipped from abroad
           </span>
         ) : null}
 
