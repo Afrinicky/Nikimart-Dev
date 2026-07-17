@@ -70,8 +70,6 @@ export interface BlockDef {
 // The palette of blocks and which fields the admin can edit for each.
 export const BLOCK_DEFS: BlockDef[] = [
   { type: "hero", label: "Hero banner", description: "The big top banner.", fields: [] },
-  { type: "global_band", label: "Global sourcing band", description: "Strip of source regions.", fields: [] },
-  { type: "category_grid", label: "Category grid", description: "Shop-by-category tiles.", fields: [] },
   { type: "campus", label: "Campus showcase", description: "Location-aware vendors & products.", fields: [] },
   {
     type: "product_rail",
