@@ -18,6 +18,8 @@ export const SETTINGS_DEFAULTS = {
   restrictionsText:
     "NikiMart restricts dangerous, illegal, and age-restricted products including weapons, alcohol, nicotine, drugs, gambling, adult content, counterfeit goods, and prescription medicine.",
   copyrightName: "NikiMart",
+  // Brand logo (http(s) URL or a data: URL). Empty → bundled /logo.png.
+  logoUrl: "",
   // Overseas shipping lead times (days to arrive in Ghana), per origin.
   leadDaysCN: "21",
   leadDaysAE: "14",

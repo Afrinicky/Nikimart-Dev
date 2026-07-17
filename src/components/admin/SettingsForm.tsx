@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
+import { SingleImageField } from "@/components/admin/SingleImageField";
 import { updateSettings, type SettingsState } from "@/lib/settings-actions";
 import type { Settings } from "@/lib/settings";
 
@@ -74,6 +75,13 @@ export function SettingsForm({ settings }: { settings: Settings }) {
       <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
         <h2 className="font-display text-lg font-bold text-niki-ink">Footer & brand</h2>
         <div className="mt-4 space-y-4">
+          <SingleImageField
+            name="logoUrl"
+            label="Brand logo"
+            initial={settings.logoUrl}
+            hint="Shown in the header, footer, and menus. Leave empty to use the bundled logo. A square PNG works best."
+            previewClass="h-16 w-16"
+          />
           <Field label="Footer tagline" htmlFor="footerTagline">
             <input id="footerTagline" name="footerTagline" defaultValue={settings.footerTagline} className={inputClass} />
           </Field>

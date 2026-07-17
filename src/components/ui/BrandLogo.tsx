@@ -11,12 +11,14 @@ import { useState } from "react";
  */
 export function BrandLogo({
   className = "h-9 w-9",
-  src = "/logo.png",
+  src,
 }: {
   className?: string;
+  /** Logo URL (admin-configurable). Empty/undefined → bundled /logo.png. */
   src?: string;
 }) {
   const [failed, setFailed] = useState(false);
+  const resolved = src && src.trim() ? src : "/logo.png";
 
   if (failed) {
     return (
@@ -31,7 +33,7 @@ export function BrandLogo({
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={src}
+      src={resolved}
       alt="NikiMart"
       onError={() => setFailed(true)}
       className={`rounded-xl object-contain ${className}`}
