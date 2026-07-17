@@ -294,3 +294,22 @@ model Location {
   // Delivery-fee zone multiplier (1 = standard; <1 nearer/cheaper, >1 farther).
   deliveryZoneMultiplier Float @default(1)
 }
+
+// Homepage promotional carousel slides (editable in the admin console).
+model Banner {
+  id          String   @id @default(cuid())
+  title       String
+  subtitle    String   @default("")
+  // Event window / offer line, e.g. "TODAY | 12PM - 3PM".
+  eventWindow String   @default("")
+  ctaLabel    String   @default("Shop now")
+  ctaHref     String   @default("/products")
+  // Optional product/hero image (http(s) URL or a data: URL from an upload).
+  image       String?
+  // Gradient background colours for the slide card.
+  accentFrom  String   @default("#ff7a1a")
+  accentTo    String   @default("#0e1f36")
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+}

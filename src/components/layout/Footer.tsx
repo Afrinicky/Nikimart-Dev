@@ -53,7 +53,7 @@ export async function Footer() {
       <Container className="grid grid-cols-2 gap-8 py-12 sm:grid-cols-4 lg:grid-cols-5">
         <div className="col-span-2 sm:col-span-4 lg:col-span-1">
           <div className="flex items-center gap-2">
-            <BrandLogo className="h-9 w-9" />
+            <BrandLogo className="h-9 w-9" src={settings.logoUrl} />
             <span className="font-display text-xl font-bold tracking-tight text-white">
               Niki<span className="text-niki-orange">Mart</span>
             </span>

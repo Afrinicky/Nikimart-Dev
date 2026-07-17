@@ -7,21 +7,24 @@ import { CartBadge } from "@/components/cart/CartBadge";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { Container } from "@/components/ui/Container";
 import { auth } from "@/lib/auth";
+import { getCategories } from "@/lib/catalog";
+import { getSettings } from "@/lib/settings";
 import { isRole, ROLE_HOME, ROLE_LABELS } from "@/lib/roles";
 
 export async function Header() {
-  const session = await auth();
+  const [session, categories, settings] = await Promise.all([auth(), getCategories(), getSettings()]);
   const role = session?.user && isRole(session.user.role) ? session.user.role : null;
   const accountHref = role ? ROLE_HOME[role] : "/login";
   const accountLabel = session?.user ? "Account" : "Sign in";
+  const sidebarCategories = categories.map((c) => ({ slug: c.slug, name: c.name, icon: c.icon }));
 
   return (
     <header className="sticky top-0 z-50 bg-niki-navy">
       <Container className="flex items-center gap-2 py-3 sm:gap-4">
-        <SidebarNav accountHref={accountHref} accountLabel={accountLabel} isAuthed={Boolean(session?.user)} />
+        <SidebarNav accountHref={accountHref} accountLabel={accountLabel} isAuthed={Boolean(session?.user)} categories={sidebarCategories} logoSrc={settings.logoUrl} />
 
         <Link href="/" className="flex shrink-0 items-center gap-2">
-          <BrandLogo className="h-9 w-9" />
+          <BrandLogo className="h-9 w-9" src={settings.logoUrl} />
           <span className="font-display text-xl font-bold tracking-tight text-white">
             Niki<span className="text-niki-orange">Mart</span>
           </span>

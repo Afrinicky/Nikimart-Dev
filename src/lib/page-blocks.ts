@@ -171,8 +171,6 @@ export const DEFAULT_HOME_SECTIONS: SectionInput[] = [
         "This is a preorder item. Please review the estimated arrival date, deposit requirement, balance payment rule, and refund policy before placing your order.",
     },
   },
-  { type: "category_grid", config: {} },
-  { type: "global_band", config: {} },
   {
     type: "vendor_rail",
     config: {

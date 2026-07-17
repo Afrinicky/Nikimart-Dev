@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  GalleryHorizontalEnd,
   HelpCircle,
   LayoutGrid,
   LayoutDashboard,
@@ -25,6 +26,7 @@ const TABS = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
   { href: "/admin/pages", label: "Pages", icon: LayoutTemplate },
+  { href: "/admin/banners", label: "Carousel", icon: GalleryHorizontalEnd },
   { href: "/admin/locations", label: "Locations", icon: MapPin },
   { href: "/admin/pickup-points", label: "Pickup", icon: PackageCheck },
   { href: "/admin/faqs", label: "FAQs", icon: HelpCircle },

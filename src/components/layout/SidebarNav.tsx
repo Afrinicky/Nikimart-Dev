@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BrandLogo } from "@/components/ui/BrandLogo";
+import { ICON_MAP } from "@/lib/icon-map";
 import {
   BadgeCheck,
   ClipboardList,
@@ -19,12 +20,14 @@ import {
   ShieldCheck,
   ShoppingCart,
   Store,
+  Tag,
   Utensils,
   Wrench,
   X,
 } from "lucide-react";
 
 type Item = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
+export type SidebarCategory = { slug: string; name: string; icon: string };
 
 const SECTIONS: { title: string; items: Item[] }[] = [
   {
@@ -54,10 +57,14 @@ export function SidebarNav({
   accountHref,
   accountLabel,
   isAuthed,
+  categories = [],
+  logoSrc,
 }: {
   accountHref: string;
   accountLabel: string;
   isAuthed: boolean;
+  categories?: SidebarCategory[];
+  logoSrc?: string;
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -85,16 +92,17 @@ export function SidebarNav({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Open menu"
-        className="flex items-center justify-center rounded-xl p-2 text-white/90 transition-colors hover:bg-white/10 lg:hidden"
+        aria-label="Open categories menu"
+        className="flex items-center justify-center gap-1.5 rounded-xl p-2 text-white/90 transition-colors hover:bg-white/10"
       >
         <Menu className="h-6 w-6" />
+        <span className="hidden text-sm font-semibold lg:inline">Categories</span>
       </button>
 
       {/* Backdrop */}
       <div
         onClick={() => setOpen(false)}
-        className={`fixed inset-0 z-[60] bg-black/50 transition-opacity lg:hidden ${
+        className={`fixed inset-0 z-[60] bg-black/50 transition-opacity ${
           open ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
         aria-hidden
@@ -102,14 +110,14 @@ export function SidebarNav({
 
       {/* Drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-[70] flex w-80 max-w-[85%] flex-col bg-white shadow-2xl transition-transform lg:hidden ${
+        className={`fixed inset-y-0 left-0 z-[70] flex w-80 max-w-[85%] flex-col bg-white shadow-2xl transition-transform ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-hidden={!open}
       >
         <div className="flex items-center justify-between bg-niki-navy px-5 py-4">
           <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-            <BrandLogo className="h-9 w-9" />
+            <BrandLogo className="h-9 w-9" src={logoSrc} />
             <span className="font-display text-lg font-bold text-white">
               Niki<span className="text-niki-orange">Mart</span>
             </span>
@@ -141,6 +149,30 @@ export function SidebarNav({
               <ShoppingCart className="h-4 w-4 text-niki-orange" /> Cart
             </Link>
           </div>
+
+          {categories.length > 0 ? (
+            <div className="mb-4">
+              <p className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-niki-ink/40">
+                Shop by Category
+              </p>
+              <ul>
+                {categories.map((c) => {
+                  const Icon = ICON_MAP[c.icon] ?? Tag;
+                  return (
+                    <li key={c.slug}>
+                      <Link
+                        href={`/categories/${c.slug}`}
+                        className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm text-niki-ink/80 transition-colors hover:bg-niki-navy/5"
+                      >
+                        <Icon className="h-5 w-5 text-niki-ink/40" />
+                        {c.name}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
 
           {SECTIONS.map((section) => (
             <div key={section.title} className="mb-4">
