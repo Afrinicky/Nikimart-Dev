@@ -18,6 +18,7 @@ import { GlobalBand } from "@/components/home/GlobalBand";
 import { CategoryShowcase } from "@/components/home/CategoryShowcase";
 import { CampusShowcase } from "@/components/home/CampusShowcase";
 import { ProductSection } from "@/components/home/ProductSection";
+import { FlashSaleSection } from "@/components/home/FlashSaleSection";
 import { VendorSection } from "@/components/home/VendorSection";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { Container } from "@/components/ui/Container";
@@ -129,6 +130,16 @@ function SectionBlock({
     case "campus":
       return <CampusShowcase products={products} vendors={vendors} vendorNames={vendorNames} />;
     case "product_rail":
+      if (config.collection === "flash_sale") {
+        return (
+          <FlashSaleSection
+            title={config.title ?? "Flash Sales"}
+            viewAllHref={config.viewAllHref}
+            products={productCollection(products, config.collection)}
+            vendorNames={vendorNames}
+          />
+        );
+      }
       return (
         <ProductSection
           title={config.title ?? "Products"}
