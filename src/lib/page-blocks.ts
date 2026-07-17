@@ -133,10 +133,11 @@ export const SECTION_ICONS = [
 
 // The default homepage — mirrors the original hardcoded layout. Used as a
 // fallback and as the seed for the editable "home" page.
+// Homepage order is products-first: a short hero, then real products right
+// away (so mobile shoppers see items without scrolling past banners), a compact
+// category strip for navigation, and the promotional bands lower down.
 export const DEFAULT_HOME_SECTIONS: SectionInput[] = [
   { type: "hero", config: {} },
-  { type: "global_band", config: {} },
-  { type: "category_grid", config: {} },
   {
     type: "product_rail",
     config: {
@@ -151,6 +152,17 @@ export const DEFAULT_HOME_SECTIONS: SectionInput[] = [
   {
     type: "product_rail",
     config: {
+      title: "Featured Picks",
+      subtitle: "Hand-picked products our team loves right now",
+      collection: "featured",
+      viewAllHref: "/products",
+      icon: "star",
+    },
+  },
+  { type: "category_grid", config: {} },
+  {
+    type: "product_rail",
+    config: {
       title: "Preorder Deals",
       subtitle: "Discover imported and upcoming products from trusted sellers",
       collection: "preorder",
@@ -160,6 +172,7 @@ export const DEFAULT_HOME_SECTIONS: SectionInput[] = [
         "This is a preorder item. Please review the estimated arrival date, deposit requirement, balance payment rule, and refund policy before placing your order.",
     },
   },
+  { type: "global_band", config: {} },
   {
     type: "vendor_rail",
     config: {
@@ -229,15 +242,6 @@ export const DEFAULT_HOME_SECTIONS: SectionInput[] = [
       subtitle: "Pick up where you left off",
       collection: "recently_viewed",
       icon: "history",
-    },
-  },
-  {
-    type: "product_rail",
-    config: {
-      title: "Featured Picks",
-      subtitle: "Hand-picked products our team loves right now",
-      collection: "featured",
-      icon: "star",
     },
   },
 ];
