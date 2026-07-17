@@ -1,30 +1,9 @@
 import Link from "next/link";
-import { ArrowRight, Clock3, GraduationCap, Sparkles, Store, Zap } from "lucide-react";
+import { ArrowRight, LayoutGrid, Sparkles, Store, Tag } from "lucide-react";
 import { Container } from "@/components/ui/Container";
-import { SearchBar } from "@/components/layout/SearchBar";
 import { getCategories, getVendors } from "@/lib/catalog";
 import { getLocations } from "@/lib/locations";
-
-const DEAL_CARDS = [
-  {
-    icon: Zap,
-    title: "Flash Sales",
-    description: "Up to 40% off today",
-    accent: "from-niki-orange to-niki-gold",
-  },
-  {
-    icon: Clock3,
-    title: "Preorder Deals",
-    description: "Imported items, deposit from 30%",
-    accent: "from-niki-navy-soft to-niki-orange",
-  },
-  {
-    icon: GraduationCap,
-    title: "Campus Delivery",
-    description: "Same-day drop-off near your hostel",
-    accent: "from-niki-success to-niki-navy-soft",
-  },
-];
+import { ICON_MAP } from "@/lib/icon-map";
 
 export async function Hero() {
   const [categories, vendors, locations] = await Promise.all([
@@ -32,78 +11,112 @@ export async function Hero() {
     getVendors(),
     getLocations(),
   ]);
+  const sidebarCats = categories.slice(0, 12);
+
   return (
-    <section className="niki-gradient-hero relative overflow-hidden">
-      <div className="pointer-events-none absolute -left-24 top-10 h-72 w-72 rounded-full bg-niki-orange/20 blur-3xl" />
-      <div className="pointer-events-none absolute -right-16 bottom-0 h-80 w-80 rounded-full bg-niki-gold/15 blur-3xl" />
-
-      <Container className="relative grid gap-8 py-9 sm:py-12 lg:grid-cols-[1.25fr_1fr] lg:items-center lg:gap-10">
-        <div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-niki-gold ring-1 ring-white/15">
-            <Sparkles className="h-3.5 w-3.5" />
-            Ghana&apos;s smartest growing marketplace
-          </span>
-
-          <h1 className="mt-4 max-w-xl text-balance font-display text-2xl font-bold leading-tight text-white sm:text-4xl lg:text-5xl">
-            Shop local, preorder global, and discover deals near you.
-          </h1>
-
-          {/* Prominent search — the primary way ordinary/mobile users find things.
-              Hidden on lg where the header already carries a search bar. */}
-          <SearchBar className="mt-5 max-w-lg lg:hidden" />
-
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <Link
-              href="/products"
-              className="flex items-center gap-2 rounded-full bg-niki-orange px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-niki-orange/30 transition-colors hover:bg-niki-orange-light"
-            >
-              Shop Now
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/sell"
-              className="flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-niki-navy transition-colors hover:bg-white/90"
-            >
-              <Store className="h-4 w-4" />
-              Sell on NikiMart
-            </Link>
+    <section className="bg-niki-surface pt-4">
+      <Container className="grid gap-4 lg:grid-cols-[240px_1fr] lg:items-stretch">
+        {/* Desktop category quick-nav — Jumia-style menu column. */}
+        <aside className="hidden lg:block">
+          <div className="h-full rounded-2xl bg-white p-2 ring-1 ring-black/5">
+            <p className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-niki-ink">
+              <LayoutGrid className="h-4 w-4 text-niki-orange" />
+              All Categories
+            </p>
+            <ul>
+              {sidebarCats.map((c) => {
+                const Icon = ICON_MAP[c.icon] ?? Tag;
+                return (
+                  <li key={c.id}>
+                    <Link
+                      href={`/categories/${c.slug}`}
+                      className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-niki-ink/80 transition-colors hover:bg-niki-surface hover:text-niki-orange"
+                    >
+                      <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                      <span className="truncate">{c.name}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
+        </aside>
 
-          <div className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-3 text-white/60">
-            <div>
-              <p className="font-display text-xl font-bold text-white">{vendors.length}+</p>
-              <p className="text-xs">Trusted Vendors</p>
+        {/* Hero banner. */}
+        <div className="niki-gradient-hero relative overflow-hidden rounded-2xl">
+          <div className="pointer-events-none absolute -left-16 top-6 h-56 w-56 rounded-full bg-niki-orange/20 blur-3xl" />
+          <div className="pointer-events-none absolute -right-10 bottom-0 h-64 w-64 rounded-full bg-niki-gold/15 blur-3xl" />
+
+          <div className="relative px-5 py-5 sm:px-10 sm:py-10">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-niki-gold ring-1 ring-white/15">
+              <Sparkles className="h-3.5 w-3.5" />
+              Ghana&apos;s smartest growing marketplace
+            </span>
+
+            <h1 className="mt-3 max-w-xl text-balance font-display text-xl font-bold leading-snug text-white sm:text-4xl sm:leading-tight lg:text-[2.5rem]">
+              Shop local, preorder global, and discover deals near you.
+            </h1>
+
+            <p className="mt-3 hidden max-w-md text-sm text-white/70 sm:block">
+              Trusted local shops, preorder sellers, campus vendors, services, and official NikiMart
+              products — all in one place.
+            </p>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Link
+                href="/products"
+                className="flex items-center gap-2 rounded-full bg-niki-orange px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-niki-orange/30 transition-colors hover:bg-niki-orange-light"
+              >
+                Shop Now
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/sell"
+                className="flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-niki-navy transition-colors hover:bg-white/90"
+              >
+                <Store className="h-4 w-4" />
+                Sell on NikiMart
+              </Link>
             </div>
-            <div>
-              <p className="font-display text-xl font-bold text-white">{categories.length}</p>
-              <p className="text-xs">Categories</p>
-            </div>
-            <div>
-              <p className="font-display text-xl font-bold text-white">{locations.length - 1}</p>
-              <p className="text-xs">Campuses &amp; Communities</p>
+
+            <div className="mt-5 hidden flex-wrap items-center gap-x-8 gap-y-2 text-white/60 sm:flex">
+              <div>
+                <p className="font-display text-lg font-bold text-white">{vendors.length}+</p>
+                <p className="text-[11px]">Trusted Vendors</p>
+              </div>
+              <div>
+                <p className="font-display text-lg font-bold text-white">{categories.length}</p>
+                <p className="text-[11px]">Categories</p>
+              </div>
+              <div>
+                <p className="font-display text-lg font-bold text-white">{locations.length - 1}</p>
+                <p className="text-[11px]">Campuses &amp; Communities</p>
+              </div>
             </div>
           </div>
         </div>
+      </Container>
 
-        {/* Decorative promo cards — desktop only; on mobile the real product
-            rails sit immediately below, so we keep the hero short. */}
-        <div className="hidden flex-col gap-4 lg:flex">
-          {DEAL_CARDS.map(({ icon: Icon, title, description, accent }) => (
-            <div
-              key={title}
-              className="niki-glow flex items-center gap-4 rounded-2xl bg-white/10 p-4 backdrop-blur-sm ring-1 ring-white/10 transition-transform hover:-translate-y-1"
-            >
-              <span
-                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${accent} text-white`}
+      {/* Mobile category strip — quick access, right under the banner. */}
+      <Container className="mt-4 lg:hidden">
+        <div className="scrollbar-none flex gap-3 overflow-x-auto pb-1">
+          {categories.map((c) => {
+            const Icon = ICON_MAP[c.icon] ?? Tag;
+            return (
+              <Link
+                key={c.id}
+                href={`/categories/${c.slug}`}
+                className="flex w-16 shrink-0 flex-col items-center gap-1.5 text-center"
               >
-                <Icon className="h-6 w-6" />
-              </span>
-              <div>
-                <p className="font-display text-sm font-bold text-white">{title}</p>
-                <p className="text-xs text-white/60">{description}</p>
-              </div>
-            </div>
-          ))}
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-niki-orange ring-1 ring-black/5">
+                  <Icon className="h-6 w-6" strokeWidth={1.75} />
+                </span>
+                <span className="line-clamp-2 text-[10px] font-medium leading-tight text-niki-ink">
+                  {c.name}
+                </span>
+              </Link>
+            );
+          })}
         </div>
       </Container>
     </section>

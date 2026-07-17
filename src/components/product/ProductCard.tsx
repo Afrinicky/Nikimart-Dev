@@ -7,9 +7,21 @@ import { getProductImage } from "@/lib/mock-data";
 import { ProductImagePlaceholder } from "./ProductImagePlaceholder";
 import { Badge } from "@/components/ui/Badge";
 
-export function ProductCard({ product, vendorName }: { product: Product; vendorName?: string }) {
+export function ProductCard({
+  product,
+  vendorName,
+  flashSale = false,
+}: {
+  product: Product;
+  vendorName?: string;
+  /** Flash-sale styling: show a Jumia-style "X items left" stock bar. */
+  flashSale?: boolean;
+}) {
   const discount = discountPercent(product.price, product.oldPrice);
   const primaryBadges = product.badges.slice(0, 2);
+  // Stock urgency bar — fuller bar = more available; low stock reads as urgent.
+  const itemsLeft = Math.max(1, product.stockQuantity || 0);
+  const stockPct = Math.min(100, Math.max(10, Math.round((itemsLeft / 20) * 100)));
 
   return (
     <div className="group relative flex h-full flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-black/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-niki-navy/10">
@@ -81,7 +93,19 @@ export function ProductCard({ product, vendorName }: { product: Product; vendorN
           ) : null}
         </div>
 
-        {(product.sameDayDeliveryAvailable || product.pickupAvailable || product.campusDeliveryAvailable) && (
+        {flashSale ? (
+          <div className="pt-1.5">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-niki-danger/15">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-niki-orange to-niki-danger"
+                style={{ width: `${stockPct}%` }}
+              />
+            </div>
+            <p className="mt-1 text-[10px] font-semibold text-niki-danger">{itemsLeft} items left</p>
+          </div>
+        ) : null}
+
+        {!flashSale && (product.sameDayDeliveryAvailable || product.pickupAvailable || product.campusDeliveryAvailable) && (
           <div className="flex items-center gap-2 pt-1 text-niki-ink/45">
             {product.sameDayDeliveryAvailable ? (
               <Truck className="h-3.5 w-3.5" aria-label="Same-day delivery" />
