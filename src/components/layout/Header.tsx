@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ClipboardList, HelpCircle, ShoppingCart, Store, User } from "lucide-react";
 import { SearchBar } from "./SearchBar";
 import { LocationSelector } from "./LocationSelector";
@@ -15,13 +16,15 @@ export async function Header() {
   return (
     <header className="sticky top-0 z-50 bg-niki-navy">
       <Container className="flex items-center gap-4 py-3">
-        <Link href="/" className="flex shrink-0 items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-niki-orange to-niki-gold font-display text-lg font-bold text-niki-navy">
-            N
-          </span>
-          <span className="font-display text-xl font-bold tracking-tight text-white">
-            Niki<span className="text-niki-orange">Mart</span>
-          </span>
+        <Link href="/" className="flex shrink-0 items-center">
+          <Image
+            src="/logo.png"
+            alt="NikiMart"
+            width={40}
+            height={40}
+            priority
+            className="h-10 w-auto"
+          />
         </Link>
 
         <SearchBar className="hidden flex-1 lg:flex" />
