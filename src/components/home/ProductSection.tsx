@@ -10,6 +10,7 @@ export function ProductSection({
   subtitle,
   viewAllHref,
   products,
+  vendorNames,
   icon,
   notice,
   headerExtra,
@@ -19,6 +20,7 @@ export function ProductSection({
   subtitle?: string;
   viewAllHref?: string;
   products: Product[];
+  vendorNames?: Record<string, string>;
   icon?: ReactNode;
   notice?: ReactNode;
   headerExtra?: ReactNode;
@@ -42,7 +44,7 @@ export function ProductSection({
         <ScrollRail>
           {products.map((product) => (
             <RailItem key={product.id}>
-              <ProductCard product={product} />
+              <ProductCard product={product} vendorName={vendorNames?.[product.vendorId]} />
             </RailItem>
           ))}
         </ScrollRail>

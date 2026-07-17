@@ -1,12 +1,11 @@
 "use client";
 
 import { MapPin } from "lucide-react";
-import { locations } from "@/lib/mock-data";
 import { useLocation } from "@/components/providers/LocationProvider";
 import { cn } from "@/lib/cn";
 
 export function LocationSelector({ className }: { className?: string }) {
-  const { selectedLocationId, setSelectedLocationId } = useLocation();
+  const { locations, selectedLocationId, setSelectedLocationId } = useLocation();
 
   return (
     <label

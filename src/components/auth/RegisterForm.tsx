@@ -5,7 +5,11 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { registerAction, type AuthFormState } from "@/lib/auth-actions";
 
-export function RegisterForm() {
+export function RegisterForm({
+  pickupPoints = [],
+}: {
+  pickupPoints?: { id: string; name: string; locationName: string }[];
+}) {
   const [state, formAction] = useActionState<AuthFormState, FormData>(registerAction, {});
 
   return (
@@ -59,6 +63,38 @@ export function RegisterForm() {
           className={inputClass}
         />
       </Field>
+
+      <Field
+        label="Delivery address"
+        htmlFor="address"
+        hint={state.fieldErrors?.address ?? "Optional — we'll pre-fill it at checkout"}
+      >
+        <textarea
+          id="address"
+          name="address"
+          rows={2}
+          placeholder="Hall / hostel, room, area, city…"
+          className={inputClass}
+        />
+      </Field>
+
+      {pickupPoints.length > 0 ? (
+        <Field
+          label="Preferred pickup centre"
+          htmlFor="preferredPickupId"
+          hint="Optional — your default collection point"
+        >
+          <select id="preferredPickupId" name="preferredPickupId" defaultValue="" className={inputClass}>
+            <option value="">No preference</option>
+            {pickupPoints.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} — {p.locationName}
+              </option>
+            ))}
+          </select>
+        </Field>
+      ) : null}
+
       <SubmitButton>Create account</SubmitButton>
     </form>
   );

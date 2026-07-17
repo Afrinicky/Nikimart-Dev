@@ -15,8 +15,8 @@ export const metadata: Metadata = {
 };
 
 const ACTIONS = [
-  { icon: Plus, title: "Add a product", desc: "List a new product, preorder, or service.", href: "/vendor-register" },
-  { icon: Boxes, title: "Manage products", desc: "Edit, restock, or remove your listings.", href: "/seller" },
+  { icon: Plus, title: "Add a product", desc: "List a new product, preorder, or service.", href: "/seller/products/new" },
+  { icon: Boxes, title: "Manage products", desc: "Edit, restock, or remove your listings.", href: "/seller/products" },
   { icon: ClipboardList, title: "Orders", desc: "View and fulfil incoming orders.", href: "/seller" },
   { icon: Wallet, title: "Settlements", desc: "Track your payouts and earnings.", href: "/seller" },
   { icon: Settings, title: "Shop settings", desc: "Update your shop profile and delivery options.", href: "/seller" },
@@ -75,7 +75,7 @@ export default async function SellerDashboardPage() {
       >
         <div className="flex flex-wrap items-center gap-2">
           <Link
-            href="/vendor-register"
+            href="/seller/products/new"
             className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
           >
             <Plus className="h-4 w-4" />

@@ -6,8 +6,8 @@ import {
   Check,
   GraduationCap,
   MapPin,
+  Plane,
   ShieldCheck,
-  ShoppingCart,
   Star,
   Store,
   Truck,
@@ -16,39 +16,46 @@ import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ProductGrid } from "@/components/product/ProductGrid";
-import { ProductImagePlaceholder } from "@/components/product/ProductImagePlaceholder";
+import { ProductGallery } from "@/components/product/ProductGallery";
+import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { Badge } from "@/components/ui/Badge";
 import {
-  getCategoryById,
+  getCategories,
   getProductBySlug,
-  getProductImage,
   getRelatedProducts,
   getVendorById,
-  products,
-} from "@/lib/mock-data";
+  getVendorNameMap,
+} from "@/lib/catalog";
 import { discountPercent, formatPrice } from "@/lib/format";
+import { countryByCode, estimatedArrival, isAbroad } from "@/lib/countries";
+import { getLeadDays } from "@/lib/settings";
 
 type Params = Promise<{ slug: string }>;
 
-export function generateStaticParams() {
-  return products.map((p) => ({ slug: p.slug }));
-}
-
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getProductBySlug(slug);
   return { title: product ? `${product.name} — NikiMart` : "Product — NikiMart" };
 }
 
 export default async function ProductDetailPage({ params }: { params: Params }) {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const vendor = getVendorById(product.vendorId);
-  const category = getCategoryById(product.categoryId);
+  const [vendor, categories, related, vendorNames] = await Promise.all([
+    getVendorById(product.vendorId),
+    getCategories(),
+    getRelatedProducts(product),
+    getVendorNameMap(),
+  ]);
+  const category = categories.find((c) => c.id === product.categoryId);
   const discount = discountPercent(product.price, product.oldPrice);
-  const related = getRelatedProducts(product);
+
+  const abroad = isAbroad(product.originCountry);
+  const originCountry = countryByCode(product.originCountry);
+  const leadDays = abroad ? await getLeadDays(product.originCountry ?? "") : 0;
+  const arrivalDate = abroad ? estimatedArrival(leadDays) : null;
 
   const deliveryOptions = [
     product.sameDayDeliveryAvailable && { icon: Truck, label: "Same-day delivery available" },
@@ -69,20 +76,21 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
 
       <Container className="py-8">
         <div className="grid gap-8 lg:grid-cols-2">
-          <div className="relative overflow-hidden rounded-3xl ring-1 ring-black/5">
-            <ProductImagePlaceholder
+          <div>
+            <ProductGallery
+              images={product.images ?? []}
               gradientFrom={product.gradientFrom}
               gradientTo={product.gradientTo}
               emoji={product.emoji}
-              imageUrl={getProductImage(product)}
               alt={product.name}
-              className="aspect-square w-full"
             />
-            <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
-              {product.badges.map((b) => (
-                <Badge key={b} kind={b} />
-              ))}
-            </div>
+            {product.badges.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {product.badges.map((b) => (
+                  <Badge key={b} kind={b} />
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div>
@@ -129,6 +137,47 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
 
             <p className="mt-5 text-sm leading-relaxed text-niki-ink/70">{product.description}</p>
 
+            {abroad && arrivalDate ? (
+              <div className="mt-5 flex items-start gap-3 rounded-2xl bg-niki-trust/10 p-4 ring-1 ring-niki-trust/20">
+                <Plane className="mt-0.5 h-5 w-5 shrink-0 text-niki-trust" />
+                <div className="text-sm">
+                  <p className="font-semibold text-niki-trust">
+                    Shipped from abroad{originCountry ? ` · ${originCountry.flag} ${originCountry.name}` : ""}
+                  </p>
+                  <p className="mt-1 text-niki-ink/70">
+                    Estimated arrival:{" "}
+                    <span className="font-semibold text-niki-ink">
+                      {arrivalDate.toLocaleDateString("en-GH", { day: "numeric", month: "long", year: "numeric" })}
+                    </span>{" "}
+                    <span className="text-niki-ink/50">(~{leadDays} days)</span>
+                  </p>
+                  <p className="mt-1 text-xs text-niki-ink/50">
+                    Delivered to your door or pickup point once it clears customs.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {product.attributes && product.attributes.length > 0 ? (
+              <div className="mt-6">
+                <h2 className="font-display text-sm font-bold uppercase tracking-wide text-niki-ink/70">
+                  Key attributes
+                </h2>
+                <div className="mt-2 overflow-hidden rounded-xl ring-1 ring-black/5">
+                  <table className="w-full text-sm">
+                    <tbody className="divide-y divide-black/5">
+                      {product.attributes.map((attr, i) => (
+                        <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-niki-surface"}>
+                          <th className="w-2/5 px-4 py-2.5 text-left font-medium text-niki-ink/60">{attr.label}</th>
+                          <td className="px-4 py-2.5 font-medium text-niki-ink">{attr.value}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
             {product.preorderInfo ? (
               <div className="mt-5 rounded-2xl bg-niki-gold/10 p-4 text-sm ring-1 ring-niki-gold/30">
                 <p className="flex items-center gap-2 font-semibold text-amber-900">
@@ -170,20 +219,22 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
               </div>
             ) : null}
 
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Link
-                href="/cart"
-                className="flex items-center gap-2 rounded-full bg-niki-orange px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-niki-orange/30 transition-colors hover:bg-niki-orange-light"
-              >
-                <ShoppingCart className="h-4 w-4" />
-                {product.productType === "service" ? "Book service" : "Add to cart"}
-              </Link>
-              <Link
-                href="/checkout"
-                className="flex items-center gap-2 rounded-full bg-niki-navy px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-niki-navy-light"
-              >
-                Buy now
-              </Link>
+            <div className="mt-7">
+              <AddToCartButton
+                addLabel={product.productType === "service" ? "Book service" : "Add to cart"}
+                item={{
+                  productId: product.id,
+                  slug: product.slug,
+                  name: product.name,
+                  price: product.price,
+                  emoji: product.emoji,
+                  gradientFrom: product.gradientFrom,
+                  gradientTo: product.gradientTo,
+                  image: product.image,
+                  vendorId: product.vendorId,
+                  weightKg: product.shippingWeightKg,
+                }}
+              />
             </div>
 
             <p className="mt-4 flex items-center gap-2 text-xs text-niki-ink/50">
@@ -196,7 +247,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         {related.length > 0 ? (
           <div className="mt-14">
             <SectionHeading title="You may also like" />
-            <ProductGrid products={related} />
+            <ProductGrid products={related} vendorNames={vendorNames} />
           </div>
         ) : null}
       </Container>

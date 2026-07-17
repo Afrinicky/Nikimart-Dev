@@ -27,15 +27,19 @@ model User {
   // Role gates every dashboard. SQLite has no enums, so we store the role as a
   // string constrained by the Role helper in src/lib/roles.ts.
   role          String    @default("CUSTOMER")
+  // Default delivery address + preferred pickup centre (set at registration).
+  address       String?
+  preferredPickupId String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts    Account[]
-  sessions    Session[]
-  vendor      Vendor?
-  orders      Order[]
-  pickupPoint PickupPoint?  @relation("PickupOperator")
-  shipments   Shipment[]    @relation("FreightAgent")
+  accounts        Account[]
+  sessions        Session[]
+  vendor          Vendor?
+  orders          Order[]
+  pickupPoint     PickupPoint?  @relation("PickupOperator")
+  preferredPickup PickupPoint?  @relation("PreferredPickup", fields: [preferredPickupId], references: [id], onDelete: SetNull)
+  shipments       Shipment[]    @relation("FreightAgent")
 }
 
 model Account {
@@ -100,6 +104,8 @@ model Vendor {
   accentTo                 String
   // JSON-encoded string[] of location ids.
   locationIds              String    @default("[]")
+  // ISO-ish origin code: GH (local), CN, US, EU, AE. Non-GH = ships from abroad.
+  originCountry            String    @default("GH")
   verificationStatus       String    @default("pending")
   rating                   Float     @default(0)
   reviewCount              Int       @default(0)
@@ -138,17 +144,33 @@ model Product {
   gradientFrom             String
   gradientTo               String
   emoji                    String
+  // Billable shipping weight in kg (max of actual/volumetric) for delivery fees.
+  shippingWeightKg         Float    @default(0.5)
+  // Primary image (kept for backward-compat / fallback); the gallery lives in
+  // ProductImage. May be an http(s) URL or a data: URL.
   image                    String?
   // JSON-encoded PreorderInfo / ServiceInfo objects (nullable).
   preorderInfo             String?
   serviceInfo              String?
+  // JSON-encoded array of { label, value } key attributes (spec table).
+  attributes               String   @default("[]")
 
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id])
   vendorId   String
   vendor     Vendor   @relation(fields: [vendorId], references: [id])
 
+  images     ProductImage[]
   orderItems OrderItem[]
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // http(s) URL or a data: URL (base64) for device uploads.
+  url       String
+  order     Int     @default(0)
 }
 
 // ---------------------------------------------------------------------------
@@ -200,13 +222,16 @@ model PickupPoint {
   operatorId String? @unique
   operator   User?   @relation("PickupOperator", fields: [operatorId], references: [id], onDelete: SetNull)
 
-  orders Order[]
+  orders           Order[]
+  preferredByUsers User[]  @relation("PreferredPickup")
 }
 
 model Shipment {
   id             String   @id @default(cuid())
   trackingNumber String   @unique
   status         String   @default("processing") // processing | in_transit | out_for_delivery | delivered
+  // When true, a human set the status — automatic time-based progression stops.
+  manualHold     Boolean  @default(false)
   carrier        String   @default("NikiMart Freight")
   origin         String
   destination    String
@@ -219,4 +244,53 @@ model Shipment {
 
   freightAgentId String?
   freightAgent   User?   @relation("FreightAgent", fields: [freightAgentId], references: [id], onDelete: SetNull)
+}
+
+// ---------------------------------------------------------------------------
+// Page builder — composable pages made of ordered section blocks.
+// ---------------------------------------------------------------------------
+
+model Page {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  title       String
+  isPublished Boolean       @default(true)
+  isSystem    Boolean       @default(false) // e.g. the home page can't be deleted
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  sections    PageSection[]
+}
+
+model PageSection {
+  id        String  @id @default(cuid())
+  pageId    String
+  page      Page    @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  type      String // hero | global_band | category_grid | product_rail | vendor_rail | campus | rich_text | banner
+  order     Int     @default(0)
+  isVisible Boolean @default(true)
+  // JSON-encoded block config (title, subtitle, collection, tone, body, …).
+  config    String  @default("{}")
+}
+
+model SiteSetting {
+  key   String @id
+  value String
+}
+
+model Faq {
+  id       String @id @default(cuid())
+  question String
+  answer   String
+  order    Int    @default(0)
+}
+
+model Location {
+  id       String  @id @default(cuid())
+  name     String
+  type     String  @default("city") // city | town | campus | institution | community
+  region   String
+  isActive Boolean @default(true)
+  order    Int     @default(0)
+  // Delivery-fee zone multiplier (1 = standard; <1 nearer/cheaper, >1 farther).
+  deliveryZoneMultiplier Float @default(1)
 }

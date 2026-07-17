@@ -1,8 +1,10 @@
 import Link from "next/link";
-import Image from "next/image";
-import { ClipboardList, HelpCircle, ShoppingCart, Store, User } from "lucide-react";
+import { ClipboardList, HelpCircle, Store, User } from "lucide-react";
 import { SearchBar } from "./SearchBar";
 import { LocationSelector } from "./LocationSelector";
+import { SidebarNav } from "./SidebarNav";
+import { CartBadge } from "@/components/cart/CartBadge";
+import { BrandLogo } from "@/components/ui/BrandLogo";
 import { Container } from "@/components/ui/Container";
 import { auth } from "@/lib/auth";
 import { isRole, ROLE_HOME, ROLE_LABELS } from "@/lib/roles";
@@ -15,16 +17,14 @@ export async function Header() {
 
   return (
     <header className="sticky top-0 z-50 bg-niki-navy">
-      <Container className="flex items-center gap-4 py-3">
-        <Link href="/" className="flex shrink-0 items-center">
-          <Image
-            src="/logo.png"
-            alt="NikiMart"
-            width={40}
-            height={40}
-            priority
-            className="h-10 w-auto"
-          />
+      <Container className="flex items-center gap-2 py-3 sm:gap-4">
+        <SidebarNav accountHref={accountHref} accountLabel={accountLabel} isAuthed={Boolean(session?.user)} />
+
+        <Link href="/" className="flex shrink-0 items-center gap-2">
+          <BrandLogo className="h-9 w-9" />
+          <span className="font-display text-xl font-bold tracking-tight text-white">
+            Niki<span className="text-niki-orange">Mart</span>
+          </span>
         </Link>
 
         <SearchBar className="hidden flex-1 lg:flex" />
@@ -58,14 +58,7 @@ export async function Header() {
             <span className="hidden text-[10px] font-medium sm:block">Orders</span>
           </Link>
 
-          <Link
-            href="/cart"
-            className="flex flex-col items-center gap-0.5 rounded-xl px-2.5 py-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
-            aria-label="Cart"
-          >
-            <ShoppingCart className="h-5 w-5" />
-            <span className="hidden text-[10px] font-medium sm:block">Cart</span>
-          </Link>
+          <CartBadge />
 
           {role && role !== "CUSTOMER" ? (
             <Link

@@ -51,10 +51,10 @@ export default function GlobalShoppingPage() {
                   Est. delivery: {region.deliveryEstimate}
                 </p>
                 <Link
-                  href={region.id === "ghana" ? "/products" : "/buy-for-me"}
+                  href={region.id === "ghana" ? "/products" : `/global-shopping/${region.id}`}
                   className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-niki-orange hover:underline"
                 >
-                  {region.id === "ghana" ? "Browse Ghana shops" : `Buy from ${region.name}`}
+                  {region.id === "ghana" ? "Browse Ghana shops" : `Shop from ${region.name}`}
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
@@ -66,18 +66,18 @@ export default function GlobalShoppingPage() {
           <div>
             <h2 className="flex items-center gap-2 font-display text-2xl font-bold text-white">
               <Globe className="h-6 w-6 text-niki-orange" />
-              Can&apos;t find it? Paste any product link.
+              Imported items appear everywhere you shop.
             </h2>
             <p className="mt-2 max-w-xl text-sm text-white/70">
-              If it&apos;s for sale anywhere online, our Buy-for-Me service can get it for you — with a
-              full landed-cost quote before you pay.
+              Products shipped from abroad are clearly marked and show an estimated arrival date. You&apos;ll
+              find them here by region and mixed into the general catalog.
             </p>
           </div>
           <Link
-            href="/buy-for-me"
+            href="/products"
             className="flex items-center justify-center gap-2 rounded-full bg-niki-orange px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
           >
-            Buy For Me
+            Browse all products
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

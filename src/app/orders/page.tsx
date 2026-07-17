@@ -1,10 +1,12 @@
+import Link from "next/link";
 import type { Metadata } from "next";
-import { ClipboardList, MapPin, Truck } from "lucide-react";
+import { CheckCircle2, ClipboardList, MapPin, Truck } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { syncShipmentProgress } from "@/lib/tracking";
 import { formatPrice } from "@/lib/format";
 import {
   ORDER_STATUS_LABELS,
@@ -16,23 +18,58 @@ export const metadata: Metadata = {
   title: "My Orders — NikiMart",
 };
 
-export default async function OrdersPage() {
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ placed?: string }>;
+}) {
   const user = await requireUser();
+  const { placed } = await searchParams;
+
+  const include = {
+    items: { include: { product: true } },
+    shipment: true,
+    pickupPoint: true,
+  } as const;
+
+  const initial = await prisma.order.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: "desc" },
+    include,
+  });
+
+  // Auto-advance each shipment by elapsed time (unless manually held), then
+  // re-read so the list reflects the fresh statuses.
+  await Promise.all(
+    initial
+      .filter((o) => o.shipment)
+      .map((o) =>
+        syncShipmentProgress({
+          id: o.shipment!.id,
+          status: o.shipment!.status,
+          manualHold: o.shipment!.manualHold,
+          createdAt: o.shipment!.createdAt,
+          orderId: o.id,
+        }),
+      ),
+  );
 
   const orders = await prisma.order.findMany({
     where: { userId: user.id },
     orderBy: { createdAt: "desc" },
-    include: {
-      items: { include: { product: true } },
-      shipment: true,
-      pickupPoint: true,
-    },
+    include,
   });
 
   return (
     <>
       <PageHeader title="My Orders" crumbs={[{ label: "Orders" }]} />
       <Container className="py-8">
+        {placed ? (
+          <div className="mb-6 flex items-center gap-3 rounded-2xl bg-niki-success/10 p-4 text-sm font-medium text-niki-success ring-1 ring-niki-success/20">
+            <CheckCircle2 className="h-5 w-5 shrink-0" />
+            Order <span className="font-bold">{placed}</span> placed successfully — thank you! Track it below.
+          </div>
+        ) : null}
         {orders.length === 0 ? (
           <EmptyState
             icon={<ClipboardList className="h-6 w-6" />}
@@ -99,9 +136,17 @@ export default async function OrdersPage() {
                       </>
                     )}
                   </div>
-                  <span className="font-display font-bold text-niki-ink">
-                    Total {formatPrice(order.total)}
-                  </span>
+                  <div className="flex items-center gap-4">
+                    <span className="font-display font-bold text-niki-ink">
+                      Total {formatPrice(order.total)}
+                    </span>
+                    <Link
+                      href={`/orders/${order.orderNumber}`}
+                      className="rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-navy-light"
+                    >
+                      Track order
+                    </Link>
+                  </div>
                 </div>
               </div>
             ))}

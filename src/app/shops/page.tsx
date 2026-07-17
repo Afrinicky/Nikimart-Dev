@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { VendorCard } from "@/components/vendor/VendorCard";
-import { vendors } from "@/lib/mock-data";
+import { getVendors } from "@/lib/catalog";
 
 export const metadata: Metadata = {
   title: "Shops & Vendors — NikiMart",
 };
 
-export default function ShopsPage() {
+export default async function ShopsPage() {
+  const vendors = await getVendors();
   return (
     <>
       <PageHeader

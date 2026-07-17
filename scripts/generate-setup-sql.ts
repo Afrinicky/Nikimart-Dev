@@ -12,13 +12,18 @@ import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import bcrypt from "bcryptjs";
-import { categories, vendors, products } from "../src/lib/mock-data";
+import { categories, vendors, products, locations } from "../src/lib/mock-data";
 
 const MIGRATIONS_DIR = path.join(process.cwd(), "prisma", "migrations");
-const migrationName = readdirSync(MIGRATIONS_DIR).find((d) => /_init$/.test(d))!;
-const migrationSqlPath = path.join(MIGRATIONS_DIR, migrationName, "migration.sql");
-const migrationSql = readFileSync(migrationSqlPath, "utf8");
-const checksum = createHash("sha256").update(readFileSync(migrationSqlPath)).digest("hex");
+// All migrations, in chronological (name) order.
+const migrations = readdirSync(MIGRATIONS_DIR)
+  .filter((d) => /^\d+_/.test(d))
+  .sort()
+  .map((name) => {
+    const file = path.join(MIGRATIONS_DIR, name, "migration.sql");
+    const sql = readFileSync(file, "utf8");
+    return { name, sql, checksum: createHash("sha256").update(readFileSync(file)).digest("hex") };
+  });
 
 // ---- helpers ---------------------------------------------------------------
 const q = (v: string | null | undefined) =>
@@ -28,6 +33,12 @@ const b = (v: boolean) => (v ? "TRUE" : "FALSE");
 const j = (v: unknown) => q(JSON.stringify(v));
 
 const TABLES = [
+  "PageSection",
+  "Page",
+  "SiteSetting",
+  "Faq",
+  "Location",
+  "ProductImage",
   "Shipment",
   "OrderItem",
   "Order",
@@ -50,9 +61,12 @@ out.push("");
 out.push("-- 1. Clean slate --------------------------------------------------------");
 for (const t of TABLES) out.push(`DROP TABLE IF EXISTS "${t}" CASCADE;`);
 out.push("");
-out.push("-- 2. Schema (from prisma migration) ------------------------------------");
-out.push(migrationSql.trim());
-out.push("");
+out.push("-- 2. Schema (from all prisma migrations, in order) --------------------");
+for (const m of migrations) {
+  out.push(`-- migration: ${m.name}`);
+  out.push(m.sql.trim());
+  out.push("");
+}
 out.push("-- 3. Prisma migration bookkeeping --------------------------------------");
 out.push(
   `CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
@@ -66,10 +80,12 @@ out.push(
   "applied_steps_count" INTEGER NOT NULL DEFAULT 0
 );`,
 );
-out.push(
-  `INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
-VALUES ('${crypto.randomUUID()}', '${checksum}', now(), '${migrationName}', now(), 1);`,
-);
+for (const m of migrations) {
+  out.push(
+    `INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('${crypto.randomUUID()}', '${m.checksum}', now(), '${m.name}', now(), 1);`,
+  );
+}
 out.push("");
 
 // ---- 4. Seed ---------------------------------------------------------------
@@ -103,7 +119,7 @@ out.push("-- Vendors (first vendor owned by the seller demo account) -----------
 vendors.forEach((v, i) => {
   const ownerId = i === 0 ? "'usr-seller'" : "NULL";
   out.push(
-    `INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES (${q(v.id)}, ${q(v.slug)}, ${q(v.businessName)}, ${j(v.sellerTypes)}, ${q(v.description)}, ${q(v.initials)}, ${q(v.accentFrom)}, ${q(v.accentTo)}, ${j(v.locationIds)}, ${q(v.verificationStatus)}, ${n(v.rating)}, ${n(v.reviewCount)}, ${n(v.totalSales)}, ${b(v.isOfficial)}, ${b(v.deliveryAvailable)}, ${b(v.pickupAvailable)}, ${b(v.sameDayDeliveryAvailable)}, ${ownerId});`,
+    `INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","originCountry","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES (${q(v.id)}, ${q(v.slug)}, ${q(v.businessName)}, ${j(v.sellerTypes)}, ${q(v.description)}, ${q(v.initials)}, ${q(v.accentFrom)}, ${q(v.accentTo)}, ${j(v.locationIds)}, ${q(v.originCountry)}, ${q(v.verificationStatus)}, ${n(v.rating)}, ${n(v.reviewCount)}, ${n(v.totalSales)}, ${b(v.isOfficial)}, ${b(v.deliveryAvailable)}, ${b(v.pickupAvailable)}, ${b(v.sameDayDeliveryAvailable)}, ${ownerId});`,
   );
 });
 out.push("");
@@ -111,7 +127,7 @@ out.push("");
 out.push("-- Products ------------------------------------------------------------");
 for (const p of products) {
   out.push(
-    `INSERT INTO "Product" ("id","slug","name","description","price","oldPrice","stockQuantity","productType","badges","locationIds","campusDeliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","isOfficial","isFeatured","rating","reviewCount","gradientFrom","gradientTo","emoji","image","preorderInfo","serviceInfo","categoryId","vendorId") VALUES (${q(p.id)}, ${q(p.slug)}, ${q(p.name)}, ${q(p.description)}, ${n(p.price)}, ${n(p.oldPrice)}, ${n(p.stockQuantity)}, ${q(p.productType)}, ${j(p.badges)}, ${j(p.locationIds)}, ${b(p.campusDeliveryAvailable)}, ${b(p.pickupAvailable)}, ${b(p.sameDayDeliveryAvailable)}, ${b(p.isOfficial)}, ${b(p.isFeatured)}, ${n(p.rating)}, ${n(p.reviewCount)}, ${q(p.gradientFrom)}, ${q(p.gradientTo)}, ${q(p.emoji)}, ${q(p.image)}, ${p.preorderInfo ? j(p.preorderInfo) : "NULL"}, ${p.serviceInfo ? j(p.serviceInfo) : "NULL"}, ${q(p.categoryId)}, ${q(p.vendorId)});`,
+    `INSERT INTO "Product" ("id","slug","name","description","price","oldPrice","stockQuantity","productType","badges","locationIds","campusDeliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","isOfficial","isFeatured","rating","reviewCount","gradientFrom","gradientTo","emoji","image","preorderInfo","serviceInfo","categoryId","vendorId") VALUES (${q(p.id)}, ${q(p.slug)}, ${q(p.name)}, ${q(p.description)}, ${n(p.price)}, ${n(p.oldPrice)}, ${n(p.stockQuantity)}, ${q(p.productType)}, ${j(p.badges)}, ${j(p.locationIds)}, ${b(p.campusDeliveryAvailable)}, ${b(p.pickupAvailable)}, ${b(p.sameDayDeliveryAvailable)}, ${b(p.isOfficial)}, ${b(p.isFeatured)}, ${n(p.rating)}, ${n(p.reviewCount)}, ${q(p.gradientFrom)}, ${q(p.gradientTo)}, ${q(p.emoji)}, ${q(p.image ?? `/products/${p.slug}.jpg`)}, ${p.preorderInfo ? j(p.preorderInfo) : "NULL"}, ${p.serviceInfo ? j(p.serviceInfo) : "NULL"}, ${q(p.categoryId)}, ${q(p.vendorId)});`,
   );
 }
 out.push("");
@@ -155,6 +171,27 @@ for (const o of orders) {
   );
 }
 out.push("");
+out.push("-- Locations (same ids as the app's static list) ---------------------");
+locations.forEach((l, i) => {
+  out.push(
+    `INSERT INTO "Location" ("id","name","type","region","isActive","order") VALUES (${q(l.id)}, ${q(l.name)}, ${q(l.type)}, ${q(l.region)}, ${b(l.isActive)}, ${n(i)});`,
+  );
+});
+out.push("");
+
+out.push("-- FAQs ----------------------------------------------------------------");
+const faqSeed = [
+  ["faq-delivery", "How does delivery and pickup work?", "Many sellers offer same-day delivery, campus drop-off, or in-person pickup. The available options are shown on each product page and at checkout."],
+  ["faq-preorder", "How do preorders work?", "Preorder items are imported on order. You pay a deposit to reserve your item, then settle the balance on arrival before delivery or pickup."],
+  ["faq-pay", "How do I pay?", "NikiMart supports local payments including Mobile Money and card. You choose your payment method at checkout."],
+  ["faq-sell", "How do I become a seller?", "Register your shop from “Sell on NikiMart”, complete quick verification, and start listing products."],
+  ["faq-protection", "Is my purchase protected?", "Yes. Orders are covered by NikiMart Buyer Protection."],
+];
+faqSeed.forEach(([id, question, answer], i) => {
+  out.push(`INSERT INTO "Faq" ("id","question","answer","order") VALUES (${q(id)}, ${q(question)}, ${q(answer)}, ${n(i)});`);
+});
+out.push("");
+
 out.push("COMMIT;");
 out.push("");
 

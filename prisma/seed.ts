@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { categories, vendors, products } from "../src/lib/mock-data";
+import { categories, vendors, products, locations } from "../src/lib/mock-data";
 
 const prisma = new PrismaClient();
 
@@ -55,6 +55,18 @@ async function main() {
   }
 
   // -------------------------------------------------------------------------
+  // Locations — same ids as the static list so product/vendor tagging matches.
+  // -------------------------------------------------------------------------
+  for (const [index, l] of locations.entries()) {
+    const locData = { name: l.name, type: l.type, region: l.region, isActive: l.isActive, order: index };
+    await prisma.location.upsert({
+      where: { id: l.id },
+      update: locData,
+      create: { id: l.id, ...locData },
+    });
+  }
+
+  // -------------------------------------------------------------------------
   // Vendors — link the seller demo user to the first vendor as its owner.
   // -------------------------------------------------------------------------
   for (const [index, v] of vendors.entries()) {
@@ -68,6 +80,7 @@ async function main() {
       accentFrom: v.accentFrom,
       accentTo: v.accentTo,
       locationIds: JSON.stringify(v.locationIds),
+      originCountry: v.originCountry,
       verificationStatus: v.verificationStatus,
       rating: v.rating,
       reviewCount: v.reviewCount,
@@ -109,7 +122,8 @@ async function main() {
       gradientFrom: p.gradientFrom,
       gradientTo: p.gradientTo,
       emoji: p.emoji,
-      image: p.image ?? null,
+      // Give seeded products their bundled photo as an editable primary image.
+      image: p.image ?? `/products/${p.slug}.jpg`,
       preorderInfo: p.preorderInfo ? JSON.stringify(p.preorderInfo) : null,
       serviceInfo: p.serviceInfo ? JSON.stringify(p.serviceInfo) : null,
       categoryId: p.categoryId,
@@ -263,6 +277,24 @@ async function main() {
           },
         },
       },
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // FAQs (default Help-page entries, editable in the admin).
+  // -------------------------------------------------------------------------
+  const faqs = [
+    { id: "faq-delivery", question: "How does delivery and pickup work?", answer: "Many sellers offer same-day delivery, campus drop-off, or in-person pickup. The available options are shown on each product page and at checkout." },
+    { id: "faq-preorder", question: "How do preorders work?", answer: "Preorder items are imported on order. You pay a deposit to reserve your item, then settle the balance on arrival before delivery or pickup. Review each product's arrival estimate and refund policy first." },
+    { id: "faq-pay", question: "How do I pay?", answer: "NikiMart supports local payments including Mobile Money and card. You choose your payment method at checkout." },
+    { id: "faq-sell", question: "How do I become a seller?", answer: "Head to “Sell on NikiMart”, register your shop, complete quick verification, and start listing products, preorders, or services." },
+    { id: "faq-protection", question: "Is my purchase protected?", answer: "Yes. Orders are covered by NikiMart Buyer Protection. If something goes wrong, our support team helps resolve it." },
+  ];
+  for (const [index, f] of faqs.entries()) {
+    await prisma.faq.upsert({
+      where: { id: f.id },
+      update: { question: f.question, answer: f.answer, order: index },
+      create: { id: f.id, question: f.question, answer: f.answer, order: index },
     });
   }
 

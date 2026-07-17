@@ -54,6 +54,7 @@ export const vendors: Vendor[] = [
     initials: "CG",
     ...fmtVendorAccent("#FF8A00", "#FFC107"),
     locationIds: ["ug", "accra"],
+    originCountry: "GH",
     verificationStatus: "verified",
     rating: 4.8,
     reviewCount: 312,
@@ -72,6 +73,7 @@ export const vendors: Vendor[] = [
     initials: "NM",
     ...fmtVendorAccent("#07111F", "#FF8A00"),
     locationIds: ["any"],
+    originCountry: "GH",
     verificationStatus: "verified",
     rating: 4.9,
     reviewCount: 1204,
@@ -90,6 +92,7 @@ export const vendors: Vendor[] = [
     initials: "IS",
     ...fmtVendorAccent("#122A47", "#FF8A00"),
     locationIds: ["kumasi", "accra", "knust"],
+    originCountry: "CN",
     verificationStatus: "verified",
     rating: 4.6,
     reviewCount: 198,
@@ -108,6 +111,7 @@ export const vendors: Vendor[] = [
     initials: "MA",
     ...fmtVendorAccent("#10B981", "#FFC107"),
     locationIds: ["knust", "kumasi"],
+    originCountry: "GH",
     verificationStatus: "verified",
     rating: 4.7,
     reviewCount: 540,
@@ -126,6 +130,7 @@ export const vendors: Vendor[] = [
     initials: "QF",
     ...fmtVendorAccent("#0E1F36", "#10B981"),
     locationIds: ["ug", "upsa", "accra"],
+    originCountry: "GH",
     verificationStatus: "verified",
     rating: 4.5,
     reviewCount: 267,
@@ -144,6 +149,7 @@ export const vendors: Vendor[] = [
     initials: "SG",
     ...fmtVendorAccent("#FF8A00", "#EF4444"),
     locationIds: ["sunyani", "hwidiem", "goaso", "stu"],
+    originCountry: "GH",
     verificationStatus: "verified",
     rating: 4.4,
     reviewCount: 154,
@@ -162,6 +168,7 @@ export const vendors: Vendor[] = [
     initials: "GH",
     ...fmtVendorAccent("#FFC107", "#EF4444"),
     locationIds: ["accra", "ucc"],
+    originCountry: "GH",
     verificationStatus: "pending",
     rating: 4.3,
     reviewCount: 88,
@@ -592,8 +599,11 @@ export const featuredProducts = products.filter((p) => p.isFeatured);
  * To swap a photo: either set `image` on the product below, or drop a new
  * file at public/products/<slug>.jpg (keeping the same name).
  */
-export function getProductImage(product: Product): string {
-  return product.image ?? `/products/${product.slug}.jpg`;
+export function getProductImage(product: Product): string | undefined {
+  // DB-driven: the primary gallery image, else the single image field.
+  // No hardcoded /products/<slug>.jpg fallback — a product with no images
+  // shows the gradient + emoji placeholder (and its images stay editable).
+  return product.images?.[0] ?? product.image;
 }
 
 export function getVendorById(id: string): Vendor | undefined {

@@ -21,6 +21,16 @@ const registerSchema = z.object({
     .optional()
     .transform((v) => (v ? v : undefined)),
   password: z.string().min(8, "Password must be at least 8 characters."),
+  address: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? v : undefined)),
+  preferredPickupId: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? v : undefined)),
 });
 
 const loginSchema = z.object({
@@ -41,6 +51,8 @@ export async function registerAction(
     email: formData.get("email"),
     phone: formData.get("phone"),
     password: formData.get("password"),
+    address: formData.get("address"),
+    preferredPickupId: formData.get("preferredPickupId"),
   });
 
   if (!parsed.success) {
@@ -61,6 +73,16 @@ export async function registerAction(
     };
   }
 
+  // Only honour a preferred pickup that actually exists (avoid an FK error).
+  let preferredPickupId: string | null = null;
+  if (parsed.data.preferredPickupId) {
+    const pp = await prisma.pickupPoint.findFirst({
+      where: { id: parsed.data.preferredPickupId, isActive: true },
+      select: { id: true },
+    });
+    preferredPickupId = pp?.id ?? null;
+  }
+
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
   await prisma.user.create({
     data: {
@@ -69,6 +91,8 @@ export async function registerAction(
       phone: parsed.data.phone ?? null,
       passwordHash,
       role: "CUSTOMER",
+      address: parsed.data.address ?? null,
+      preferredPickupId,
     },
   });
 

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Globe, Link2, Truck } from "lucide-react";
+import { ArrowRight, Globe, ShoppingBag, Truck } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { sourceRegions } from "@/lib/global-data";
 
@@ -46,11 +46,11 @@ export function GlobalBand() {
 
         <div className="mt-5 flex flex-wrap gap-3">
           <Link
-            href="/buy-for-me"
+            href="/global-shopping"
             className="flex items-center gap-2 rounded-full bg-niki-orange px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
           >
-            <Link2 className="h-4 w-4" />
-            Paste a product link
+            <ShoppingBag className="h-4 w-4" />
+            Browse global shopping
           </Link>
           <Link
             href="/pickup-points"
