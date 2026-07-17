@@ -1,7 +1,24 @@
-import { PageRenderer } from "@/components/page/PageRenderer";
-import { getRenderSections } from "@/lib/pages";
+import { Hero } from "@/components/home/Hero";
+import { FlashSaleSection } from "@/components/home/FlashSaleSection";
+import { AllProductsSection } from "@/components/home/AllProductsSection";
+import { getProducts, getVendorNameMap } from "@/lib/catalog";
 
+// The homepage is intentionally rendered directly in code (not from the page
+// builder) so the layout is guaranteed and product-first: a promo carousel, a
+// short flash-sales rail, then the full product catalogue to browse right away.
 export default async function Home() {
-  const sections = await getRenderSections("home");
-  return <PageRenderer sections={sections ?? []} />;
+  const [products, vendorNames] = await Promise.all([getProducts(), getVendorNameMap()]);
+  const flashSale = products.filter((p) => p.badges.includes("flash_sale"));
+
+  return (
+    <>
+      <Hero />
+      <FlashSaleSection
+        products={flashSale}
+        vendorNames={vendorNames}
+        viewAllHref="/products?badge=flash_sale"
+      />
+      <AllProductsSection products={products} vendorNames={vendorNames} />
+    </>
+  );
 }

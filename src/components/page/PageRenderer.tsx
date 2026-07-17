@@ -14,8 +14,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Hero } from "@/components/home/Hero";
-import { GlobalBand } from "@/components/home/GlobalBand";
-import { CategoryShowcase } from "@/components/home/CategoryShowcase";
 import { CampusShowcase } from "@/components/home/CampusShowcase";
 import { ProductSection } from "@/components/home/ProductSection";
 import { FlashSaleSection } from "@/components/home/FlashSaleSection";
@@ -123,10 +121,11 @@ function SectionBlock({
   switch (type) {
     case "hero":
       return <Hero />;
+    // Removed from the storefront — kept as no-ops so any legacy DB rows that
+    // still reference these block types simply render nothing.
     case "global_band":
-      return <GlobalBand />;
     case "category_grid":
-      return <CategoryShowcase />;
+      return null;
     case "campus":
       return <CampusShowcase products={products} vendors={vendors} vendorNames={vendorNames} />;
     case "product_rail":
