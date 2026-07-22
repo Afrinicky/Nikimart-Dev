@@ -111,22 +111,38 @@ export function mapProduct(
 // calls fast without a query each.
 // ---------------------------------------------------------------------------
 
+// Loaders return empty results (rather than throwing) if the database is
+// unreachable, so a DB outage degrades the storefront to an empty state instead
+// of crashing every page with a 500.
+
 export const getCategories = cache(async (): Promise<Category[]> => {
-  const rows = await prisma.category.findMany({ orderBy: { name: "asc" } });
-  return rows.map(mapCategory);
+  try {
+    const rows = await prisma.category.findMany({ orderBy: { name: "asc" } });
+    return rows.map(mapCategory);
+  } catch {
+    return [];
+  }
 });
 
 export const getVendors = cache(async (): Promise<Vendor[]> => {
-  const rows = await prisma.vendor.findMany({ orderBy: { businessName: "asc" } });
-  return rows.map(mapVendor);
+  try {
+    const rows = await prisma.vendor.findMany({ orderBy: { businessName: "asc" } });
+    return rows.map(mapVendor);
+  } catch {
+    return [];
+  }
 });
 
 export const getProducts = cache(async (): Promise<Product[]> => {
-  const rows = await prisma.product.findMany({
-    orderBy: { name: "asc" },
-    include: { images: { orderBy: { order: "asc" } }, vendor: { select: { originCountry: true } } },
-  });
-  return rows.map(mapProduct);
+  try {
+    const rows = await prisma.product.findMany({
+      orderBy: { name: "asc" },
+      include: { images: { orderBy: { order: "asc" } }, vendor: { select: { originCountry: true } } },
+    });
+    return rows.map(mapProduct);
+  } catch {
+    return [];
+  }
 });
 
 // A quick id -> businessName map for product cards.

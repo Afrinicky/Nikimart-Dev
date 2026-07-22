@@ -16,7 +16,25 @@ export function AllProductsSection({
   products: Product[];
   vendorNames?: Record<string, string>;
 }) {
-  if (products.length === 0) return null;
+  if (products.length === 0) {
+    // Empty almost always means the catalogue couldn't be loaded (e.g. a brief
+    // database hiccup). Show a friendly prompt rather than a blank page.
+    return (
+      <section className="py-10 sm:py-14">
+        <Container>
+          <div className="mx-auto max-w-md rounded-2xl bg-white p-8 text-center ring-1 ring-black/5">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-niki-surface text-niki-orange">
+              <LayoutGrid className="h-6 w-6" />
+            </div>
+            <h2 className="font-display text-lg font-bold text-niki-ink">Products are taking a moment</h2>
+            <p className="mt-2 text-sm text-niki-ink/60">
+              We couldn&apos;t load the catalogue right now. Please refresh in a moment.
+            </p>
+          </div>
+        </Container>
+      </section>
+    );
+  }
 
   return (
     <section className="py-6 sm:py-8">
