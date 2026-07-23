@@ -162,7 +162,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
             : {
                 create: {
                   trackingNumber: `NMF-${Date.now().toString(36).toUpperCase()}`,
-                  status: "processing",
+                  status: "created", // awaiting the seller's "prepared" confirmation
                   origin: "NikiMart Warehouse",
                   destination,
                   eta: new Date(Date.now() + 1000 * 60 * 60 * 48),

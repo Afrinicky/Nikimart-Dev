@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
-import { advanceAllShipments } from "@/lib/tracking";
 
-// Advances all non-held shipments to their expected stage based on elapsed
-// time. Wired to a daily Vercel Cron (see vercel.json; Hobby plans cap crons at
-// once/day). Day-to-day progression is handled on read; this is a backstop for
-// orders nobody views. Also safe to hit manually.
-// If CRON_SECRET is set, the request must include `Authorization: Bearer <secret>`.
+// Shipment progression is now driven by role-based confirmations (sellers,
+// freight agents, and pickup operators confirm their own stage), not by elapsed
+// time. This endpoint is kept as a no-op so any existing cron wiring keeps
+// returning 200 instead of erroring.
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (secret) {
@@ -14,11 +12,5 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   }
-
-  try {
-    const changed = await advanceAllShipments();
-    return NextResponse.json({ ok: true, advanced: changed });
-  } catch (error) {
-    return NextResponse.json({ ok: false, error: String(error) }, { status: 500 });
-  }
+  return NextResponse.json({ ok: true, advanced: 0, note: "Manual role-based confirmations; no time-based advance." });
 }

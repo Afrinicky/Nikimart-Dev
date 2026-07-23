@@ -7,7 +7,6 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ClearCartOnSuccess } from "@/components/cart/ClearCartOnSuccess";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { syncShipmentProgress } from "@/lib/tracking";
 import { formatPrice } from "@/lib/format";
 import {
   ORDER_STATUS_LABELS,
@@ -32,28 +31,6 @@ export default async function OrdersPage({
     shipment: true,
     pickupPoint: true,
   } as const;
-
-  const initial = await prisma.order.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: "desc" },
-    include,
-  });
-
-  // Auto-advance each shipment by elapsed time (unless manually held), then
-  // re-read so the list reflects the fresh statuses.
-  await Promise.all(
-    initial
-      .filter((o) => o.shipment)
-      .map((o) =>
-        syncShipmentProgress({
-          id: o.shipment!.id,
-          status: o.shipment!.status,
-          manualHold: o.shipment!.manualHold,
-          createdAt: o.shipment!.createdAt,
-          orderId: o.id,
-        }),
-      ),
-  );
 
   const orders = await prisma.order.findMany({
     where: { userId: user.id },
