@@ -1,4 +1,5 @@
 import { Hero } from "@/components/home/Hero";
+import { SellCta } from "@/components/home/SellCta";
 import { FlashSaleSection } from "@/components/home/FlashSaleSection";
 import { AllProductsSection } from "@/components/home/AllProductsSection";
 import { getProducts, getVendorNameMap } from "@/lib/catalog";
@@ -13,6 +14,7 @@ export default async function Home() {
   return (
     <>
       <Hero />
+      <SellCta />
       <FlashSaleSection
         products={flashSale}
         vendorNames={vendorNames}
