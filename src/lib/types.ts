@@ -87,6 +87,8 @@ export interface Category {
   icon: string;
   description: string;
   productCount: number;
+  /** Per-category commission override (percent). Null/undefined = platform default. */
+  commissionRate?: number | null;
 }
 
 export interface Vendor {

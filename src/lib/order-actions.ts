@@ -5,8 +5,9 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { getDeliveryConfig } from "@/lib/settings";
+import { getDeliveryConfig, getCommissionRate } from "@/lib/settings";
 import { quoteDeliveryFee, totalCartWeight } from "@/lib/delivery";
+import { resolveCommissionRate } from "@/lib/commission";
 import { isPaymentConfigured, initializeTransaction, toPesewas } from "@/lib/payments";
 
 const payloadSchema = z.object({
@@ -61,18 +62,30 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   const ids = data.items.map((i) => i.productId);
   const products = await prisma.product.findMany({
     where: { id: { in: ids } },
-    select: { id: true, price: true, shippingWeightKg: true },
+    select: {
+      id: true,
+      price: true,
+      shippingWeightKg: true,
+      category: { select: { commissionRate: true } },
+    },
   });
   const productById = new Map(products.map((p) => [p.id, p]));
 
+  // Platform commission snapshot: category override, else the global default.
+  const defaultCommission = await getCommissionRate();
+
   const lineItems = data.items
     .filter((i) => productById.has(i.productId))
-    .map((i) => ({
-      productId: i.productId,
-      quantity: i.quantity,
-      unitPrice: productById.get(i.productId)!.price,
-      weightKg: productById.get(i.productId)!.shippingWeightKg,
-    }));
+    .map((i) => {
+      const p = productById.get(i.productId)!;
+      return {
+        productId: i.productId,
+        quantity: i.quantity,
+        unitPrice: p.price,
+        weightKg: p.shippingWeightKg,
+        commissionRate: resolveCommissionRate(p.category?.commissionRate, defaultCommission),
+      };
+    });
 
   if (lineItems.length === 0) {
     return { ok: false, error: "None of the items in your cart are available." };
@@ -136,6 +149,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
               productId: i.productId,
               quantity: i.quantity,
               unitPrice: i.unitPrice,
+              commissionRate: i.commissionRate,
             })),
           },
           // Fulfilment only starts once the order is paid. The simulated flow

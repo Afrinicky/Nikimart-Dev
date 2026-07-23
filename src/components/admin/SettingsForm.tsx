@@ -36,6 +36,19 @@ export function SettingsForm({ settings }: { settings: Settings }) {
       </section>
 
       <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+        <h2 className="font-display text-lg font-bold text-niki-ink">Platform commission</h2>
+        <p className="mt-1 text-sm text-niki-ink/60">
+          The percentage NikiMart earns on every sale. Sellers list for free and this cut is deducted from
+          each item automatically. Override it per category in Categories.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <Field label="Default commission (%)" htmlFor="commissionRate" hint={state.fieldErrors?.commissionRate ?? "Applied to items whose category has no override"}>
+            <input id="commissionRate" name="commissionRate" type="number" min="0" max="100" step="0.1" defaultValue={settings.commissionRate} className={inputClass} />
+          </Field>
+        </div>
+      </section>
+
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
         <h2 className="font-display text-lg font-bold text-niki-ink">Global shipping</h2>
         <p className="mt-1 text-sm text-niki-ink/60">Estimated days for imported items to arrive in Ghana.</p>
         <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">

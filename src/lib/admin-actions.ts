@@ -228,6 +228,8 @@ function categoryData(fd: FormData) {
     icon: optStr(fd, "icon") ?? "shopping-bag",
     description: str(fd, "description"),
     productCount: num(fd, "productCount") ?? 0,
+    // Blank → null → falls back to the platform default commission rate.
+    commissionRate: num(fd, "commissionRate") ?? null,
   };
 }
 

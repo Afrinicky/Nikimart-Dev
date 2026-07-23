@@ -39,6 +39,11 @@ export async function updateSettings(_prev: SettingsState, fd: FormData): Promis
     }
   }
 
+  const commission = str(fd, "commissionRate");
+  if (commission && !(Number(commission) >= 0 && Number(commission) <= 100)) {
+    return { error: "Commission rate must be between 0 and 100.", fieldErrors: { commissionRate: "0–100 only." } };
+  }
+
   for (const key of SETTING_KEYS) {
     const value = str(fd, key);
     await prisma.siteSetting.upsert({

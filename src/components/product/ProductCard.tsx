@@ -31,7 +31,7 @@ export function ProductCard({
         aria-label={product.name}
       />
 
-      <div className="relative">
+      <div className="pointer-events-none relative">
         <ProductImagePlaceholder
           gradientFrom={product.gradientFrom}
           gradientTo={product.gradientTo}

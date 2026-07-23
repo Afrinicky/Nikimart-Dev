@@ -89,6 +89,9 @@ model Category {
   icon         String
   description  String
   productCount Int       @default(0)
+  // Optional per-category commission override (percent). Null = use the
+  // platform default commission rate from site settings.
+  commissionRate Float?
   products     Product[]
 }
 
@@ -119,6 +122,26 @@ model Vendor {
   owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
   products Product[]
+  payouts  Payout[]
+}
+
+// Seller settlement records. Created by admins in the Finance console to pay a
+// vendor their accumulated net earnings. Kept simple: an amount, a status, and
+// an optional external reference (e.g. a MoMo/bank transfer id).
+model Payout {
+  id        String    @id @default(cuid())
+  amount    Float
+  status    String    @default("pending") // pending | paid
+  method    String    @default("") // e.g. MoMo, Bank
+  reference String?
+  note      String?
+  createdAt DateTime  @default(now())
+  paidAt    DateTime?
+
+  vendorId String
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
 }
 
 model Product {
@@ -203,6 +226,9 @@ model OrderItem {
   id        String @id @default(cuid())
   quantity  Int    @default(1)
   unitPrice Float
+  // Platform commission percent captured at sale time, so seller payouts stay
+  // accurate even if the rate changes later. Seller earns unitPrice*qty*(1-rate/100).
+  commissionRate Float @default(0)
 
   orderId   String
   order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)

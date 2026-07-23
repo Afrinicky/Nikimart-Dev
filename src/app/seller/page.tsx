@@ -7,6 +7,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { getSellerEarnings } from "@/lib/seller";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
 
@@ -17,9 +18,9 @@ export const metadata: Metadata = {
 const ACTIONS = [
   { icon: Plus, title: "Add a product", desc: "List a new product, preorder, or service.", href: "/seller/products/new" },
   { icon: Boxes, title: "Manage products", desc: "Edit, restock, or remove your listings.", href: "/seller/products" },
-  { icon: ClipboardList, title: "Orders", desc: "View and fulfil incoming orders.", href: "/seller" },
-  { icon: Wallet, title: "Settlements", desc: "Track your payouts and earnings.", href: "/seller" },
-  { icon: Settings, title: "Shop settings", desc: "Update your shop profile and delivery options.", href: "/seller" },
+  { icon: ClipboardList, title: "Orders", desc: "View and fulfil incoming orders.", href: "/seller/orders" },
+  { icon: Wallet, title: "Earnings & payouts", desc: "Track your sales, commission, and settlements.", href: "/seller/settlements" },
+  { icon: Settings, title: "Shop settings", desc: "Update your shop profile and delivery options.", href: "/seller/settings" },
 ];
 
 export default async function SellerDashboardPage() {
@@ -43,14 +44,14 @@ export default async function SellerDashboardPage() {
 
   const productCount = vendor?.products.length ?? 0;
   const openOrders = new Set(
-    orderItems.filter((i) => i.order.status !== "delivered" && i.order.status !== "cancelled").map((i) => i.orderId),
+    orderItems
+      .filter((i) => i.order.status !== "delivered" && i.order.status !== "cancelled" && i.order.status !== "pending")
+      .map((i) => i.orderId),
   ).size;
-  const grossSales = orderItems
-    .filter((i) => i.order.status !== "cancelled")
-    .reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
-  const pendingPayout = orderItems
-    .filter((i) => i.order.status === "paid" || i.order.status === "shipped")
-    .reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+  // Net-of-commission earnings, consistent with the settlements page.
+  const earnings = vendor ? await getSellerEarnings(vendor.id) : null;
+  const grossSales = earnings?.net ?? 0;
+  const pendingPayout = earnings?.available ?? 0;
 
   // Latest orders (deduped) for the fulfilment list.
   const seenOrders = new Set<string>();
@@ -103,8 +104,8 @@ export default async function SellerDashboardPage() {
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard label="Products listed" value={productCount} />
           <StatCard label="Open orders" value={openOrders} />
-          <StatCard label="Gross sales" value={formatPrice(grossSales)} />
-          <StatCard label="Payouts pending" value={formatPrice(pendingPayout)} />
+          <StatCard label="Net earnings" value={formatPrice(grossSales)} />
+          <StatCard label="Available payout" value={formatPrice(pendingPayout)} />
         </div>
 
         {vendor ? (
@@ -149,24 +150,30 @@ export default async function SellerDashboardPage() {
                       <th className="px-5 py-3 font-semibold">Price</th>
                       <th className="px-5 py-3 font-semibold">Stock</th>
                       <th className="px-5 py-3 font-semibold">Rating</th>
+                      <th className="px-5 py-3 font-semibold sr-only">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-black/5">
                     {vendor.products.map((p) => (
-                      <tr key={p.id}>
+                      <tr key={p.id} className="transition-colors hover:bg-niki-surface">
                         <td className="px-5 py-3">
-                          <span className="flex items-center gap-2 font-medium text-niki-ink">
+                          <Link href={`/seller/products/${p.id}`} className="flex items-center gap-2 font-medium text-niki-ink hover:text-niki-orange">
                             <span aria-hidden>{p.emoji}</span>
                             {p.name}
                             {p.isOfficial ? (
                               <BadgeCheck className="h-4 w-4 text-niki-trust" />
                             ) : null}
-                          </span>
+                          </Link>
                         </td>
                         <td className="px-5 py-3 text-niki-ink/70">{formatPrice(p.price)}</td>
                         <td className="px-5 py-3 text-niki-ink/70">{p.stockQuantity}</td>
                         <td className="px-5 py-3 text-niki-ink/70">
                           {p.rating.toFixed(1)} ({p.reviewCount})
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <Link href={`/seller/products/${p.id}`} className="text-xs font-semibold text-niki-orange hover:underline">
+                            Edit
+                          </Link>
                         </td>
                       </tr>
                     ))}

@@ -31,11 +31,6 @@ export default async function LoginPage() {
 
         <LoginForm />
 
-        <p className="mt-4 rounded-xl bg-niki-surface p-3 text-center text-xs text-niki-ink/50">
-          Try a demo account, e.g. <span className="font-semibold">customer@nikimart.test</span> /{" "}
-          <span className="font-semibold">password123</span>.
-        </p>
-
         <p className="mt-6 text-center text-sm text-niki-ink/60">
           New to NikiMart?{" "}
           <Link href="/register" className="font-semibold text-niki-orange hover:underline">

@@ -22,6 +22,9 @@ export const SETTINGS_DEFAULTS = {
   logoUrl: "",
   // External data-bundles storefront (agent shop). Empty hides the shortcuts.
   dataBundlesUrl: "https://www.4ubundles.store/store/Nickland",
+  // Platform commission (percent) taken on every sale. Sellers register free
+  // and NikiMart earns this cut per item; overridable per category.
+  commissionRate: "10",
   // Overseas shipping lead times (days to arrive in Ghana), per origin.
   leadDaysCN: "21",
   leadDaysAE: "14",
@@ -69,6 +72,17 @@ export async function getDeliveryConfig(): Promise<DeliveryConfig> {
     perKgRate: numOr(settings.deliveryPerKg, DELIVERY_DEFAULTS.perKgRate),
     pickupFee: numOr(settings.pickupFee, DELIVERY_DEFAULTS.pickupFee),
   };
+}
+
+/** Platform default commission rate (percent). Falls back if unset/invalid. */
+export async function getCommissionRate(): Promise<number> {
+  const settings = await getSettings();
+  const raw = (settings.commissionRate ?? "").trim();
+  const rate = Number(raw);
+  if (raw === "" || !Number.isFinite(rate) || rate < 0 || rate > 100) {
+    return Number(SETTINGS_DEFAULTS.commissionRate);
+  }
+  return rate;
 }
 
 /** Configured overseas lead time (days) for an origin country code. */
