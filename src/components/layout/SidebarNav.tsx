@@ -153,6 +153,14 @@ export function SidebarNav({
             </Link>
           </div>
 
+          <Link
+            href="/sell"
+            className="mb-3 flex items-center gap-3 rounded-xl bg-niki-orange px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+          >
+            <Store className="h-5 w-5" />
+            Start Selling
+          </Link>
+
           {dataBundlesUrl ? (
             <a
               href={dataBundlesUrl}
@@ -209,14 +217,6 @@ export function SidebarNav({
               </ul>
             </div>
           ))}
-
-          <Link
-            href="/sell"
-            className="mt-2 flex items-center justify-center gap-2 rounded-full bg-niki-orange px-4 py-3 text-sm font-semibold text-white"
-          >
-            <Store className="h-4 w-4" />
-            Sell on NikiMart
-          </Link>
         </nav>
       </aside>
     </>
