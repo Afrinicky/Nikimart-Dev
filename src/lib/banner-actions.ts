@@ -35,15 +35,22 @@ function revalidateBanners() {
   revalidatePath("/admin/banners");
 }
 
+const STORAGE_ERROR =
+  "Couldn't save the banner — the carousel storage isn't set up on this database yet. Run the Neon catch-up SQL (nikimart-neon-carousel.sql), then try again.";
+
 export async function createBanner(_prev: CrudState, fd: FormData): Promise<CrudState> {
   await requireAdmin();
   const data = bannerData(fd);
   if (data.title.length < 2) {
     return { error: "A banner title is required.", fieldErrors: { title: "Required." } };
   }
-  await prisma.banner.create({ data });
+  try {
+    await prisma.banner.create({ data });
+  } catch {
+    return { error: STORAGE_ERROR };
+  }
   revalidateBanners();
-  redirect("/admin/banners");
+  redirect("/admin/banners"); // outside try — redirect() throws NEXT_REDIRECT
 }
 
 export async function updateBanner(id: string, _prev: CrudState, fd: FormData): Promise<CrudState> {
@@ -52,16 +59,24 @@ export async function updateBanner(id: string, _prev: CrudState, fd: FormData): 
   if (data.title.length < 2) {
     return { error: "A banner title is required.", fieldErrors: { title: "Required." } };
   }
-  await prisma.banner.update({ where: { id }, data });
+  try {
+    await prisma.banner.update({ where: { id }, data });
+  } catch {
+    return { error: STORAGE_ERROR };
+  }
   revalidateBanners();
-  redirect("/admin/banners");
+  redirect("/admin/banners"); // outside try — redirect() throws NEXT_REDIRECT
 }
 
 export async function deleteBanner(fd: FormData): Promise<void> {
   await requireAdmin();
   const id = str(fd, "id");
   if (id) {
-    await prisma.banner.delete({ where: { id } });
-    revalidateBanners();
+    try {
+      await prisma.banner.delete({ where: { id } });
+      revalidateBanners();
+    } catch {
+      // Table missing or row already gone — nothing to do.
+    }
   }
 }
