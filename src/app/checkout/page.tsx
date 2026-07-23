@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getDeliveryConfig } from "@/lib/settings";
 import { getLocations } from "@/lib/locations";
+import { isPaymentConfigured } from "@/lib/payments";
 
 export const metadata: Metadata = {
   title: "Checkout — NikiMart",
@@ -68,6 +69,7 @@ export default async function CheckoutPage() {
             config={checkout.config}
             defaultAddress={checkout.profile?.address ?? ""}
             defaultPickupId={checkout.profile?.preferredPickupId ?? ""}
+            paymentEnabled={isPaymentConfigured()}
           />
         ) : null}
       </Container>

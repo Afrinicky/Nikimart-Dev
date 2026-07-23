@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getDeliveryConfig } from "@/lib/settings";
 import { quoteDeliveryFee, totalCartWeight } from "@/lib/delivery";
+import { isPaymentConfigured, initializeTransaction, toPesewas } from "@/lib/payments";
 
 const payloadSchema = z.object({
   items: z
@@ -23,10 +25,20 @@ const payloadSchema = z.object({
 });
 
 export type PlaceOrderInput = z.infer<typeof payloadSchema>;
-export type PlaceOrderResult = { ok: true; orderNumber: string } | { ok: false; error: string };
+export type PlaceOrderResult =
+  | { ok: true; orderNumber: string; authorizationUrl?: string }
+  | { ok: false; error: string };
 
 function orderNumber(): string {
   return `NM-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 900 + 100)}`;
+}
+
+/** Absolute origin of the current request, for building Paystack callback URLs. */
+async function requestOrigin(): Promise<string> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
 }
 
 export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResult> {
@@ -98,13 +110,20 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   const destination =
     data.deliveryMethod === "pickup" ? (pickupPoint?.name ?? "Pickup point") : (data.address ?? "Customer address");
 
+  // When Paystack is configured we collect payment before fulfilling: the order
+  // starts as "pending" and is marked "paid" only after Paystack confirms it
+  // (via /checkout/verify or the webhook). Without keys we keep the simulated
+  // flow so local dev and preview deploys still work end-to-end.
+  const collectPayment = isPaymentConfigured();
+  const initialStatus = collectPayment ? "pending" : "paid";
+
   // Create with a few retries in case the generated order number collides.
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       const order = await prisma.order.create({
         data: {
           orderNumber: orderNumber(),
-          status: "paid", // payment is simulated for now
+          status: initialStatus,
           subtotal,
           deliveryFee,
           total,
@@ -119,18 +138,49 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
               unitPrice: i.unitPrice,
             })),
           },
-          shipment: {
-            create: {
-              trackingNumber: `NMF-${Date.now().toString(36).toUpperCase()}`,
-              status: "processing",
-              origin: "NikiMart Warehouse",
-              destination,
-              eta: new Date(Date.now() + 1000 * 60 * 60 * 48),
-              freightAgentId: freightAgent?.id ?? null,
-            },
-          },
+          // Fulfilment only starts once the order is paid. The simulated flow
+          // is paid immediately, so the shipment is created here. The Paystack
+          // flow defers shipment creation to payment confirmation (see
+          // markOrderPaid) — otherwise an unpaid "pending" order would have a
+          // shipment that auto-advances by elapsed time.
+          shipment: collectPayment
+            ? undefined
+            : {
+                create: {
+                  trackingNumber: `NMF-${Date.now().toString(36).toUpperCase()}`,
+                  status: "processing",
+                  origin: "NikiMart Warehouse",
+                  destination,
+                  eta: new Date(Date.now() + 1000 * 60 * 60 * 48),
+                  freightAgentId: freightAgent?.id ?? null,
+                },
+              },
         },
       });
+
+      // Real payment: start a Paystack transaction and hand back the hosted
+      // checkout URL. If initialization fails, cancel the just-created order so
+      // it doesn't linger as an unpaid "pending" record.
+      if (collectPayment) {
+        try {
+          const { authorizationUrl } = await initializeTransaction({
+            email: user.email ?? `${user.id}@nikimart.app`,
+            amountPesewas: toPesewas(total),
+            reference: order.orderNumber,
+            callbackUrl: `${await requestOrigin()}/checkout/verify`,
+            metadata: { orderId: order.id, userId: user.id },
+          });
+          return { ok: true, orderNumber: order.orderNumber, authorizationUrl };
+        } catch (err) {
+          await prisma.order
+            .update({ where: { id: order.id }, data: { status: "cancelled" } })
+            .catch(() => {});
+          return {
+            ok: false,
+            error: err instanceof Error ? err.message : "Could not start the payment. Please try again.",
+          };
+        }
+      }
 
       revalidatePath("/orders");
       revalidatePath("/account");

@@ -24,12 +24,14 @@ export function CheckoutClient({
   config,
   defaultAddress = "",
   defaultPickupId = "",
+  paymentEnabled = false,
 }: {
   pickupPoints: { id: string; name: string; locationName: string }[];
   zones: Zone[];
   config: DeliveryConfig;
   defaultAddress?: string;
   defaultPickupId?: string;
+  paymentEnabled?: boolean;
 }) {
   const { items, subtotal, clear, ready } = useCart();
   const router = useRouter();
@@ -93,6 +95,13 @@ export function CheckoutClient({
       destinationLocationId: method === "delivery" ? zoneId || undefined : undefined,
     });
     if (res.ok) {
+      if (res.authorizationUrl) {
+        // Real payment: hand off to Paystack. The cart is cleared on the
+        // orders page once payment is confirmed, so it survives a cancelled
+        // or failed payment.
+        window.location.href = res.authorizationUrl;
+        return;
+      }
       clear();
       router.push(`/orders?placed=${res.orderNumber}`);
     } else {
@@ -180,10 +189,18 @@ export function CheckoutClient({
 
         <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
           <h2 className="font-display text-lg font-bold text-niki-ink">Payment</h2>
-          <p className="mt-2 text-sm text-niki-ink/60">
-            Payment is simulated in this build — placing the order marks it as paid. Mobile Money and
-            card options are coming next.
-          </p>
+          {paymentEnabled ? (
+            <p className="mt-2 text-sm text-niki-ink/60">
+              Pay securely with <span className="font-medium text-niki-ink">Mobile Money</span> (MTN,
+              Telecel, AirtelTigo) or a debit/credit card. You&apos;ll be taken to our secure payment
+              page to complete your order.
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-niki-ink/60">
+              Payment is simulated in this build — placing the order marks it as paid. Mobile Money and
+              card options are coming next.
+            </p>
+          )}
         </div>
       </div>
 
