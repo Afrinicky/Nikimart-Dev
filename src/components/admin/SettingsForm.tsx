@@ -69,6 +69,9 @@ export function SettingsForm({ settings }: { settings: Settings }) {
           <Field label="Live chat status" htmlFor="liveChatStatus" hint="Shown under “Live chat” on the Help page">
             <input id="liveChatStatus" name="liveChatStatus" defaultValue={settings.liveChatStatus} className={inputClass} />
           </Field>
+          <Field label="Data bundles storefront URL" htmlFor="dataBundlesUrl" hint="Where “Buy Data Bundles” links to. Leave empty to hide the shortcuts.">
+            <input id="dataBundlesUrl" name="dataBundlesUrl" type="url" defaultValue={settings.dataBundlesUrl} className={inputClass} placeholder="https://…" />
+          </Field>
         </div>
       </section>
 

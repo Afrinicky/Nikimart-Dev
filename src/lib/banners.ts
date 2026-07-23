@@ -29,6 +29,17 @@ export const DEFAULT_BANNERS: BannerSlide[] = [
   },
   {
     id: "default-2",
+    title: "Buy data bundles",
+    subtitle: "MTN, Telecel & AirtelTigo data at great rates.",
+    eventWindow: "ALL NETWORKS",
+    ctaLabel: "Buy data",
+    ctaHref: "https://www.4ubundles.store/store/Nickland",
+    image: null,
+    accentFrom: "#1f7a4d",
+    accentTo: "#0e1f36",
+  },
+  {
+    id: "default-3",
     title: "Flash Sales are live",
     subtitle: "Grab limited-time deals before they're gone.",
     eventWindow: "TODAY ONLY",
@@ -39,7 +50,7 @@ export const DEFAULT_BANNERS: BannerSlide[] = [
     accentTo: "#7a1030",
   },
   {
-    id: "default-3",
+    id: "default-4",
     title: "Shop the world, pick up in Ghana",
     subtitle: "Buy from trusted sellers abroad — we handle freight, customs, and delivery.",
     eventWindow: "",

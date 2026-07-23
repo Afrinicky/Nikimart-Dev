@@ -20,6 +20,8 @@ export const SETTINGS_DEFAULTS = {
   copyrightName: "NikiMart",
   // Brand logo (http(s) URL or a data: URL). Empty → bundled /logo.png.
   logoUrl: "",
+  // External data-bundles storefront (agent shop). Empty hides the shortcuts.
+  dataBundlesUrl: "https://www.4ubundles.store/store/Nickland",
   // Overseas shipping lead times (days to arrive in Ghana), per origin.
   leadDaysCN: "21",
   leadDaysAE: "14",
