@@ -9,7 +9,7 @@ import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
-import { syncShipmentProgress } from "@/lib/tracking";
+import type { ShipmentTimestamps } from "@/lib/tracking";
 
 export const metadata: Metadata = { title: "Track Order — NikiMart" };
 
@@ -25,18 +25,13 @@ export default async function OrderTrackingPage({ params }: { params: Params }) 
   });
   if (!order) notFound();
 
-  // Auto-advance the shipment based on elapsed time (unless manually held).
-  let shipmentStatus = order.shipment?.status ?? "processing";
-  if (order.shipment) {
-    shipmentStatus = await syncShipmentProgress({
-      id: order.shipment.id,
-      status: order.shipment.status,
-      manualHold: order.shipment.manualHold,
-      createdAt: order.shipment.createdAt,
-      orderId: order.id,
-    });
-  }
   const method = order.deliveryMethod === "pickup" ? "pickup" : "delivery";
+  const timestamps: ShipmentTimestamps = {
+    processingAt: order.shipment?.processingAt ?? null,
+    transitAt: order.shipment?.transitAt ?? null,
+    outForDeliveryAt: order.shipment?.outForDeliveryAt ?? null,
+    deliveredAt: order.shipment?.deliveredAt ?? null,
+  };
 
   return (
     <>
@@ -65,7 +60,7 @@ export default async function OrderTrackingPage({ params }: { params: Params }) 
             </div>
 
             <div className="mt-6">
-              <TrackingTimeline createdAt={order.shipment?.createdAt ?? order.createdAt} status={shipmentStatus} method={method} />
+              <TrackingTimeline timestamps={timestamps} method={method} />
             </div>
           </div>
 

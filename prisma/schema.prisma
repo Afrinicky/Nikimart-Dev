@@ -40,6 +40,22 @@ model User {
   pickupPoint     PickupPoint?  @relation("PickupOperator")
   preferredPickup PickupPoint?  @relation("PreferredPickup", fields: [preferredPickupId], references: [id], onDelete: SetNull)
   shipments       Shipment[]    @relation("FreightAgent")
+  passwordResets  PasswordResetToken[]
+}
+
+// Single-use, time-limited password-reset tokens. Only the SHA-256 hash of the
+// token is stored; the raw token is delivered to the user by email/SMS.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Account {
@@ -286,13 +302,20 @@ model PickupPoint {
 model Shipment {
   id             String   @id @default(cuid())
   trackingNumber String   @unique
-  status         String   @default("processing") // processing | in_transit | out_for_delivery | delivered
-  // When true, a human set the status — automatic time-based progression stops.
+  // Derived "furthest confirmed" stage: created | processing | in_transit |
+  // out_for_delivery | delivered. Advanced only by role-based confirmations.
+  status         String   @default("created")
   manualHold     Boolean  @default(false)
   carrier        String   @default("NikiMart Freight")
   origin         String
   destination    String
   eta            DateTime?
+  // Per-stage confirmation timestamps. A non-null value = that stage is
+  // confirmed (ticked). Confirming a later stage back-fills earlier ones.
+  processingAt      DateTime?
+  transitAt         DateTime?
+  outForDeliveryAt  DateTime?
+  deliveredAt       DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

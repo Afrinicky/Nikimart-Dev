@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { notifyOrderConfirmed } from "@/lib/order-notifications";
 
 /**
  * Mark a pending order as paid — idempotently — and start fulfilment.
@@ -37,7 +38,7 @@ export async function markOrderPaid(orderNumber: string): Promise<boolean> {
         data: {
           orderId: order.id,
           trackingNumber: `NMF-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 900 + 100)}`,
-          status: "processing",
+          status: "created", // awaiting the seller's "prepared" confirmation
           origin: "NikiMart Warehouse",
           destination,
           eta: new Date(Date.now() + 1000 * 60 * 60 * 48),
@@ -46,6 +47,9 @@ export async function markOrderPaid(orderNumber: string): Promise<boolean> {
       })
       .catch(() => {});
   }
+
+  // Notify the buyer their payment landed (best-effort).
+  if (order) await notifyOrderConfirmed(order.id);
 
   revalidatePath("/orders");
   revalidatePath("/account");

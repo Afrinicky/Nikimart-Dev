@@ -8,6 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { getSellerVendor } from "@/lib/seller";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, SHIPMENT_STATUS_LABELS, statusTone } from "@/lib/order-status";
+import { ConfirmStageButton } from "@/components/order/ConfirmStageButton";
+import { nextStageForRole, confirmActionLabel, type DeliveryMethod, type ShipmentTimestamps } from "@/lib/tracking";
 
 export const metadata: Metadata = { title: "Orders — Seller — NikiMart" };
 
@@ -43,7 +45,12 @@ export default async function SellerOrdersPage() {
     orderBy: { createdAt: "desc" },
     include: {
       user: { select: { name: true, phone: true, email: true } },
-      shipment: { select: { status: true, trackingNumber: true } },
+      shipment: {
+        select: {
+          id: true, status: true, trackingNumber: true,
+          processingAt: true, transitAt: true, outForDeliveryAt: true, deliveredAt: true,
+        },
+      },
       pickupPoint: { select: { name: true } },
       items: {
         where: { product: { vendorId: vendor.id } },
@@ -100,6 +107,21 @@ export default async function SellerOrdersPage() {
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone(order.status)}`}>
                         {ORDER_STATUS_LABELS[order.status] ?? order.status}
                       </span>
+                      {order.shipment
+                        ? (() => {
+                            const method: DeliveryMethod = order.deliveryMethod === "pickup" ? "pickup" : "delivery";
+                            const ts: ShipmentTimestamps = {
+                              processingAt: order.shipment.processingAt,
+                              transitAt: order.shipment.transitAt,
+                              outForDeliveryAt: order.shipment.outForDeliveryAt,
+                              deliveredAt: order.shipment.deliveredAt,
+                            };
+                            const next = nextStageForRole("SELLER", method, ts);
+                            return next ? (
+                              <ConfirmStageButton shipmentId={order.shipment.id} stage={next} label={confirmActionLabel(next, method)} />
+                            ) : null;
+                          })()
+                        : null}
                     </div>
                   </div>
 

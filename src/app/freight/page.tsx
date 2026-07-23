@@ -7,7 +7,8 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
 import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { SHIPMENT_STATUS_LABELS, statusTone } from "@/lib/order-status";
-import { advanceShipmentAction } from "@/lib/dashboard-actions";
+import { ConfirmStageButton } from "@/components/order/ConfirmStageButton";
+import { confirmActionLabel, nextStageForRole, type DeliveryMethod, type ShipmentTimestamps } from "@/lib/tracking";
 
 export const metadata: Metadata = {
   title: "Freight Dashboard — NikiMart",
@@ -86,17 +87,19 @@ export default async function FreightDashboardPage() {
                   >
                     {SHIPMENT_STATUS_LABELS[s.status] ?? s.status}
                   </span>
-                  {s.status !== "delivered" ? (
-                    <form action={advanceShipmentAction}>
-                      <input type="hidden" name="shipmentId" value={s.id} />
-                      <button
-                        type="submit"
-                        className="rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-navy-light"
-                      >
-                        Advance status
-                      </button>
-                    </form>
-                  ) : null}
+                  {(() => {
+                    const method: DeliveryMethod = s.order.deliveryMethod === "pickup" ? "pickup" : "delivery";
+                    const ts: ShipmentTimestamps = {
+                      processingAt: s.processingAt,
+                      transitAt: s.transitAt,
+                      outForDeliveryAt: s.outForDeliveryAt,
+                      deliveredAt: s.deliveredAt,
+                    };
+                    const next = nextStageForRole(user.role, method, ts);
+                    return next ? (
+                      <ConfirmStageButton shipmentId={s.id} stage={next} label={confirmActionLabel(next, method)} />
+                    ) : null;
+                  })()}
                 </div>
               </div>
             ))}

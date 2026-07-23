@@ -9,7 +9,8 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
 };
 
 export const SHIPMENT_STATUS_LABELS: Record<string, string> = {
-  processing: "Processing",
+  created: "Awaiting confirmation",
+  processing: "Prepared by seller",
   in_transit: "In transit",
   out_for_delivery: "Out for delivery",
   delivered: "Delivered",

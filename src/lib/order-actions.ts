@@ -9,6 +9,7 @@ import { getDeliveryConfig, getCommissionRate } from "@/lib/settings";
 import { quoteDeliveryFee, totalCartWeight } from "@/lib/delivery";
 import { resolveCommissionRate } from "@/lib/commission";
 import { isPaymentConfigured, initializeTransaction, toPesewas } from "@/lib/payments";
+import { notifyOrderConfirmed } from "@/lib/order-notifications";
 
 const payloadSchema = z.object({
   items: z
@@ -162,7 +163,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
             : {
                 create: {
                   trackingNumber: `NMF-${Date.now().toString(36).toUpperCase()}`,
-                  status: "processing",
+                  status: "created", // awaiting the seller's "prepared" confirmation
                   origin: "NikiMart Warehouse",
                   destination,
                   eta: new Date(Date.now() + 1000 * 60 * 60 * 48),
@@ -195,6 +196,9 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
           };
         }
       }
+
+      // Simulated payment path is paid immediately — notify the buyer.
+      await notifyOrderConfirmed(order.id);
 
       revalidatePath("/orders");
       revalidatePath("/account");

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { MapPin, PackageCheck } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -8,7 +8,8 @@ import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
-import { markCollectedAction } from "@/lib/dashboard-actions";
+import { ConfirmStageButton } from "@/components/order/ConfirmStageButton";
+import { confirmActionLabel, nextStageForRole, type ShipmentTimestamps } from "@/lib/tracking";
 
 export const metadata: Metadata = {
   title: "Pickup Dashboard — NikiMart",
@@ -23,7 +24,7 @@ export default async function PickupDashboardPage() {
     include: {
       orders: {
         where: { deliveryMethod: "pickup" },
-        include: { user: true, items: true },
+        include: { user: true, items: true, shipment: true },
         orderBy: { createdAt: "desc" },
       },
     },
@@ -107,18 +108,20 @@ export default async function PickupDashboardPage() {
                           >
                             {ORDER_STATUS_LABELS[order.status] ?? order.status}
                           </span>
-                          {order.status !== "delivered" && order.status !== "cancelled" ? (
-                            <form action={markCollectedAction}>
-                              <input type="hidden" name="orderId" value={order.id} />
-                              <button
-                                type="submit"
-                                className="flex items-center gap-1.5 rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-navy-light"
-                              >
-                                <PackageCheck className="h-4 w-4" />
-                                Mark collected
-                              </button>
-                            </form>
-                          ) : null}
+                          {order.shipment && order.status !== "cancelled"
+                            ? (() => {
+                                const ts: ShipmentTimestamps = {
+                                  processingAt: order.shipment.processingAt,
+                                  transitAt: order.shipment.transitAt,
+                                  outForDeliveryAt: order.shipment.outForDeliveryAt,
+                                  deliveredAt: order.shipment.deliveredAt,
+                                };
+                                const next = nextStageForRole(user.role, "pickup", ts);
+                                return next ? (
+                                  <ConfirmStageButton shipmentId={order.shipment.id} stage={next} label={confirmActionLabel(next, "pickup")} />
+                                ) : null;
+                              })()
+                            : null}
                         </div>
                       </div>
                     ))}

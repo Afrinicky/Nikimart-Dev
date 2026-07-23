@@ -376,10 +376,28 @@ export async function setOrderStatus(fd: FormData): Promise<void> {
   const status = str(fd, "status");
   if (id && ORDER_STATUSES.includes(status)) {
     await prisma.order.update({ where: { id }, data: { status } });
-    // A manual order-status change pins its shipment (stops auto-progression),
-    // and keeps the shipment stage roughly in sync for terminal states.
-    const shipmentData: { manualHold: boolean; status?: string } = { manualHold: true };
-    if (status === "delivered") shipmentData.status = "delivered";
+    // Admin override: force the shipment's confirmed stages to match, back-filling
+    // the per-stage timestamps that drive the buyer's tracking timeline.
+    const now = new Date();
+    const shipmentData: {
+      manualHold: boolean;
+      status?: string;
+      processingAt?: Date;
+      transitAt?: Date;
+      outForDeliveryAt?: Date;
+      deliveredAt?: Date;
+    } = { manualHold: true };
+    if (status === "delivered") {
+      shipmentData.status = "delivered";
+      shipmentData.processingAt = now;
+      shipmentData.transitAt = now;
+      shipmentData.outForDeliveryAt = now;
+      shipmentData.deliveredAt = now;
+    } else if (status === "shipped") {
+      shipmentData.status = "in_transit";
+      shipmentData.processingAt = now;
+      shipmentData.transitAt = now;
+    }
     await prisma.shipment.updateMany({ where: { orderId: id }, data: shipmentData });
     revalidatePath("/admin/orders");
     revalidatePath("/account");
