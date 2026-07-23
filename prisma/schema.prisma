@@ -144,6 +144,37 @@ model Payout {
   @@index([vendorId])
 }
 
+// Affiliate / referral partners paid from the Finance console. Referral
+// attribution is manual for now: admins record what each affiliate is owed and
+// pay it out.
+model Affiliate {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String   @default("")
+  email     String   @default("")
+  code      String?  @unique
+  note      String   @default("")
+  createdAt DateTime @default(now())
+
+  payouts AffiliatePayout[]
+}
+
+model AffiliatePayout {
+  id        String    @id @default(cuid())
+  amount    Float
+  status    String    @default("pending") // pending | paid
+  method    String    @default("")
+  reference String?
+  note      String?
+  createdAt DateTime  @default(now())
+  paidAt    DateTime?
+
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId])
+}
+
 model Product {
   id                       String   @id @default(cuid())
   slug                     String   @unique

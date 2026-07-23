@@ -15,6 +15,7 @@ import {
   ShoppingBag,
   Store,
   Users,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -25,6 +26,7 @@ const TABS = [
   { href: "/admin/categories", label: "Categories", icon: LayoutGrid },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
+  { href: "/admin/finance", label: "Finance", icon: Wallet },
   { href: "/admin/pages", label: "Pages", icon: LayoutTemplate },
   { href: "/admin/banners", label: "Carousel", icon: GalleryHorizontalEnd },
   { href: "/admin/locations", label: "Locations", icon: MapPin },
