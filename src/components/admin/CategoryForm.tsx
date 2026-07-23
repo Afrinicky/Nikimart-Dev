@@ -49,6 +49,10 @@ export function CategoryForm({
         </Field>
       </div>
 
+      <Field label="Commission override (%)" htmlFor="commissionRate" hint="Leave blank to use the platform default commission for this category.">
+        <input id="commissionRate" name="commissionRate" type="number" min="0" max="100" step="0.1" defaultValue={c?.commissionRate ?? ""} className={inputClass} />
+      </Field>
+
       <div className="flex items-center gap-3">
         <div className="w-40">
           <SubmitButton>{submitLabel}</SubmitButton>

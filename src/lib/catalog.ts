@@ -42,6 +42,7 @@ export function mapCategory(c: PrismaCategory): Category {
     icon: c.icon,
     description: c.description,
     productCount: c.productCount,
+    commissionRate: c.commissionRate ?? null,
   };
 }
 

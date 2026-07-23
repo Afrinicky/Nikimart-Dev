@@ -82,3 +82,37 @@ export async function deleteSellerProduct(fd: FormData): Promise<void> {
   await prisma.product.delete({ where: { id } });
   revalidate();
 }
+
+export type SellerShopState = CrudState & { ok?: boolean };
+
+/** Update the signed-in seller's own shop profile + delivery options. */
+export async function updateSellerShop(_prev: SellerShopState, fd: FormData): Promise<SellerShopState> {
+  const vendor = await currentVendor();
+  if (!vendor) return { error: "You don't have a shop to edit yet." };
+
+  const businessName = String(fd.get("businessName") ?? "").trim();
+  const description = String(fd.get("description") ?? "").trim();
+  if (businessName.length < 2) {
+    return { error: "Shop name is required.", fieldErrors: { businessName: "Required." } };
+  }
+
+  try {
+    await prisma.vendor.update({
+      where: { id: vendor.id },
+      data: {
+        businessName,
+        description,
+        deliveryAvailable: fd.get("deliveryAvailable") === "on",
+        pickupAvailable: fd.get("pickupAvailable") === "on",
+        sameDayDeliveryAvailable: fd.get("sameDayDeliveryAvailable") === "on",
+      },
+    });
+  } catch {
+    return { error: "Couldn't save your shop. Please try again." };
+  }
+
+  revalidatePath("/seller/settings");
+  revalidatePath("/seller");
+  revalidatePath("/shops");
+  return { ok: true };
+}

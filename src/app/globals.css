@@ -33,6 +33,16 @@ body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
+/* Remove the mobile 300ms tap delay / double-tap-zoom ambiguity that makes
+   taps on links & buttons feel unresponsive (needing a second tap). */
+a,
+button,
+[role="button"],
+label,
+summary {
+  touch-action: manipulation;
+}
+
 ::selection {
   background: var(--color-niki-orange);
   color: white;
