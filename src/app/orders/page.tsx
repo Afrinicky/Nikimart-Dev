@@ -1,9 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { CheckCircle2, ClipboardList, MapPin, Truck } from "lucide-react";
+import { CheckCircle2, ClipboardList, MapPin, Truck, XCircle } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ClearCartOnSuccess } from "@/components/cart/ClearCartOnSuccess";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { syncShipmentProgress } from "@/lib/tracking";
@@ -21,10 +22,10 @@ export const metadata: Metadata = {
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ placed?: string }>;
+  searchParams: Promise<{ placed?: string; failed?: string }>;
 }) {
   const user = await requireUser();
-  const { placed } = await searchParams;
+  const { placed, failed } = await searchParams;
 
   const include = {
     items: { include: { product: true } },
@@ -64,10 +65,24 @@ export default async function OrdersPage({
     <>
       <PageHeader title="My Orders" crumbs={[{ label: "Orders" }]} />
       <Container className="py-8">
+        <ClearCartOnSuccess active={Boolean(placed)} />
         {placed ? (
           <div className="mb-6 flex items-center gap-3 rounded-2xl bg-niki-success/10 p-4 text-sm font-medium text-niki-success ring-1 ring-niki-success/20">
             <CheckCircle2 className="h-5 w-5 shrink-0" />
             Order <span className="font-bold">{placed}</span> placed successfully — thank you! Track it below.
+          </div>
+        ) : null}
+        {failed ? (
+          <div className="mb-6 flex items-center gap-3 rounded-2xl bg-niki-danger/10 p-4 text-sm font-medium text-niki-danger ring-1 ring-niki-danger/20">
+            <XCircle className="h-5 w-5 shrink-0" />
+            <span>
+              Payment for order <span className="font-bold">{failed}</span> wasn&apos;t completed. It&apos;s
+              saved as pending — you can{" "}
+              <Link href="/cart" className="underline hover:no-underline">
+                return to your cart
+              </Link>{" "}
+              and try again.
+            </span>
           </div>
         ) : null}
         {orders.length === 0 ? (
