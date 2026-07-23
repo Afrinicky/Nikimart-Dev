@@ -9,10 +9,12 @@ import {
   canConfirmStage,
   deriveStatus,
   orderStatusForStage,
+  stageLabel,
   type DeliveryMethod,
   type ShipmentStage,
   type ShipmentTimestamps,
 } from "@/lib/tracking";
+import { notifyShipmentUpdate } from "@/lib/order-notifications";
 
 export type ConfirmState = { ok?: boolean; error?: string };
 
@@ -91,6 +93,11 @@ export async function confirmShipmentStage(_prev: ConfirmState, fd: FormData): P
 
   await prisma.shipment.update({ where: { id: shipment.id }, data });
   await prisma.order.update({ where: { id: shipment.order.id }, data: { status: orderStatusForStage(status) } });
+
+  // Tell the buyer their order moved forward (best-effort).
+  if (status !== "created") {
+    await notifyShipmentUpdate(shipment.order.id, stageLabel(status, method));
+  }
 
   for (const path of ["/orders", "/account", "/freight", "/pickup", "/seller/orders", "/admin", "/admin/orders"]) {
     revalidatePath(path);

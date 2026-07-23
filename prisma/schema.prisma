@@ -40,6 +40,22 @@ model User {
   pickupPoint     PickupPoint?  @relation("PickupOperator")
   preferredPickup PickupPoint?  @relation("PreferredPickup", fields: [preferredPickupId], references: [id], onDelete: SetNull)
   shipments       Shipment[]    @relation("FreightAgent")
+  passwordResets  PasswordResetToken[]
+}
+
+// Single-use, time-limited password-reset tokens. Only the SHA-256 hash of the
+// token is stored; the raw token is delivered to the user by email/SMS.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Account {

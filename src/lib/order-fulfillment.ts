@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { notifyOrderConfirmed } from "@/lib/order-notifications";
 
 /**
  * Mark a pending order as paid — idempotently — and start fulfilment.
@@ -46,6 +47,9 @@ export async function markOrderPaid(orderNumber: string): Promise<boolean> {
       })
       .catch(() => {});
   }
+
+  // Notify the buyer their payment landed (best-effort).
+  if (order) await notifyOrderConfirmed(order.id);
 
   revalidatePath("/orders");
   revalidatePath("/account");
