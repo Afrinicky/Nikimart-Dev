@@ -21,7 +21,7 @@ export async function Header() {
   return (
     <header className="sticky top-0 z-50 bg-niki-navy">
       <Container className="flex items-center gap-2 py-3 sm:gap-4">
-        <SidebarNav accountHref={accountHref} accountLabel={accountLabel} isAuthed={Boolean(session?.user)} categories={sidebarCategories} logoSrc={settings.logoUrl} />
+        <SidebarNav accountHref={accountHref} accountLabel={accountLabel} isAuthed={Boolean(session?.user)} categories={sidebarCategories} logoSrc={settings.logoUrl} dataBundlesUrl={settings.dataBundlesUrl} />
 
         <Link href="/" className="flex shrink-0 items-center gap-2">
           <BrandLogo className="h-9 w-9" src={settings.logoUrl} />

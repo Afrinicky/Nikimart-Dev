@@ -48,6 +48,12 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; href: string }[] 
 
 export async function Footer() {
   const settings = await getSettings();
+  // Inject the external "Buy Data Bundles" link into the Shop column when set.
+  const columns = FOOTER_COLUMNS.map((c) =>
+    c.title === "Shop" && settings.dataBundlesUrl
+      ? { ...c, links: [...c.links, { label: "Buy Data Bundles", href: settings.dataBundlesUrl }] }
+      : c,
+  );
   return (
     <footer className="bg-niki-navy pb-16 text-white/70 sm:pb-0">
       <Container className="grid grid-cols-2 gap-8 py-12 sm:grid-cols-4 lg:grid-cols-5">
@@ -65,18 +71,29 @@ export async function Footer() {
           </p>
         </div>
 
-        {FOOTER_COLUMNS.map((column) => (
+        {columns.map((column) => (
           <div key={column.title}>
             <h3 className="text-sm font-semibold text-white">{column.title}</h3>
             <ul className="mt-3 space-y-2">
               {column.links.map((link) => (
                 <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-sm transition-colors hover:text-niki-orange"
-                  >
-                    {link.label}
-                  </Link>
+                  {/^https?:\/\//.test(link.href) ? (
+                    <a
+                      href={link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm transition-colors hover:text-niki-orange"
+                    >
+                      {link.label}
+                    </a>
+                  ) : (
+                    <Link
+                      href={link.href}
+                      className="text-sm transition-colors hover:text-niki-orange"
+                    >
+                      {link.label}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>

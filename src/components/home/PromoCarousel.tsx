@@ -69,13 +69,13 @@ export function PromoCarousel({ slides }: { slides: BannerSlide[] }) {
         ref={trackRef}
         className="scrollbar-none flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1"
       >
-        {slides.map((s) => (
-          <Link
-            key={s.id}
-            href={s.ctaHref}
-            className="group relative flex h-44 w-[88%] shrink-0 snap-start overflow-hidden rounded-2xl sm:h-52 lg:h-60 lg:w-full"
-            style={{ background: `linear-gradient(135deg, ${s.accentFrom}, ${s.accentTo})` }}
-          >
+        {slides.map((s) => {
+          const isExternal = /^https?:\/\//.test(s.ctaHref);
+          const slideClass =
+            "group relative flex h-44 w-[88%] shrink-0 snap-start overflow-hidden rounded-2xl sm:h-52 lg:h-60 lg:w-full";
+          const slideStyle = { background: `linear-gradient(135deg, ${s.accentFrom}, ${s.accentTo})` };
+          const inner = (
+            <>
             <div className="relative z-10 flex max-w-[62%] flex-col justify-center gap-2 p-5 sm:p-7 lg:max-w-[56%]">
               {s.eventWindow ? (
                 <span className="w-fit rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white sm:text-xs">
@@ -103,8 +103,25 @@ export function PromoCarousel({ slides }: { slides: BannerSlide[] }) {
                 className="absolute right-0 top-0 h-full w-[44%] object-cover object-center"
               />
             ) : null}
-          </Link>
-        ))}
+            </>
+          );
+          return isExternal ? (
+            <a
+              key={s.id}
+              href={s.ctaHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={slideClass}
+              style={slideStyle}
+            >
+              {inner}
+            </a>
+          ) : (
+            <Link key={s.id} href={s.ctaHref} className={slideClass} style={slideStyle}>
+              {inner}
+            </Link>
+          );
+        })}
       </div>
 
       {count > 1 ? (

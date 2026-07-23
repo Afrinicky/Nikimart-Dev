@@ -19,6 +19,7 @@ import {
   Package2,
   ShieldCheck,
   ShoppingCart,
+  Smartphone,
   Store,
   Tag,
   Utensils,
@@ -59,12 +60,14 @@ export function SidebarNav({
   isAuthed,
   categories = [],
   logoSrc,
+  dataBundlesUrl,
 }: {
   accountHref: string;
   accountLabel: string;
   isAuthed: boolean;
   categories?: SidebarCategory[];
   logoSrc?: string;
+  dataBundlesUrl?: string;
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -149,6 +152,18 @@ export function SidebarNav({
               <ShoppingCart className="h-4 w-4 text-niki-orange" /> Cart
             </Link>
           </div>
+
+          {dataBundlesUrl ? (
+            <a
+              href={dataBundlesUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mb-3 flex items-center gap-3 rounded-xl bg-niki-navy px-4 py-3 text-sm font-semibold text-white"
+            >
+              <Smartphone className="h-5 w-5 text-niki-gold" />
+              Buy Data Bundles
+            </a>
+          ) : null}
 
           {categories.length > 0 ? (
             <div className="mb-4">
