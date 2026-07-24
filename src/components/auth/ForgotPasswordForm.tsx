@@ -31,8 +31,8 @@ export function ForgotPasswordForm() {
       {state.error ? (
         <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
       ) : null}
-      <Field label="Email address" htmlFor="email" hint={state.fieldErrors?.email}>
-        <input id="email" name="email" type="email" required placeholder="you@example.com" className={inputClass} />
+      <Field label="Email or phone number" htmlFor="email" hint={state.fieldErrors?.email}>
+        <input id="email" name="email" type="text" required placeholder="you@example.com or 024 000 0000" className={inputClass} />
       </Field>
       <SubmitButton>Send reset link</SubmitButton>
       <p className="text-center text-sm text-niki-ink/60">

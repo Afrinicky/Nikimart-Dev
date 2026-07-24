@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { notify, emailShell } from "@/lib/notifications";
+import { findUserByIdentifier } from "@/lib/user-lookup";
 
 export type ResetState = { ok?: boolean; error?: string; fieldErrors?: Record<string, string> };
 
@@ -28,14 +29,12 @@ async function origin(): Promise<string> {
  * and its link delivered by email + SMS.
  */
 export async function requestPasswordReset(_prev: ResetState, fd: FormData): Promise<ResetState> {
-  const email = String(fd.get("email") ?? "").trim().toLowerCase();
-  const parsed = z.string().email().safeParse(email);
-  if (!parsed.success) return { error: "Enter a valid email address.", fieldErrors: { email: "Invalid email." } };
+  const identifier = String(fd.get("email") ?? "").trim();
+  if (identifier.length < 3) {
+    return { error: "Enter your email or phone number.", fieldErrors: { email: "Required." } };
+  }
 
-  const user = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true, name: true, phone: true, email: true },
-  });
+  const user = await findUserByIdentifier(identifier);
 
   if (user) {
     // Invalidate previous unused tokens, then issue a fresh one.

@@ -6,9 +6,11 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { authConfig } from "@/lib/auth.config";
 import { isRole } from "@/lib/roles";
+import { findUserByIdentifier } from "@/lib/user-lookup";
 
 const credentialsSchema = z.object({
-  email: z.string().email(),
+  // Email address or phone number.
+  email: z.string().trim().min(1),
   password: z.string().min(1),
 });
 
@@ -18,16 +20,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Credentials({
       credentials: {
-        email: { label: "Email", type: "email" },
+        email: { label: "Email or phone", type: "text" },
         password: { label: "Password", type: "password" },
       },
       authorize: async (credentials) => {
         const parsed = credentialsSchema.safeParse(credentials);
         if (!parsed.success) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: parsed.data.email.toLowerCase() },
-        });
+        const user = await findUserByIdentifier(parsed.data.email);
         if (!user?.passwordHash) return null;
 
         const valid = await bcrypt.compare(parsed.data.password, user.passwordHash);

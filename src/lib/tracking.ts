@@ -54,6 +54,13 @@ export function confirmActionLabel(stage: ShipmentStage, method: DeliveryMethod)
   return (method === "pickup" ? pickup : delivery)[stage];
 }
 
+/** The role responsible for confirming a stage. */
+export function responsibleRole(stage: ShipmentStage, method: DeliveryMethod): Role {
+  if (stage === "processing") return "SELLER";
+  if (method === "pickup") return stage === "in_transit" ? "FREIGHT" : "PICKUP";
+  return "FREIGHT";
+}
+
 /** Who is responsible for confirming each stage. */
 export function stageRoleLabel(stage: ShipmentStage, method: DeliveryMethod): string {
   if (stage === "processing") return "Seller";

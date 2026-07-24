@@ -1,4 +1,5 @@
 import "server-only";
+import { normalizeGhPhone } from "@/lib/phone";
 
 /**
  * Notification transport: SMS via Arkesel (Ghana) and optional email.
@@ -33,20 +34,6 @@ function resendFrom(): string {
 }
 export function isEmailConfigured(): boolean {
   return Boolean(resendKey());
-}
-
-/** Normalise a Ghana phone number to Arkesel's 233XXXXXXXXX format. */
-export function normalizeGhPhone(phone?: string | null): string | null {
-  if (!phone) return null;
-  let d = phone.replace(/\D/g, "");
-  if (d.startsWith("233")) {
-    // ok
-  } else if (d.startsWith("0")) {
-    d = "233" + d.slice(1);
-  } else if (d.length === 9) {
-    d = "233" + d;
-  }
-  return d.length === 12 && d.startsWith("233") ? d : null;
 }
 
 /** Send an SMS via Arkesel. Returns true on success. Never throws. */
@@ -95,13 +82,16 @@ export interface Recipient {
  * message; `emailSubject`/`emailHtml` default to the SMS text when omitted.
  * Fire-and-forget: awaiting is optional and failures are swallowed.
  */
+export type NotifyChannel = "sms" | "email" | "both";
+
 export async function notify(
   to: Recipient,
   opts: { sms: string; emailSubject?: string; emailHtml?: string },
+  channel: NotifyChannel = "both",
 ): Promise<void> {
   const tasks: Promise<unknown>[] = [];
-  if (to.phone) tasks.push(sendSms(to.phone, opts.sms));
-  if (to.email) {
+  if (to.phone && channel !== "email") tasks.push(sendSms(to.phone, opts.sms));
+  if (to.email && channel !== "sms") {
     tasks.push(sendEmail(to.email, opts.emailSubject ?? "NikiMart", opts.emailHtml ?? emailShell(opts.sms)));
   }
   await Promise.allSettled(tasks);
