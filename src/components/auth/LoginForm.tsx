@@ -16,14 +16,14 @@ export function LoginForm() {
         </p>
       ) : null}
 
-      <Field label="Email address" htmlFor="email" hint={state.fieldErrors?.email}>
+      <Field label="Email or phone number" htmlFor="email" hint={state.fieldErrors?.email}>
         <input
           id="email"
           name="email"
-          type="email"
-          autoComplete="email"
+          type="text"
+          autoComplete="username"
           required
-          placeholder="you@example.com"
+          placeholder="you@example.com or 024 000 0000"
           className={inputClass}
         />
       </Field>

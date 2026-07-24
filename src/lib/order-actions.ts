@@ -9,7 +9,7 @@ import { getDeliveryConfig, getCommissionRate } from "@/lib/settings";
 import { quoteDeliveryFee, totalCartWeight } from "@/lib/delivery";
 import { resolveCommissionRate } from "@/lib/commission";
 import { isPaymentConfigured, initializeTransaction, toPesewas } from "@/lib/payments";
-import { notifyOrderConfirmed } from "@/lib/order-notifications";
+import { notifyOrderConfirmed, notifyStaffNewOrder } from "@/lib/order-notifications";
 
 const payloadSchema = z.object({
   items: z
@@ -197,8 +197,9 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         }
       }
 
-      // Simulated payment path is paid immediately — notify the buyer.
+      // Simulated payment path is paid immediately — notify buyer + staff.
       await notifyOrderConfirmed(order.id);
+      await notifyStaffNewOrder(order.id);
 
       revalidatePath("/orders");
       revalidatePath("/account");

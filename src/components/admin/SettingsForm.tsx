@@ -49,6 +49,23 @@ export function SettingsForm({ settings }: { settings: Settings }) {
       </section>
 
       <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+        <h2 className="font-display text-lg font-bold text-niki-ink">Staff notifications</h2>
+        <p className="mt-1 text-sm text-niki-ink/60">
+          How sellers, freight agents, pickup operators, and admins are alerted about new orders and jobs.
+          Buyers are always alerted by both SMS and email.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <Field label="Channel" htmlFor="staffNotifyChannel" hint="Requires the matching Arkesel (SMS) / email keys to be set">
+            <select id="staffNotifyChannel" name="staffNotifyChannel" defaultValue={settings.staffNotifyChannel} className={inputClass}>
+              <option value="both">SMS &amp; Email</option>
+              <option value="sms">SMS only</option>
+              <option value="email">Email only</option>
+            </select>
+          </Field>
+        </div>
+      </section>
+
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
         <h2 className="font-display text-lg font-bold text-niki-ink">Global shipping</h2>
         <p className="mt-1 text-sm text-niki-ink/60">Estimated days for imported items to arrive in Ghana.</p>
         <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">

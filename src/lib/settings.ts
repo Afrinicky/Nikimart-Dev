@@ -25,6 +25,9 @@ export const SETTINGS_DEFAULTS = {
   // Platform commission (percent) taken on every sale. Sellers register free
   // and NikiMart earns this cut per item; overridable per category.
   commissionRate: "10",
+  // How staff (sellers, freight, pickup, admins) are alerted about orders and
+  // jobs: "sms" | "email" | "both". Buyers are always alerted on both channels.
+  staffNotifyChannel: "both",
   // Overseas shipping lead times (days to arrive in Ghana), per origin.
   leadDaysCN: "21",
   leadDaysAE: "14",
@@ -83,6 +86,15 @@ export async function getCommissionRate(): Promise<number> {
     return Number(SETTINGS_DEFAULTS.commissionRate);
   }
   return rate;
+}
+
+export type NotifyChannel = "sms" | "email" | "both";
+
+/** Admin's chosen channel for staff order/job alerts. */
+export async function getStaffNotifyChannel(): Promise<NotifyChannel> {
+  const settings = await getSettings();
+  const v = settings.staffNotifyChannel;
+  return v === "sms" || v === "email" || v === "both" ? v : "both";
 }
 
 /** Configured overseas lead time (days) for an origin country code. */

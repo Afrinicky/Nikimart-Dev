@@ -6,6 +6,7 @@ import { z } from "zod";
 import { signIn, signOut } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isRole, ROLE_HOME } from "@/lib/roles";
+import { findUserByIdentifier } from "@/lib/user-lookup";
 
 export type AuthFormState = {
   error?: string;
@@ -34,7 +35,8 @@ const registerSchema = z.object({
 });
 
 const loginSchema = z.object({
-  email: z.string().trim().email("Enter a valid email address."),
+  // Email address or phone number.
+  email: z.string().trim().min(1, "Enter your email or phone number."),
   password: z.string().min(1, "Enter your password."),
 });
 
@@ -130,16 +132,13 @@ export async function loginAction(
     return { error: "Please fix the highlighted fields.", fieldErrors };
   }
 
-  const email = parsed.data.email.toLowerCase();
-  const user = await prisma.user.findUnique({
-    where: { email },
-    select: { role: true },
-  });
+  const identifier = parsed.data.email.trim();
+  const user = await findUserByIdentifier(identifier);
   const redirectTo = homeForRole(user?.role);
 
   try {
     await signIn("credentials", {
-      email,
+      email: identifier,
       password: parsed.data.password,
       redirectTo,
     });
