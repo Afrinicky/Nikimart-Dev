@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ArrowLeft, MapPin, Package, Truck } from "lucide-react";
+import { ArrowLeft, MapPin, Package, Receipt, Truck } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { TrackingTimeline } from "@/components/order/TrackingTimeline";
@@ -37,10 +37,19 @@ export default async function OrderTrackingPage({ params }: { params: Params }) 
     <>
       <PageHeader title={`Order ${order.orderNumber}`} crumbs={[{ label: "Orders", href: "/orders" }, { label: order.orderNumber }]} />
       <Container className="py-8">
-        <Link href="/orders" className="flex items-center gap-1 text-sm text-niki-ink/60 hover:text-niki-ink">
-          <ArrowLeft className="h-4 w-4" />
-          Back to my orders
-        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link href="/orders" className="flex items-center gap-1 text-sm text-niki-ink/60 hover:text-niki-ink">
+            <ArrowLeft className="h-4 w-4" />
+            Back to my orders
+          </Link>
+          <Link
+            href={`/orders/${order.orderNumber}/receipt`}
+            className="flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 transition-colors hover:bg-white"
+          >
+            <Receipt className="h-4 w-4 text-niki-orange" />
+            View receipt
+          </Link>
+        </div>
 
         <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_20rem]">
           <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">

@@ -48,6 +48,27 @@ summary {
   color: white;
 }
 
+/* Print: show only the receipt sheet, drop the site chrome. */
+@media print {
+  header,
+  footer,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  .receipt-sheet {
+    max-width: 100% !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

@@ -128,10 +128,16 @@ export default async function OrdersPage({
                       </>
                     )}
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                     <span className="font-display font-bold text-niki-ink">
                       Total {formatPrice(order.total)}
                     </span>
+                    <Link
+                      href={`/orders/${order.orderNumber}/receipt`}
+                      className="rounded-full px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-black/10 transition-colors hover:bg-niki-surface"
+                    >
+                      Receipt
+                    </Link>
                     <Link
                       href={`/orders/${order.orderNumber}`}
                       className="rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-navy-light"
