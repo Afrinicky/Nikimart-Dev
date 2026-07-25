@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowUpRight, Banknote, Percent, Users, Wallet } from "lucide-react";
 import { Container } from "@/components/ui/Container";
-import { StatCard } from "@/components/dashboard/StatCard";
 import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getFinanceOverview, getVendorSettlements } from "@/lib/finance";
@@ -36,18 +35,26 @@ export default async function AdminFinancePage() {
         </Link>
       </div>
 
-      {/* Platform KPIs */}
+      {/* Platform KPIs — each opens its breakdown */}
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Gross merchandise value" value={formatPrice(overview.gmv)} />
-        <StatCard label="Commission earned" value={formatPrice(overview.commission)} />
-        <StatCard label="Owed to sellers" value={formatPrice(overview.owedToSellers)} />
-        <StatCard label="Paid to sellers" value={formatPrice(overview.sellerPaidOut)} />
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="In escrow (undelivered)" value={formatPrice(overview.inEscrow)} />
-        <StatCard label="Delivery collected" value={formatPrice(overview.delivery)} />
-        <StatCard label="Affiliate payments" value={formatPrice(overview.affiliatePaid)} />
-        <StatCard label="Platform earnings" value={formatPrice(overview.platformEarnings)} />
+        {([
+          ["gmv", "Gross merchandise value", overview.gmv],
+          ["commission", "Commission earned", overview.commission],
+          ["owed", "Owed to sellers", overview.owedToSellers],
+          ["paid", "Paid to sellers", overview.sellerPaidOut],
+          ["escrow", "In escrow (undelivered)", overview.inEscrow],
+          ["delivery", "Delivery collected", overview.delivery],
+          ["affiliate", "Affiliate payments", overview.affiliatePaid],
+          ["earnings", "Platform earnings", overview.platformEarnings],
+        ] as const).map(([metric, label, value]) => (
+          <Link key={metric} href={`/admin/finance/breakdown/${metric}`} className="group rounded-2xl bg-white p-5 ring-1 ring-black/5 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-niki-navy/5">
+            <p className="font-display text-2xl font-bold text-niki-ink">{formatPrice(value)}</p>
+            <p className="mt-1 flex items-center gap-1 text-sm text-niki-ink/60">
+              {label}
+              <ArrowUpRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
+            </p>
+          </Link>
+        ))}
       </div>
 
       {/* Commission config summary */}
