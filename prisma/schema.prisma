@@ -181,6 +181,10 @@ model Affiliate {
   email     String   @default("")
   code      String?  @unique
   note      String   @default("")
+  // active | suspended. Suspended affiliates stop earning on new orders.
+  status    String   @default("active")
+  // Optional per-affiliate commission override (percent). Null = program default.
+  commissionRate Float?
   createdAt DateTime @default(now())
 
   // Self-registered affiliates are linked to their user account. Admin-created

@@ -80,7 +80,40 @@ export async function createAffiliate(_prev: CrudState, fd: FormData): Promise<C
     data: { name, phone: str(fd, "phone"), email: str(fd, "email"), code, note: str(fd, "note") },
   });
   revalidateFinance();
-  redirect("/admin/finance/affiliates");
+  redirect("/admin/affiliates");
+}
+
+/** Activate or suspend an affiliate. */
+export async function setAffiliateStatus(fd: FormData): Promise<void> {
+  await requireAdmin();
+  const id = str(fd, "id");
+  const status = str(fd, "status");
+  if (!id || (status !== "active" && status !== "suspended")) return;
+  await prisma.affiliate.update({ where: { id }, data: { status } });
+  revalidateFinance();
+  revalidatePath("/admin/affiliates");
+  revalidatePath(`/admin/affiliates/${id}`);
+  revalidatePath("/affiliate");
+}
+
+export type CommissionState = CrudState & { ok?: boolean };
+
+/** Set a per-affiliate commission override (blank clears it). */
+export async function setAffiliateCommission(_prev: CommissionState, fd: FormData): Promise<CommissionState> {
+  await requireAdmin();
+  const id = str(fd, "id");
+  if (!id) return { error: "Missing affiliate." };
+  const raw = str(fd, "commissionRate");
+  let commissionRate: number | null = null;
+  if (raw) {
+    const n = Number(raw);
+    if (!(n >= 0 && n <= 100)) return { error: "Rate must be between 0 and 100." };
+    commissionRate = n;
+  }
+  await prisma.affiliate.update({ where: { id }, data: { commissionRate } });
+  revalidatePath(`/admin/affiliates/${id}`);
+  revalidatePath("/affiliate");
+  return { ok: true };
 }
 
 export async function deleteAffiliate(fd: FormData): Promise<void> {
@@ -125,5 +158,5 @@ export async function createAffiliatePayout(_prev: CrudState, fd: FormData): Pro
     },
   });
   revalidateFinance();
-  redirect(`/admin/finance/affiliates/${affiliateId}`);
+  redirect(`/admin/affiliates/${affiliateId}`);
 }

@@ -81,11 +81,18 @@ export default async function AffiliatePage() {
   ]);
 
   const refPath = `/?ref=${affiliate.code}`;
+  const effectiveRate = affiliate.commissionRate ?? rate;
+  const suspended = affiliate.status !== "active";
 
   return (
     <>
       <PageHeader title="Affiliate dashboard" subtitle={`Your referral code: ${affiliate.code}`} crumbs={[{ label: "Affiliate" }]} />
       <Container className="py-8">
+        {suspended ? (
+          <div className="mb-6 rounded-2xl bg-niki-danger/10 p-4 text-sm font-medium text-niki-danger ring-1 ring-niki-danger/20">
+            Your affiliate account is currently suspended — new orders won&apos;t earn commission. Please contact support.
+          </div>
+        ) : null}
         {/* Referral link */}
         <div className="rounded-3xl bg-niki-navy p-6 text-white sm:p-8">
           <div className="flex items-center gap-2 text-white/70"><BadgeCheck className="h-5 w-5 text-niki-orange" /><span className="text-sm font-medium">Your referral link</span></div>
@@ -93,7 +100,7 @@ export default async function AffiliatePage() {
           <div className="mt-4">
             <ShareButton path={refPath} title={`Shop on NikiMart with my link`} label="Share your link" tone="dark" />
           </div>
-          <p className="mt-3 text-xs text-white/50">You earn {rate}% of every order placed through your link.</p>
+          <p className="mt-3 text-xs text-white/50">You earn {effectiveRate}% of every order placed through your link.</p>
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">

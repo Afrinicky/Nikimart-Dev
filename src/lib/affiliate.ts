@@ -32,6 +32,53 @@ export interface AffiliateEarnings {
   available: number;
 }
 
+export interface AffiliateOverview {
+  total: number;
+  active: number;
+  referredSales: number;
+  commissionEarned: number;
+  paidOut: number;
+  owed: number;
+}
+
+/** Program-wide affiliate KPIs. */
+export async function getAffiliateOverview(): Promise<AffiliateOverview> {
+  const [affiliates, orders, payouts] = await Promise.all([
+    prisma.affiliate.findMany({ select: { status: true } }),
+    prisma.order.findMany({ where: { affiliateId: { not: null }, status: { notIn: ["cancelled", "pending"] } }, select: { subtotal: true, affiliateCommission: true } }),
+    prisma.affiliatePayout.findMany({ select: { amount: true, status: true } }),
+  ]);
+  const commissionEarned = orders.reduce((s, o) => s + o.affiliateCommission, 0);
+  const paidOut = payouts.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
+  const pending = payouts.filter((p) => p.status === "pending").reduce((s, p) => s + p.amount, 0);
+  return {
+    total: affiliates.length,
+    active: affiliates.filter((a) => a.status === "active").length,
+    referredSales: money(orders.reduce((s, o) => s + o.subtotal, 0)),
+    commissionEarned: money(commissionEarned),
+    paidOut: money(paidOut),
+    owed: money(Math.max(0, commissionEarned - paidOut - pending)),
+  };
+}
+
+export interface AffiliateRow {
+  id: string;
+  name: string;
+  code: string | null;
+  status: string;
+  isUser: boolean;
+  earnings: AffiliateEarnings;
+}
+
+/** All affiliates with their referral stats, best earners first. */
+export async function getAllAffiliatesWithStats(): Promise<AffiliateRow[]> {
+  const affiliates = await prisma.affiliate.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, name: true, code: true, status: true, userId: true } });
+  const rows = await Promise.all(
+    affiliates.map(async (a) => ({ id: a.id, name: a.name, code: a.code, status: a.status, isUser: Boolean(a.userId), earnings: await getAffiliateEarnings(a.id) })),
+  );
+  return rows.sort((x, y) => y.earnings.earned - x.earnings.earned);
+}
+
 /** Compute an affiliate's referral earnings + payout position. */
 export async function getAffiliateEarnings(affiliateId: string): Promise<AffiliateEarnings> {
   const [orders, payouts] = await Promise.all([

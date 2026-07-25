@@ -39,7 +39,7 @@ export function AffiliateForm() {
         <div className="w-44">
           <SubmitButton>Add affiliate</SubmitButton>
         </div>
-        <Link href="/admin/finance/affiliates" className="text-sm font-medium text-niki-ink/60 hover:text-niki-ink">Cancel</Link>
+        <Link href="/admin/affiliates" className="text-sm font-medium text-niki-ink/60 hover:text-niki-ink">Cancel</Link>
       </div>
     </form>
   );
