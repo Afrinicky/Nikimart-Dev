@@ -33,6 +33,17 @@ export function SettingsForm({ settings }: { settings: Settings }) {
             <input id="pickupFee" name="pickupFee" type="number" min="0" step="0.01" defaultValue={settings.pickupFee} className={inputClass} />
           </Field>
         </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <Field label="Charge by" htmlFor="deliveryBasis" hint="Weight, or size (volumetric weight from dimensions)">
+            <select id="deliveryBasis" name="deliveryBasis" defaultValue={settings.deliveryBasis} className={inputClass}>
+              <option value="weight">Weight (kg)</option>
+              <option value="size">Size (dimensions)</option>
+            </select>
+          </Field>
+          <Field label="Volumetric divisor" htmlFor="volumetricDivisor" hint="cm³ per kg for size pricing (≈5000)">
+            <input id="volumetricDivisor" name="volumetricDivisor" type="number" min="1" step="1" defaultValue={settings.volumetricDivisor} className={inputClass} />
+          </Field>
+        </div>
       </section>
 
       <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">

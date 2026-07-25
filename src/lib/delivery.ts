@@ -7,6 +7,9 @@
 // Configuration is loaded from site settings via getDeliveryConfig() in
 // settings.ts and passed in here.
 
+/** Pricing basis: actual weight, or size (volumetric weight from dimensions). */
+export type DeliveryBasis = "weight" | "size";
+
 export interface DeliveryConfig {
   /** Flat base charged on every door delivery, before the weight component. */
   baseFee: number;
@@ -14,16 +17,34 @@ export interface DeliveryConfig {
   perKgRate: number;
   /** Flat fee to collect from a pickup station (0 = free). */
   pickupFee: number;
+  /** Whether the per-kg component uses actual weight or volumetric (size). */
+  basis: DeliveryBasis;
+  /** cm³ per volumetric kg (courier standard ≈ 5000). */
+  volumetricDivisor: number;
 }
 
 export const DELIVERY_DEFAULTS: DeliveryConfig = {
   baseFee: 20,
   perKgRate: 5,
   pickupFee: 0,
+  basis: "weight",
+  volumetricDivisor: 5000,
 };
 
 /** Fallback billable weight (kg) when a product has none recorded. */
 export const DEFAULT_ITEM_WEIGHT_KG = 0.5;
+
+/** Volumetric ("dimensional") weight in kg from cm dimensions. */
+export function volumetricWeightKg(
+  lengthCm: number,
+  widthCm: number,
+  heightCm: number,
+  divisor = DELIVERY_DEFAULTS.volumetricDivisor,
+): number {
+  const vol = (lengthCm || 0) * (widthCm || 0) * (heightCm || 0);
+  const d = divisor > 0 ? divisor : DELIVERY_DEFAULTS.volumetricDivisor;
+  return vol > 0 ? vol / d : 0;
+}
 
 export type DeliveryMethod = "delivery" | "pickup";
 
@@ -64,10 +85,24 @@ export function quoteDeliveryFee({ method, totalWeightKg, zoneMultiplier, config
   return roundFee((config.baseFee + config.perKgRate * weight) * zone);
 }
 
-/** Sum billable weights for a set of cart lines, applying the default fallback. */
-export function totalCartWeight(items: { weightKg?: number; quantity: number }[]): number {
+/**
+ * Sum billable "weight" (kg) for a set of cart lines. When the config basis is
+ * "size", each line uses its volumetric weight (from volumeCm3), falling back
+ * to actual weight when no dimensions are recorded.
+ */
+export function totalCartWeight(
+  items: { weightKg?: number; volumeCm3?: number; quantity: number }[],
+  config?: Pick<DeliveryConfig, "basis" | "volumetricDivisor">,
+): number {
+  const basis: DeliveryBasis = config?.basis ?? "weight";
+  const divisor = config?.volumetricDivisor && config.volumetricDivisor > 0 ? config.volumetricDivisor : DELIVERY_DEFAULTS.volumetricDivisor;
   return items.reduce((sum, i) => {
-    const w = typeof i.weightKg === "number" && i.weightKg > 0 ? i.weightKg : DEFAULT_ITEM_WEIGHT_KG;
-    return sum + w * i.quantity;
+    const actual = typeof i.weightKg === "number" && i.weightKg > 0 ? i.weightKg : DEFAULT_ITEM_WEIGHT_KG;
+    let unit = actual;
+    if (basis === "size") {
+      const vol = typeof i.volumeCm3 === "number" && i.volumeCm3 > 0 ? i.volumeCm3 / divisor : 0;
+      unit = vol > 0 ? vol : actual;
+    }
+    return sum + unit * i.quantity;
   }, 0);
 }

@@ -237,6 +237,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
                   image: product.image,
                   vendorId: product.vendorId,
                   weightKg: product.shippingWeightKg,
+                  volumeCm3: (product.lengthCm || 0) * (product.widthCm || 0) * (product.heightCm || 0),
                 }}
               />
             </div>

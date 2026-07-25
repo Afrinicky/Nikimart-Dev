@@ -14,6 +14,8 @@ export interface CartItem {
   vendorId: string;
   /** Billable shipping weight in kg (for the delivery-fee engine). */
   weightKg?: number;
+  /** Parcel volume in cm³ (L×W×H) for size-based delivery pricing. */
+  volumeCm3?: number;
   quantity: number;
 }
 

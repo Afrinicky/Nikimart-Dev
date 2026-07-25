@@ -68,6 +68,9 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       id: true,
       price: true,
       shippingWeightKg: true,
+      lengthCm: true,
+      widthCm: true,
+      heightCm: true,
       category: { select: { commissionRate: true } },
     },
   });
@@ -85,6 +88,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         quantity: i.quantity,
         unitPrice: p.price,
         weightKg: p.shippingWeightKg,
+        volumeCm3: (p.lengthCm || 0) * (p.widthCm || 0) * (p.heightCm || 0),
         commissionRate: resolveCommissionRate(p.category?.commissionRate, defaultCommission),
       };
     });
@@ -106,7 +110,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   const deliveryConfig = await getDeliveryConfig();
   const deliveryFee = quoteDeliveryFee({
     method: data.deliveryMethod,
-    totalWeightKg: totalCartWeight(lineItems),
+    totalWeightKg: totalCartWeight(lineItems, deliveryConfig),
     zoneMultiplier: destinationLocation?.deliveryZoneMultiplier ?? 1,
     config: deliveryConfig,
   });

@@ -224,6 +224,10 @@ model Product {
   emoji                    String
   // Billable shipping weight in kg (max of actual/volumetric) for delivery fees.
   shippingWeightKg         Float    @default(0.5)
+  // Parcel dimensions in cm (for size-based / volumetric delivery pricing).
+  lengthCm                 Float    @default(0)
+  widthCm                  Float    @default(0)
+  heightCm                 Float    @default(0)
   // Primary image (kept for backward-compat / fallback); the gallery lives in
   // ProductImage. May be an http(s) URL or a data: URL.
   image                    String?

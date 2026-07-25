@@ -98,6 +98,10 @@ export function buildProductData(fd: FormData, forceVendorId?: string) {
     emoji: optStr(fd, "emoji") ?? "🛍️",
     // Billable shipping weight (kg) for the delivery-fee engine; default 0.5.
     shippingWeightKg: num(fd, "shippingWeightKg") ?? 0.5,
+    // Parcel dimensions (cm) for size-based delivery pricing.
+    lengthCm: num(fd, "lengthCm") ?? 0,
+    widthCm: num(fd, "widthCm") ?? 0,
+    heightCm: num(fd, "heightCm") ?? 0,
     // Keep the single `image` column in sync with the primary gallery image.
     image: images[0] ?? null,
     gradientFrom: optStr(fd, "gradientFrom") ?? "#0e1f36",
