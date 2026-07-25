@@ -1,12 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
 import { after } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { getDeliveryConfig, getCommissionRate } from "@/lib/settings";
+import { getDeliveryConfig, getCommissionRate, getAffiliateRate } from "@/lib/settings";
+import { REFERRAL_COOKIE } from "@/lib/affiliate";
 import { quoteDeliveryFee, totalCartWeight } from "@/lib/delivery";
 import { resolveCommissionRate } from "@/lib/commission";
 import { isPaymentConfigured, initializeTransaction, toPesewas } from "@/lib/payments";
@@ -116,6 +117,20 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   });
   const total = subtotal + deliveryFee;
 
+  // Affiliate attribution: if a referral cookie is present and belongs to a
+  // different user, snapshot their commission on this order.
+  let affiliateId: string | null = null;
+  let affiliateCommission = 0;
+  const refCode = (await cookies()).get(REFERRAL_COOKIE)?.value;
+  if (refCode) {
+    const affiliate = await prisma.affiliate.findUnique({ where: { code: refCode }, select: { id: true, userId: true } });
+    if (affiliate && affiliate.userId !== user.id) {
+      affiliateId = affiliate.id;
+      const affRate = await getAffiliateRate();
+      affiliateCommission = Math.round(subtotal * affRate) / 100;
+    }
+  }
+
   // A freight agent to carry delivery consignments, if one exists.
   const freightAgent =
     data.deliveryMethod === "delivery"
@@ -150,6 +165,8 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
           address: data.deliveryMethod === "delivery" ? data.address : null,
           pickupPointId: data.deliveryMethod === "pickup" ? (pickupPoint?.id ?? null) : null,
           userId: user.id,
+          affiliateId,
+          affiliateCommission,
           items: {
             create: lineItems.map((i) => ({
               productId: i.productId,

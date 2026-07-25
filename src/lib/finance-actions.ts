@@ -92,6 +92,16 @@ export async function deleteAffiliate(fd: FormData): Promise<void> {
   }
 }
 
+/** Mark a pending affiliate payout (e.g. an affiliate's request) as paid. */
+export async function markAffiliatePayoutPaid(fd: FormData): Promise<void> {
+  await requireAdmin();
+  const id = str(fd, "id");
+  if (!id) return;
+  await prisma.affiliatePayout.updateMany({ where: { id, status: "pending" }, data: { status: "paid", paidAt: new Date() } });
+  revalidateFinance();
+  revalidatePath("/affiliate");
+}
+
 /** Record a commission payment to an affiliate (marked paid). */
 export async function createAffiliatePayout(_prev: CrudState, fd: FormData): Promise<CrudState> {
   await requireAdmin();

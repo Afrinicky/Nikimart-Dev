@@ -23,6 +23,7 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; href: string }[] 
       { label: "Sell on NikiMart", href: "/sell" },
       { label: "Vendor Registration", href: "/vendor-register" },
       { label: "Seller Dashboard", href: "/seller" },
+      { label: "Become an Affiliate", href: "/affiliate" },
     ],
   },
   {

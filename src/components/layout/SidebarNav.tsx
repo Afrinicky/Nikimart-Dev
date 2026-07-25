@@ -154,7 +154,7 @@ export function SidebarNav({
           </div>
 
           <Link
-            href="/sell"
+            href="/start-selling"
             className="mb-3 flex items-center gap-3 rounded-xl bg-niki-orange px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
           >
             <Store className="h-5 w-5" />
