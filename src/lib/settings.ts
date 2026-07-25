@@ -29,6 +29,8 @@ export const SETTINGS_DEFAULTS = {
   // Platform commission (percent) taken on every sale. Sellers register free
   // and NikiMart earns this cut per item; overridable per category.
   commissionRate: "10",
+  // Affiliate commission (percent of order subtotal) earned on referred sales.
+  affiliateRate: "5",
   // How staff (sellers, freight, pickup, admins) are alerted about orders and
   // jobs: "sms" | "email" | "both". Buyers are always alerted on both channels.
   staffNotifyChannel: "both",
@@ -98,6 +100,17 @@ export async function getCommissionRate(): Promise<number> {
   const rate = Number(raw);
   if (raw === "" || !Number.isFinite(rate) || rate < 0 || rate > 100) {
     return Number(SETTINGS_DEFAULTS.commissionRate);
+  }
+  return rate;
+}
+
+/** Affiliate commission rate (percent of subtotal). */
+export async function getAffiliateRate(): Promise<number> {
+  const settings = await getSettings();
+  const raw = (settings.affiliateRate ?? "").trim();
+  const rate = Number(raw);
+  if (raw === "" || !Number.isFinite(rate) || rate < 0 || rate > 100) {
+    return Number(SETTINGS_DEFAULTS.affiliateRate);
   }
   return rate;
 }

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { LocationProvider } from "@/components/providers/LocationProvider";
 import { CartProvider } from "@/components/providers/CartProvider";
+import { ReferralCapture } from "@/components/providers/ReferralCapture";
 import { getLocations } from "@/lib/locations";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -48,6 +49,7 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-niki-surface text-niki-ink">
+        <ReferralCapture />
         <LocationProvider locations={locations}>
           <CartProvider>
             <Header />

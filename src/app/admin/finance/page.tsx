@@ -6,7 +6,7 @@ import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getFinanceOverview, getVendorSettlements } from "@/lib/finance";
 import { getCommissionRate } from "@/lib/settings";
-import { markPayoutPaid } from "@/lib/finance-actions";
+import { markPayoutPaid, markAffiliatePayoutPaid } from "@/lib/finance-actions";
 import { formatPrice } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Finance — Admin — NikiMart" };
@@ -23,6 +23,7 @@ export default async function AdminFinancePage() {
     prisma.affiliatePayout.findMany({ orderBy: { createdAt: "desc" }, take: 6, include: { affiliate: { select: { name: true } } } }),
     prisma.payout.findMany({ where: { status: "pending" }, orderBy: { createdAt: "asc" }, include: { vendor: { select: { businessName: true } } } }),
   ]);
+  const pendingAffiliateRequests = await prisma.affiliatePayout.findMany({ where: { status: "pending" }, orderBy: { createdAt: "asc" }, include: { affiliate: { select: { name: true } } } });
 
   return (
     <Container className="py-8">
@@ -136,6 +137,27 @@ export default async function AdminFinancePage() {
                   <button type="submit" className="rounded-full bg-niki-success px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90">
                     Mark paid
                   </button>
+                </form>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Pending affiliate payout requests */}
+      {pendingAffiliateRequests.length > 0 ? (
+        <div className="mt-8">
+          <h2 className="font-display text-lg font-bold text-niki-ink">Affiliate payout requests</h2>
+          <div className="mt-4 space-y-3">
+            {pendingAffiliateRequests.map((p) => (
+              <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/5">
+                <div className="min-w-0">
+                  <p className="font-semibold text-niki-ink">{p.affiliate.name} · {formatPrice(p.amount)}</p>
+                  <p className="mt-0.5 text-xs text-niki-ink/60">{p.method}{p.note ? ` · ${p.note.replace("Pay to: ", "")}` : ""}</p>
+                </div>
+                <form action={markAffiliatePayoutPaid}>
+                  <input type="hidden" name="id" value={p.id} />
+                  <button type="submit" className="rounded-full bg-niki-success px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90">Mark paid</button>
                 </form>
               </div>
             ))}

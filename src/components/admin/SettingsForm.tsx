@@ -56,6 +56,9 @@ export function SettingsForm({ settings }: { settings: Settings }) {
           <Field label="Default commission (%)" htmlFor="commissionRate" hint={state.fieldErrors?.commissionRate ?? "Applied to items whose category has no override"}>
             <input id="commissionRate" name="commissionRate" type="number" min="0" max="100" step="0.1" defaultValue={settings.commissionRate} className={inputClass} />
           </Field>
+          <Field label="Affiliate commission (%)" htmlFor="affiliateRate" hint="Earned by affiliates on each referred order's subtotal">
+            <input id="affiliateRate" name="affiliateRate" type="number" min="0" max="100" step="0.1" defaultValue={settings.affiliateRate} className={inputClass} />
+          </Field>
         </div>
       </section>
 

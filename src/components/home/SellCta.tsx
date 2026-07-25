@@ -11,7 +11,7 @@ export function SellCta() {
     <section className="bg-niki-surface pt-3">
       <Container>
         <Link
-          href="/sell"
+          href="/start-selling"
           className="group flex items-center justify-between gap-3 rounded-2xl bg-niki-navy px-4 py-3 ring-1 ring-black/5 transition-colors hover:bg-niki-navy/95 sm:px-5"
         >
           <span className="flex items-center gap-3">

@@ -41,6 +41,7 @@ model User {
   preferredPickup PickupPoint?  @relation("PreferredPickup", fields: [preferredPickupId], references: [id], onDelete: SetNull)
   shipments       Shipment[]    @relation("FreightAgent")
   passwordResets  PasswordResetToken[]
+  affiliate       Affiliate?
 }
 
 // Single-use, time-limited password-reset tokens. Only the SHA-256 hash of the
@@ -182,7 +183,13 @@ model Affiliate {
   note      String   @default("")
   createdAt DateTime @default(now())
 
+  // Self-registered affiliates are linked to their user account. Admin-created
+  // affiliates leave this null.
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
   payouts AffiliatePayout[]
+  orders  Order[]
 }
 
 model AffiliatePayout {
@@ -278,6 +285,11 @@ model Order {
 
   pickupPointId String?
   pickupPoint   PickupPoint? @relation(fields: [pickupPointId], references: [id])
+
+  // Affiliate attribution: who referred this order and the commission they earn.
+  affiliateId         String?
+  affiliate           Affiliate? @relation(fields: [affiliateId], references: [id], onDelete: SetNull)
+  affiliateCommission Float      @default(0)
 
   items    OrderItem[]
   shipment Shipment?
