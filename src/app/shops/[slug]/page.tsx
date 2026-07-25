@@ -4,6 +4,7 @@ import { MapPin, ShieldCheck, Star, Store } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ProductGrid } from "@/components/product/ProductGrid";
+import { ShareButton } from "@/components/share/ShareButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { locations } from "@/lib/mock-data";
 import { getProductsByVendorId, getVendorBySlug } from "@/lib/catalog";
@@ -77,6 +78,9 @@ export default async function ShopDetailPage({ params }: { params: Params }) {
             </div>
           </div>
           <p className="mt-5 max-w-2xl text-sm text-white/80">{vendor.description}</p>
+          <div className="mt-4">
+            <ShareButton path={`/shops/${vendor.slug}`} title={`${vendor.businessName} on NikiMart`} label="Share shop" tone="dark" />
+          </div>
         </Container>
       </div>
 

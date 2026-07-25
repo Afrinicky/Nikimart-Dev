@@ -28,6 +28,13 @@ export const SETTINGS_DEFAULTS = {
   // How staff (sellers, freight, pickup, admins) are alerted about orders and
   // jobs: "sms" | "email" | "both". Buyers are always alerted on both channels.
   staffNotifyChannel: "both",
+  // NikiMart's own social media handles (full URLs). Empty = hidden.
+  socialFacebook: "",
+  socialInstagram: "",
+  socialTwitter: "",
+  socialTiktok: "",
+  socialYoutube: "",
+  socialWhatsapp: "",
   // Overseas shipping lead times (days to arrive in Ghana), per origin.
   leadDaysCN: "21",
   leadDaysAE: "14",
