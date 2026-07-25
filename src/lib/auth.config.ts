@@ -13,10 +13,16 @@ export const authConfig = {
   },
   providers: [],
   callbacks: {
-    jwt({ token, user }) {
+    jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
         token.role = (user.role ?? "CUSTOMER") as Role;
+      }
+      // Allow a server-side session refresh (e.g. after a customer registers a
+      // shop and becomes a SELLER) to update the role without re-logging in.
+      if (trigger === "update") {
+        const role = (session as { role?: unknown } | null)?.role;
+        if (typeof role === "string") token.role = role as Role;
       }
       return token;
     },
