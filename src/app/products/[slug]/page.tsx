@@ -18,6 +18,7 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { ProductGallery } from "@/components/product/ProductGallery";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
+import { ShareButton } from "@/components/share/ShareButton";
 import { Badge } from "@/components/ui/Badge";
 import {
   getCategories,
@@ -107,9 +108,12 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
               </Link>
             ) : null}
 
-            <h1 className="mt-2 font-display text-2xl font-bold text-niki-ink sm:text-3xl">
-              {product.name}
-            </h1>
+            <div className="mt-2 flex items-start justify-between gap-3">
+              <h1 className="font-display text-2xl font-bold text-niki-ink sm:text-3xl">
+                {product.name}
+              </h1>
+              <ShareButton path={`/products/${product.slug}`} title={product.name} label="" />
+            </div>
 
             <div className="mt-3 flex items-center gap-2 text-sm text-niki-ink/60">
               <span className="flex items-center gap-1">
@@ -233,6 +237,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
                   image: product.image,
                   vendorId: product.vendorId,
                   weightKg: product.shippingWeightKg,
+                  volumeCm3: (product.lengthCm || 0) * (product.widthCm || 0) * (product.heightCm || 0),
                 }}
               />
             </div>

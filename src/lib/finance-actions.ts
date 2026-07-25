@@ -54,6 +54,15 @@ export async function createSellerPayout(_prev: CrudState, fd: FormData): Promis
   redirect("/admin/finance");
 }
 
+/** Mark a pending seller payout (e.g. a seller request) as paid. */
+export async function markPayoutPaid(fd: FormData): Promise<void> {
+  await requireAdmin();
+  const id = str(fd, "id");
+  if (!id) return;
+  await prisma.payout.updateMany({ where: { id, status: "pending" }, data: { status: "paid", paidAt: new Date() } });
+  revalidateFinance();
+}
+
 // --- Affiliates -----------------------------------------------------------
 
 export async function createAffiliate(_prev: CrudState, fd: FormData): Promise<CrudState> {

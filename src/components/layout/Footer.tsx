@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { MessageCircle } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { BrandLogo } from "@/components/ui/BrandLogo";
+import { FacebookIcon, InstagramIcon, TiktokIcon, XIcon, YoutubeIcon } from "@/components/share/SocialIcons";
 import { getSettings } from "@/lib/settings";
 
 const FOOTER_COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
@@ -69,6 +71,32 @@ export async function Footer() {
           <p className="mt-3 text-xs text-white/50">
             {settings.supportEmail} · {settings.supportPhone}
           </p>
+          {(() => {
+            const socials = [
+              { href: settings.socialFacebook, icon: FacebookIcon, label: "Facebook" },
+              { href: settings.socialInstagram, icon: InstagramIcon, label: "Instagram" },
+              { href: settings.socialTwitter, icon: XIcon, label: "X" },
+              { href: settings.socialTiktok, icon: TiktokIcon, label: "TikTok" },
+              { href: settings.socialYoutube, icon: YoutubeIcon, label: "YouTube" },
+              { href: settings.socialWhatsapp, icon: MessageCircle, label: "WhatsApp" },
+            ].filter((s) => s.href);
+            return socials.length > 0 ? (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {socials.map((s) => (
+                  <a
+                    key={s.label}
+                    href={s.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={s.label}
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white/80 transition-colors hover:bg-niki-orange hover:text-white"
+                  >
+                    <s.icon className="h-4 w-4" />
+                  </a>
+                ))}
+              </div>
+            ) : null;
+          })()}
         </div>
 
         {columns.map((column) => (

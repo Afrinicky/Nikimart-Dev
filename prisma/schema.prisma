@@ -47,9 +47,11 @@ model User {
 // token is stored; the raw token is delivered to the user by email/SMS.
 model PasswordResetToken {
   id        String    @id @default(cuid())
-  tokenHash String    @unique
+  // SHA-256 hash of the 6-digit OTP (never store the code itself).
+  tokenHash String
   expiresAt DateTime
   usedAt    DateTime?
+  attempts  Int       @default(0)
   createdAt DateTime  @default(now())
 
   userId String
@@ -134,6 +136,14 @@ model Vendor {
   pickupAvailable          Boolean   @default(false)
   sameDayDeliveryAvailable Boolean   @default(false)
 
+  // Where the seller wants to be paid: "" | momo | bank.
+  payoutMethod      String @default("")
+  momoNumber        String @default("")
+  momoName          String @default("")
+  bankName          String @default("")
+  bankAccountName   String @default("")
+  bankAccountNumber String @default("")
+
   ownerId String? @unique
   owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
@@ -216,6 +226,10 @@ model Product {
   emoji                    String
   // Billable shipping weight in kg (max of actual/volumetric) for delivery fees.
   shippingWeightKg         Float    @default(0.5)
+  // Parcel dimensions in cm (for size-based / volumetric delivery pricing).
+  lengthCm                 Float    @default(0)
+  widthCm                  Float    @default(0)
+  heightCm                 Float    @default(0)
   // Primary image (kept for backward-compat / fallback); the gallery lives in
   // ProductImage. May be an http(s) URL or a data: URL.
   image                    String?

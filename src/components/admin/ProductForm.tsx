@@ -70,9 +70,18 @@ export function ProductForm({
         </Field>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Shipping weight (kg)" htmlFor="shippingWeightKg" hint="Billable weight used for delivery fees">
+      <div className="grid gap-4 sm:grid-cols-4">
+        <Field label="Shipping weight (kg)" htmlFor="shippingWeightKg" hint="Used when charging by weight">
           <input id="shippingWeightKg" name="shippingWeightKg" type="number" step="0.1" min="0" defaultValue={p?.shippingWeightKg ?? 0.5} className={inputClass} />
+        </Field>
+        <Field label="Length (cm)" htmlFor="lengthCm" hint="For size pricing">
+          <input id="lengthCm" name="lengthCm" type="number" step="0.1" min="0" defaultValue={p?.lengthCm ?? 0} className={inputClass} />
+        </Field>
+        <Field label="Width (cm)" htmlFor="widthCm">
+          <input id="widthCm" name="widthCm" type="number" step="0.1" min="0" defaultValue={p?.widthCm ?? 0} className={inputClass} />
+        </Field>
+        <Field label="Height (cm)" htmlFor="heightCm">
+          <input id="heightCm" name="heightCm" type="number" step="0.1" min="0" defaultValue={p?.heightCm ?? 0} className={inputClass} />
         </Field>
       </div>
 

@@ -33,6 +33,17 @@ export function SettingsForm({ settings }: { settings: Settings }) {
             <input id="pickupFee" name="pickupFee" type="number" min="0" step="0.01" defaultValue={settings.pickupFee} className={inputClass} />
           </Field>
         </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <Field label="Charge by" htmlFor="deliveryBasis" hint="Weight, or size (volumetric weight from dimensions)">
+            <select id="deliveryBasis" name="deliveryBasis" defaultValue={settings.deliveryBasis} className={inputClass}>
+              <option value="weight">Weight (kg)</option>
+              <option value="size">Size (dimensions)</option>
+            </select>
+          </Field>
+          <Field label="Volumetric divisor" htmlFor="volumetricDivisor" hint="cm³ per kg for size pricing (≈5000)">
+            <input id="volumetricDivisor" name="volumetricDivisor" type="number" min="1" step="1" defaultValue={settings.volumetricDivisor} className={inputClass} />
+          </Field>
+        </div>
       </section>
 
       <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
@@ -101,6 +112,31 @@ export function SettingsForm({ settings }: { settings: Settings }) {
           </Field>
           <Field label="Data bundles storefront URL" htmlFor="dataBundlesUrl" hint="Where “Buy Data Bundles” links to. Leave empty to hide the shortcuts.">
             <input id="dataBundlesUrl" name="dataBundlesUrl" type="url" defaultValue={settings.dataBundlesUrl} className={inputClass} placeholder="https://…" />
+          </Field>
+        </div>
+      </section>
+
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+        <h2 className="font-display text-lg font-bold text-niki-ink">Social media</h2>
+        <p className="mt-1 text-sm text-niki-ink/60">NikiMart&apos;s own handles — full URLs. Shown as icons in the footer. Leave blank to hide.</p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Field label="Facebook URL" htmlFor="socialFacebook">
+            <input id="socialFacebook" name="socialFacebook" type="url" defaultValue={settings.socialFacebook} placeholder="https://facebook.com/…" className={inputClass} />
+          </Field>
+          <Field label="Instagram URL" htmlFor="socialInstagram">
+            <input id="socialInstagram" name="socialInstagram" type="url" defaultValue={settings.socialInstagram} placeholder="https://instagram.com/…" className={inputClass} />
+          </Field>
+          <Field label="X (Twitter) URL" htmlFor="socialTwitter">
+            <input id="socialTwitter" name="socialTwitter" type="url" defaultValue={settings.socialTwitter} placeholder="https://x.com/…" className={inputClass} />
+          </Field>
+          <Field label="TikTok URL" htmlFor="socialTiktok">
+            <input id="socialTiktok" name="socialTiktok" type="url" defaultValue={settings.socialTiktok} placeholder="https://tiktok.com/@…" className={inputClass} />
+          </Field>
+          <Field label="YouTube URL" htmlFor="socialYoutube">
+            <input id="socialYoutube" name="socialYoutube" type="url" defaultValue={settings.socialYoutube} placeholder="https://youtube.com/@…" className={inputClass} />
+          </Field>
+          <Field label="WhatsApp link" htmlFor="socialWhatsapp" hint="e.g. https://wa.me/233…">
+            <input id="socialWhatsapp" name="socialWhatsapp" type="url" defaultValue={settings.socialWhatsapp} placeholder="https://wa.me/233…" className={inputClass} />
           </Field>
         </div>
       </section>

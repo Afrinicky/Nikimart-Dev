@@ -48,8 +48,8 @@ export function CheckoutClient({
   const [pending, setPending] = useState(false);
 
   const totalWeightKg = useMemo(
-    () => totalCartWeight(items.map((i) => ({ weightKg: i.weightKg, quantity: i.quantity }))),
-    [items],
+    () => totalCartWeight(items.map((i) => ({ weightKg: i.weightKg, volumeCm3: i.volumeCm3, quantity: i.quantity })), config),
+    [items, config],
   );
   const selectedZone = zones.find((z) => z.id === zoneId);
   const deliveryFee = quoteDeliveryFee({

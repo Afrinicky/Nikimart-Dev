@@ -11,6 +11,12 @@ interface Shop {
   deliveryAvailable: boolean;
   pickupAvailable: boolean;
   sameDayDeliveryAvailable: boolean;
+  payoutMethod: string;
+  momoNumber: string;
+  momoName: string;
+  bankName: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
 }
 
 export function ShopSettingsForm({ shop }: { shop: Shop }) {
@@ -49,6 +55,39 @@ export function ShopSettingsForm({ shop }: { shop: Shop }) {
               {o.label}
             </label>
           ))}
+        </div>
+      </section>
+
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+        <h2 className="font-display text-lg font-bold text-niki-ink">Payout details</h2>
+        <p className="mt-1 text-sm text-niki-ink/60">Where NikiMart sends your earnings. Required before you can request a payout.</p>
+        <div className="mt-4 space-y-4">
+          <Field label="Preferred method" htmlFor="payoutMethod">
+            <select id="payoutMethod" name="payoutMethod" defaultValue={shop.payoutMethod} className={inputClass}>
+              <option value="">Not set</option>
+              <option value="momo">Mobile Money</option>
+              <option value="bank">Bank transfer</option>
+            </select>
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="MoMo number" htmlFor="momoNumber" hint="For Mobile Money payouts">
+              <input id="momoNumber" name="momoNumber" defaultValue={shop.momoNumber} placeholder="024 000 0000" className={inputClass} />
+            </Field>
+            <Field label="MoMo account name" htmlFor="momoName">
+              <input id="momoName" name="momoName" defaultValue={shop.momoName} className={inputClass} />
+            </Field>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Bank name" htmlFor="bankName">
+              <input id="bankName" name="bankName" defaultValue={shop.bankName} className={inputClass} />
+            </Field>
+            <Field label="Account number" htmlFor="bankAccountNumber">
+              <input id="bankAccountNumber" name="bankAccountNumber" defaultValue={shop.bankAccountNumber} className={inputClass} />
+            </Field>
+            <Field label="Account name" htmlFor="bankAccountName">
+              <input id="bankAccountName" name="bankAccountName" defaultValue={shop.bankAccountName} className={inputClass} />
+            </Field>
+          </div>
         </div>
       </section>
 

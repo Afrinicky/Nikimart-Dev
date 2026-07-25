@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyOrderConfirmed, notifyStaffNewOrder } from "@/lib/order-notifications";
 
@@ -48,10 +49,14 @@ export async function markOrderPaid(orderNumber: string): Promise<boolean> {
       .catch(() => {});
   }
 
-  // Notify the buyer their payment landed, and staff of the new order.
+  // Notify the buyer their payment landed, and staff of the new order — after
+  // the response is sent so notifications never block the caller.
   if (order) {
-    await notifyOrderConfirmed(order.id);
-    await notifyStaffNewOrder(order.id);
+    const oid = order.id;
+    after(async () => {
+      await notifyOrderConfirmed(oid);
+      await notifyStaffNewOrder(oid);
+    });
   }
 
   revalidatePath("/orders");

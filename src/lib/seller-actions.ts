@@ -97,6 +97,8 @@ export async function updateSellerShop(_prev: SellerShopState, fd: FormData): Pr
   }
 
   try {
+    const s = (k: string) => String(fd.get(k) ?? "").trim();
+    const payoutMethod = s("payoutMethod");
     await prisma.vendor.update({
       where: { id: vendor.id },
       data: {
@@ -105,6 +107,12 @@ export async function updateSellerShop(_prev: SellerShopState, fd: FormData): Pr
         deliveryAvailable: fd.get("deliveryAvailable") === "on",
         pickupAvailable: fd.get("pickupAvailable") === "on",
         sameDayDeliveryAvailable: fd.get("sameDayDeliveryAvailable") === "on",
+        payoutMethod: payoutMethod === "momo" || payoutMethod === "bank" ? payoutMethod : "",
+        momoNumber: s("momoNumber"),
+        momoName: s("momoName"),
+        bankName: s("bankName"),
+        bankAccountName: s("bankAccountName"),
+        bankAccountNumber: s("bankAccountNumber"),
       },
     });
   } catch {
@@ -114,5 +122,48 @@ export async function updateSellerShop(_prev: SellerShopState, fd: FormData): Pr
   revalidatePath("/seller/settings");
   revalidatePath("/seller");
   revalidatePath("/shops");
+  return { ok: true };
+}
+
+export type PayoutRequestState = { ok?: boolean; error?: string };
+
+/** Seller requests a payout of up to their available balance. */
+export async function requestSellerPayout(_prev: PayoutRequestState, fd: FormData): Promise<PayoutRequestState> {
+  const vendor = await currentVendor();
+  if (!vendor) return { error: "You don't have a shop." };
+  if (!vendor.payoutMethod) {
+    return { error: "Add your payout details (Mobile Money or bank) in Shop settings first." };
+  }
+
+  const value = Number(String(fd.get("amount") ?? "").trim());
+  if (!(value > 0)) return { error: "Enter an amount greater than zero." };
+
+  const { getSellerEarnings } = await import("@/lib/seller");
+  const earnings = await getSellerEarnings(vendor.id);
+  if (value > earnings.available + 0.005) {
+    return { error: `You can request up to ${earnings.available}.` };
+  }
+
+  const method = vendor.payoutMethod === "bank" ? "Bank transfer" : "Mobile Money";
+  const detail =
+    vendor.payoutMethod === "bank"
+      ? `${vendor.bankName} · ${vendor.bankAccountNumber} · ${vendor.bankAccountName}`
+      : `${vendor.momoNumber} · ${vendor.momoName}`;
+  try {
+    await prisma.payout.create({
+      data: {
+        vendorId: vendor.id,
+        amount: Math.round(value * 100) / 100,
+        status: "pending",
+        method,
+        note: `Requested by seller — ${detail}`,
+      },
+    });
+  } catch {
+    return { error: "Couldn't submit your request. Please try again." };
+  }
+  revalidatePath("/seller/settlements");
+  revalidatePath("/seller");
+  revalidatePath("/admin/finance");
   return { ok: true };
 }

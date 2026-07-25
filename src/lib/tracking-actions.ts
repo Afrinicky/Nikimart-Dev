@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import {
@@ -94,10 +95,16 @@ export async function confirmShipmentStage(_prev: ConfirmState, fd: FormData): P
   await prisma.shipment.update({ where: { id: shipment.id }, data });
   await prisma.order.update({ where: { id: shipment.order.id }, data: { status: orderStatusForStage(status) } });
 
-  // Tell the buyer their order moved forward, and hand the job to the next role.
+  // Tell the buyer their order moved forward, and hand the job to the next role
+  // — after the response so notifications never block the confirmation.
   if (status !== "created") {
-    await notifyShipmentUpdate(shipment.order.id, stageLabel(status, method));
-    await notifyNextResponsible(shipment.order.id, user.role);
+    const oid = shipment.order.id;
+    const label = stageLabel(status, method);
+    const actingRole = user.role;
+    after(async () => {
+      await notifyShipmentUpdate(oid, label);
+      await notifyNextResponsible(oid, actingRole);
+    });
   }
 
   for (const path of ["/orders", "/account", "/freight", "/pickup", "/seller/orders", "/admin", "/admin/orders"]) {

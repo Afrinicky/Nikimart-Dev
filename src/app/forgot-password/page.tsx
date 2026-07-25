@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
 import { BrandLogo } from "@/components/ui/BrandLogo";
-import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
+import { OtpResetFlow } from "@/components/auth/OtpResetFlow";
 
 export const metadata: Metadata = { title: "Forgot password — NikiMart" };
 
@@ -17,9 +17,9 @@ export default function ForgotPasswordPage() {
         </div>
         <h1 className="mt-6 font-display text-2xl font-bold text-niki-ink">Forgot your password?</h1>
         <p className="mt-1 mb-5 text-sm text-niki-ink/60">
-          Enter your email or phone number and we&apos;ll send a reset link by SMS and email.
+          Enter your email or phone number and we&apos;ll send a 6-digit reset code by SMS and email.
         </p>
-        <ForgotPasswordForm />
+        <OtpResetFlow />
       </div>
     </Container>
   );

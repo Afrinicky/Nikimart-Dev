@@ -47,6 +47,7 @@ export async function sendSms(phone: string | null | undefined, message: string)
       headers: { "api-key": key, "Content-Type": "application/json" },
       body: JSON.stringify({ sender: arkeselSender(), message, recipients: [to] }),
       cache: "no-store",
+      signal: AbortSignal.timeout(8000),
     });
     return res.ok;
   } catch {
@@ -64,6 +65,7 @@ export async function sendEmail(to: string | null | undefined, subject: string, 
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from: resendFrom(), to: [to], subject, html }),
       cache: "no-store",
+      signal: AbortSignal.timeout(8000),
     });
     return res.ok;
   } catch {

@@ -9,6 +9,10 @@ export const SETTINGS_DEFAULTS = {
   // Delivery-fee engine (Jumia-style): base + per-kg, and a flat pickup fee.
   deliveryPerKg: "5",
   pickupFee: "0",
+  // Price the per-kg component by "weight" or "size" (volumetric weight).
+  deliveryBasis: "weight",
+  // cm³ per volumetric kg when using size basis (courier standard ~5000).
+  volumetricDivisor: "5000",
   supportEmail: "support@nikimart.gh",
   supportPhone: "030 000 0000",
   businessHours: "Mon–Sat, 8am–7pm",
@@ -28,6 +32,13 @@ export const SETTINGS_DEFAULTS = {
   // How staff (sellers, freight, pickup, admins) are alerted about orders and
   // jobs: "sms" | "email" | "both". Buyers are always alerted on both channels.
   staffNotifyChannel: "both",
+  // NikiMart's own social media handles (full URLs). Empty = hidden.
+  socialFacebook: "",
+  socialInstagram: "",
+  socialTwitter: "",
+  socialTiktok: "",
+  socialYoutube: "",
+  socialWhatsapp: "",
   // Overseas shipping lead times (days to arrive in Ghana), per origin.
   leadDaysCN: "21",
   leadDaysAE: "14",
@@ -70,10 +81,13 @@ export async function getDeliveryConfig(): Promise<DeliveryConfig> {
     const n = Number(raw);
     return Number.isFinite(n) && n >= 0 ? n : fallback;
   };
+  const basis = settings.deliveryBasis === "size" ? "size" : "weight";
   return {
     baseFee: numOr(settings.deliveryFee, DELIVERY_DEFAULTS.baseFee),
     perKgRate: numOr(settings.deliveryPerKg, DELIVERY_DEFAULTS.perKgRate),
     pickupFee: numOr(settings.pickupFee, DELIVERY_DEFAULTS.pickupFee),
+    basis,
+    volumetricDivisor: numOr(settings.volumetricDivisor, DELIVERY_DEFAULTS.volumetricDivisor),
   };
 }
 
