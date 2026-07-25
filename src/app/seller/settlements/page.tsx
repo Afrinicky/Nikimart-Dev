@@ -4,6 +4,7 @@ import { ArrowLeft, Wallet } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { RequestPayoutForm } from "@/components/seller/RequestPayoutForm";
 import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getSellerVendor, getSellerEarnings } from "@/lib/seller";
@@ -59,8 +60,13 @@ export default async function SellerSettlementsPage() {
           <p className="mt-2 font-display text-4xl font-bold">{formatPrice(earnings.available)}</p>
           <p className="mt-2 max-w-lg text-sm text-white/60">
             Cleared earnings from delivered orders, minus anything already paid out or being processed.
-            Payouts are issued by NikiMart from the Finance console.
           </p>
+        </div>
+
+        <div className="mt-4 rounded-2xl bg-white p-5 ring-1 ring-black/5">
+          <h2 className="font-display font-bold text-niki-ink">Request a payout</h2>
+          <p className="mt-1 mb-3 text-sm text-niki-ink/60">Request any amount up to your available balance. NikiMart pays it to your saved details.</p>
+          <RequestPayoutForm available={earnings.available} hasPayoutDetails={Boolean(vendor.payoutMethod)} />
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">

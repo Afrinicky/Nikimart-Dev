@@ -134,6 +134,14 @@ model Vendor {
   pickupAvailable          Boolean   @default(false)
   sameDayDeliveryAvailable Boolean   @default(false)
 
+  // Where the seller wants to be paid: "" | momo | bank.
+  payoutMethod      String @default("")
+  momoNumber        String @default("")
+  momoName          String @default("")
+  bankName          String @default("")
+  bankAccountName   String @default("")
+  bankAccountNumber String @default("")
+
   ownerId String? @unique
   owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 

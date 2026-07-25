@@ -35,6 +35,12 @@ export default async function SellerSettingsPage() {
               deliveryAvailable: vendor.deliveryAvailable,
               pickupAvailable: vendor.pickupAvailable,
               sameDayDeliveryAvailable: vendor.sameDayDeliveryAvailable,
+              payoutMethod: vendor.payoutMethod,
+              momoNumber: vendor.momoNumber,
+              momoName: vendor.momoName,
+              bankName: vendor.bankName,
+              bankAccountName: vendor.bankAccountName,
+              bankAccountNumber: vendor.bankAccountNumber,
             }}
           />
         ) : (
