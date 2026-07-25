@@ -47,9 +47,11 @@ model User {
 // token is stored; the raw token is delivered to the user by email/SMS.
 model PasswordResetToken {
   id        String    @id @default(cuid())
-  tokenHash String    @unique
+  // SHA-256 hash of the 6-digit OTP (never store the code itself).
+  tokenHash String
   expiresAt DateTime
   usedAt    DateTime?
+  attempts  Int       @default(0)
   createdAt DateTime  @default(now())
 
   userId String

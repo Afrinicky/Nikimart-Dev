@@ -1,7 +1,6 @@
 "use server";
 
-import { randomBytes, createHash } from "crypto";
-import { headers } from "next/headers";
+import { createHash, randomInt } from "crypto";
 import { after } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -11,69 +10,60 @@ import { findUserByIdentifier } from "@/lib/user-lookup";
 
 export type ResetState = { ok?: boolean; error?: string; fieldErrors?: Record<string, string> };
 
-const TOKEN_TTL_MS = 1000 * 60 * 60; // 1 hour
+const OTP_TTL_MS = 1000 * 60 * 10; // 10 minutes
+const MAX_ATTEMPTS = 5;
 
-function hashToken(raw: string): string {
-  return createHash("sha256").update(raw).digest("hex");
-}
-
-async function origin(): Promise<string> {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
+function hashOtp(code: string): string {
+  return createHash("sha256").update(code).digest("hex");
 }
 
 /**
- * Request a password reset. Always reports success (never reveals whether an
- * email is registered). When the account exists, a single-use token is created
- * and its link delivered by email + SMS.
+ * Request a password-reset OTP by email or phone. Always reports success (never
+ * reveals whether an account exists). A 6-digit code is sent by SMS + email.
  */
-export async function requestPasswordReset(_prev: ResetState, fd: FormData): Promise<ResetState> {
-  const identifier = String(fd.get("email") ?? "").trim();
+export async function requestResetOtp(_prev: ResetState, fd: FormData): Promise<ResetState> {
+  const identifier = String(fd.get("identifier") ?? "").trim();
   if (identifier.length < 3) {
-    return { error: "Enter your email or phone number.", fieldErrors: { email: "Required." } };
+    return { error: "Enter your email or phone number.", fieldErrors: { identifier: "Required." } };
   }
 
   const user = await findUserByIdentifier(identifier);
-
   if (user) {
-    // Invalidate previous unused tokens, then issue a fresh one.
     await prisma.passwordResetToken.deleteMany({ where: { userId: user.id, usedAt: null } });
-    const raw = randomBytes(32).toString("hex");
+    const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
     await prisma.passwordResetToken.create({
-      data: { userId: user.id, tokenHash: hashToken(raw), expiresAt: new Date(Date.now() + TOKEN_TTL_MS) },
+      data: { userId: user.id, tokenHash: hashOtp(code), expiresAt: new Date(Date.now() + OTP_TTL_MS) },
     });
-    const link = `${await origin()}/reset-password?token=${raw}`;
     const recipient = user;
     after(async () => {
       await notify(recipient, {
-        sms: `NikiMart password reset: open ${link} to set a new password (valid 1 hour). Ignore if this wasn't you.`,
-        emailSubject: "Reset your NikiMart password",
+        sms: `Your NikiMart password reset code is ${code}. It expires in 10 minutes. Never share it.`,
+        emailSubject: "Your NikiMart reset code",
         emailHtml: emailShell(
-          `We received a request to reset your password. Click below to choose a new one (valid for 1 hour):<br/><br/><a href="${link}" style="background:#ff7a1a;color:#fff;padding:10px 18px;border-radius:9999px;text-decoration:none;font-weight:700">Reset password</a><br/><br/>If you didn't request this, you can safely ignore this email.`,
-          "Password reset",
+          `Use this code to reset your password (valid 10 minutes):<br/><br/><div style="font-size:28px;font-weight:700;letter-spacing:6px;color:#0e1f36">${code}</div><br/>If you didn't request this, you can ignore this email.`,
+          "Password reset code",
         ),
       });
     });
   }
 
-  // Same response whether or not the account exists.
   return { ok: true };
 }
 
 const resetSchema = z
   .object({
-    token: z.string().min(10),
+    identifier: z.string().trim().min(3),
+    otp: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code."),
     password: z.string().min(8, "Password must be at least 8 characters."),
     confirm: z.string(),
   })
   .refine((d) => d.password === d.confirm, { message: "Passwords don't match.", path: ["confirm"] });
 
-/** Complete a password reset with a valid token. */
-export async function resetPassword(_prev: ResetState, fd: FormData): Promise<ResetState> {
+/** Verify the OTP and set a new password. */
+export async function resetWithOtp(_prev: ResetState, fd: FormData): Promise<ResetState> {
   const parsed = resetSchema.safeParse({
-    token: fd.get("token"),
+    identifier: fd.get("identifier"),
+    otp: fd.get("otp"),
     password: fd.get("password"),
     confirm: fd.get("confirm"),
   });
@@ -86,21 +76,30 @@ export async function resetPassword(_prev: ResetState, fd: FormData): Promise<Re
     return { error: "Please fix the highlighted fields.", fieldErrors };
   }
 
-  const record = await prisma.passwordResetToken.findUnique({
-    where: { tokenHash: hashToken(parsed.data.token) },
-    select: { id: true, userId: true, usedAt: true, expiresAt: true },
+  const user = await findUserByIdentifier(parsed.data.identifier);
+  const invalid = { error: "That code is invalid or has expired. Request a new one." };
+  if (!user) return invalid;
+
+  const token = await prisma.passwordResetToken.findFirst({
+    where: { userId: user.id, usedAt: null },
+    orderBy: { createdAt: "desc" },
   });
-  if (!record || record.usedAt || record.expiresAt < new Date()) {
-    return { error: "This reset link is invalid or has expired. Please request a new one." };
+  if (!token || token.expiresAt < new Date()) return invalid;
+
+  if (token.attempts >= MAX_ATTEMPTS) {
+    await prisma.passwordResetToken.delete({ where: { id: token.id } }).catch(() => {});
+    return { error: "Too many attempts. Please request a new code." };
+  }
+
+  if (hashOtp(parsed.data.otp) !== token.tokenHash) {
+    await prisma.passwordResetToken.update({ where: { id: token.id }, data: { attempts: { increment: 1 } } });
+    return { error: "Incorrect code. Please try again.", fieldErrors: { otp: "Incorrect." } };
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
   await prisma.$transaction([
-    prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
-    prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
-    // Any other outstanding tokens for this user are now void.
-    prisma.passwordResetToken.deleteMany({ where: { userId: record.userId, usedAt: null } }),
+    prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+    prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }),
   ]);
-
   return { ok: true };
 }

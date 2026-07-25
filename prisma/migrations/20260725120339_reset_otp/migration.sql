@@ -1,0 +1,5 @@
+-- DropIndex
+DROP INDEX "PasswordResetToken_tokenHash_key";
+
+-- AlterTable
+ALTER TABLE "PasswordResetToken" ADD COLUMN     "attempts" INTEGER NOT NULL DEFAULT 0;
