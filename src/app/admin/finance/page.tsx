@@ -32,7 +32,7 @@ export default async function AdminFinancePage() {
           <h1 className="font-display text-2xl font-bold text-niki-ink">Finance</h1>
           <p className="mt-1 text-sm text-niki-ink/60">Commissions, seller payouts, affiliate payments, and accounts.</p>
         </div>
-        <Link href="/admin/finance/affiliates" className="flex items-center gap-2 rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-navy-light">
+        <Link href="/admin/affiliates" className="flex items-center gap-2 rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-navy-light">
           <Users className="h-4 w-4" />
           Affiliates
         </Link>

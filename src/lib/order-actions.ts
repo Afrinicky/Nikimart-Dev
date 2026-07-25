@@ -123,10 +123,10 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   let affiliateCommission = 0;
   const refCode = (await cookies()).get(REFERRAL_COOKIE)?.value;
   if (refCode) {
-    const affiliate = await prisma.affiliate.findUnique({ where: { code: refCode }, select: { id: true, userId: true } });
-    if (affiliate && affiliate.userId !== user.id) {
+    const affiliate = await prisma.affiliate.findUnique({ where: { code: refCode }, select: { id: true, userId: true, status: true, commissionRate: true } });
+    if (affiliate && affiliate.status === "active" && affiliate.userId !== user.id) {
       affiliateId = affiliate.id;
-      const affRate = await getAffiliateRate();
+      const affRate = affiliate.commissionRate ?? (await getAffiliateRate());
       affiliateCommission = Math.round(subtotal * affRate) / 100;
     }
   }

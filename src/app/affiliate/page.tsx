@@ -7,7 +7,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { ShareButton } from "@/components/share/ShareButton";
 import { BecomeAffiliateForm } from "@/components/affiliate/BecomeAffiliateForm";
 import { RequestAffiliatePayoutForm } from "@/components/affiliate/RequestAffiliatePayoutForm";
-import { requireUser } from "@/lib/session";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getAffiliateForUser, getAffiliateEarnings } from "@/lib/affiliate";
 import { getAffiliateRate } from "@/lib/settings";
@@ -16,8 +16,38 @@ import { formatPrice } from "@/lib/format";
 export const metadata: Metadata = { title: "Affiliate — NikiMart" };
 
 export default async function AffiliatePage() {
-  const user = await requireUser();
-  const [affiliate, rate] = await Promise.all([getAffiliateForUser(user.id), getAffiliateRate()]);
+  const session = await auth();
+  const rate = await getAffiliateRate();
+
+  // Logged-out visitors get a proper affiliate landing (not a bare sign-in
+  // redirect) with clear sign-in / create-account options that return here.
+  if (!session?.user) {
+    return (
+      <>
+        <PageHeader title="Become a NikiMart affiliate" subtitle="Earn commission for every sale you refer — no shop or stock needed." crumbs={[{ label: "Affiliate" }]} />
+        <Container className="max-w-xl py-8">
+          <div className="rounded-2xl bg-niki-navy p-6 text-white">
+            <div className="flex items-center gap-2 text-niki-orange"><Gift className="h-5 w-5" /><span className="font-display font-bold">Refer & earn {rate}%</span></div>
+            <p className="mt-2 text-sm text-white/70">
+              Share your unique link and earn <strong className="text-white">{rate}%</strong> of every order placed through it.
+              Sign in or create a free account to get your link.
+            </p>
+          </div>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Link href="/register?callbackUrl=/affiliate" className="flex-1 rounded-full bg-niki-orange px-5 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light">
+              Create a free account
+            </Link>
+            <Link href="/login?callbackUrl=/affiliate" className="flex-1 rounded-full px-5 py-3 text-center text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 transition-colors hover:bg-white">
+              Sign in
+            </Link>
+          </div>
+        </Container>
+      </>
+    );
+  }
+
+  const user = session.user;
+  const affiliate = await getAffiliateForUser(user.id);
 
   if (!affiliate) {
     return (
@@ -51,11 +81,18 @@ export default async function AffiliatePage() {
   ]);
 
   const refPath = `/?ref=${affiliate.code}`;
+  const effectiveRate = affiliate.commissionRate ?? rate;
+  const suspended = affiliate.status !== "active";
 
   return (
     <>
       <PageHeader title="Affiliate dashboard" subtitle={`Your referral code: ${affiliate.code}`} crumbs={[{ label: "Affiliate" }]} />
       <Container className="py-8">
+        {suspended ? (
+          <div className="mb-6 rounded-2xl bg-niki-danger/10 p-4 text-sm font-medium text-niki-danger ring-1 ring-niki-danger/20">
+            Your affiliate account is currently suspended — new orders won&apos;t earn commission. Please contact support.
+          </div>
+        ) : null}
         {/* Referral link */}
         <div className="rounded-3xl bg-niki-navy p-6 text-white sm:p-8">
           <div className="flex items-center gap-2 text-white/70"><BadgeCheck className="h-5 w-5 text-niki-orange" /><span className="text-sm font-medium">Your referral link</span></div>
@@ -63,7 +100,7 @@ export default async function AffiliatePage() {
           <div className="mt-4">
             <ShareButton path={refPath} title={`Shop on NikiMart with my link`} label="Share your link" tone="dark" />
           </div>
-          <p className="mt-3 text-xs text-white/50">You earn {rate}% of every order placed through your link.</p>
+          <p className="mt-3 text-xs text-white/50">You earn {effectiveRate}% of every order placed through your link.</p>
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
