@@ -2,6 +2,7 @@
 
 import { randomBytes, createHash } from "crypto";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -44,13 +45,16 @@ export async function requestPasswordReset(_prev: ResetState, fd: FormData): Pro
       data: { userId: user.id, tokenHash: hashToken(raw), expiresAt: new Date(Date.now() + TOKEN_TTL_MS) },
     });
     const link = `${await origin()}/reset-password?token=${raw}`;
-    await notify(user, {
-      sms: `NikiMart password reset: open ${link} to set a new password (valid 1 hour). Ignore if this wasn't you.`,
-      emailSubject: "Reset your NikiMart password",
-      emailHtml: emailShell(
-        `We received a request to reset your password. Click below to choose a new one (valid for 1 hour):<br/><br/><a href="${link}" style="background:#ff7a1a;color:#fff;padding:10px 18px;border-radius:9999px;text-decoration:none;font-weight:700">Reset password</a><br/><br/>If you didn't request this, you can safely ignore this email.`,
-        "Password reset",
-      ),
+    const recipient = user;
+    after(async () => {
+      await notify(recipient, {
+        sms: `NikiMart password reset: open ${link} to set a new password (valid 1 hour). Ignore if this wasn't you.`,
+        emailSubject: "Reset your NikiMart password",
+        emailHtml: emailShell(
+          `We received a request to reset your password. Click below to choose a new one (valid for 1 hour):<br/><br/><a href="${link}" style="background:#ff7a1a;color:#fff;padding:10px 18px;border-radius:9999px;text-decoration:none;font-weight:700">Reset password</a><br/><br/>If you didn't request this, you can safely ignore this email.`,
+          "Password reset",
+        ),
+      });
     });
   }
 

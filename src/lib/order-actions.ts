@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
@@ -197,9 +198,12 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         }
       }
 
-      // Simulated payment path is paid immediately — notify buyer + staff.
-      await notifyOrderConfirmed(order.id);
-      await notifyStaffNewOrder(order.id);
+      // Simulated payment path is paid immediately — notify buyer + staff after
+      // the response is sent, so a slow SMS/email provider never blocks checkout.
+      after(async () => {
+        await notifyOrderConfirmed(order.id);
+        await notifyStaffNewOrder(order.id);
+      });
 
       revalidatePath("/orders");
       revalidatePath("/account");
