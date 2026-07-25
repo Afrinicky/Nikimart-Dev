@@ -11,10 +11,16 @@ export const metadata: Metadata = {
   title: "Sign in — NikiMart",
 };
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string }>;
+}) {
   const session = await auth();
+  const { callbackUrl } = await searchParams;
+  const cb = callbackUrl && callbackUrl.startsWith("/") && !callbackUrl.startsWith("//") ? callbackUrl : undefined;
   if (session?.user) {
-    redirect(isRole(session.user.role) ? ROLE_HOME[session.user.role] : "/account");
+    redirect(cb ?? (isRole(session.user.role) ? ROLE_HOME[session.user.role] : "/account"));
   }
 
   return (
@@ -29,7 +35,7 @@ export default async function LoginPage() {
         <h1 className="mt-6 font-display text-2xl font-bold text-niki-ink">Welcome back</h1>
         <p className="mt-1 text-sm text-niki-ink/60">Sign in to your NikiMart account.</p>
 
-        <LoginForm />
+        <LoginForm callbackUrl={cb} />
 
         <p className="mt-4 text-center text-sm">
           <Link href="/forgot-password" className="font-semibold text-niki-orange hover:underline">
@@ -39,7 +45,7 @@ export default async function LoginPage() {
 
         <p className="mt-6 text-center text-sm text-niki-ink/60">
           New to NikiMart?{" "}
-          <Link href="/register" className="font-semibold text-niki-orange hover:underline">
+          <Link href={cb ? `/register?callbackUrl=${encodeURIComponent(cb)}` : "/register"} className="font-semibold text-niki-orange hover:underline">
             Create an account
           </Link>
         </p>

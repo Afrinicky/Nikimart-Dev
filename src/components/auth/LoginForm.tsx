@@ -5,11 +5,12 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { loginAction, type AuthFormState } from "@/lib/auth-actions";
 
-export function LoginForm() {
+export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
   const [state, formAction] = useActionState<AuthFormState, FormData>(loginAction, {});
 
   return (
     <form action={formAction} className="mt-6 space-y-4" noValidate>
+      {callbackUrl ? <input type="hidden" name="callbackUrl" value={callbackUrl} /> : null}
       {state.error ? (
         <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
           {state.error}

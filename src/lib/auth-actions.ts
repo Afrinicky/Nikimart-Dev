@@ -44,6 +44,12 @@ function homeForRole(role: string | undefined) {
   return role && isRole(role) ? ROLE_HOME[role] : "/account";
 }
 
+/** Only allow same-site relative paths as a post-auth redirect target. */
+function safeCallback(raw: FormDataEntryValue | null): string | null {
+  const s = typeof raw === "string" ? raw.trim() : "";
+  return s.startsWith("/") && !s.startsWith("//") ? s : null;
+}
+
 export async function registerAction(
   _prev: AuthFormState,
   formData: FormData,
@@ -85,6 +91,7 @@ export async function registerAction(
     preferredPickupId = pp?.id ?? null;
   }
 
+  const callbackUrl = safeCallback(formData.get("callbackUrl")) ?? "/account";
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
   await prisma.user.create({
     data: {
@@ -102,7 +109,7 @@ export async function registerAction(
     await signIn("credentials", {
       email,
       password: parsed.data.password,
-      redirectTo: "/account",
+      redirectTo: callbackUrl,
     });
   } catch (error) {
     if (error instanceof AuthError) {
@@ -134,7 +141,7 @@ export async function loginAction(
 
   const identifier = parsed.data.email.trim();
   const user = await findUserByIdentifier(identifier);
-  const redirectTo = homeForRole(user?.role);
+  const redirectTo = safeCallback(formData.get("callbackUrl")) ?? homeForRole(user?.role);
 
   try {
     await signIn("credentials", {

@@ -7,13 +7,16 @@ import { registerAction, type AuthFormState } from "@/lib/auth-actions";
 
 export function RegisterForm({
   pickupPoints = [],
+  callbackUrl,
 }: {
   pickupPoints?: { id: string; name: string; locationName: string }[];
+  callbackUrl?: string;
 }) {
   const [state, formAction] = useActionState<AuthFormState, FormData>(registerAction, {});
 
   return (
     <form action={formAction} className="mt-6 space-y-4" noValidate>
+      {callbackUrl ? <input type="hidden" name="callbackUrl" value={callbackUrl} /> : null}
       {state.error ? (
         <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
           {state.error}

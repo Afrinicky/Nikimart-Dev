@@ -12,10 +12,16 @@ export const metadata: Metadata = {
   title: "Create account — NikiMart",
 };
 
-export default async function RegisterPage() {
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string }>;
+}) {
   const session = await auth();
+  const { callbackUrl } = await searchParams;
+  const cb = callbackUrl && callbackUrl.startsWith("/") && !callbackUrl.startsWith("//") ? callbackUrl : undefined;
   if (session?.user) {
-    redirect(isRole(session.user.role) ? ROLE_HOME[session.user.role] : "/account");
+    redirect(cb ?? (isRole(session.user.role) ? ROLE_HOME[session.user.role] : "/account"));
   }
 
   const pickupPoints = await getActivePickupPoints();
@@ -32,11 +38,11 @@ export default async function RegisterPage() {
         <h1 className="mt-6 font-display text-2xl font-bold text-niki-ink">Create your account</h1>
         <p className="mt-1 text-sm text-niki-ink/60">Shop, preorder, and track orders on NikiMart.</p>
 
-        <RegisterForm pickupPoints={pickupPoints} />
+        <RegisterForm pickupPoints={pickupPoints} callbackUrl={cb} />
 
         <p className="mt-6 text-center text-sm text-niki-ink/60">
           Already have an account?{" "}
-          <Link href="/login" className="font-semibold text-niki-orange hover:underline">
+          <Link href={cb ? `/login?callbackUrl=${encodeURIComponent(cb)}` : "/login"} className="font-semibold text-niki-orange hover:underline">
             Sign in
           </Link>
         </p>

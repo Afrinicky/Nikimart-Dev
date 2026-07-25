@@ -7,7 +7,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { ShareButton } from "@/components/share/ShareButton";
 import { BecomeAffiliateForm } from "@/components/affiliate/BecomeAffiliateForm";
 import { RequestAffiliatePayoutForm } from "@/components/affiliate/RequestAffiliatePayoutForm";
-import { requireUser } from "@/lib/session";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getAffiliateForUser, getAffiliateEarnings } from "@/lib/affiliate";
 import { getAffiliateRate } from "@/lib/settings";
@@ -16,8 +16,38 @@ import { formatPrice } from "@/lib/format";
 export const metadata: Metadata = { title: "Affiliate — NikiMart" };
 
 export default async function AffiliatePage() {
-  const user = await requireUser();
-  const [affiliate, rate] = await Promise.all([getAffiliateForUser(user.id), getAffiliateRate()]);
+  const session = await auth();
+  const rate = await getAffiliateRate();
+
+  // Logged-out visitors get a proper affiliate landing (not a bare sign-in
+  // redirect) with clear sign-in / create-account options that return here.
+  if (!session?.user) {
+    return (
+      <>
+        <PageHeader title="Become a NikiMart affiliate" subtitle="Earn commission for every sale you refer — no shop or stock needed." crumbs={[{ label: "Affiliate" }]} />
+        <Container className="max-w-xl py-8">
+          <div className="rounded-2xl bg-niki-navy p-6 text-white">
+            <div className="flex items-center gap-2 text-niki-orange"><Gift className="h-5 w-5" /><span className="font-display font-bold">Refer & earn {rate}%</span></div>
+            <p className="mt-2 text-sm text-white/70">
+              Share your unique link and earn <strong className="text-white">{rate}%</strong> of every order placed through it.
+              Sign in or create a free account to get your link.
+            </p>
+          </div>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Link href="/register?callbackUrl=/affiliate" className="flex-1 rounded-full bg-niki-orange px-5 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light">
+              Create a free account
+            </Link>
+            <Link href="/login?callbackUrl=/affiliate" className="flex-1 rounded-full px-5 py-3 text-center text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 transition-colors hover:bg-white">
+              Sign in
+            </Link>
+          </div>
+        </Container>
+      </>
+    );
+  }
+
+  const user = session.user;
+  const affiliate = await getAffiliateForUser(user.id);
 
   if (!affiliate) {
     return (
