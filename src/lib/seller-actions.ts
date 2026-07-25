@@ -125,6 +125,148 @@ export async function updateSellerShop(_prev: SellerShopState, fd: FormData): Pr
   return { ok: true };
 }
 
+// --- Shop registration ----------------------------------------------------
+
+export type VendorRegisterState = CrudState;
+
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/** Find a shop slug that isn't taken yet, appending -2, -3… on a clash. */
+async function uniqueVendorSlug(base: string): Promise<string> {
+  const root = slugify(base) || "shop";
+  let slug = root;
+  let n = 2;
+  // Bounded loop — practically resolves on the first or second try.
+  while (await prisma.vendor.findUnique({ where: { slug }, select: { id: true } })) {
+    slug = `${root}-${n++}`;
+  }
+  return slug;
+}
+
+const SELLER_TYPE_VALUES = new Set<string>([
+  "local_shop",
+  "preorder_seller",
+  "campus_vendor",
+  "food_vendor",
+  "service_provider",
+  "wholesale_supplier",
+  "official_partner",
+]);
+
+/**
+ * Register a shop for the signed-in user: creates the Vendor (owned by the
+ * user), stores payout/payment details, promotes the user to SELLER, and
+ * refreshes the session so they can reach the seller dashboard immediately.
+ */
+export async function registerVendor(_prev: VendorRegisterState, fd: FormData): Promise<VendorRegisterState> {
+  const user = await requireUser();
+
+  // One shop per account for now.
+  const already = await prisma.vendor.findFirst({ where: { ownerId: user.id }, select: { id: true } });
+  if (already) redirect("/seller");
+
+  const s = (k: string) => String(fd.get(k) ?? "").trim();
+
+  const businessName = s("businessName");
+  const description = s("description");
+  const sellerType = s("sellerType");
+  const email = s("email");
+  const phone = s("phone");
+  const location = s("location");
+  const payoutMethod = s("payoutMethod");
+
+  const fieldErrors: Record<string, string> = {};
+  if (businessName.length < 2) fieldErrors.businessName = "Enter your shop name.";
+  if (!SELLER_TYPE_VALUES.has(sellerType)) fieldErrors.sellerType = "Choose a seller type.";
+  if (description.length < 10) fieldErrors.description = "Tell buyers a little about your shop (10+ characters).";
+  if (!phone) fieldErrors.phone = "A contact phone number is required.";
+
+  // Payment / payout details — this is how the seller gets paid.
+  const momoNumber = s("momoNumber");
+  const momoName = s("momoName");
+  const bankName = s("bankName");
+  const bankAccountName = s("bankAccountName");
+  const bankAccountNumber = s("bankAccountNumber");
+
+  if (payoutMethod !== "momo" && payoutMethod !== "bank") {
+    fieldErrors.payoutMethod = "Choose how you'd like to get paid.";
+  } else if (payoutMethod === "momo") {
+    if (!momoNumber) fieldErrors.momoNumber = "Enter your Mobile Money number.";
+    if (!momoName) fieldErrors.momoName = "Enter the name on the MoMo account.";
+  } else {
+    if (!bankName) fieldErrors.bankName = "Enter your bank name.";
+    if (!bankAccountNumber) fieldErrors.bankAccountNumber = "Enter your account number.";
+    if (!bankAccountName) fieldErrors.bankAccountName = "Enter the account holder's name.";
+  }
+
+  if (Object.keys(fieldErrors).length) {
+    return { error: "Please fix the highlighted fields.", fieldErrors };
+  }
+
+  const initials =
+    businessName
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("") || "NM";
+
+  try {
+    const slug = await uniqueVendorSlug(businessName);
+    await prisma.vendor.create({
+      data: {
+        businessName,
+        slug,
+        description,
+        initials,
+        sellerTypes: JSON.stringify([sellerType]),
+        accentFrom: "#FF8A00",
+        accentTo: "#FFC107",
+        locationIds: JSON.stringify(location ? [location] : ["any"]),
+        originCountry: "GH",
+        verificationStatus: "pending",
+        deliveryAvailable: fd.get("deliveryAvailable") === "on",
+        pickupAvailable: fd.get("pickupAvailable") === "on",
+        sameDayDeliveryAvailable: fd.get("sameDayDeliveryAvailable") === "on",
+        payoutMethod,
+        momoNumber,
+        momoName,
+        bankName,
+        bankAccountName,
+        bankAccountNumber,
+        ownerId: user.id,
+      },
+    });
+
+    // Promote the account to SELLER and keep contact details in sync.
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        role: user.role === "ADMIN" ? "ADMIN" : "SELLER",
+        ...(email ? { email: email.toLowerCase() } : {}),
+        ...(phone ? { phone } : {}),
+      },
+    });
+  } catch {
+    return { error: "Couldn't register your shop. Please try again." };
+  }
+
+  // Refresh the JWT so the new SELLER role takes effect without a re-login.
+  if (user.role !== "ADMIN") {
+    const { unstable_update } = await import("@/lib/auth");
+    await unstable_update({ role: "SELLER" } as never);
+  }
+
+  revalidatePath("/seller");
+  revalidatePath("/shops");
+  redirect("/seller");
+}
+
 export type PayoutRequestState = { ok?: boolean; error?: string };
 
 /** Seller requests a payout of up to their available balance. */

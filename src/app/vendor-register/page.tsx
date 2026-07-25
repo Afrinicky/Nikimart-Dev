@@ -1,77 +1,88 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { BadgeCheck, Store, Wallet } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Field, inputClass } from "@/components/ui/Field";
-import { SELLER_TYPE_LABELS } from "@/lib/types";
-import type { SellerType } from "@/lib/types";
+import { VendorRegisterForm } from "@/components/seller/VendorRegisterForm";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
   title: "Register your shop — NikiMart",
 };
 
-const SELLER_TYPES = Object.entries(SELLER_TYPE_LABELS) as [SellerType, string][];
+export const dynamic = "force-dynamic";
 
-export default function VendorRegisterPage() {
+export default async function VendorRegisterPage() {
+  const session = await auth();
+
+  // Logged-out visitors get a proper landing with sign-in / create-account
+  // options that return here (not a bare redirect to /login).
+  if (!session?.user) {
+    return (
+      <>
+        <PageHeader
+          title="Start selling on NikiMart"
+          subtitle="Open your shop, reach buyers across Ghana, and get paid straight to your MoMo or bank."
+          crumbs={[{ label: "Sell", href: "/sell" }, { label: "Register" }]}
+        />
+        <Container className="max-w-xl py-8">
+          <div className="rounded-3xl bg-niki-navy p-6 text-white sm:p-8">
+            <div className="flex items-center gap-2 text-niki-orange">
+              <Store className="h-5 w-5" />
+              <span className="font-display font-bold">Sell to thousands of buyers</span>
+            </div>
+            <ul className="mt-4 space-y-2 text-sm text-white/70">
+              <li className="flex items-start gap-2"><BadgeCheck className="mt-0.5 h-4 w-4 text-niki-orange" /> List products in minutes — no setup fee.</li>
+              <li className="flex items-start gap-2"><BadgeCheck className="mt-0.5 h-4 w-4 text-niki-orange" /> Get paid to Mobile Money or your bank account.</li>
+              <li className="flex items-start gap-2"><BadgeCheck className="mt-0.5 h-4 w-4 text-niki-orange" /> Track orders and settlements from your seller dashboard.</li>
+            </ul>
+          </div>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Link
+              href="/register?callbackUrl=/vendor-register"
+              className="flex-1 rounded-full bg-niki-orange px-5 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+            >
+              Create a free account
+            </Link>
+            <Link
+              href="/login?callbackUrl=/vendor-register"
+              className="flex-1 rounded-full px-5 py-3 text-center text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 transition-colors hover:bg-white"
+            >
+              Sign in
+            </Link>
+          </div>
+        </Container>
+      </>
+    );
+  }
+
+  // Already runs a shop → straight to the seller dashboard.
+  const existing = await prisma.vendor.findFirst({
+    where: { ownerId: session.user.id },
+    select: { id: true },
+  });
+  if (existing) redirect("/seller");
+
   return (
     <>
       <PageHeader
         title="Register your shop"
-        subtitle="Tell us about your business to start selling on NikiMart."
+        subtitle="Tell us about your business and how you'd like to get paid. It takes about 2 minutes."
         crumbs={[{ label: "Sell", href: "/sell" }, { label: "Register" }]}
       />
       <Container className="py-8">
-        <form className="mx-auto max-w-2xl space-y-5 rounded-3xl bg-white p-6 ring-1 ring-black/5 sm:p-8">
-          <Field label="Business name" htmlFor="business">
-            <input id="business" type="text" placeholder="e.g. Campus Gadgets Hub" className={inputClass} />
-          </Field>
-
-          <Field label="What kind of seller are you?" htmlFor="type">
-            <select id="type" className={inputClass} defaultValue="">
-              <option value="" disabled>
-                Select seller type
-              </option>
-              {SELLER_TYPES.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Contact email" htmlFor="email">
-              <input id="email" type="email" placeholder="shop@example.com" className={inputClass} />
-            </Field>
-            <Field label="Phone number" htmlFor="phone">
-              <input id="phone" type="tel" placeholder="024 000 0000" className={inputClass} />
-            </Field>
+        <div className="mx-auto max-w-2xl">
+          <div className="mb-6 flex items-center gap-3 rounded-2xl bg-niki-orange/10 px-4 py-3 text-sm text-niki-ink/70">
+            <Wallet className="h-5 w-5 shrink-0 text-niki-orange" />
+            <span>Your payment details stay private and are only used to settle your earnings.</span>
           </div>
-
-          <Field label="Where do you operate?" htmlFor="location" hint="Campus, institution, town, or city you serve.">
-            <input id="location" type="text" placeholder="e.g. University of Ghana, Accra" className={inputClass} />
-          </Field>
-
-          <Field label="Tell us about your shop" htmlFor="about">
-            <textarea
-              id="about"
-              rows={4}
-              placeholder="What do you sell? What makes your shop great?"
-              className={inputClass}
-            />
-          </Field>
-
-          <button
-            type="button"
-            className="w-full rounded-xl bg-niki-orange px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light sm:w-auto sm:px-8"
-          >
-            Submit registration
-          </button>
-
-          <p className="rounded-xl bg-niki-surface p-3 text-xs text-niki-ink/50">
-            Seller onboarding &amp; verification (KYC) are being wired up — this form is a visual
-            preview for now.
-          </p>
-        </form>
+          <VendorRegisterForm
+            defaultName={session.user.name ?? undefined}
+            defaultEmail={session.user.email ?? undefined}
+          />
+        </div>
       </Container>
     </>
   );
