@@ -36,11 +36,28 @@ export function isEmailConfigured(): boolean {
   return Boolean(resendKey());
 }
 
+/** Read a response body for diagnostics without throwing. */
+async function safeBody(res: Response): Promise<string> {
+  try {
+    return (await res.text()).slice(0, 500);
+  } catch {
+    return "";
+  }
+}
+
 /** Send an SMS via Arkesel. Returns true on success. Never throws. */
 export async function sendSms(phone: string | null | undefined, message: string): Promise<boolean> {
   const key = arkeselKey();
+  if (!key) {
+    console.warn("[sms] skipped: ARKESEL_API_KEY not set");
+    return false;
+  }
   const to = normalizeGhPhone(phone);
-  if (!key || !to || !message) return false;
+  if (!to) {
+    console.warn(`[sms] skipped: unrecognised Ghana number "${phone}"`);
+    return false;
+  }
+  if (!message) return false;
   try {
     const res = await fetch(ARKESEL_SMS_URL, {
       method: "POST",
@@ -49,8 +66,17 @@ export async function sendSms(phone: string | null | undefined, message: string)
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
     });
-    return res.ok;
-  } catch {
+    const body = await safeBody(res);
+    // Arkesel replies 200 with { status: "success" } on success; other statuses
+    // (e.g. "sender id not approved", "insufficient balance") mean no delivery.
+    const okStatus = /"status"\s*:\s*"success"/i.test(body) || (res.ok && !/"status"\s*:\s*"error"/i.test(body));
+    if (!okStatus) {
+      console.error(`[sms] Arkesel rejected send (HTTP ${res.status}, sender "${arkeselSender()}"): ${body}`);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error(`[sms] Arkesel request failed: ${e instanceof Error ? e.message : String(e)}`);
     return false;
   }
 }
@@ -58,7 +84,11 @@ export async function sendSms(phone: string | null | undefined, message: string)
 /** Send an email via Resend if configured. Returns true on success. Never throws. */
 export async function sendEmail(to: string | null | undefined, subject: string, html: string): Promise<boolean> {
   const key = resendKey();
-  if (!key || !to) return false;
+  if (!key) {
+    console.warn("[email] skipped: RESEND_API_KEY not set");
+    return false;
+  }
+  if (!to) return false;
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -67,8 +97,15 @@ export async function sendEmail(to: string | null | undefined, subject: string, 
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
     });
-    return res.ok;
-  } catch {
+    if (!res.ok) {
+      // Common cause: sending from an unverified domain to an address other than
+      // your own Resend account — verify a domain to email arbitrary users.
+      console.error(`[email] Resend rejected send (HTTP ${res.status}, from "${resendFrom()}", to "${to}"): ${await safeBody(res)}`);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error(`[email] Resend request failed: ${e instanceof Error ? e.message : String(e)}`);
     return false;
   }
 }
@@ -86,17 +123,30 @@ export interface Recipient {
  */
 export type NotifyChannel = "sms" | "email" | "both";
 
+export interface NotifyResult {
+  sms?: boolean;
+  email?: boolean;
+}
+
 export async function notify(
   to: Recipient,
   opts: { sms: string; emailSubject?: string; emailHtml?: string },
   channel: NotifyChannel = "both",
-): Promise<void> {
+): Promise<NotifyResult> {
+  const result: NotifyResult = {};
   const tasks: Promise<unknown>[] = [];
-  if (to.phone && channel !== "email") tasks.push(sendSms(to.phone, opts.sms));
+  if (to.phone && channel !== "email") {
+    tasks.push(sendSms(to.phone, opts.sms).then((ok) => (result.sms = ok)));
+  }
   if (to.email && channel !== "sms") {
-    tasks.push(sendEmail(to.email, opts.emailSubject ?? "NikiMart", opts.emailHtml ?? emailShell(opts.sms)));
+    tasks.push(
+      sendEmail(to.email, opts.emailSubject ?? "NikiMart", opts.emailHtml ?? emailShell(opts.sms)).then(
+        (ok) => (result.email = ok),
+      ),
+    );
   }
   await Promise.allSettled(tasks);
+  return result;
 }
 
 /** Minimal branded email wrapper around a plain message. */
