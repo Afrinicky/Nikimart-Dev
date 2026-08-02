@@ -36,7 +36,7 @@ export async function requestResetOtp(_prev: ResetState, fd: FormData): Promise<
     });
     const recipient = user;
     after(async () => {
-      await notify(recipient, {
+      const result = await notify(recipient, {
         sms: `Your NikiMart password reset code is ${code}. It expires in 10 minutes. Never share it.`,
         emailSubject: "Your NikiMart reset code",
         emailHtml: emailShell(
@@ -44,6 +44,14 @@ export async function requestResetOtp(_prev: ResetState, fd: FormData): Promise<
           "Password reset code",
         ),
       });
+      // One line per request so delivery is diagnosable in the server logs
+      // (the code itself is never logged). Both false ⇒ check provider config.
+      console.info(
+        `[reset-otp] user ${user.id} — sms=${result.sms ?? "n/a"} email=${result.email ?? "n/a"}` +
+          (result.sms === false || result.email === false
+            ? " (a false channel means the provider rejected it — see the [sms]/[email] error above)"
+            : ""),
+      );
     });
   }
 
