@@ -12,7 +12,8 @@ import { normalizeGhPhone } from "@/lib/phone";
  * must never reach the browser.
  */
 
-const ARKESEL_SMS_URL = "https://sms.arkesel.com/api/v2/sms/send";
+const ARKESEL_V2_URL = "https://sms.arkesel.com/api/v2/sms/send";
+const ARKESEL_V1_URL = "https://sms.arkesel.com/sms/api";
 
 function arkeselKey(): string | undefined {
   const k = process.env.ARKESEL_API_KEY;
@@ -45,7 +46,52 @@ async function safeBody(res: Response): Promise<string> {
   }
 }
 
-/** Send an SMS via Arkesel. Returns true on success. Never throws. */
+interface SendAttempt {
+  ok: boolean;
+  status: number;
+  body: string;
+}
+
+/** Arkesel V2 — POST /api/v2/sms/send with an `api-key` header. */
+async function sendArkeselV2(key: string, to: string, message: string): Promise<SendAttempt> {
+  const res = await fetch(ARKESEL_V2_URL, {
+    method: "POST",
+    headers: { "api-key": key, "Content-Type": "application/json" },
+    body: JSON.stringify({ sender: arkeselSender(), message, recipients: [to] }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(8000),
+  });
+  const body = await safeBody(res);
+  const ok = res.ok && /"status"\s*:\s*"success"/i.test(body);
+  return { ok, status: res.status, body };
+}
+
+/** Arkesel V1 (legacy) — GET /sms/api?action=send-sms&api_key=… Works with the
+ *  key shown on the dashboard's "SMS API" page. Success is `{"code":"ok"}`. */
+async function sendArkeselV1(key: string, to: string, message: string): Promise<SendAttempt> {
+  const qs = new URLSearchParams({
+    action: "send-sms",
+    api_key: key,
+    to,
+    from: arkeselSender(),
+    sms: message,
+  });
+  const res = await fetch(`${ARKESEL_V1_URL}?${qs.toString()}`, {
+    method: "GET",
+    cache: "no-store",
+    signal: AbortSignal.timeout(8000),
+  });
+  const body = await safeBody(res);
+  const ok = res.ok && /"code"\s*:\s*"ok"|"status"\s*:\s*"success"/i.test(body);
+  return { ok, status: res.status, body };
+}
+
+/**
+ * Send an SMS via Arkesel. Returns true on success. Never throws.
+ * Tries the V2 endpoint first, then falls back to the V1 (legacy) endpoint so
+ * either key type works. The fallback only fires when V2 didn't actually send,
+ * so a recipient never gets two messages.
+ */
 export async function sendSms(phone: string | null | undefined, message: string): Promise<boolean> {
   const key = arkeselKey();
   if (!key) {
@@ -58,23 +104,19 @@ export async function sendSms(phone: string | null | undefined, message: string)
     return false;
   }
   if (!message) return false;
+
+  const sender = arkeselSender();
   try {
-    const res = await fetch(ARKESEL_SMS_URL, {
-      method: "POST",
-      headers: { "api-key": key, "Content-Type": "application/json" },
-      body: JSON.stringify({ sender: arkeselSender(), message, recipients: [to] }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(8000),
-    });
-    const body = await safeBody(res);
-    // Arkesel replies 200 with { status: "success" } on success; other statuses
-    // (e.g. "sender id not approved", "insufficient balance") mean no delivery.
-    const okStatus = /"status"\s*:\s*"success"/i.test(body) || (res.ok && !/"status"\s*:\s*"error"/i.test(body));
-    if (!okStatus) {
-      console.error(`[sms] Arkesel rejected send (HTTP ${res.status}, sender "${arkeselSender()}"): ${body}`);
-      return false;
-    }
-    return true;
+    const v2 = await sendArkeselV2(key, to, message);
+    if (v2.ok) return true;
+    // 401/invalid-key on V2 usually means a legacy (V1) key — try V1 next.
+    const v1 = await sendArkeselV1(key, to, message);
+    if (v1.ok) return true;
+    console.error(
+      `[sms] Arkesel rejected send (sender "${sender}"). ` +
+        `v2 HTTP ${v2.status}: ${v2.body} | v1 HTTP ${v1.status}: ${v1.body}`,
+    );
+    return false;
   } catch (e) {
     console.error(`[sms] Arkesel request failed: ${e instanceof Error ? e.message : String(e)}`);
     return false;
