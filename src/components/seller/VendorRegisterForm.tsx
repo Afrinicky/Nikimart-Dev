@@ -17,10 +17,12 @@ export function VendorRegisterForm({
   defaultName,
   defaultEmail,
   defaultPhone,
+  hubs = [],
 }: {
   defaultName?: string;
   defaultEmail?: string;
   defaultPhone?: string;
+  hubs?: { id: string; label: string }[];
 }) {
   const [state, formAction] = useActionState<VendorRegisterState, FormData>(registerVendor, {});
   const [payoutMethod, setPayoutMethod] = useState<"momo" | "bank">("momo");
@@ -69,6 +71,22 @@ export function VendorRegisterForm({
         <Field label="Where do you operate?" htmlFor="location" hint="Campus, institution, town, or city you serve.">
           <input id="location" name="location" type="text" placeholder="e.g. University of Ghana, Accra" className={inputClass} />
         </Field>
+
+        {hubs.length > 0 ? (
+          <Field
+            label="Origin / consolidation hub"
+            htmlFor="originPickupId"
+            hint="The NikiMart hub nearest you, where your goods are gathered before shipping to buyers. This sets your shipping fees."
+          >
+            <select id="originPickupId" name="originPickupId" className={inputClass} defaultValue={hubs[0]?.id ?? ""}>
+              {hubs.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
 
         <Field label="Tell us about your shop" htmlFor="description">
           <textarea

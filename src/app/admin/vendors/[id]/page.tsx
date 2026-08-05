@@ -14,15 +14,21 @@ type Params = Promise<{ id: string }>;
 
 export default async function EditVendorPage({ params }: { params: Params }) {
   const { id } = await params;
-  const [row, owners] = await Promise.all([
+  const [row, owners, hubPoints] = await Promise.all([
     prisma.vendor.findUnique({ where: { id } }),
     prisma.user.findMany({
       where: { role: { in: ["SELLER", "ADMIN"] } },
       orderBy: { name: "asc" },
       select: { id: true, name: true, email: true },
     }),
+    prisma.pickupPoint.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, locationName: true },
+    }),
   ]);
   if (!row) notFound();
+  const hubs = hubPoints.map((h) => ({ id: h.id, label: `${h.locationName} — ${h.name}` }));
 
   const vendor = mapVendor(row);
   const action = updateVendor.bind(null, id);
@@ -40,6 +46,8 @@ export default async function EditVendorPage({ params }: { params: Params }) {
           vendor={vendor}
           owners={owners}
           currentOwnerId={row.ownerId}
+          hubs={hubs}
+          currentOriginPickupId={row.originPickupId}
           submitLabel="Save changes"
         />
       </div>

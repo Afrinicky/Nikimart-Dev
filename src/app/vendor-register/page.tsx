@@ -65,6 +65,13 @@ export default async function VendorRegisterPage() {
   });
   if (existing) redirect("/seller");
 
+  const hubPoints = await prisma.pickupPoint.findMany({
+    where: { isActive: true },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, locationName: true },
+  });
+  const hubs = hubPoints.map((h) => ({ id: h.id, label: `${h.locationName} — ${h.name}` }));
+
   return (
     <>
       <PageHeader
@@ -81,6 +88,7 @@ export default async function VendorRegisterPage() {
           <VendorRegisterForm
             defaultName={session.user.name ?? undefined}
             defaultEmail={session.user.email ?? undefined}
+            hubs={hubs}
           />
         </div>
       </Container>

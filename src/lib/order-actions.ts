@@ -6,9 +6,9 @@ import { after } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { getDeliveryConfig, getCommissionRate, getAffiliateRate } from "@/lib/settings";
+import { getShippingRates, getCommissionRate, getAffiliateRate } from "@/lib/settings";
 import { REFERRAL_COOKIE } from "@/lib/affiliate";
-import { quoteDeliveryFee, totalCartWeight } from "@/lib/delivery";
+import { quoteShipping, itemCbm, type ShippingLine } from "@/lib/shipping";
 import { resolveCommissionRate } from "@/lib/commission";
 import { isPaymentConfigured, initializeTransaction, toPesewas } from "@/lib/payments";
 import { notifyOrderConfirmed, notifyStaffNewOrder } from "@/lib/order-notifications";
@@ -22,10 +22,8 @@ const payloadSchema = z.object({
       }),
     )
     .min(1, "Your cart is empty."),
-  deliveryMethod: z.enum(["delivery", "pickup"]),
-  address: z.string().trim().optional(),
-  pickupPointId: z.string().trim().optional(),
-  destinationLocationId: z.string().trim().optional(),
+  // Every order is collected at a NikiMart pickup point (no home delivery).
+  pickupPointId: z.string().trim().min(1, "Please choose a pickup point."),
 });
 
 export type PlaceOrderInput = z.infer<typeof payloadSchema>;
@@ -54,25 +52,27 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   }
   const data = parsed.data;
 
-  if (data.deliveryMethod === "delivery" && !data.address) {
-    return { ok: false, error: "Please enter a delivery address." };
-  }
-  if (data.deliveryMethod === "pickup" && !data.pickupPointId) {
-    return { ok: false, error: "Please choose a pickup point." };
+  // The chosen pickup point must exist and be active.
+  const pickupPoint = await prisma.pickupPoint.findFirst({
+    where: { id: data.pickupPointId, isActive: true },
+  });
+  if (!pickupPoint) {
+    return { ok: false, error: "Please choose a valid pickup point." };
   }
 
-  // Re-price from the database — never trust client-supplied prices or weights.
+  // Re-price from the database — never trust client-supplied prices or CBM.
   const ids = data.items.map((i) => i.productId);
   const products = await prisma.product.findMany({
     where: { id: { in: ids } },
     select: {
       id: true,
       price: true,
-      shippingWeightKg: true,
+      cbm: true,
       lengthCm: true,
       widthCm: true,
       heightCm: true,
       category: { select: { commissionRate: true } },
+      vendor: { select: { originPickupId: true, originCountry: true } },
     },
   });
   const productById = new Map(products.map((p) => [p.id, p]));
@@ -88,8 +88,9 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         productId: i.productId,
         quantity: i.quantity,
         unitPrice: p.price,
-        weightKg: p.shippingWeightKg,
-        volumeCm3: (p.lengthCm || 0) * (p.widthCm || 0) * (p.heightCm || 0),
+        cbm: itemCbm(p),
+        originHubId: p.vendor?.originPickupId ?? null,
+        originCountry: p.vendor?.originCountry ?? "GH",
         commissionRate: resolveCommissionRate(p.category?.commissionRate, defaultCommission),
       };
     });
@@ -100,21 +101,15 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
 
   const subtotal = lineItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
 
-  // Delivery fee — recomputed server-side with the weight/zone engine.
-  const destinationLocation =
-    data.deliveryMethod === "delivery" && data.destinationLocationId
-      ? await prisma.location.findUnique({
-          where: { id: data.destinationLocationId },
-          select: { deliveryZoneMultiplier: true },
-        })
-      : null;
-  const deliveryConfig = await getDeliveryConfig();
-  const deliveryFee = quoteDeliveryFee({
-    method: data.deliveryMethod,
-    totalWeightKg: totalCartWeight(lineItems, deliveryConfig),
-    zoneMultiplier: destinationLocation?.deliveryZoneMultiplier ?? 1,
-    config: deliveryConfig,
-  });
+  // Shipping fee — recomputed server-side with the CBM route engine.
+  const rates = await getShippingRates();
+  const shippingLines: ShippingLine[] = lineItems.map((i) => ({
+    cbm: i.cbm,
+    quantity: i.quantity,
+    originHubId: i.originHubId,
+    originCountry: i.originCountry,
+  }));
+  const deliveryFee = quoteShipping(shippingLines, pickupPoint.id, rates);
   const total = subtotal + deliveryFee;
 
   // Affiliate attribution: if a referral cookie is present and belongs to a
@@ -131,18 +126,12 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     }
   }
 
-  // A freight agent to carry delivery consignments, if one exists.
-  const freightAgent =
-    data.deliveryMethod === "delivery"
-      ? await prisma.user.findFirst({ where: { role: "FREIGHT" }, select: { id: true } })
-      : null;
+  // A freight agent to carry the consignment from the seller hub to the pickup
+  // point, if one exists.
+  const freightAgent = await prisma.user.findFirst({ where: { role: "FREIGHT" }, select: { id: true } });
 
-  // Resolve pickup point + a readable destination for the shipment.
-  const pickupPoint = data.pickupPointId
-    ? await prisma.pickupPoint.findUnique({ where: { id: data.pickupPointId } })
-    : null;
-  const destination =
-    data.deliveryMethod === "pickup" ? (pickupPoint?.name ?? "Pickup point") : (data.address ?? "Customer address");
+  // The shipment moves goods from the seller's origin hub to the pickup point.
+  const destination = `${pickupPoint.name} — ${pickupPoint.locationName}`;
 
   // When Paystack is configured we collect payment before fulfilling: the order
   // starts as "pending" and is marked "paid" only after Paystack confirms it
@@ -161,9 +150,9 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
           subtotal,
           deliveryFee,
           total,
-          deliveryMethod: data.deliveryMethod,
-          address: data.deliveryMethod === "delivery" ? data.address : null,
-          pickupPointId: data.deliveryMethod === "pickup" ? (pickupPoint?.id ?? null) : null,
+          deliveryMethod: "pickup",
+          address: null,
+          pickupPointId: pickupPoint.id,
           userId: user.id,
           affiliateId,
           affiliateCommission,

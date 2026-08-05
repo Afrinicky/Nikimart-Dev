@@ -15,12 +15,16 @@ export function VendorForm({
   vendor,
   owners,
   currentOwnerId,
+  hubs = [],
+  currentOriginPickupId,
   submitLabel,
 }: {
   action: Action;
   vendor?: Vendor;
   owners: { id: string; name: string | null; email: string | null }[];
   currentOwnerId?: string | null;
+  hubs?: { id: string; label: string }[];
+  currentOriginPickupId?: string | null;
   submitLabel: string;
 }) {
   const [state, formAction] = useActionState<CrudState, FormData>(action, {});
@@ -61,15 +65,27 @@ export function VendorForm({
         </Field>
       </div>
 
-      <Field label="Ships from" htmlFor="originCountry" hint="Non-Ghana sellers' products are marked “shipped from abroad”">
-        <select id="originCountry" name="originCountry" defaultValue={v?.originCountry ?? "GH"} className={inputClass}>
-          {COUNTRIES.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.flag} {c.name}
-            </option>
-          ))}
-        </select>
-      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Ships from" htmlFor="originCountry" hint="Non-Ghana sellers' products are marked “shipped from abroad”">
+          <select id="originCountry" name="originCountry" defaultValue={v?.originCountry ?? "GH"} className={inputClass}>
+            {COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.flag} {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Origin / consolidation hub" htmlFor="originPickupId" hint="Domestic hub where this shop's goods gather (sets shipping routes)">
+          <select id="originPickupId" name="originPickupId" defaultValue={currentOriginPickupId ?? ""} className={inputClass}>
+            <option value="">— none —</option>
+            {hubs.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Accent from" htmlFor="accentFrom">

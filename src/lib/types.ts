@@ -159,10 +159,12 @@ export interface Product {
   emoji: string;
   /** Billable shipping weight in kg, used by the delivery-fee engine. */
   shippingWeightKg?: number;
-  /** Parcel dimensions in cm, used for size-based delivery pricing. */
+  /** Parcel dimensions in cm, used to derive the CBM when not set directly. */
   lengthCm?: number;
   widthCm?: number;
   heightCm?: number;
+  /** Shipping volume in cubic metres (CBM) — the basis of the shipping fee. */
+  cbm?: number;
   /**
    * Optional product image. Set this to override the default photo.
    * Accepts a local path served from /public (e.g. "/products/my-photo.jpg")

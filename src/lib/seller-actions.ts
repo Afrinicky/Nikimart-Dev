@@ -113,6 +113,7 @@ export async function updateSellerShop(_prev: SellerShopState, fd: FormData): Pr
         bankName: s("bankName"),
         bankAccountName: s("bankAccountName"),
         bankAccountNumber: s("bankAccountNumber"),
+        originPickupId: s("originPickupId") || null,
       },
     });
   } catch {
@@ -239,6 +240,7 @@ export async function registerVendor(_prev: VendorRegisterState, fd: FormData): 
         bankName,
         bankAccountName,
         bankAccountNumber,
+        originPickupId: s("originPickupId") || null,
         ownerId: user.id,
       },
     });

@@ -45,6 +45,9 @@ export async function updateSettings(_prev: SettingsState, fd: FormData): Promis
   }
 
   for (const key of SETTING_KEYS) {
+    // Only touch settings this form actually submitted — otherwise settings
+    // managed on other pages (e.g. shipping rates) would be blanked.
+    if (!fd.has(key)) continue;
     const value = str(fd, key);
     await prisma.siteSetting.upsert({
       where: { key },
