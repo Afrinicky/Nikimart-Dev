@@ -6,12 +6,19 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ShopSettingsForm } from "@/components/seller/ShopSettingsForm";
 import { requireDashboard } from "@/lib/session";
 import { getSellerVendor } from "@/lib/seller";
+import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Shop Settings — Seller — NikiMart" };
 
 export default async function SellerSettingsPage() {
   const user = await requireDashboard("/seller");
   const vendor = await getSellerVendor(user.id);
+  const hubPoints = await prisma.pickupPoint.findMany({
+    where: { isActive: true },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, locationName: true },
+  });
+  const hubs = hubPoints.map((h) => ({ id: h.id, label: `${h.locationName} — ${h.name}` }));
 
   return (
     <>
@@ -41,7 +48,9 @@ export default async function SellerSettingsPage() {
               bankName: vendor.bankName,
               bankAccountName: vendor.bankAccountName,
               bankAccountNumber: vendor.bankAccountNumber,
+              originPickupId: vendor.originPickupId ?? "",
             }}
+            hubs={hubs}
           />
         ) : (
           <div className="rounded-2xl bg-niki-navy p-6 text-sm text-white/80">

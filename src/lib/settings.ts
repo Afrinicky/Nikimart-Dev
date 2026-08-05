@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { DELIVERY_DEFAULTS, type DeliveryConfig } from "@/lib/delivery";
+import type { ShippingRates } from "@/lib/shipping";
 
 // Site-wide settings stored as key/value rows, merged with these defaults.
 export const SETTINGS_DEFAULTS = {
@@ -46,6 +47,20 @@ export const SETTINGS_DEFAULTS = {
   leadDaysAE: "14",
   leadDaysUS: "21",
   leadDaysEU: "21",
+  // --- CBM shipping-fee engine (pickup-only) --------------------------------
+  // Fallback domestic rate (GH₵ per CBM) when a specific origin→pickup route
+  // rate isn't configured in the Shipping rates table.
+  shippingDefaultRatePerCbm: "150",
+  // International rate (GH₵ per CBM) for the abroad→Ghana leg, per origin
+  // country, plus a fallback for other countries.
+  intlRatePerCbmCN: "1200",
+  intlRatePerCbmAE: "1000",
+  intlRatePerCbmUS: "1500",
+  intlRatePerCbmEU: "1500",
+  intlDefaultRatePerCbm: "1500",
+  // Pickup point where goods shipped from abroad land before the domestic leg.
+  // Empty = the first active pickup point.
+  internationalArrivalHubId: "",
 } as const;
 
 export type SettingKey = keyof typeof SETTINGS_DEFAULTS;
@@ -130,4 +145,43 @@ export async function getLeadDays(countryCode: string): Promise<number> {
   const key = `leadDays${countryCode}` as SettingKey;
   const raw = key in settings ? Number(settings[key]) : NaN;
   return Number.isFinite(raw) && raw >= 0 ? raw : 21;
+}
+
+/** The CBM shipping-rate tables (default + configured routes + international). */
+export async function getShippingRates(): Promise<ShippingRates> {
+  const settings = await getSettings();
+  const numOr = (raw: string, fallback: number) => {
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : fallback;
+  };
+
+  const routes: Record<string, number> = {};
+  let arrivalHubId: string | null = settings.internationalArrivalHubId || null;
+  try {
+    const rows = await prisma.shippingRate.findMany();
+    for (const r of rows) routes[`${r.originHubId}|${r.destPickupId}`] = r.ratePerCbm;
+    if (!arrivalHubId) {
+      const first = await prisma.pickupPoint.findFirst({
+        where: { isActive: true },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+      arrivalHubId = first?.id ?? null;
+    }
+  } catch {
+    // table not migrated yet — default rate only
+  }
+
+  return {
+    defaultRatePerCbm: numOr(settings.shippingDefaultRatePerCbm, 150),
+    routes,
+    intlRatePerCbm: {
+      CN: numOr(settings.intlRatePerCbmCN, 1200),
+      AE: numOr(settings.intlRatePerCbmAE, 1000),
+      US: numOr(settings.intlRatePerCbmUS, 1500),
+      EU: numOr(settings.intlRatePerCbmEU, 1500),
+    },
+    intlDefaultRatePerCbm: numOr(settings.intlDefaultRatePerCbm, 1500),
+    arrivalHubId,
+  };
 }

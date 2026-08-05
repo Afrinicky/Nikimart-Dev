@@ -98,10 +98,21 @@ export function buildProductData(fd: FormData, forceVendorId?: string) {
     emoji: optStr(fd, "emoji") ?? "🛍️",
     // Billable shipping weight (kg) for the delivery-fee engine; default 0.5.
     shippingWeightKg: num(fd, "shippingWeightKg") ?? 0.5,
-    // Parcel dimensions (cm) for size-based delivery pricing.
+    // Parcel dimensions (cm) — used to derive the CBM when not entered directly.
     lengthCm: num(fd, "lengthCm") ?? 0,
     widthCm: num(fd, "widthCm") ?? 0,
     heightCm: num(fd, "heightCm") ?? 0,
+    // Shipping volume in CBM (m³) — the basis of the shipping fee. Prefer the
+    // entered value; otherwise derive it from L×W×H ÷ 1,000,000.
+    cbm: (() => {
+      const direct = num(fd, "cbm");
+      if (direct && direct > 0) return Math.round(direct * 1_000_000) / 1_000_000;
+      const l = num(fd, "lengthCm") ?? 0;
+      const w = num(fd, "widthCm") ?? 0;
+      const h = num(fd, "heightCm") ?? 0;
+      const vol = l * w * h;
+      return vol > 0 ? Math.round((vol / 1_000_000) * 1_000_000) / 1_000_000 : 0;
+    })(),
     // Keep the single `image` column in sync with the primary gallery image.
     image: images[0] ?? null,
     gradientFrom: optStr(fd, "gradientFrom") ?? "#0e1f36",

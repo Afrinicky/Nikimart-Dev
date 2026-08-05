@@ -18,32 +18,12 @@ export function SettingsForm({ settings }: { settings: Settings }) {
       ) : null}
 
       <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
-        <h2 className="font-display text-lg font-bold text-niki-ink">Delivery fees</h2>
+        <h2 className="font-display text-lg font-bold text-niki-ink">Shipping</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
-          Door delivery is priced as base + per-kg of billable weight, then scaled by the destination zone. Pickup collection is a flat fee.
+          Orders are collected at NikiMart pickup points and priced by CBM. Set the per-route ₵/CBM rates,
+          international rates, and the arrival hub in the{" "}
+          <a href="/admin/shipping" className="font-semibold text-niki-orange hover:underline">Shipping</a> tab.
         </p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <Field label="Base delivery fee (GH₵)" htmlFor="deliveryFee" hint={state.fieldErrors?.deliveryFee ?? "Flat base on every delivery"}>
-            <input id="deliveryFee" name="deliveryFee" type="number" min="0" step="0.01" defaultValue={settings.deliveryFee} className={inputClass} />
-          </Field>
-          <Field label="Per-kg rate (GH₵)" htmlFor="deliveryPerKg" hint={state.fieldErrors?.deliveryPerKg ?? "Charged per billable kg"}>
-            <input id="deliveryPerKg" name="deliveryPerKg" type="number" min="0" step="0.01" defaultValue={settings.deliveryPerKg} className={inputClass} />
-          </Field>
-          <Field label="Pickup fee (GH₵)" htmlFor="pickupFee" hint={state.fieldErrors?.pickupFee ?? "Flat fee for station pickup (0 = free)"}>
-            <input id="pickupFee" name="pickupFee" type="number" min="0" step="0.01" defaultValue={settings.pickupFee} className={inputClass} />
-          </Field>
-        </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <Field label="Charge by" htmlFor="deliveryBasis" hint="Weight, or size (volumetric weight from dimensions)">
-            <select id="deliveryBasis" name="deliveryBasis" defaultValue={settings.deliveryBasis} className={inputClass}>
-              <option value="weight">Weight (kg)</option>
-              <option value="size">Size (dimensions)</option>
-            </select>
-          </Field>
-          <Field label="Volumetric divisor" htmlFor="volumetricDivisor" hint="cm³ per kg for size pricing (≈5000)">
-            <input id="volumetricDivisor" name="volumetricDivisor" type="number" min="1" step="1" defaultValue={settings.volumetricDivisor} className={inputClass} />
-          </Field>
-        </div>
       </section>
 
       <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">

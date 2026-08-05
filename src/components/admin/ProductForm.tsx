@@ -85,6 +85,16 @@ export function ProductForm({
         </Field>
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Shipping volume (CBM)"
+          htmlFor="cbm"
+          hint="Cubic metres per unit — the basis of the shipping fee. Leave blank to auto-calculate from L×W×H."
+        >
+          <input id="cbm" name="cbm" type="number" step="0.0001" min="0" defaultValue={p?.cbm ? p.cbm : ""} placeholder="e.g. 0.045" className={inputClass} />
+        </Field>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Category" htmlFor="categoryId" hint={state.fieldErrors?.categoryId}>
           <select id="categoryId" name="categoryId" defaultValue={p?.categoryId ?? ""} required className={inputClass}>

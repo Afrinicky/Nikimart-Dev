@@ -146,6 +146,7 @@ function vendorData(fd: FormData) {
     deliveryAvailable: bool(fd, "deliveryAvailable"),
     pickupAvailable: bool(fd, "pickupAvailable"),
     sameDayDeliveryAvailable: bool(fd, "sameDayDeliveryAvailable"),
+    originPickupId: optStr(fd, "originPickupId") ?? null,
     ownerId: optStr(fd, "ownerId") ?? null,
   };
 }

@@ -2,63 +2,70 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import { CreditCard, MapPin, Truck } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CreditCard, MapPin, Package, Plane } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Field, inputClass } from "@/components/ui/Field";
 import { useCart } from "@/components/providers/CartProvider";
 import { formatPrice } from "@/lib/format";
 import { placeOrder } from "@/lib/order-actions";
-import { quoteDeliveryFee, totalCartWeight, type DeliveryConfig } from "@/lib/delivery";
-
-interface Zone {
-  id: string;
-  name: string;
-  region: string;
-  multiplier: number;
-}
+import { quoteCartShipping, type CartShippingQuote } from "@/lib/shipping-actions";
 
 export function CheckoutClient({
-  pickupPoints,
-  zones,
-  config,
-  defaultAddress = "",
   defaultPickupId = "",
   paymentEnabled = false,
 }: {
-  pickupPoints: { id: string; name: string; locationName: string }[];
-  zones: Zone[];
-  config: DeliveryConfig;
-  defaultAddress?: string;
   defaultPickupId?: string;
   paymentEnabled?: boolean;
 }) {
   const { items, subtotal, clear, ready } = useCart();
   const router = useRouter();
 
-  const [method, setMethod] = useState<"delivery" | "pickup">("delivery");
-  const [address, setAddress] = useState(defaultAddress);
-  const [zoneId, setZoneId] = useState(zones[0]?.id ?? "");
-  const [pickupPointId, setPickupPointId] = useState(
-    defaultPickupId && pickupPoints.some((p) => p.id === defaultPickupId)
-      ? defaultPickupId
-      : (pickupPoints[0]?.id ?? ""),
-  );
+  const [quote, setQuote] = useState<CartShippingQuote | null>(null);
+  const [loadingQuote, setLoadingQuote] = useState(true);
+  const [pickupPointId, setPickupPointId] = useState(defaultPickupId);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const totalWeightKg = useMemo(
-    () => totalCartWeight(items.map((i) => ({ weightKg: i.weightKg, volumeCm3: i.volumeCm3, quantity: i.quantity })), config),
-    [items, config],
+  // A stable key so the quote refetches only when the actual cart contents change.
+  const itemsKey = useMemo(
+    () => items.map((i) => `${i.productId}:${i.quantity}`).join("|"),
+    [items],
   );
-  const selectedZone = zones.find((z) => z.id === zoneId);
-  const deliveryFee = quoteDeliveryFee({
-    method,
-    totalWeightKg,
-    zoneMultiplier: selectedZone?.multiplier ?? 1,
-    config,
-  });
-  const total = subtotal + deliveryFee;
+
+  useEffect(() => {
+    if (!ready) return;
+    if (items.length === 0) {
+      setQuote(null);
+      setLoadingQuote(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingQuote(true);
+    quoteCartShipping({ items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })) })
+      .then((q) => {
+        if (cancelled) return;
+        setQuote(q);
+        setPickupPointId((prev) =>
+          prev && q.points.some((p) => p.id === prev) ? prev : (q.points[0]?.id ?? ""),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setQuote({ points: [], totalCbm: 0, hasAbroad: false });
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingQuote(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // itemsKey captures the meaningful cart state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsKey, ready]);
+
+  const points = quote?.points ?? [];
+  const selected = points.find((p) => p.id === pickupPointId);
+  const shippingFee = selected?.fee ?? 0;
+  const total = subtotal + shippingFee;
 
   if (!ready) {
     return <div className="rounded-2xl bg-white p-10 text-center text-sm text-niki-ink/50 ring-1 ring-black/5">Loading…</div>;
@@ -78,27 +85,19 @@ export function CheckoutClient({
 
   async function submit() {
     setError(null);
-    if (method === "delivery" && !address.trim()) {
-      setError("Please enter a delivery address.");
-      return;
-    }
-    if (method === "pickup" && !pickupPointId) {
+    if (!pickupPointId) {
       setError("Please choose a pickup point.");
       return;
     }
     setPending(true);
     const res = await placeOrder({
       items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
-      deliveryMethod: method,
-      address: method === "delivery" ? address.trim() : undefined,
-      pickupPointId: method === "pickup" ? pickupPointId : undefined,
-      destinationLocationId: method === "delivery" ? zoneId || undefined : undefined,
+      pickupPointId,
     });
     if (res.ok) {
       if (res.authorizationUrl) {
-        // Real payment: hand off to Paystack. The cart is cleared on the
-        // orders page once payment is confirmed, so it survives a cancelled
-        // or failed payment.
+        // Real payment: hand off to Paystack. The cart is cleared on the orders
+        // page once payment is confirmed, so it survives a cancelled payment.
         window.location.href = res.authorizationUrl;
         return;
       }
@@ -118,71 +117,61 @@ export function CheckoutClient({
         ) : null}
 
         <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
-          <h2 className="font-display text-lg font-bold text-niki-ink">Delivery method</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => setMethod("delivery")}
-              className={`flex items-center gap-3 rounded-xl border p-4 text-left transition-colors ${method === "delivery" ? "border-niki-orange bg-niki-orange/5" : "border-black/10 hover:bg-niki-surface"}`}
-            >
-              <Truck className="h-5 w-5 text-niki-orange" />
-              <span>
-                <span className="block text-sm font-semibold text-niki-ink">Delivery</span>
-                <span className="block text-xs text-niki-ink/60">Priced by weight &amp; area</span>
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setMethod("pickup")}
-              className={`flex items-center gap-3 rounded-xl border p-4 text-left transition-colors ${method === "pickup" ? "border-niki-orange bg-niki-orange/5" : "border-black/10 hover:bg-niki-surface"}`}
-            >
-              <MapPin className="h-5 w-5 text-niki-orange" />
-              <span>
-                <span className="block text-sm font-semibold text-niki-ink">Pickup</span>
-                <span className="block text-xs text-niki-ink/60">
-                  {config.pickupFee > 0 ? `${formatPrice(config.pickupFee)} at station` : "Free at station"}
-                </span>
-              </span>
-            </button>
+          <div className="flex items-center gap-2">
+            <MapPin className="h-5 w-5 text-niki-orange" />
+            <h2 className="font-display text-lg font-bold text-niki-ink">Choose a pickup point</h2>
           </div>
+          <p className="mt-1 text-sm text-niki-ink/60">
+            Collect your order at any NikiMart station. The shipping fee depends on the distance from the
+            seller and the size (CBM) of your items.
+          </p>
 
-          <div className="mt-5 space-y-4">
-            {method === "delivery" ? (
-              <>
-                <Field label="Delivery address" htmlFor="address">
-                  <textarea
-                    id="address"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    rows={3}
-                    placeholder="Hall / hostel, room, area, city…"
-                    className={inputClass}
-                  />
-                </Field>
-                {zones.length > 0 ? (
-                  <Field label="Delivery area" htmlFor="zone" hint="Affects the delivery fee">
-                    <select id="zone" value={zoneId} onChange={(e) => setZoneId(e.target.value)} className={inputClass}>
-                      {zones.map((z) => (
-                        <option key={z.id} value={z.id}>
-                          {z.name} — {z.region}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                ) : null}
-              </>
-            ) : pickupPoints.length > 0 ? (
-              <Field label="Pickup point" htmlFor="pickup">
-                <select id="pickup" value={pickupPointId} onChange={(e) => setPickupPointId(e.target.value)} className={inputClass}>
-                  {pickupPoints.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} — {p.locationName}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+          {quote?.hasAbroad ? (
+            <p className="mt-3 flex items-center gap-2 rounded-xl bg-niki-navy/5 px-3 py-2 text-xs font-medium text-niki-ink/70">
+              <Plane className="h-4 w-4 text-niki-orange" /> Some items ship from abroad — the fee includes
+              international freight.
+            </p>
+          ) : null}
+
+          <div className="mt-4 space-y-3">
+            {loadingQuote ? (
+              <div className="rounded-xl bg-niki-surface p-6 text-center text-sm text-niki-ink/50">
+                Calculating shipping…
+              </div>
+            ) : points.length === 0 ? (
+              <p className="rounded-xl bg-niki-surface p-4 text-sm text-niki-ink/60">
+                No pickup points are available yet. Please check back soon.
+              </p>
             ) : (
-              <p className="text-sm text-niki-ink/60">No pickup points are available yet. Please choose delivery.</p>
+              points.map((p) => {
+                const active = p.id === pickupPointId;
+                return (
+                  <label
+                    key={p.id}
+                    className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-4 transition-colors ${
+                      active ? "border-niki-orange bg-niki-orange/5" : "border-black/10 hover:bg-niki-surface"
+                    }`}
+                  >
+                    <span className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="pickupPoint"
+                        value={p.id}
+                        checked={active}
+                        onChange={() => setPickupPointId(p.id)}
+                        className="h-4 w-4 text-niki-orange focus:ring-niki-orange"
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold text-niki-ink">{p.name}</span>
+                        <span className="block text-xs text-niki-ink/60">{p.locationName}</span>
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-sm font-semibold text-niki-ink">
+                      {p.fee === 0 ? <span className="text-niki-success">Free</span> : formatPrice(p.fee)}
+                    </span>
+                  </label>
+                );
+              })
             )}
           </div>
         </div>
@@ -223,12 +212,16 @@ export function CheckoutClient({
           </div>
           <div className="flex justify-between text-niki-ink/70">
             <dt>
-              {method === "pickup" ? "Pickup" : "Delivery"}
-              {method === "delivery" ? (
-                <span className="block text-xs text-niki-ink/40">≈ {totalWeightKg.toFixed(1)} kg billable</span>
+              Shipping
+              {quote && quote.totalCbm > 0 ? (
+                <span className="flex items-center gap-1 text-xs text-niki-ink/40">
+                  <Package className="h-3 w-3" /> {quote.totalCbm.toFixed(3)} CBM
+                </span>
               ) : null}
             </dt>
-            <dd className="font-medium text-niki-ink">{deliveryFee === 0 ? "Free" : formatPrice(deliveryFee)}</dd>
+            <dd className="font-medium text-niki-ink">
+              {loadingQuote ? "…" : shippingFee === 0 ? "Free" : formatPrice(shippingFee)}
+            </dd>
           </div>
           <div className="flex justify-between border-t border-black/5 pt-2 text-base font-bold text-niki-ink">
             <dt>Total</dt>
@@ -238,7 +231,7 @@ export function CheckoutClient({
         <button
           type="button"
           onClick={submit}
-          disabled={pending}
+          disabled={pending || loadingQuote || !pickupPointId}
           className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-niki-orange px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending ? "Placing order…" : `Place order · ${formatPrice(total)}`}

@@ -100,6 +100,7 @@ export function mapProduct(
     lengthCm: p.lengthCm,
     widthCm: p.widthCm,
     heightCm: p.heightCm,
+    cbm: p.cbm,
     image: gallery[0] ?? p.image ?? undefined,
     images: gallery.length ? gallery : p.image ? [p.image] : [],
     originCountry: p.vendor?.originCountry ?? "GH",

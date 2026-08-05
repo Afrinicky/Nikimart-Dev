@@ -145,6 +145,13 @@ model Vendor {
   bankAccountName   String @default("")
   bankAccountNumber String @default("")
 
+  // The seller's origin / consolidation hub — a pickup point where their goods
+  // are gathered. It's the "from" end of every domestic shipping route. For
+  // sellers abroad (originCountry != GH), goods land at the international
+  // arrival hub instead and this may be null.
+  originPickupId String?
+  originPickup   PickupPoint? @relation("VendorOrigin", fields: [originPickupId], references: [id], onDelete: SetNull)
+
   ownerId String? @unique
   owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
@@ -237,10 +244,13 @@ model Product {
   emoji                    String
   // Billable shipping weight in kg (max of actual/volumetric) for delivery fees.
   shippingWeightKg         Float    @default(0.5)
-  // Parcel dimensions in cm (for size-based / volumetric delivery pricing).
+  // Parcel dimensions in cm (used to derive the CBM when it isn't set directly).
   lengthCm                 Float    @default(0)
   widthCm                  Float    @default(0)
   heightCm                 Float    @default(0)
+  // Shipping volume in cubic metres (CBM) — the basis for the shipping fee.
+  // Set at listing time (directly, or auto-computed from L×W×H ÷ 1,000,000).
+  cbm                      Float    @default(0)
   // Primary image (kept for backward-compat / fallback); the gallery lives in
   // ProductImage. May be an http(s) URL or a data: URL.
   image                    String?
@@ -327,6 +337,29 @@ model PickupPoint {
 
   orders           Order[]
   preferredByUsers User[]  @relation("PreferredPickup")
+
+  // Sellers whose origin/consolidation hub is this point.
+  originVendors Vendor[]       @relation("VendorOrigin")
+  // Shipping-rate rows where this point is the origin / the destination.
+  ratesFrom     ShippingRate[] @relation("RateOrigin")
+  ratesTo       ShippingRate[] @relation("RateDest")
+}
+
+// Admin-configured shipping rate (GH₵ per CBM) for a domestic route: from an
+// origin hub (a pickup point where a seller's goods consolidate) to a
+// destination pickup point. Same origin+destination is typically 0 (or a small
+// handling fee). Missing routes fall back to the global default rate.
+model ShippingRate {
+  id           String @id @default(cuid())
+  originHubId  String
+  destPickupId String
+  ratePerCbm   Float  @default(0)
+
+  originHub  PickupPoint @relation("RateOrigin", fields: [originHubId], references: [id], onDelete: Cascade)
+  destPickup PickupPoint @relation("RateDest", fields: [destPickupId], references: [id], onDelete: Cascade)
+
+  @@unique([originHubId, destPickupId])
+  @@index([destPickupId])
 }
 
 model Shipment {

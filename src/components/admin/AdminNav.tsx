@@ -14,6 +14,7 @@ import {
   Settings,
   ShoppingBag,
   Store,
+  Truck,
   Users,
   Wallet,
   Gift,
@@ -33,6 +34,7 @@ const TABS = [
   { href: "/admin/banners", label: "Carousel", icon: GalleryHorizontalEnd },
   { href: "/admin/locations", label: "Locations", icon: MapPin },
   { href: "/admin/pickup-points", label: "Pickup", icon: PackageCheck },
+  { href: "/admin/shipping", label: "Shipping", icon: Truck },
   { href: "/admin/faqs", label: "FAQs", icon: HelpCircle },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
