@@ -35,8 +35,19 @@ export async function createPickupPoint(_prev: CrudState, fd: FormData): Promise
   }
   const clash = await prisma.pickupPoint.findUnique({ where: { code: data.code } });
   if (clash) return { error: "Code already in use.", fieldErrors: { code: "Already exists." } };
+  // An operator account can run only one pickup point (operatorId is unique).
+  if (data.operatorId) {
+    const taken = await prisma.pickupPoint.findFirst({ where: { operatorId: data.operatorId }, select: { name: true } });
+    if (taken) {
+      return { error: `That operator already runs “${taken.name}”. Pick a different operator, or leave it as none.`, fieldErrors: { operatorId: "Already assigned." } };
+    }
+  }
 
-  await prisma.pickupPoint.create({ data });
+  try {
+    await prisma.pickupPoint.create({ data });
+  } catch {
+    return { error: "Couldn't create the pickup point — its code or operator may already be in use." };
+  }
   revalidatePickups();
   redirect("/admin/pickup-points");
 }
@@ -49,8 +60,18 @@ export async function updatePickupPoint(id: string, _prev: CrudState, fd: FormDa
   }
   const clash = await prisma.pickupPoint.findFirst({ where: { code: data.code, NOT: { id } } });
   if (clash) return { error: "Code already in use.", fieldErrors: { code: "Already exists." } };
+  if (data.operatorId) {
+    const taken = await prisma.pickupPoint.findFirst({ where: { operatorId: data.operatorId, NOT: { id } }, select: { name: true } });
+    if (taken) {
+      return { error: `That operator already runs “${taken.name}”. Pick a different operator, or leave it as none.`, fieldErrors: { operatorId: "Already assigned." } };
+    }
+  }
 
-  await prisma.pickupPoint.update({ where: { id }, data });
+  try {
+    await prisma.pickupPoint.update({ where: { id }, data });
+  } catch {
+    return { error: "Couldn't save the pickup point — its code or operator may already be in use." };
+  }
   revalidatePickups();
   redirect("/admin/pickup-points");
 }
