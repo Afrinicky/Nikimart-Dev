@@ -9,8 +9,10 @@ import { createPickupPoint } from "@/lib/pickup-actions";
 export const metadata: Metadata = { title: "New pickup point — Admin — NikiMart" };
 
 export default async function NewPickupPointPage() {
+  // Only offer operators who don't already run a pickup point (operatorId is
+  // unique — one operator account per point).
   const operators = await prisma.user.findMany({
-    where: { role: { in: ["PICKUP", "ADMIN"] } },
+    where: { role: { in: ["PICKUP", "ADMIN"] }, pickupPoint: { is: null } },
     orderBy: { name: "asc" },
     select: { id: true, name: true, email: true },
   });

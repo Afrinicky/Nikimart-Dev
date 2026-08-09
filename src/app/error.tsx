@@ -20,6 +20,9 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
       <p className="max-w-md text-sm text-niki-ink/60">
         We hit a snag loading this page. Please try again — if it keeps happening, refresh in a moment.
       </p>
+      {error.digest ? (
+        <p className="mt-1 font-mono text-xs text-niki-ink/40">Reference: {error.digest}</p>
+      ) : null}
       <div className="mt-2 flex items-center gap-3">
         <button
           type="button"

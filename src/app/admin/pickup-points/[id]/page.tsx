@@ -13,15 +13,17 @@ type Params = Promise<{ id: string }>;
 
 export default async function EditPickupPointPage({ params }: { params: Params }) {
   const { id } = await params;
-  const [point, operators] = await Promise.all([
-    prisma.pickupPoint.findUnique({ where: { id } }),
-    prisma.user.findMany({
-      where: { role: { in: ["PICKUP", "ADMIN"] } },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, email: true },
-    }),
-  ]);
+  const point = await prisma.pickupPoint.findUnique({ where: { id } });
   if (!point) notFound();
+  // Free operators, plus this point's current operator so it stays selectable.
+  const operators = await prisma.user.findMany({
+    where: {
+      role: { in: ["PICKUP", "ADMIN"] },
+      OR: [{ pickupPoint: { is: null } }, { id: point.operatorId ?? "__none__" }],
+    },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, email: true },
+  });
 
   const action = updatePickupPoint.bind(null, id);
 
