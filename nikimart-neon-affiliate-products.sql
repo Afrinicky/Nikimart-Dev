@@ -32,3 +32,28 @@ ON CONFLICT ("key") DO NOTHING;
 INSERT INTO "SiteSetting" ("key","value")
 VALUES ('affiliatePitch','You can earn up to {rate}% on each product you refer.')
 ON CONFLICT ("key") DO NOTHING;
+
+-- Record the migration as applied, so a later `prisma migrate deploy` skips it
+-- instead of re-running its plain ADD COLUMN statements and failing on columns
+-- that already exist. Skipped entirely if the database has no Prisma migration
+-- history (i.e. the schema was only ever created from these SQL files).
+DO $$
+BEGIN
+  IF to_regclass('public."_prisma_migrations"') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM "_prisma_migrations"
+       WHERE "migration_name" = '20260810120000_affiliate_product_enrolment'
+     )
+  THEN
+    INSERT INTO "_prisma_migrations"
+      ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+    VALUES (
+      gen_random_uuid()::text,
+      '592392049afd63993a0dcfe04db38e5ca9c8f1826cda9d27e47e4ff3ff8e7dd6',
+      now(),
+      '20260810120000_affiliate_product_enrolment',
+      now(),
+      1
+    );
+  END IF;
+END $$;

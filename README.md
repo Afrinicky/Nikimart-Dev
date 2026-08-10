@@ -70,6 +70,32 @@ serverless runtime. Vercel Postgres, Neon, Supabase, or Railway all work.
 > the pooled URL instead, append `?pgbouncer=true` or Prisma will error with
 > "prepared statement already exists".
 
+### Applying schema changes after a deploy
+
+**A green deploy does not mean the schema is up to date.** The build never
+touches the database, so a release that adds columns will deploy cleanly and
+then fail at runtime — usually as an empty or "couldn't load" state, because the
+data loaders swallow query errors rather than 500 the page.
+
+After deploying a release that changes `prisma/schema.prisma`, apply the
+migration:
+
+```bash
+DATABASE_URL="<your-production-url>" npx prisma migrate deploy
+```
+
+Or, if you can't open a direct connection, paste the matching
+`nikimart-neon-*.sql` catch-up file into the Neon SQL Editor. Each one is
+idempotent, and records itself in `_prisma_migrations` so a later
+`migrate deploy` skips it rather than re-running it.
+
+| Release | Catch-up file |
+| ------- | ------------- |
+| Affiliate programme, product archiving | `nikimart-neon-affiliate-products.sql` |
+| CBM shipping routes | `nikimart-neon-shipping-cbm.sql` |
+| Commission + seller payouts | `nikimart-neon-commission.sql` |
+| Affiliates (Finance console) | `nikimart-neon-affiliates.sql` |
+
 ## Demo accounts
 
 The seed creates one account per role. **Password for all: `password123`.**
