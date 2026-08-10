@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowUpRight, Banknote, Percent, Users, Wallet } from "lucide-react";
 import { Container } from "@/components/ui/Container";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getFinanceOverview, getVendorSettlements } from "@/lib/finance";
@@ -32,10 +33,13 @@ export default async function AdminFinancePage() {
           <h1 className="font-display text-2xl font-bold text-niki-ink">Finance</h1>
           <p className="mt-1 text-sm text-niki-ink/60">Commissions, seller payouts, affiliate payments, and accounts.</p>
         </div>
-        <Link href="/admin/affiliates" className="flex items-center gap-2 rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-navy-light">
-          <Users className="h-4 w-4" />
-          Affiliates
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportButton dataset="finance" />
+          <Link href="/admin/affiliates" className="flex items-center gap-2 rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-navy-light">
+            <Users className="h-4 w-4" />
+            Affiliates
+          </Link>
+        </div>
       </div>
 
       {/* Platform KPIs — each opens its breakdown */}
@@ -48,7 +52,8 @@ export default async function AdminFinancePage() {
           ["escrow", "In escrow (undelivered)", overview.inEscrow],
           ["delivery", "Delivery collected", overview.delivery],
           ["affiliate", "Affiliate payments", overview.affiliatePaid],
-          ["earnings", "Platform earnings", overview.platformEarnings],
+          ["affiliateCost", "Affiliate commission accrued", overview.affiliateAccrued],
+          ["earnings", "Platform earnings (net)", overview.platformEarnings],
         ] as const).map(([metric, label, value]) => (
           <Link key={metric} href={`/admin/finance/breakdown/${metric}`} className="group rounded-2xl bg-white p-5 ring-1 ring-black/5 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-niki-navy/5">
             <p className="font-display text-2xl font-bold text-niki-ink">{formatPrice(value)}</p>
@@ -84,6 +89,24 @@ export default async function AdminFinancePage() {
           <div className="mt-4 flex flex-wrap gap-2 text-sm">
             <Link href="/admin/settings" className="font-semibold text-niki-orange hover:underline">Edit default →</Link>
             <Link href="/admin/categories" className="font-semibold text-niki-orange hover:underline">Per-category →</Link>
+          </div>
+
+          {/* Where affiliate commission actually comes from. */}
+          <div className="mt-6 border-t border-black/5 pt-4">
+            <h3 className="text-sm font-semibold text-niki-ink">Affiliate commission funded by</h3>
+            <ul className="mt-2 space-y-1.5 text-sm">
+              <li className="flex justify-between text-niki-ink/70">
+                <span>Sellers (their own enrolments)</span>
+                <span className="font-semibold text-niki-ink">{formatPrice(overview.affiliateFundedBySellers)}</span>
+              </li>
+              <li className="flex justify-between text-niki-ink/70">
+                <span>NikiMart (platform enrolments)</span>
+                <span className="font-semibold text-niki-ink">{formatPrice(overview.affiliateFundedByPlatform)}</span>
+              </li>
+            </ul>
+            <p className="mt-2 text-xs text-niki-ink/50">
+              NikiMart-funded enrolments are capped at half the platform commission on the item.
+            </p>
           </div>
         </div>
 

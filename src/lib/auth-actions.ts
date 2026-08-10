@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -7,6 +8,14 @@ import { signIn, signOut } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isRole, ROLE_HOME } from "@/lib/roles";
 import { findUserByIdentifier } from "@/lib/user-lookup";
+import { clearRateLimit, rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+
+/** Best-effort client IP, for rate-limiting keys. */
+async function clientIp(): Promise<string> {
+  const h = await headers();
+  const forwarded = h.get("x-forwarded-for");
+  return forwarded?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
+}
 
 export type AuthFormState = {
   error?: string;
@@ -70,6 +79,13 @@ export async function registerAction(
       if (typeof key === "string" && !fieldErrors[key]) fieldErrors[key] = issue.message;
     }
     return { error: "Please fix the highlighted fields.", fieldErrors };
+  }
+
+  // Cap sign-ups from one address so the register form can't be used to bulk
+  // create accounts (or to probe which emails are already taken).
+  const signupLimit = rateLimit(`register:ip:${await clientIp()}`, 5, 60 * 60 * 1000);
+  if (!signupLimit.ok) {
+    return { error: `Too many accounts created from here. Please try again in ${retryAfterLabel(signupLimit.retryAfter)}.` };
   }
 
   const email = parsed.data.email.toLowerCase();
@@ -140,6 +156,20 @@ export async function loginAction(
   }
 
   const identifier = parsed.data.email.trim();
+
+  // Throttle password guessing, per account and per source address. Both keys
+  // are checked so one attacker can't spread across accounts, and one account
+  // can't be locked out cheaply from a single address.
+  const ip = await clientIp();
+  const accountKey = `login:id:${identifier.toLowerCase()}`;
+  const ipKey = `login:ip:${ip}`;
+  const perAccount = rateLimit(accountKey, 8, 15 * 60 * 1000);
+  const perIp = rateLimit(ipKey, 30, 15 * 60 * 1000);
+  if (!perAccount.ok || !perIp.ok) {
+    const wait = Math.max(perAccount.retryAfter, perIp.retryAfter);
+    return { error: `Too many sign-in attempts. Please try again in ${retryAfterLabel(wait)}.` };
+  }
+
   const user = await findUserByIdentifier(identifier);
   const redirectTo = safeCallback(formData.get("callbackUrl")) ?? homeForRole(user?.role);
 
@@ -153,7 +183,11 @@ export async function loginAction(
     if (error instanceof AuthError) {
       return { error: "Invalid email or password." };
     }
-    throw error; // re-throw the NEXT_REDIRECT so navigation happens
+    // signIn throws NEXT_REDIRECT on success — the attempt worked, so clear the
+    // counters before re-throwing so navigation still happens.
+    clearRateLimit(accountKey);
+    clearRateLimit(ipKey);
+    throw error;
   }
 
   return {};

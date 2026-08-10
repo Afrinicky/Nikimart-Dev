@@ -7,6 +7,7 @@ import { ProductForm } from "@/components/admin/ProductForm";
 import { prisma } from "@/lib/prisma";
 import { mapProduct } from "@/lib/catalog";
 import { updateProduct } from "@/lib/admin-actions";
+import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
 
 export const metadata: Metadata = { title: "Edit product — Admin — NikiMart" };
 
@@ -14,10 +15,15 @@ type Params = Promise<{ id: string }>;
 
 export default async function EditProductPage({ params }: { params: Params }) {
   const { id } = await params;
-  const [row, categories, vendors] = await Promise.all([
+  const [row, categories, vendors, defaultCommissionRate, defaultAffiliateRate] = await Promise.all([
     prisma.product.findUnique({ where: { id }, include: { images: { orderBy: { order: "asc" } } } }),
-    prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.category.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, commissionRate: true, affiliateCommissionRate: true },
+    }),
     prisma.vendor.findMany({ orderBy: { businessName: "asc" }, select: { id: true, businessName: true } }),
+    getCommissionRate(),
+    getAffiliateRate(),
   ]);
   if (!row) notFound();
 
@@ -32,7 +38,15 @@ export default async function EditProductPage({ params }: { params: Params }) {
       </Link>
       <h1 className="mt-3 font-display text-2xl font-bold text-niki-ink">Edit {product.name}</h1>
       <div className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-black/5">
-        <ProductForm action={action} categories={categories} vendors={vendors} product={product} submitLabel="Save changes" />
+        <ProductForm
+          action={action}
+          categories={categories}
+          vendors={vendors}
+          product={product}
+          submitLabel="Save changes"
+          defaultCommissionRate={defaultCommissionRate}
+          defaultAffiliateRate={defaultAffiliateRate}
+        />
       </div>
     </Container>
   );

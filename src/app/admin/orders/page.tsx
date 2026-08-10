@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { ChevronRight } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { DeleteButton } from "@/components/admin/DeleteButton";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { OrderStatusSelect } from "@/components/admin/OrderStatusSelect";
 import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/format";
@@ -19,9 +20,12 @@ export default async function AdminOrdersPage() {
 
   return (
     <Container className="py-8">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-niki-ink">Orders</h1>
-        <p className="mt-1 text-sm text-niki-ink/60">{orders.length} orders</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-niki-ink">Orders</h1>
+          <p className="mt-1 text-sm text-niki-ink/60">{orders.length} orders</p>
+        </div>
+        <ExportButton dataset="orders" />
       </div>
 
       <div className="mt-6 space-y-3">

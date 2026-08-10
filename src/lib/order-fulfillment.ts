@@ -2,6 +2,21 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyOrderConfirmed, notifyStaffNewOrder } from "@/lib/order-notifications";
+import { toPesewas } from "@/lib/payments";
+
+/**
+ * Confirm that the amount actually captured covers the order before settling it.
+ *
+ * Both callers (the post-payment redirect and the webhook) previously trusted
+ * the reference alone, so a partial capture — or a transaction initialised for
+ * a different amount — would have settled the order in full. A tolerance of one
+ * pesewa absorbs rounding between our total and the gateway's integer amount.
+ */
+export async function paymentCoversOrder(orderNumber: string, amountPesewas: number): Promise<boolean> {
+  const order = await prisma.order.findUnique({ where: { orderNumber }, select: { total: true } });
+  if (!order) return false;
+  return amountPesewas + 1 >= toPesewas(order.total);
+}
 
 /**
  * Mark a pending order as paid — idempotently — and start fulfilment.

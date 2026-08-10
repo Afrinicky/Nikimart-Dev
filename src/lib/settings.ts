@@ -30,8 +30,14 @@ export const SETTINGS_DEFAULTS = {
   // Platform commission (percent) taken on every sale. Sellers register free
   // and NikiMart earns this cut per item; overridable per category.
   commissionRate: "10",
-  // Affiliate commission (percent of order subtotal) earned on referred sales.
+  // Default affiliate commission (percent of the item price) used when neither
+  // the product nor its category sets its own rate.
   affiliateRate: "5",
+  // The highest rate any product currently advertises — drives the public
+  // "earn up to X%" headline. Recomputed suggestions aside, admins set it here.
+  affiliateMaxRate: "10",
+  // The public affiliate headline. "{rate}" is replaced with affiliateMaxRate.
+  affiliatePitch: "You can earn up to {rate}% on each product you refer.",
   // How staff (sellers, freight, pickup, admins) are alerted about orders and
   // jobs: "sms" | "email" | "both". Buyers are always alerted on both channels.
   staffNotifyChannel: "both",
@@ -119,15 +125,36 @@ export async function getCommissionRate(): Promise<number> {
   return rate;
 }
 
-/** Affiliate commission rate (percent of subtotal). */
-export async function getAffiliateRate(): Promise<number> {
-  const settings = await getSettings();
-  const raw = (settings.affiliateRate ?? "").trim();
-  const rate = Number(raw);
-  if (raw === "" || !Number.isFinite(rate) || rate < 0 || rate > 100) {
-    return Number(SETTINGS_DEFAULTS.affiliateRate);
+function percentSetting(raw: string | undefined, fallback: string): number {
+  const value = (raw ?? "").trim();
+  const rate = Number(value);
+  if (value === "" || !Number.isFinite(rate) || rate < 0 || rate > 100) {
+    return Number(fallback);
   }
   return rate;
+}
+
+/**
+ * Default affiliate commission rate (percent of the item price), used when a
+ * product and its category both leave the rate blank.
+ */
+export async function getAffiliateRate(): Promise<number> {
+  const settings = await getSettings();
+  return percentSetting(settings.affiliateRate, SETTINGS_DEFAULTS.affiliateRate);
+}
+
+/** The "earn up to X%" rate shown in public affiliate copy. */
+export async function getAffiliateMaxRate(): Promise<number> {
+  const settings = await getSettings();
+  return percentSetting(settings.affiliateMaxRate, SETTINGS_DEFAULTS.affiliateMaxRate);
+}
+
+/** The public affiliate headline with {rate} filled in. Fully admin-editable. */
+export async function getAffiliatePitch(): Promise<string> {
+  const settings = await getSettings();
+  const template = (settings.affiliatePitch ?? "").trim() || SETTINGS_DEFAULTS.affiliatePitch;
+  const max = await getAffiliateMaxRate();
+  return template.replace(/\{rate\}/g, String(max));
 }
 
 export type NotifyChannel = "sms" | "email" | "both";

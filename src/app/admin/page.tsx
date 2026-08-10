@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -44,29 +45,45 @@ export default async function AdminDashboardPage() {
           </p>
         </div>
 
+        {/* Every tile drills through to the list it counts. */}
         <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard label="Total users" value={userCount} />
-          <StatCard label="Shops" value={vendorCount} />
-          <StatCard label="Products" value={productCount} />
-          <StatCard label="GMV" value={formatPrice(gmv)} />
+          <StatCard label="Total users" value={userCount} href="/admin/users" />
+          <StatCard label="Shops" value={vendorCount} href="/admin/vendors" />
+          <StatCard label="Products" value={productCount} href="/admin/products" />
+          <StatCard label="GMV" value={formatPrice(gmv)} href="/admin/finance/breakdown/gmv" />
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard label="Orders" value={allOrders.length} />
-          <StatCard label="Pending verifications" value={pendingVendors} />
+          <StatCard label="Orders" value={allOrders.length} href="/admin/orders" />
+          <StatCard
+            label="Pending verifications"
+            value={pendingVendors}
+            href="/admin/vendors?status=pending"
+          />
           {ROLES.filter((r) => r !== "CUSTOMER" && r !== "ADMIN").map((r) => (
-            <StatCard key={r} label={`${ROLE_LABELS[r as Role]}s`} value={roleCounts.get(r) ?? 0} />
+            <StatCard
+              key={r}
+              label={`${ROLE_LABELS[r as Role]}s`}
+              value={roleCounts.get(r) ?? 0}
+              href={`/admin/users?role=${r}`}
+            />
           ))}
         </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
           <section>
-            <h2 className="font-display text-lg font-bold text-niki-ink">Recent orders</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-display text-lg font-bold text-niki-ink">Recent orders</h2>
+              <Link href="/admin/orders" className="text-sm font-semibold text-niki-orange hover:underline">
+                View all
+              </Link>
+            </div>
             <div className="mt-4 space-y-3">
               {orders.map((order) => (
-                <div
+                <Link
                   key={order.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/5"
+                  href={`/admin/orders/${order.id}`}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/5 transition-colors hover:bg-niki-navy/5"
                 >
                   <div>
                     <p className="font-semibold text-niki-ink">{order.orderNumber}</p>
@@ -82,13 +99,23 @@ export default async function AdminDashboardPage() {
                       {formatPrice(order.total)}
                     </span>
                   </div>
-                </div>
+                </Link>
               ))}
+              {orders.length === 0 ? (
+                <p className="rounded-2xl bg-white p-6 text-sm text-niki-ink/50 ring-1 ring-black/5">
+                  No orders yet.
+                </p>
+              ) : null}
             </div>
           </section>
 
           <section>
-            <h2 className="font-display text-lg font-bold text-niki-ink">Newest users</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-display text-lg font-bold text-niki-ink">Newest users</h2>
+              <Link href="/admin/users" className="text-sm font-semibold text-niki-orange hover:underline">
+                View all
+              </Link>
+            </div>
             <div className="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">
               <table className="w-full min-w-[420px] text-left text-sm">
                 <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/50">
@@ -100,13 +127,20 @@ export default async function AdminDashboardPage() {
                 </thead>
                 <tbody className="divide-y divide-black/5">
                   {recentUsers.map((u) => (
-                    <tr key={u.id}>
-                      <td className="px-5 py-3 font-medium text-niki-ink">{u.name ?? "—"}</td>
+                    <tr key={u.id} className="transition-colors hover:bg-niki-navy/5">
+                      <td className="px-5 py-3 font-medium text-niki-ink">
+                        <Link href={`/admin/users/${u.id}`} className="hover:text-niki-orange">
+                          {u.name ?? "—"}
+                        </Link>
+                      </td>
                       <td className="px-5 py-3 text-niki-ink/70">{u.email}</td>
                       <td className="px-5 py-3">
-                        <span className="rounded-full bg-niki-surface px-2.5 py-1 text-xs font-semibold text-niki-ink/70">
+                        <Link
+                          href={`/admin/users?role=${u.role}`}
+                          className="rounded-full bg-niki-surface px-2.5 py-1 text-xs font-semibold text-niki-ink/70 transition-colors hover:bg-niki-navy hover:text-white"
+                        >
                           {ROLE_LABELS[(u.role as Role)] ?? u.role}
-                        </span>
+                        </Link>
                       </td>
                     </tr>
                   ))}

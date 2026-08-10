@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { verifyTransaction } from "@/lib/payments";
-import { markOrderPaid } from "@/lib/order-fulfillment";
+import { markOrderPaid, paymentCoversOrder } from "@/lib/order-fulfillment";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +36,12 @@ export default async function VerifyPaymentPage({
   let paid = false;
   try {
     const result = await verifyTransaction(reference);
-    paid = result.paid;
+    // Paystack is the source of truth for *whether* it was paid; we still
+    // check the captured amount covers the order before settling it.
+    paid =
+      result.paid &&
+      result.currency === "GHS" &&
+      (await paymentCoversOrder(reference, result.amountPesewas));
   } catch {
     // Verification failed to reach Paystack — treat as unconfirmed. The webhook
     // can still settle it later.

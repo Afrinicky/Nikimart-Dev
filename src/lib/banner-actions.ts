@@ -4,14 +4,23 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+import { isSafeImageUrl } from "@/lib/product-form";
 import type { CrudState } from "@/lib/admin-actions";
 
 function str(fd: FormData, key: string): string {
   return String(fd.get(key) ?? "").trim();
 }
 
+/** A link target we're willing to render: a site path or an http(s) URL. */
+function safeHref(value: string): string {
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+  if (/^https?:\/\//i.test(value)) return value;
+  return "/products";
+}
+
 function bannerData(fd: FormData) {
-  const image = str(fd, "image");
+  const rawImage = str(fd, "image");
+  const image = isSafeImageUrl(rawImage) ? rawImage : "";
   const color = (key: string, fallback: string) => {
     const v = str(fd, key);
     return /^#[0-9a-fA-F]{6}$/.test(v) ? v : fallback;
@@ -21,7 +30,9 @@ function bannerData(fd: FormData) {
     subtitle: str(fd, "subtitle"),
     eventWindow: str(fd, "eventWindow"),
     ctaLabel: str(fd, "ctaLabel") || "Shop now",
-    ctaHref: str(fd, "ctaHref") || "/products",
+    // Only same-site paths and absolute http(s) links — never `javascript:`
+    // or a protocol-relative URL, both of which end up in an anchor href.
+    ctaHref: safeHref(str(fd, "ctaHref")),
     image: image || null,
     accentFrom: color("accentFrom", "#ff7a1a"),
     accentTo: color("accentTo", "#0e1f36"),

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Pencil, Plus } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { DeleteButton } from "@/components/admin/DeleteButton";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { getAllLocations } from "@/lib/locations";
 import { deleteLocation } from "@/lib/location-actions";
 import { prisma } from "@/lib/prisma";
@@ -27,13 +28,16 @@ export default async function AdminLocationsPage() {
           <h1 className="font-display text-2xl font-bold text-niki-ink">Locations</h1>
           <p className="mt-1 text-sm text-niki-ink/60">Campuses, towns, and communities in the location picker.</p>
         </div>
-        <Link
-          href="/admin/locations/new"
-          className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
-        >
-          <Plus className="h-4 w-4" />
-          New location
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportButton dataset="locations" />
+          <Link
+            href="/admin/locations/new"
+            className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+          >
+            <Plus className="h-4 w-4" />
+            New location
+          </Link>
+        </div>
       </div>
 
       {!seeded ? (

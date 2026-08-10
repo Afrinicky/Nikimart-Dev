@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Container } from "@/components/ui/Container";
 import { ShippingRatesForm } from "@/components/admin/ShippingRatesForm";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
@@ -33,6 +34,9 @@ export default async function AdminShippingPage() {
         crumbs={[{ label: "Admin", href: "/admin" }, { label: "Shipping" }]}
       />
       <Container className="py-8">
+        <div className="mb-6 flex justify-end">
+          <ExportButton dataset="shipping" />
+        </div>
         <ShippingRatesForm hubs={hubs} routes={routes} settings={settings as unknown as Record<string, string>} />
       </Container>
     </>

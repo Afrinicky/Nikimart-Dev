@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { ProductImagesField } from "@/components/admin/ProductImagesField";
 import { KeyAttributesField } from "@/components/admin/KeyAttributesField";
+import { AffiliateEnrolmentField } from "@/components/admin/AffiliateEnrolmentField";
 import type { CrudState } from "@/lib/admin-actions";
 import type { Product } from "@/lib/types";
 
@@ -18,6 +19,15 @@ const PRODUCT_TYPES = [
   { value: "food", label: "Food" },
 ];
 
+export interface ProductFormCategory {
+  id: string;
+  name: string;
+  /** Platform commission for the category (percent) — drives the affiliate cap. */
+  commissionRate?: number | null;
+  /** Suggested affiliate commission for the category (percent). */
+  affiliateCommissionRate?: number | null;
+}
+
 export function ProductForm({
   action,
   categories,
@@ -25,17 +35,30 @@ export function ProductForm({
   product,
   submitLabel,
   lockedVendorId,
+  actor = "admin",
+  cancelHref = "/admin/products",
+  defaultCommissionRate,
+  defaultAffiliateRate,
 }: {
   action: Action;
-  categories: { id: string; name: string }[];
+  categories: ProductFormCategory[];
   vendors: { id: string; businessName: string }[];
   product?: Product;
   submitLabel: string;
   /** When set, the vendor is fixed (seller flow) — no shop picker is shown. */
   lockedVendorId?: string;
+  /** Sellers can only enrol products at their own expense. */
+  actor?: "admin" | "seller";
+  cancelHref?: string;
+  /** Platform default commission (percent) when a category has no override. */
+  defaultCommissionRate: number;
+  /** Programme default affiliate commission (percent). */
+  defaultAffiliateRate: number;
 }) {
   const [state, formAction] = useActionState<CrudState, FormData>(action, {});
   const p = product;
+  const [categoryId, setCategoryId] = useState(p?.categoryId ?? "");
+  const selectedCategory = categories.find((c) => c.id === categoryId);
 
   return (
     <form action={formAction} className="space-y-5" noValidate>
@@ -97,7 +120,14 @@ export function ProductForm({
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Category" htmlFor="categoryId" hint={state.fieldErrors?.categoryId}>
-          <select id="categoryId" name="categoryId" defaultValue={p?.categoryId ?? ""} required className={inputClass}>
+          <select
+            id="categoryId"
+            name="categoryId"
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            required
+            className={inputClass}
+          >
             <option value="" disabled>
               Choose…
             </option>
@@ -148,6 +178,16 @@ export function ProductForm({
 
       <KeyAttributesField initial={p?.attributes} />
 
+      <AffiliateEnrolmentField
+        actor={actor}
+        enabled={p?.affiliateEnabled ?? false}
+        enrolledBy={p?.affiliateEnrolledBy ?? ""}
+        rate={p?.affiliateCommissionRate ?? null}
+        categoryAffiliateRate={selectedCategory?.affiliateCommissionRate ?? null}
+        platformCommissionRate={selectedCategory?.commissionRate ?? defaultCommissionRate}
+        defaultAffiliateRate={defaultAffiliateRate}
+      />
+
       <fieldset className="rounded-xl bg-niki-surface p-4 ring-1 ring-black/5">
         <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-niki-ink/50">
           Flags
@@ -174,7 +214,7 @@ export function ProductForm({
         <div className="w-40">
           <SubmitButton>{submitLabel}</SubmitButton>
         </div>
-        <Link href="/admin/products" className="text-sm font-medium text-niki-ink/60 hover:text-niki-ink">
+        <Link href={cancelHref} className="text-sm font-medium text-niki-ink/60 hover:text-niki-ink">
           Cancel
         </Link>
       </div>
