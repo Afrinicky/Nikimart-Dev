@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { Check, Pencil, Plus, X } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { DeleteButton } from "@/components/admin/DeleteButton";
+import { ExportButton } from "@/components/admin/ExportButton";
+import { FilterChip } from "@/components/admin/FilterChip";
 import { prisma } from "@/lib/prisma";
 import { deleteVendor, setVendorVerification } from "@/lib/admin-actions";
 
@@ -14,29 +16,62 @@ const STATUS_TONE: Record<string, string> = {
   rejected: "bg-niki-danger/10 text-niki-danger",
 };
 
-export default async function AdminVendorsPage() {
-  const vendors = await prisma.vendor.findMany({
-    orderBy: { businessName: "asc" },
-    include: { _count: { select: { products: true } }, owner: true },
-  });
+const STATUSES = ["pending", "verified", "rejected"] as const;
+
+export default async function AdminVendorsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
+  const { status } = await searchParams;
+  // "Pending verifications" on the overview links here with ?status=pending.
+  const statusFilter = STATUSES.find((s) => s === status) ?? null;
+
+  const [vendors, statusCounts] = await Promise.all([
+    prisma.vendor.findMany({
+      where: statusFilter ? { verificationStatus: statusFilter } : undefined,
+      orderBy: { businessName: "asc" },
+      include: { _count: { select: { products: true } }, owner: true },
+    }),
+    prisma.vendor.groupBy({ by: ["verificationStatus"], _count: { _all: true } }),
+  ]);
+  const countByStatus = new Map(statusCounts.map((s) => [s.verificationStatus, s._count._all]));
+  const total = statusCounts.reduce((s, r) => s + r._count._all, 0);
 
   return (
     <Container className="py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-niki-ink">Shops</h1>
-          <p className="mt-1 text-sm text-niki-ink/60">{vendors.length} shops</p>
+          <p className="mt-1 text-sm text-niki-ink/60">
+            {vendors.length} {statusFilter ? `${statusFilter} shops` : "shops"}
+          </p>
         </div>
-        <Link
-          href="/admin/vendors/new"
-          className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
-        >
-          <Plus className="h-4 w-4" />
-          New shop
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportButton dataset="shops" />
+          <Link
+            href="/admin/vendors/new"
+            className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+          >
+            <Plus className="h-4 w-4" />
+            New shop
+          </Link>
+        </div>
       </div>
 
-      <div className="mt-6 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">
+      <div className="mt-5 flex flex-wrap gap-1.5">
+        <FilterChip href="/admin/vendors" label={`All (${total})`} active={!statusFilter} />
+        {STATUSES.map((s) => (
+          <FilterChip
+            key={s}
+            href={`/admin/vendors?status=${s}`}
+            label={`${s[0].toUpperCase()}${s.slice(1)} (${countByStatus.get(s) ?? 0})`}
+            active={statusFilter === s}
+          />
+        ))}
+      </div>
+
+      <div className="mt-5 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">
         <table className="w-full min-w-[820px] text-left text-sm">
           <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/50">
             <tr>

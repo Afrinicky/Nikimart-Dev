@@ -111,6 +111,11 @@ model Category {
   // Optional per-category commission override (percent). Null = use the
   // platform default commission rate from site settings.
   commissionRate Float?
+  // Admin-set default affiliate commission (percent of the item price) for
+  // products in this category. Null = use the programme default from settings.
+  // It's the rate a seller sees suggested when enrolling a product, and the
+  // rate used when a product is enrolled without its own override.
+  affiliateCommissionRate Float?
   products     Product[]
 }
 
@@ -260,6 +265,25 @@ model Product {
   // JSON-encoded array of { label, value } key attributes (spec table).
   attributes               String   @default("[]")
 
+  // --- Affiliate programme enrolment ---------------------------------------
+  // Whether this product is offered to affiliate marketers. Only enrolled
+  // products appear in an affiliate's shareable catalogue and earn commission.
+  affiliateEnabled         Boolean  @default(false)
+  // Who enrolled it, and therefore who funds the commission:
+  //   "seller"   — the seller opted in; the commission comes out of their net.
+  //   "admin"    — NikiMart opted in; the platform funds it out of its own
+  //                commission, capped at half of it (see lib/affiliate-commission).
+  //   ""         — not enrolled.
+  affiliateEnrolledBy      String   @default("")
+  // Commission percent of the item price paid to the referring affiliate.
+  // Null = fall back to the category rate, then the programme default.
+  affiliateCommissionRate  Float?
+
+  // Archived products are hidden from the storefront but keep their sales
+  // history. Deleting a product that has been ordered would destroy order,
+  // payout, and commission records, so those are archived instead.
+  isArchived               Boolean  @default(false)
+
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id])
   vendorId   String
@@ -316,6 +340,13 @@ model OrderItem {
   // Platform commission percent captured at sale time, so seller payouts stay
   // accurate even if the rate changes later. Seller earns unitPrice*qty*(1-rate/100).
   commissionRate Float @default(0)
+
+  // Affiliate commission snapshot for this line: the percent applied, the cash
+  // amount, and who funds it ("seller" | "platform" | "" when there's none).
+  // Snapshotted at sale time so enrolment changes never rewrite past payouts.
+  affiliateCommissionRate Float  @default(0)
+  affiliateCommission     Float  @default(0)
+  affiliateFundedBy       String @default("")
 
   orderId   String
   order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)

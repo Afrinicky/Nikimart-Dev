@@ -49,9 +49,18 @@ export function CategoryForm({
         </Field>
       </div>
 
-      <Field label="Commission override (%)" htmlFor="commissionRate" hint="Leave blank to use the platform default commission for this category.">
-        <input id="commissionRate" name="commissionRate" type="number" min="0" max="100" step="0.1" defaultValue={c?.commissionRate ?? ""} className={inputClass} />
-      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Commission override (%)" htmlFor="commissionRate" hint="Leave blank to use the platform default commission for this category.">
+          <input id="commissionRate" name="commissionRate" type="number" min="0" max="100" step="0.1" defaultValue={c?.commissionRate ?? ""} className={inputClass} />
+        </Field>
+        <Field
+          label="Affiliate commission (%)"
+          htmlFor="affiliateCommissionRate"
+          hint="The rate suggested to sellers listing in this category, and used when a product doesn't set its own. Blank = programme default."
+        >
+          <input id="affiliateCommissionRate" name="affiliateCommissionRate" type="number" min="0" max="100" step="0.1" defaultValue={c?.affiliateCommissionRate ?? ""} className={inputClass} />
+        </Field>
+      </div>
 
       <div className="flex items-center gap-3">
         <div className="w-40">

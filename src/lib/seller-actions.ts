@@ -41,7 +41,7 @@ export async function createSellerProduct(_prev: CrudState, fd: FormData): Promi
   const parsed = validateProduct(fd);
   if (!parsed.success) return zodErrors(parsed.error);
 
-  const data = buildProductData(fd, vendor.id);
+  const data = buildProductData(fd, { vendorId: vendor.id, actor: "seller" });
   const existing = await prisma.product.findUnique({ where: { slug: data.slug } });
   if (existing) return { error: "Slug already in use.", fieldErrors: { slug: "Already exists." } };
 
@@ -61,7 +61,7 @@ export async function updateSellerProduct(id: string, _prev: CrudState, fd: Form
   const parsed = validateProduct(fd);
   if (!parsed.success) return zodErrors(parsed.error);
 
-  const data = buildProductData(fd, vendor.id);
+  const data = buildProductData(fd, { vendorId: vendor.id, actor: "seller" });
   const clash = await prisma.product.findFirst({ where: { slug: data.slug, NOT: { id } } });
   if (clash) return { error: "Slug already in use.", fieldErrors: { slug: "Already exists." } };
 
@@ -71,6 +71,11 @@ export async function updateSellerProduct(id: string, _prev: CrudState, fd: Form
   redirect("/seller/products");
 }
 
+/**
+ * Take a product off the storefront. Products with sales are archived rather
+ * than deleted — deleting one would drag its order items with it and quietly
+ * rewrite past orders, settlements, and commission totals.
+ */
 export async function deleteSellerProduct(fd: FormData): Promise<void> {
   const vendor = await currentVendor();
   if (!vendor) return;
@@ -78,8 +83,15 @@ export async function deleteSellerProduct(fd: FormData): Promise<void> {
   const product = await prisma.product.findUnique({ where: { id }, select: { vendorId: true } });
   if (!product || product.vendorId !== vendor.id) return;
 
-  await prisma.orderItem.deleteMany({ where: { productId: id } });
-  await prisma.product.delete({ where: { id } });
+  const sold = await prisma.orderItem.count({ where: { productId: id } });
+  if (sold > 0) {
+    await prisma.product.update({
+      where: { id },
+      data: { isArchived: true, affiliateEnabled: false, affiliateEnrolledBy: "" },
+    });
+  } else {
+    await prisma.product.delete({ where: { id } });
+  }
   revalidate();
 }
 
@@ -177,7 +189,6 @@ export async function registerVendor(_prev: VendorRegisterState, fd: FormData): 
   const businessName = s("businessName");
   const description = s("description");
   const sellerType = s("sellerType");
-  const email = s("email");
   const phone = s("phone");
   const location = s("location");
   const payoutMethod = s("payoutMethod");
@@ -245,12 +256,15 @@ export async function registerVendor(_prev: VendorRegisterState, fd: FormData): 
       },
     });
 
-    // Promote the account to SELLER and keep contact details in sync.
+    // Promote the account to SELLER and record the contact phone. The sign-in
+    // email is deliberately left alone: this form doesn't verify ownership of
+    // the address, so letting it rewrite the login identity would turn shop
+    // registration into an unverified email-change endpoint. The business email
+    // entered here is shop contact detail, not a credential.
     await prisma.user.update({
       where: { id: user.id },
       data: {
         role: user.role === "ADMIN" ? "ADMIN" : "SELLER",
-        ...(email ? { email: email.toLowerCase() } : {}),
         ...(phone ? { phone } : {}),
       },
     });
@@ -294,6 +308,15 @@ export async function requestSellerPayout(_prev: PayoutRequestState, fd: FormDat
       ? `${vendor.bankName} · ${vendor.bankAccountNumber} · ${vendor.bankAccountName}`
       : `${vendor.momoNumber} · ${vendor.momoName}`;
   try {
+    // One open request at a time — two submissions racing the balance check
+    // above would otherwise both pass and together exceed the cleared balance.
+    const openRequest = await prisma.payout.findFirst({
+      where: { vendorId: vendor.id, status: "pending" },
+      select: { id: true },
+    });
+    if (openRequest) {
+      return { error: "You already have a payout request awaiting review." };
+    }
     await prisma.payout.create({
       data: {
         vendorId: vendor.id,

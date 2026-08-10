@@ -69,9 +69,10 @@ export default async function SellerSettlementsPage() {
           <RequestPayoutForm available={earnings.available} hasPayoutDetails={Boolean(vendor.payoutMethod)} />
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
           <StatCard label="Gross sales" value={formatPrice(earnings.gross)} />
           <StatCard label="Commission" value={formatPrice(earnings.commission)} />
+          <StatCard label="Affiliate commission" value={formatPrice(earnings.affiliateCost)} />
           <StatCard label="In escrow" value={formatPrice(earnings.inEscrow)} />
           <StatCard label="Paid out" value={formatPrice(earnings.paidOut)} />
         </div>
@@ -82,6 +83,12 @@ export default async function SellerSettlementsPage() {
             share (sale price minus commission) is held <span className="font-medium">in escrow</span>. Once the
             order is <span className="font-medium">delivered</span>, it clears and becomes available for payout.
             NikiMart&apos;s commission is deducted automatically per item.
+          </p>
+          <p className="mt-2">
+            <span className="font-semibold text-niki-ink">Affiliate commission</span> is only deducted on
+            products you enrolled in the affiliate programme yourself, at the rate you set when listing
+            them. Products NikiMart enrols cost you nothing — the platform funds those out of its own
+            commission. Change or withdraw an enrolment any time on the product.
           </p>
         </div>
 

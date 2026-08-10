@@ -364,6 +364,246 @@ CREATE TABLE "Location" (
 -- AlterTable
 ALTER TABLE "Shipment" ADD COLUMN     "manualHold" BOOLEAN NOT NULL DEFAULT false;
 
+-- migration: 20260716213250_vendor_origin_country
+-- AlterTable
+ALTER TABLE "Vendor" ADD COLUMN     "originCountry" TEXT NOT NULL DEFAULT 'GH';
+
+-- migration: 20260716214423_delivery_engine
+-- AlterTable
+ALTER TABLE "Location" ADD COLUMN     "deliveryZoneMultiplier" DOUBLE PRECISION NOT NULL DEFAULT 1;
+
+-- AlterTable
+ALTER TABLE "Product" ADD COLUMN     "shippingWeightKg" DOUBLE PRECISION NOT NULL DEFAULT 0.5;
+
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "address" TEXT,
+ADD COLUMN     "preferredPickupId" TEXT;
+
+-- AddForeignKey
+ALTER TABLE "User" ADD CONSTRAINT "User_preferredPickupId_fkey" FOREIGN KEY ("preferredPickupId") REFERENCES "PickupPoint"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- migration: 20260717154549_banners
+-- CreateTable
+CREATE TABLE "Banner" (
+    "id" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "subtitle" TEXT NOT NULL DEFAULT '',
+    "eventWindow" TEXT NOT NULL DEFAULT '',
+    "ctaLabel" TEXT NOT NULL DEFAULT 'Shop now',
+    "ctaHref" TEXT NOT NULL DEFAULT '/products',
+    "image" TEXT,
+    "accentFrom" TEXT NOT NULL DEFAULT '#ff7a1a',
+    "accentTo" TEXT NOT NULL DEFAULT '#0e1f36',
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Banner_pkey" PRIMARY KEY ("id")
+);
+
+-- migration: 20260723205353_commission_and_payouts
+-- AlterTable
+ALTER TABLE "Category" ADD COLUMN     "commissionRate" DOUBLE PRECISION;
+
+-- AlterTable
+ALTER TABLE "OrderItem" ADD COLUMN     "commissionRate" DOUBLE PRECISION NOT NULL DEFAULT 0;
+
+-- CreateTable
+CREATE TABLE "Payout" (
+    "id" TEXT NOT NULL,
+    "amount" DOUBLE PRECISION NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'pending',
+    "method" TEXT NOT NULL DEFAULT '',
+    "reference" TEXT,
+    "note" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "paidAt" TIMESTAMP(3),
+    "vendorId" TEXT NOT NULL,
+
+    CONSTRAINT "Payout_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "Payout_vendorId_idx" ON "Payout"("vendorId");
+
+-- AddForeignKey
+ALTER TABLE "Payout" ADD CONSTRAINT "Payout_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "Vendor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- migration: 20260723211818_affiliates
+-- CreateTable
+CREATE TABLE "Affiliate" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "phone" TEXT NOT NULL DEFAULT '',
+    "email" TEXT NOT NULL DEFAULT '',
+    "code" TEXT,
+    "note" TEXT NOT NULL DEFAULT '',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Affiliate_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AffiliatePayout" (
+    "id" TEXT NOT NULL,
+    "amount" DOUBLE PRECISION NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'pending',
+    "method" TEXT NOT NULL DEFAULT '',
+    "reference" TEXT,
+    "note" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "paidAt" TIMESTAMP(3),
+    "affiliateId" TEXT NOT NULL,
+
+    CONSTRAINT "AffiliatePayout_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Affiliate_code_key" ON "Affiliate"("code");
+
+-- CreateIndex
+CREATE INDEX "AffiliatePayout_affiliateId_idx" ON "AffiliatePayout"("affiliateId");
+
+-- AddForeignKey
+ALTER TABLE "AffiliatePayout" ADD CONSTRAINT "AffiliatePayout_affiliateId_fkey" FOREIGN KEY ("affiliateId") REFERENCES "Affiliate"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- migration: 20260723213736_shipment_stage_confirmations
+-- AlterTable
+ALTER TABLE "Shipment" ADD COLUMN     "deliveredAt" TIMESTAMP(3),
+ADD COLUMN     "outForDeliveryAt" TIMESTAMP(3),
+ADD COLUMN     "processingAt" TIMESTAMP(3),
+ADD COLUMN     "transitAt" TIMESTAMP(3),
+ALTER COLUMN "status" SET DEFAULT 'created';
+
+-- Back-fill per-stage confirmation timestamps from existing status so orders
+-- already in progress keep their ticked steps (later stage back-fills earlier).
+UPDATE "Shipment" SET "processingAt" = COALESCE("processingAt", "createdAt")
+  WHERE status IN ('processing','in_transit','out_for_delivery','delivered');
+UPDATE "Shipment" SET "transitAt" = COALESCE("transitAt", "createdAt")
+  WHERE status IN ('in_transit','out_for_delivery','delivered');
+UPDATE "Shipment" SET "outForDeliveryAt" = COALESCE("outForDeliveryAt", "createdAt")
+  WHERE status IN ('out_for_delivery','delivered');
+UPDATE "Shipment" SET "deliveredAt" = COALESCE("deliveredAt", "createdAt")
+  WHERE status = 'delivered';
+
+-- migration: 20260723215102_password_reset_tokens
+-- CreateTable
+CREATE TABLE "PasswordResetToken" (
+    "id" TEXT NOT NULL,
+    "tokenHash" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "usedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "userId" TEXT NOT NULL,
+
+    CONSTRAINT "PasswordResetToken_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PasswordResetToken_tokenHash_key" ON "PasswordResetToken"("tokenHash");
+
+-- CreateIndex
+CREATE INDEX "PasswordResetToken_userId_idx" ON "PasswordResetToken"("userId");
+
+-- AddForeignKey
+ALTER TABLE "PasswordResetToken" ADD CONSTRAINT "PasswordResetToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- migration: 20260725115329_seller_payout_details
+-- AlterTable
+ALTER TABLE "Vendor" ADD COLUMN     "bankAccountName" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "bankAccountNumber" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "bankName" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "momoName" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "momoNumber" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "payoutMethod" TEXT NOT NULL DEFAULT '';
+
+-- migration: 20260725115736_product_dimensions
+-- AlterTable
+ALTER TABLE "Product" ADD COLUMN     "heightCm" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "lengthCm" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "widthCm" DOUBLE PRECISION NOT NULL DEFAULT 0;
+
+-- migration: 20260725120339_reset_otp
+-- DropIndex
+DROP INDEX "PasswordResetToken_tokenHash_key";
+
+-- AlterTable
+ALTER TABLE "PasswordResetToken" ADD COLUMN     "attempts" INTEGER NOT NULL DEFAULT 0;
+
+-- migration: 20260725121000_affiliate_referrals
+-- AlterTable
+ALTER TABLE "Affiliate" ADD COLUMN "userId" TEXT;
+
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN "affiliateId" TEXT,
+ADD COLUMN "affiliateCommission" DOUBLE PRECISION NOT NULL DEFAULT 0;
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Affiliate_userId_key" ON "Affiliate"("userId");
+
+-- AddForeignKey
+ALTER TABLE "Affiliate" ADD CONSTRAINT "Affiliate_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Order" ADD CONSTRAINT "Order_affiliateId_fkey" FOREIGN KEY ("affiliateId") REFERENCES "Affiliate"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- migration: 20260725130000_affiliate_status_rate
+-- AlterTable
+ALTER TABLE "Affiliate" ADD COLUMN "status" TEXT NOT NULL DEFAULT 'active',
+ADD COLUMN "commissionRate" DOUBLE PRECISION;
+
+-- migration: 20260805120000_shipping_cbm_routes
+-- CBM pickup-only shipping: product CBM, seller origin hub, and route rates.
+
+-- AlterTable
+ALTER TABLE "Product" ADD COLUMN     "cbm" DOUBLE PRECISION NOT NULL DEFAULT 0;
+
+-- AlterTable
+ALTER TABLE "Vendor" ADD COLUMN     "originPickupId" TEXT;
+
+-- CreateTable
+CREATE TABLE "ShippingRate" (
+    "id" TEXT NOT NULL,
+    "originHubId" TEXT NOT NULL,
+    "destPickupId" TEXT NOT NULL,
+    "ratePerCbm" DOUBLE PRECISION NOT NULL DEFAULT 0,
+
+    CONSTRAINT "ShippingRate_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "ShippingRate_destPickupId_idx" ON "ShippingRate"("destPickupId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ShippingRate_originHubId_destPickupId_key" ON "ShippingRate"("originHubId", "destPickupId");
+
+-- AddForeignKey
+ALTER TABLE "Vendor" ADD CONSTRAINT "Vendor_originPickupId_fkey" FOREIGN KEY ("originPickupId") REFERENCES "PickupPoint"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ShippingRate" ADD CONSTRAINT "ShippingRate_originHubId_fkey" FOREIGN KEY ("originHubId") REFERENCES "PickupPoint"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ShippingRate" ADD CONSTRAINT "ShippingRate_destPickupId_fkey" FOREIGN KEY ("destPickupId") REFERENCES "PickupPoint"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- migration: 20260810120000_affiliate_product_enrolment
+-- Affiliate programme: per-product enrolment + per-line commission snapshots,
+-- and product archiving (so products with sales are never hard-deleted).
+
+-- Category: admin-set default affiliate commission for the category.
+ALTER TABLE "Category" ADD COLUMN "affiliateCommissionRate" DOUBLE PRECISION;
+
+-- Product: enrolment flags + archiving.
+ALTER TABLE "Product" ADD COLUMN "affiliateEnabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Product" ADD COLUMN "affiliateEnrolledBy" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "Product" ADD COLUMN "affiliateCommissionRate" DOUBLE PRECISION;
+ALTER TABLE "Product" ADD COLUMN "isArchived" BOOLEAN NOT NULL DEFAULT false;
+
+-- OrderItem: affiliate commission snapshot per line.
+ALTER TABLE "OrderItem" ADD COLUMN "affiliateCommissionRate" DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE "OrderItem" ADD COLUMN "affiliateCommission" DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE "OrderItem" ADD COLUMN "affiliateFundedBy" TEXT NOT NULL DEFAULT '';
+
 -- 3. Prisma migration bookkeeping --------------------------------------
 CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
   "id" VARCHAR(36) PRIMARY KEY NOT NULL,
@@ -376,22 +616,50 @@ CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
   "applied_steps_count" INTEGER NOT NULL DEFAULT 0
 );
 INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
-VALUES ('ce2fb7eb-1842-447f-a2db-c90579245853', '8959088ee31a93b09143007d1ed10e0533633c821e2fa58d9d2ffa63f496bbfa', now(), '20260706153330_init', now(), 1);
+VALUES ('284cce86-5486-442b-8144-1857d76c75b5', '8959088ee31a93b09143007d1ed10e0533633c821e2fa58d9d2ffa63f496bbfa', now(), '20260706153330_init', now(), 1);
 INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
-VALUES ('f166992c-132f-4ed1-8b33-71ace7320c57', '1429f0dd86754159415f88a91cac91fc1df87bb49edd9c5b685bc9b597be786e', now(), '20260711235008_page_builder', now(), 1);
+VALUES ('2b8d6d31-cd52-49d4-beee-cfe8806525f5', '1429f0dd86754159415f88a91cac91fc1df87bb49edd9c5b685bc9b597be786e', now(), '20260711235008_page_builder', now(), 1);
 INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
-VALUES ('8b1abba8-b108-4a1c-8521-10bc3c313090', '150ff749889bb7322e4c2036e4c34af9db31046d5da3138ddcc3e8d9a6f4e84a', now(), '20260712142729_product_images_attributes', now(), 1);
+VALUES ('486c93fc-a21f-42cc-b273-2625849f0c23', '150ff749889bb7322e4c2036e4c34af9db31046d5da3138ddcc3e8d9a6f4e84a', now(), '20260712142729_product_images_attributes', now(), 1);
 INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
-VALUES ('c9a1b15e-df4b-4ac9-9e0e-83a6d4ac04e3', 'c8a149d9bc9fd8ed6b429262beff6739d41243e17379b3c38a48dbaa4f7d1e2b', now(), '20260712144801_faqs_locations', now(), 1);
+VALUES ('6b2c4914-f0c0-4acb-a604-75e66083e87e', 'c8a149d9bc9fd8ed6b429262beff6739d41243e17379b3c38a48dbaa4f7d1e2b', now(), '20260712144801_faqs_locations', now(), 1);
 INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
-VALUES ('5cafc921-ed47-417d-b00b-5d664f6fcb48', '76fa8103b605b0c024b046544a704e5c77a6d189602be1f5089017d3826ee5b3', now(), '20260712150346_shipment_manual_hold', now(), 1);
+VALUES ('02414dcb-349c-4e57-b2e6-2a78e0e40f5c', '76fa8103b605b0c024b046544a704e5c77a6d189602be1f5089017d3826ee5b3', now(), '20260712150346_shipment_manual_hold', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('2fa75082-f7be-4b89-834c-5203c4024720', '182f71a28392cbc6ab5de9b2eab11eea410215c93c8f2a255f8d420e7990770a', now(), '20260716213250_vendor_origin_country', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('f2b3a743-3bc3-463a-8a69-84ecf49cc58d', '7ef1e5fb206535e874aa98db3d133d79a51ac8e7a1ee25143e7df0416ba9ff55', now(), '20260716214423_delivery_engine', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('302957cc-ed74-4950-90fd-fb62235a79ae', '68b46c8a32ef3a5fba7e52bd10abfe71a869dabf7ab4136a2bd59594ed3980d7', now(), '20260717154549_banners', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('48ec39da-5211-452a-9bff-6eeffe9f52c5', 'a5108fa4d72fc568a2a43514be5a91df8baf0657764b3618f50f4970bf0c0dae', now(), '20260723205353_commission_and_payouts', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('92b388bb-0f31-4de6-a09b-f3fe4f919830', '0f50c95be80f53a6ed1f12cd24b5fb457fb115841b8061dc3550eed9b0c931f4', now(), '20260723211818_affiliates', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('741c5336-9a34-4bb2-b0c3-def68c307bd1', '7a8ddc46e4ac523f3449213819bbe2f9901ed66b676f8d656734db442a2de003', now(), '20260723213736_shipment_stage_confirmations', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('d11c1183-602a-460b-9086-cb08eb371bf8', '0a0ecc75a2f82d9b1a1b1b2563cee42806132e3fd4aa1785ac92e92c6a0b2d19', now(), '20260723215102_password_reset_tokens', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('2b05f916-62ef-4e90-8437-160452d47aaf', 'b5974dc70f89ca23e80bd6fca0a9d95b59d0921e099c3e490cc712e90b33905c', now(), '20260725115329_seller_payout_details', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('4e710bfc-923a-42a2-b8c1-b05b2599d2fe', '3fd35b5c903d90d7e9b0be1280befe8aa6847a90eb772006d13f1e6120436c43', now(), '20260725115736_product_dimensions', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('282e4690-2b1b-4a9d-b900-b578937ec60f', '1eb3506c8711ba48bb70fb1d81175a19b2d655c02012a6336277ce89162b1643', now(), '20260725120339_reset_otp', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('9e342383-4c91-4e2e-a46e-465f855519c7', 'bbc4c6489330b38a573c9302a4806a199829dc97d9412342c02e94feea266b9e', now(), '20260725121000_affiliate_referrals', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('353b5027-17a7-49c4-a842-1c408e30f060', 'cb77a87d2b98b4dcb73b1d470fc6e7f1b2113697efadda86930277ad3ffd954c', now(), '20260725130000_affiliate_status_rate', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('620d9552-a6e1-4909-8723-e5b84933d309', '9ac11c6d06231b48b0f6d8cc1c28b60ff28c5335dd36c1d41eaa916f719be528', now(), '20260805120000_shipping_cbm_routes', now(), 1);
+INSERT INTO "_prisma_migrations" ("id","checksum","finished_at","migration_name","started_at","applied_steps_count")
+VALUES ('2aba3395-f851-4c34-ba8e-ffb3b5345d15', '592392049afd63993a0dcfe04db38e5ca9c8f1826cda9d27e47e4ff3ff8e7dd6', now(), '20260810120000_affiliate_product_enrolment', now(), 1);
 
 -- 4. Demo accounts (password for all: password123) --------------------
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-customer', 'Ama Mensah', 'customer@nikimart.test', '024 000 0001', '$2b$10$zkdbrjs5bqjEmV3tfGhCaO3v3XhW8kTgsluIo81ppY5JJv0YpigN6', 'CUSTOMER', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-seller', 'Kojo Owusu', 'seller@nikimart.test', '024 000 0002', '$2b$10$zkdbrjs5bqjEmV3tfGhCaO3v3XhW8kTgsluIo81ppY5JJv0YpigN6', 'SELLER', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-admin', 'Nana Adjei', 'admin@nikimart.test', '024 000 0003', '$2b$10$zkdbrjs5bqjEmV3tfGhCaO3v3XhW8kTgsluIo81ppY5JJv0YpigN6', 'ADMIN', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-freight', 'Yaw Boateng', 'freight@nikimart.test', '024 000 0004', '$2b$10$zkdbrjs5bqjEmV3tfGhCaO3v3XhW8kTgsluIo81ppY5JJv0YpigN6', 'FREIGHT', now(), now());
-INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-pickup', 'Efua Sarpong', 'pickup@nikimart.test', '024 000 0005', '$2b$10$zkdbrjs5bqjEmV3tfGhCaO3v3XhW8kTgsluIo81ppY5JJv0YpigN6', 'PICKUP', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-customer', 'Ama Mensah', 'customer@nikimart.test', '024 000 0001', '$2b$10$lHQQ.NVGtLnxiDd9t5ITMuwRn.YMFrnWwOshaLnvO.CNj1yS.KJ5.', 'CUSTOMER', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-seller', 'Kojo Owusu', 'seller@nikimart.test', '024 000 0002', '$2b$10$lHQQ.NVGtLnxiDd9t5ITMuwRn.YMFrnWwOshaLnvO.CNj1yS.KJ5.', 'SELLER', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-admin', 'Nana Adjei', 'admin@nikimart.test', '024 000 0003', '$2b$10$lHQQ.NVGtLnxiDd9t5ITMuwRn.YMFrnWwOshaLnvO.CNj1yS.KJ5.', 'ADMIN', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-freight', 'Yaw Boateng', 'freight@nikimart.test', '024 000 0004', '$2b$10$lHQQ.NVGtLnxiDd9t5ITMuwRn.YMFrnWwOshaLnvO.CNj1yS.KJ5.', 'FREIGHT', now(), now());
+INSERT INTO "User" ("id","name","email","phone","passwordHash","role","createdAt","updatedAt") VALUES ('usr-pickup', 'Efua Sarpong', 'pickup@nikimart.test', '024 000 0005', '$2b$10$lHQQ.NVGtLnxiDd9t5ITMuwRn.YMFrnWwOshaLnvO.CNj1yS.KJ5.', 'PICKUP', now(), now());
 
 -- Categories ----------------------------------------------------------
 INSERT INTO "Category" ("id","name","slug","icon","description","productCount") VALUES ('cat-phones', 'Phones & Tablets', 'phones-tablets', 'smartphone', 'Smartphones, tablets and accessories', 482);
@@ -411,13 +679,13 @@ INSERT INTO "Category" ("id","name","slug","icon","description","productCount") 
 INSERT INTO "Category" ("id","name","slug","icon","description","productCount") VALUES ('cat-official', 'NikiMart Official Store', 'nikimart-official-store', 'badge-check', 'Verified NikiMart branded products', 41);
 
 -- Vendors (first vendor owned by the seller demo account) -------------
-INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES ('vendor-campusgadgets', 'campus-gadgets-hub', 'Campus Gadgets Hub', '["campus_vendor","local_shop"]', 'Your go-to spot for phones, accessories and gadget repairs right on campus.', 'CG', '#FF8A00', '#FFC107', '["ug","accra"]', 'verified', 4.8, 312, 5400, FALSE, TRUE, TRUE, TRUE, 'usr-seller');
-INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES ('vendor-nikimart-official', 'nikimart-official-store', 'NikiMart Official Store', '["official_partner"]', 'Verified NikiMart branded gear, merch, and trusted bulk-sourced essentials.', 'NM', '#07111F', '#FF8A00', '["any"]', 'verified', 4.9, 1204, 18700, TRUE, TRUE, TRUE, TRUE, NULL);
-INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES ('vendor-importedstyles', 'imported-styles-gh', 'Imported Styles GH', '["preorder_seller","wholesale_supplier"]', 'Preorder the latest fashion and sneakers imported directly from trusted suppliers.', 'IS', '#122A47', '#FF8A00', '["kumasi","accra","knust"]', 'verified', 4.6, 198, 2300, FALSE, TRUE, FALSE, FALSE, NULL);
-INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES ('vendor-mamaadwoa', 'mama-adwoa-kitchen', 'Mama Adwoa''s Kitchen', '["food_vendor","local_shop"]', 'Home-style Ghanaian meals delivered hot and fresh to your hostel or office.', 'MA', '#10B981', '#FFC107', '["knust","kumasi"]', 'verified', 4.7, 540, 9100, FALSE, TRUE, TRUE, TRUE, NULL);
-INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES ('vendor-quickfix', 'quickfix-services', 'QuickFix Services', '["service_provider","campus_vendor"]', 'Phone repairs, laundry, printing and typing services for busy students.', 'QF', '#0E1F36', '#10B981', '["ug","upsa","accra"]', 'verified', 4.5, 267, 3600, FALSE, FALSE, TRUE, TRUE, NULL);
-INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES ('vendor-sunyanigeneral', 'sunyani-general-stores', 'Sunyani General Stores', '["local_shop","wholesale_supplier"]', 'Wholesale groceries and household provisions serving the Bono region.', 'SG', '#FF8A00', '#EF4444', '["sunyani","hwidiem","goaso","stu"]', 'verified', 4.4, 154, 2800, FALSE, TRUE, TRUE, FALSE, NULL);
-INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES ('vendor-glamhouse', 'glam-house-beauty', 'Glam House Beauty', '["local_shop"]', 'Curated skincare, makeup and fragrances for every budget.', 'GH', '#FFC107', '#EF4444', '["accra","ucc"]', 'pending', 4.3, 88, 940, FALSE, TRUE, FALSE, FALSE, NULL);
+INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","originCountry","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES ('vendor-campusgadgets', 'campus-gadgets-hub', 'Campus Gadgets Hub', '["campus_vendor","local_shop"]', 'Your go-to spot for phones, accessories and gadget repairs right on campus.', 'CG', '#FF8A00', '#FFC107', '["ug","accra"]', 'GH', 'verified', 4.8, 312, 5400, FALSE, TRUE, TRUE, TRUE, 'usr-seller');
+INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","originCountry","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES ('vendor-nikimart-official', 'nikimart-official-store', 'NikiMart Official Store', '["official_partner"]', 'Verified NikiMart branded gear, merch, and trusted bulk-sourced essentials.', 'NM', '#07111F', '#FF8A00', '["any"]', 'GH', 'verified', 4.9, 1204, 18700, TRUE, TRUE, TRUE, TRUE, NULL);
+INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","originCountry","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES ('vendor-importedstyles', 'imported-styles-gh', 'Imported Styles GH', '["preorder_seller","wholesale_supplier"]', 'Preorder the latest fashion and sneakers imported directly from trusted suppliers.', 'IS', '#122A47', '#FF8A00', '["kumasi","accra","knust"]', 'CN', 'verified', 4.6, 198, 2300, FALSE, TRUE, FALSE, FALSE, NULL);
+INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","originCountry","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES ('vendor-mamaadwoa', 'mama-adwoa-kitchen', 'Mama Adwoa''s Kitchen', '["food_vendor","local_shop"]', 'Home-style Ghanaian meals delivered hot and fresh to your hostel or office.', 'MA', '#10B981', '#FFC107', '["knust","kumasi"]', 'GH', 'verified', 4.7, 540, 9100, FALSE, TRUE, TRUE, TRUE, NULL);
+INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","originCountry","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES ('vendor-quickfix', 'quickfix-services', 'QuickFix Services', '["service_provider","campus_vendor"]', 'Phone repairs, laundry, printing and typing services for busy students.', 'QF', '#0E1F36', '#10B981', '["ug","upsa","accra"]', 'GH', 'verified', 4.5, 267, 3600, FALSE, FALSE, TRUE, TRUE, NULL);
+INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","originCountry","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES ('vendor-sunyanigeneral', 'sunyani-general-stores', 'Sunyani General Stores', '["local_shop","wholesale_supplier"]', 'Wholesale groceries and household provisions serving the Bono region.', 'SG', '#FF8A00', '#EF4444', '["sunyani","hwidiem","goaso","stu"]', 'GH', 'verified', 4.4, 154, 2800, FALSE, TRUE, TRUE, FALSE, NULL);
+INSERT INTO "Vendor" ("id","slug","businessName","sellerTypes","description","initials","accentFrom","accentTo","locationIds","originCountry","verificationStatus","rating","reviewCount","totalSales","isOfficial","deliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","ownerId") VALUES ('vendor-glamhouse', 'glam-house-beauty', 'Glam House Beauty', '["local_shop"]', 'Curated skincare, makeup and fragrances for every budget.', 'GH', '#FFC107', '#EF4444', '["accra","ucc"]', 'GH', 'pending', 4.3, 88, 940, FALSE, TRUE, FALSE, FALSE, NULL);
 
 -- Products ------------------------------------------------------------
 INSERT INTO "Product" ("id","slug","name","description","price","oldPrice","stockQuantity","productType","badges","locationIds","campusDeliveryAvailable","pickupAvailable","sameDayDeliveryAvailable","isOfficial","isFeatured","rating","reviewCount","gradientFrom","gradientTo","emoji","image","preorderInfo","serviceInfo","categoryId","vendorId") VALUES ('prod-iphone13', 'iphone-13-128gb', 'iPhone 13 128GB (UK Used)', 'Clean UK-used iPhone 13 with 128GB storage, 90% battery health, and a free tempered glass.', 3899, 4399, 6, 'in_stock', '["in_stock","verified_seller","campus_delivery","same_day_delivery"]', '["ug","accra"]', TRUE, TRUE, TRUE, FALSE, TRUE, 4.8, 64, '#0e1f36', '#07111f', '📱', '/products/iphone-13-128gb.jpg', NULL, NULL, 'cat-phones', 'vendor-campusgadgets');

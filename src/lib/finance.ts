@@ -1,10 +1,10 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { lineCommission, money } from "@/lib/commission";
+import { lineCommission, money, platformAffiliateCost, sellerAffiliateCost } from "@/lib/commission";
 import { getSellerEarnings, type SellerEarnings } from "@/lib/seller";
 
 export const FINANCE_METRICS = [
-  "gmv", "commission", "owed", "paid", "escrow", "delivery", "affiliate", "earnings",
+  "gmv", "commission", "owed", "paid", "escrow", "delivery", "affiliate", "affiliateCost", "earnings",
 ] as const;
 export type FinanceMetric = (typeof FINANCE_METRICS)[number];
 
@@ -43,8 +43,7 @@ export async function getFinanceBreakdown(metric: FinanceMetric): Promise<Breakd
         rows: orders.map((o) => ({ id: o.id, primary: o.orderNumber, secondary: o.user.name ?? o.user.email, amount: o.total, href: `/admin/orders/${o.id}` })),
       };
     }
-    case "commission":
-    case "earnings": {
+    case "commission": {
       const orders = await prisma.order.findMany({
         where: { status: NOT_CANCELLED_PENDING },
         orderBy: { createdAt: "desc" },
@@ -55,9 +54,66 @@ export async function getFinanceBreakdown(metric: FinanceMetric): Promise<Breakd
         .filter((r) => r.amount > 0);
       return {
         title: "Commission earned",
-        description: "Platform commission collected per order (also the platform's earnings).",
+        description: "Gross platform commission collected per order, before any affiliate commission NikiMart funds.",
         total: money(rows.reduce((s, r) => s + r.amount, 0)),
         columns: ["Order", "Customer", "Commission"],
+        rows,
+      };
+    }
+    case "earnings": {
+      const orders = await prisma.order.findMany({
+        where: { status: NOT_CANCELLED_PENDING },
+        orderBy: { createdAt: "desc" },
+        include: {
+          user: { select: { name: true, email: true } },
+          items: { select: { unitPrice: true, quantity: true, commissionRate: true, affiliateCommission: true, affiliateFundedBy: true } },
+        },
+      });
+      const rows = orders
+        .map((o) => ({
+          id: o.id,
+          primary: o.orderNumber,
+          secondary: o.user.name ?? o.user.email,
+          amount: money(o.items.reduce((s, i) => s + lineCommission(i) - platformAffiliateCost(i), 0)),
+          href: `/admin/orders/${o.id}`,
+        }))
+        .filter((r) => r.amount !== 0);
+      return {
+        title: "Platform earnings",
+        description: "Commission kept per order, after the affiliate commission NikiMart funds on products it enrolled itself.",
+        total: money(rows.reduce((s, r) => s + r.amount, 0)),
+        columns: ["Order", "Customer", "Net earnings"],
+        rows,
+      };
+    }
+    case "affiliateCost": {
+      const items = await prisma.orderItem.findMany({
+        where: { order: { status: NOT_CANCELLED_PENDING }, affiliateCommission: { gt: 0 } },
+        orderBy: { order: { createdAt: "desc" } },
+        select: {
+          id: true,
+          unitPrice: true,
+          quantity: true,
+          commissionRate: true,
+          affiliateCommission: true,
+          affiliateCommissionRate: true,
+          affiliateFundedBy: true,
+          product: { select: { name: true } },
+          order: { select: { id: true, orderNumber: true, affiliate: { select: { name: true } } } },
+        },
+      });
+      const rows = items.map((i) => ({
+        id: i.id,
+        primary: `${i.product.name} · ${i.order.orderNumber}`,
+        secondary: `${i.affiliateCommissionRate}% · funded by ${i.affiliateFundedBy === "platform" ? "NikiMart" : "the seller"} · ${i.order.affiliate?.name ?? "—"}`,
+        amount: money(i.affiliateCommission),
+        href: `/admin/orders/${i.order.id}`,
+      }));
+      return {
+        title: "Affiliate commission accrued",
+        description: "Commission earned by affiliates per line item, and who is paying for it.",
+        total: money(rows.reduce((s, r) => s + r.amount, 0)),
+        columns: ["Item / order", "Rate & funder", "Commission"],
         rows,
       };
     }
@@ -87,14 +143,19 @@ export async function getFinanceBreakdown(metric: FinanceMetric): Promise<Breakd
       const orders = await prisma.order.findMany({
         where: { status: { in: ["paid", "shipped"] } },
         orderBy: { createdAt: "desc" },
-        include: { user: { select: { name: true, email: true } }, items: { select: { unitPrice: true, quantity: true, commissionRate: true } } },
+        include: {
+          user: { select: { name: true, email: true } },
+          items: { select: { unitPrice: true, quantity: true, commissionRate: true, affiliateCommission: true, affiliateFundedBy: true } },
+        },
       });
+      const held = (o: (typeof orders)[number]) =>
+        money(o.items.reduce((a, i) => a + i.unitPrice * i.quantity - lineCommission(i) - sellerAffiliateCost(i), 0));
       return {
         title: "In escrow",
         description: "Seller earnings held on paid-but-undelivered orders.",
-        total: money(orders.reduce((s, o) => s + o.items.reduce((a, i) => a + i.unitPrice * i.quantity - lineCommission(i), 0), 0)),
+        total: money(orders.reduce((s, o) => s + held(o), 0)),
         columns: ["Order", "Customer", "Held"],
-        rows: orders.map((o) => ({ id: o.id, primary: o.orderNumber, secondary: o.user.name ?? o.user.email, amount: money(o.items.reduce((a, i) => a + i.unitPrice * i.quantity - lineCommission(i), 0)), href: `/admin/orders/${o.id}` })),
+        rows: orders.map((o) => ({ id: o.id, primary: o.orderNumber, secondary: o.user.name ?? o.user.email, amount: held(o), href: `/admin/orders/${o.id}` })),
       };
     }
     case "delivery": {
@@ -137,7 +198,16 @@ export interface FinanceOverview {
   sellerPending: number;
   /** Total paid to affiliates. */
   affiliatePaid: number;
-  /** Platform earnings = commission (delivery is pass-through to freight). */
+  /** Affiliate commission accrued on all referred sales, whoever funds it. */
+  affiliateAccrued: number;
+  /** The slice of that which NikiMart funds (products the admin enrolled). */
+  affiliateFundedByPlatform: number;
+  /** The slice sellers fund (products they enrolled themselves). */
+  affiliateFundedBySellers: number;
+  /**
+   * Platform earnings = commission − affiliate commission NikiMart funds.
+   * Delivery is pass-through to freight, so it isn't counted as earnings.
+   */
   platformEarnings: number;
 }
 
@@ -148,7 +218,13 @@ export async function getFinanceOverview(): Promise<FinanceOverview> {
     prisma.order.findMany({ where: { status: notCancelledPending }, select: { total: true, deliveryFee: true } }),
     prisma.orderItem.findMany({
       where: { order: { status: notCancelledPending } },
-      select: { unitPrice: true, quantity: true, commissionRate: true },
+      select: {
+        unitPrice: true,
+        quantity: true,
+        commissionRate: true,
+        affiliateCommission: true,
+        affiliateFundedBy: true,
+      },
     }),
     prisma.payout.findMany({ select: { amount: true, status: true } }),
     prisma.affiliatePayout.findMany({ select: { amount: true, status: true } }),
@@ -161,6 +237,8 @@ export async function getFinanceOverview(): Promise<FinanceOverview> {
   const sellerPaidOut = payouts.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
   const sellerPending = payouts.filter((p) => p.status === "pending").reduce((s, p) => s + p.amount, 0);
   const affiliatePaid = affPayouts.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
+  const affiliateFundedByPlatform = items.reduce((s, i) => s + platformAffiliateCost(i), 0);
+  const affiliateFundedBySellers = items.reduce((s, i) => s + sellerAffiliateCost(i), 0);
 
   // Aggregate seller balances (available + escrow).
   let owedToSellers = 0;
@@ -182,7 +260,10 @@ export async function getFinanceOverview(): Promise<FinanceOverview> {
     sellerPaidOut: money(sellerPaidOut),
     sellerPending: money(sellerPending),
     affiliatePaid: money(affiliatePaid),
-    platformEarnings: money(commission),
+    affiliateAccrued: money(affiliateFundedByPlatform + affiliateFundedBySellers),
+    affiliateFundedByPlatform: money(affiliateFundedByPlatform),
+    affiliateFundedBySellers: money(affiliateFundedBySellers),
+    platformEarnings: money(commission - affiliateFundedByPlatform),
   };
 }
 

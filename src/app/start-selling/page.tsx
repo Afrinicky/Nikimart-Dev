@@ -3,12 +3,12 @@ import type { Metadata } from "next";
 import { ArrowRight, Gift, Store } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { getAffiliateRate } from "@/lib/settings";
+import { getAffiliatePitch } from "@/lib/settings";
 
 export const metadata: Metadata = { title: "Start earning — NikiMart" };
 
 export default async function StartSellingPage() {
-  const rate = await getAffiliateRate();
+  const pitch = await getAffiliatePitch();
   return (
     <>
       <PageHeader title="Start earning on NikiMart" subtitle="Two ways to make money — pick what suits you." crumbs={[{ label: "Start earning" }]} />
@@ -33,7 +33,7 @@ export default async function StartSellingPage() {
             </span>
             <h2 className="mt-5 font-display text-xl font-bold text-niki-ink">Become an affiliate</h2>
             <p className="mt-2 text-sm text-niki-ink/60">
-              No shop or stock needed. Share your referral link and earn <strong className="text-niki-ink">{rate}%</strong> of every order placed through it.
+              No shop or stock needed. <strong className="text-niki-ink">{pitch}</strong> Share products from your affiliate catalogue and earn on every sale referred through your links.
             </p>
             <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-niki-orange">
               Start referring <ArrowRight className="h-4 w-4" />

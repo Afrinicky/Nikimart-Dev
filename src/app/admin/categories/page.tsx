@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Pencil, Plus } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { DeleteButton } from "@/components/admin/DeleteButton";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { prisma } from "@/lib/prisma";
 import { deleteCategory } from "@/lib/admin-actions";
 
@@ -21,13 +22,16 @@ export default async function AdminCategoriesPage() {
           <h1 className="font-display text-2xl font-bold text-niki-ink">Categories</h1>
           <p className="mt-1 text-sm text-niki-ink/60">{categories.length} categories</p>
         </div>
-        <Link
-          href="/admin/categories/new"
-          className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
-        >
-          <Plus className="h-4 w-4" />
-          New category
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportButton dataset="categories" />
+          <Link
+            href="/admin/categories/new"
+            className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+          >
+            <Plus className="h-4 w-4" />
+            New category
+          </Link>
+        </div>
       </div>
 
       <div className="mt-6 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">

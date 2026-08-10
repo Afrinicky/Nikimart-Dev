@@ -1,12 +1,21 @@
 "use server";
 
 import { createHash, randomInt } from "crypto";
+import { headers } from "next/headers";
 import { after } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { notify, emailShell } from "@/lib/notifications";
 import { findUserByIdentifier } from "@/lib/user-lookup";
+import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+
+/** Best-effort client IP, for rate-limiting keys. */
+async function clientIp(): Promise<string> {
+  const h = await headers();
+  const forwarded = h.get("x-forwarded-for");
+  return forwarded?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
+}
 
 export type ResetState = { ok?: boolean; error?: string; fieldErrors?: Record<string, string> };
 
@@ -25,6 +34,19 @@ export async function requestResetOtp(_prev: ResetState, fd: FormData): Promise<
   const identifier = String(fd.get("identifier") ?? "").trim();
   if (identifier.length < 3) {
     return { error: "Enter your email or phone number.", fieldErrors: { identifier: "Required." } };
+  }
+
+  // Requesting a code wipes the previous one, which also resets its attempt
+  // counter — so without a cap here, an attacker could request a fresh code
+  // between every five guesses and brute-force the 6 digits indefinitely.
+  // Throttled per identifier and per source address; the response is unchanged
+  // either way so this still never reveals whether an account exists.
+  const ip = await clientIp();
+  const perIdentifier = rateLimit(`reset:id:${identifier.toLowerCase()}`, 3, 15 * 60 * 1000);
+  const perIp = rateLimit(`reset:ip:${ip}`, 10, 15 * 60 * 1000);
+  if (!perIdentifier.ok || !perIp.ok) {
+    const wait = Math.max(perIdentifier.retryAfter, perIp.retryAfter);
+    return { error: `Too many reset requests. Please try again in ${retryAfterLabel(wait)}.` };
   }
 
   const user = await findUserByIdentifier(identifier);
@@ -82,6 +104,13 @@ export async function resetWithOtp(_prev: ResetState, fd: FormData): Promise<Res
       if (typeof key === "string" && !fieldErrors[key]) fieldErrors[key] = issue.message;
     }
     return { error: "Please fix the highlighted fields.", fieldErrors };
+  }
+
+  // Cap verification attempts per source too — the per-token counter alone
+  // can be sidestepped by requesting new codes.
+  const verifyLimit = rateLimit(`reset-verify:ip:${await clientIp()}`, 20, 15 * 60 * 1000);
+  if (!verifyLimit.ok) {
+    return { error: `Too many attempts. Please try again in ${retryAfterLabel(verifyLimit.retryAfter)}.` };
   }
 
   const user = await findUserByIdentifier(parsed.data.identifier);

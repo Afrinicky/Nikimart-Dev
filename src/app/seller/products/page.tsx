@@ -54,20 +54,35 @@ export default async function SellerProductsPage() {
                 <th className="px-5 py-3 font-semibold">Product</th>
                 <th className="px-5 py-3 font-semibold">Price</th>
                 <th className="px-5 py-3 font-semibold">Stock</th>
+                <th className="px-5 py-3 font-semibold">Affiliate</th>
                 <th className="px-5 py-3 text-right font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
               {vendor.products.map((p) => (
-                <tr key={p.id}>
+                <tr key={p.id} className={p.isArchived ? "bg-niki-surface/60" : undefined}>
                   <td className="px-5 py-3">
                     <span className="flex items-center gap-2 font-medium text-niki-ink">
                       <span aria-hidden>{p.emoji}</span>
                       {p.name}
+                      {p.isArchived ? (
+                        <span className="rounded-full bg-niki-ink/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-niki-ink/60">
+                          Archived
+                        </span>
+                      ) : null}
                     </span>
                   </td>
                   <td className="px-5 py-3 text-niki-ink/70">{formatPrice(p.price)}</td>
                   <td className="px-5 py-3 text-niki-ink/70">{p.stockQuantity}</td>
+                  <td className="px-5 py-3">
+                    {p.affiliateEnabled ? (
+                      <span className="rounded-full bg-niki-success/10 px-2.5 py-1 text-xs font-semibold text-niki-success">
+                        {p.affiliateEnrolledBy === "admin" ? "NikiMart pays" : `You pay${p.affiliateCommissionRate ? ` ${p.affiliateCommissionRate}%` : ""}`}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-niki-ink/40">Not enrolled</span>
+                    )}
+                  </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <Link
@@ -77,14 +92,18 @@ export default async function SellerProductsPage() {
                         <Pencil className="h-3.5 w-3.5" />
                         Edit
                       </Link>
-                      <DeleteButton id={p.id} action={deleteSellerProduct} />
+                      <DeleteButton
+                        id={p.id}
+                        action={deleteSellerProduct}
+                        title="Products with sales are archived, not deleted, so your settlement history stays intact"
+                      />
                     </div>
                   </td>
                 </tr>
               ))}
               {vendor.products.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-5 py-10 text-center text-sm text-niki-ink/50">
+                  <td colSpan={5} className="px-5 py-10 text-center text-sm text-niki-ink/50">
                     No products yet — add your first one.
                   </td>
                 </tr>

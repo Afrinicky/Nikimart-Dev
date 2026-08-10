@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { ArrowUpRight, Plus, Settings } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { requireDashboard } from "@/lib/session";
 import { getAffiliateOverview, getAllAffiliatesWithStats } from "@/lib/affiliate";
 import { getAffiliateRate } from "@/lib/settings";
@@ -19,9 +20,14 @@ export default async function AdminAffiliatesPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-niki-ink">Affiliates</h1>
-          <p className="mt-1 text-sm text-niki-ink/60">Manage your referral program. Default commission {rate}%.</p>
+          <p className="mt-1 text-sm text-niki-ink/60">
+            Affiliates earn on products enrolled in the programme — sellers enrol theirs at their own
+            expense, and you can enrol any product at NikiMart&apos;s (capped at half the platform
+            commission). Default rate {rate}%, overridable per category and per product.
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportButton dataset="affiliates" />
           <Link href="/admin/settings" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 hover:bg-white">
             <Settings className="h-4 w-4" /> Program settings
           </Link>
@@ -34,10 +40,10 @@ export default async function AdminAffiliatesPage() {
       {/* KPIs */}
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatCard label="Affiliates" value={`${overview.active}/${overview.total} active`} />
-        <StatCard label="Referred sales" value={formatPrice(overview.referredSales)} />
-        <StatCard label="Commission earned" value={formatPrice(overview.commissionEarned)} />
-        <StatCard label="Paid to affiliates" value={formatPrice(overview.paidOut)} />
-        <StatCard label="Owed to affiliates" value={formatPrice(overview.owed)} />
+        <StatCard label="Referred sales" value={formatPrice(overview.referredSales)} href="/admin/finance/breakdown/gmv" />
+        <StatCard label="Commission earned" value={formatPrice(overview.commissionEarned)} href="/admin/finance/breakdown/affiliateCost" />
+        <StatCard label="Paid to affiliates" value={formatPrice(overview.paidOut)} href="/admin/finance/breakdown/affiliate" />
+        <StatCard label="Owed to affiliates" value={formatPrice(overview.owed)} href="/admin/finance" />
       </div>
 
       {/* Roster */}

@@ -5,13 +5,19 @@ import { Container } from "@/components/ui/Container";
 import { ProductForm } from "@/components/admin/ProductForm";
 import { prisma } from "@/lib/prisma";
 import { createProduct } from "@/lib/admin-actions";
+import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
 
 export const metadata: Metadata = { title: "New product — Admin — NikiMart" };
 
 export default async function NewProductPage() {
-  const [categories, vendors] = await Promise.all([
-    prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  const [categories, vendors, defaultCommissionRate, defaultAffiliateRate] = await Promise.all([
+    prisma.category.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, commissionRate: true, affiliateCommissionRate: true },
+    }),
     prisma.vendor.findMany({ orderBy: { businessName: "asc" }, select: { id: true, businessName: true } }),
+    getCommissionRate(),
+    getAffiliateRate(),
   ]);
 
   return (
@@ -22,7 +28,14 @@ export default async function NewProductPage() {
       </Link>
       <h1 className="mt-3 font-display text-2xl font-bold text-niki-ink">New product</h1>
       <div className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-black/5">
-        <ProductForm action={createProduct} categories={categories} vendors={vendors} submitLabel="Create product" />
+        <ProductForm
+          action={createProduct}
+          categories={categories}
+          vendors={vendors}
+          submitLabel="Create product"
+          defaultCommissionRate={defaultCommissionRate}
+          defaultAffiliateRate={defaultAffiliateRate}
+        />
       </div>
     </Container>
   );
