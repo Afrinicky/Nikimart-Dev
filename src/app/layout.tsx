@@ -5,6 +5,7 @@ import { LocationProvider } from "@/components/providers/LocationProvider";
 import { CartProvider } from "@/components/providers/CartProvider";
 import { ReferralCapture } from "@/components/providers/ReferralCapture";
 import { getLocations } from "@/lib/locations";
+import { siteUrl } from "@/lib/site";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
@@ -25,10 +26,22 @@ const spaceGrotesk = Space_Grotesk({
   weight: ["500", "600", "700"],
 });
 
+const SITE_DESCRIPTION =
+  "NikiMart connects buyers to trusted local shops, preorder sellers, campus vendors, service providers, and official NikiMart products across Ghana.";
+
 export const metadata: Metadata = {
+  // Makes relative OG/canonical URLs absolute — required for link previews
+  // (WhatsApp, Facebook, X, etc.) to resolve images and links correctly.
+  metadataBase: new URL(siteUrl()),
   title: "NikiMart — Shop smart. Sell faster. Deliver closer.",
-  description:
-    "NikiMart connects buyers to trusted local shops, preorder sellers, campus vendors, service providers, and official NikiMart products across Ghana.",
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    siteName: "NikiMart",
+    type: "website",
+    title: "NikiMart — Shop smart. Sell faster. Deliver closer.",
+    description: SITE_DESCRIPTION,
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 // Every route depends on live database data plus per-request auth, cart, and
