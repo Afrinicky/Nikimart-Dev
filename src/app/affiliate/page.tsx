@@ -13,6 +13,7 @@ import { prisma } from "@/lib/prisma";
 import { getAffiliateForUser, getAffiliateEarnings, getPromotableProducts } from "@/lib/affiliate";
 import { getAffiliatePitch } from "@/lib/settings";
 import { formatPrice } from "@/lib/format";
+import { siteUrl } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Affiliate — NikiMart" };
 

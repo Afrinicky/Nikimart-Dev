@@ -172,6 +172,13 @@ export function buildProductData(fd: FormData, options: BuildProductOptions = {}
     badges: JSON.stringify(csv(fd, "badges")),
     locationIds: JSON.stringify(csv(fd, "locationIds").length ? csv(fd, "locationIds") : ["any"]),
     attributes: JSON.stringify(parseAttributes(fd)),
+    // Affiliate program: opt-in per product, with an optional commission
+    // override (blank → the program's default affiliate rate).
+    affiliateEnabled: bool(fd, "affiliateEnabled"),
+    affiliateCommission: (() => {
+      const v = num(fd, "affiliateCommission");
+      return v !== undefined && v >= 0 && v <= 100 ? v : null;
+    })(),
     isFeatured: bool(fd, "isFeatured"),
     isOfficial: bool(fd, "isOfficial"),
     pickupAvailable: bool(fd, "pickupAvailable"),

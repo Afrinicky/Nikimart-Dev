@@ -49,6 +49,9 @@ export default async function SellerSettingsPage() {
               bankAccountName: vendor.bankAccountName,
               bankAccountNumber: vendor.bankAccountNumber,
               originPickupId: vendor.originPickupId ?? "",
+              logoUrl: vendor.logoUrl ?? "",
+              bannerUrl: vendor.bannerUrl ?? "",
+              whatsapp: vendor.whatsapp ?? "",
             }}
             hubs={hubs}
           />

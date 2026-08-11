@@ -126,6 +126,9 @@ export async function updateSellerShop(_prev: SellerShopState, fd: FormData): Pr
         bankAccountName: s("bankAccountName"),
         bankAccountNumber: s("bankAccountNumber"),
         originPickupId: s("originPickupId") || null,
+        logoUrl: s("logoUrl"),
+        bannerUrl: s("bannerUrl"),
+        whatsapp: s("whatsapp"),
       },
     });
   } catch {

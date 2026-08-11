@@ -67,6 +67,9 @@ export function mapVendor(v: PrismaVendor): Vendor {
     deliveryAvailable: v.deliveryAvailable,
     pickupAvailable: v.pickupAvailable,
     sameDayDeliveryAvailable: v.sameDayDeliveryAvailable,
+    logoUrl: v.logoUrl || undefined,
+    bannerUrl: v.bannerUrl || undefined,
+    whatsapp: v.whatsapp || undefined,
   };
 }
 
@@ -102,6 +105,8 @@ export function mapProduct(
     widthCm: p.widthCm,
     heightCm: p.heightCm,
     cbm: p.cbm,
+    affiliateEnabled: p.affiliateEnabled,
+    affiliateCommission: p.affiliateCommission ?? undefined,
     image: gallery[0] ?? p.image ?? undefined,
     images: gallery.length ? gallery : p.image ? [p.image] : [],
     originCountry: p.vendor?.originCountry ?? "GH",
@@ -148,6 +153,20 @@ export const getProducts = cache(async (): Promise<Product[]> => {
     const rows = await prisma.product.findMany({
       // Archived products keep their order history but leave the storefront.
       where: { isArchived: false },
+      orderBy: { name: "asc" },
+      include: { images: { orderBy: { order: "asc" } }, vendor: { select: { originCountry: true } } },
+    });
+    return rows.map(mapProduct);
+  } catch {
+    return [];
+  }
+});
+
+/** Products enrolled in the affiliate program (for affiliates to promote). */
+export const getAffiliateProducts = cache(async (): Promise<Product[]> => {
+  try {
+    const rows = await prisma.product.findMany({
+      where: { affiliateEnabled: true },
       orderBy: { name: "asc" },
       include: { images: { orderBy: { order: "asc" } }, vendor: { select: { originCountry: true } } },
     });

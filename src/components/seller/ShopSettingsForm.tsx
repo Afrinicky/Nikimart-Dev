@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
+import { SingleImageField } from "@/components/admin/SingleImageField";
 import { updateSellerShop, type SellerShopState } from "@/lib/seller-actions";
 
 interface Shop {
@@ -18,6 +19,9 @@ interface Shop {
   bankAccountName: string;
   bankAccountNumber: string;
   originPickupId: string;
+  logoUrl: string;
+  bannerUrl: string;
+  whatsapp: string;
 }
 
 export function ShopSettingsForm({ shop, hubs = [] }: { shop: Shop; hubs?: { id: string; label: string }[] }) {
@@ -38,6 +42,23 @@ export function ShopSettingsForm({ shop, hubs = [] }: { shop: Shop; hubs?: { id:
           </Field>
           <Field label="About your shop" htmlFor="description" hint="Shown on your shop page to buyers.">
             <textarea id="description" name="description" rows={4} defaultValue={shop.description} className={inputClass} />
+          </Field>
+        </div>
+      </section>
+
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+        <h2 className="font-display text-lg font-bold text-niki-ink">Shop branding</h2>
+        <p className="mt-1 text-sm text-niki-ink/60">
+          Add a logo and a cover banner. These appear on your shop page and in the preview when your shop is
+          shared on WhatsApp and social media.
+        </p>
+        <div className="mt-4 grid gap-5 sm:grid-cols-2">
+          <SingleImageField name="logoUrl" label="Shop logo (square)" initial={shop.logoUrl} />
+          <SingleImageField name="bannerUrl" label="Cover banner (wide)" initial={shop.bannerUrl} />
+        </div>
+        <div className="mt-4">
+          <Field label="WhatsApp number" htmlFor="whatsapp" hint="Buyers can tap “Chat on WhatsApp” to reach you.">
+            <input id="whatsapp" name="whatsapp" defaultValue={shop.whatsapp} placeholder="024 000 0000" className={inputClass} />
           </Field>
         </div>
       </section>

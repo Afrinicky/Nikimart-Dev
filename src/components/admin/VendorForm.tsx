@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
+import { SingleImageField } from "@/components/admin/SingleImageField";
 import type { CrudState } from "@/lib/admin-actions";
 import type { Vendor } from "@/lib/types";
 import { COUNTRIES } from "@/lib/countries";
@@ -132,6 +133,19 @@ export function VendorForm({
               {label as string}
             </label>
           ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="rounded-xl bg-niki-surface p-4 ring-1 ring-black/5">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-niki-ink/50">Branding & WhatsApp</legend>
+        <div className="mt-2 grid gap-4 sm:grid-cols-2">
+          <SingleImageField name="logoUrl" label="Shop logo (square)" initial={v?.logoUrl ?? ""} />
+          <SingleImageField name="bannerUrl" label="Cover banner (wide)" initial={v?.bannerUrl ?? ""} />
+        </div>
+        <div className="mt-4 max-w-xs">
+          <Field label="WhatsApp number" htmlFor="whatsapp">
+            <input id="whatsapp" name="whatsapp" defaultValue={v?.whatsapp ?? ""} placeholder="024 000 0000" className={inputClass} />
+          </Field>
         </div>
       </fieldset>
 

@@ -112,6 +112,12 @@ export interface Vendor {
   deliveryAvailable: boolean;
   pickupAvailable: boolean;
   sameDayDeliveryAvailable: boolean;
+  /** Square shop logo (http(s) or data: URL). */
+  logoUrl?: string;
+  /** Wide cover banner (http(s) or data: URL). */
+  bannerUrl?: string;
+  /** Seller's WhatsApp number for the "Chat on WhatsApp" button. */
+  whatsapp?: string;
 }
 
 export interface PreorderInfo {
@@ -167,6 +173,10 @@ export interface Product {
   heightCm?: number;
   /** Shipping volume in cubic metres (CBM) — the basis of the shipping fee. */
   cbm?: number;
+  /** In the affiliate program — affiliates can promote it and earn on sales. */
+  affiliateEnabled?: boolean;
+  /** Per-product affiliate commission (%); falls back to the program default. */
+  affiliateCommission?: number;
   /**
    * Optional product image. Set this to override the default photo.
    * Accepts a local path served from /public (e.g. "/products/my-photo.jpg")
