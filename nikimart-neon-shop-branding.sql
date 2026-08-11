@@ -1,7 +1,6 @@
--- NikiMart — Neon catch-up SQL: per-product affiliate program + shop branding.
+-- NikiMart — Neon catch-up SQL: shop branding (logo, banner, WhatsApp).
 -- Run on the production (Neon) database at/after deploy. Idempotent.
-ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "affiliateEnabled" BOOLEAN NOT NULL DEFAULT false;
-ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "affiliateCommission" DOUBLE PRECISION;
+-- (Affiliate program columns live in nikimart-neon-affiliate-products.sql.)
 ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "logoUrl" TEXT NOT NULL DEFAULT '';
 ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "bannerUrl" TEXT NOT NULL DEFAULT '';
 ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "whatsapp" TEXT NOT NULL DEFAULT '';

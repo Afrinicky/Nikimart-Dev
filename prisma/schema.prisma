@@ -261,10 +261,6 @@ model Product {
   // Shipping volume in cubic metres (CBM) — the basis for the shipping fee.
   // Set at listing time (directly, or auto-computed from L×W×H ÷ 1,000,000).
   cbm                      Float    @default(0)
-  // Affiliate program: when enabled, affiliates can promote this product and
-  // earn on referred sales. affiliateCommission overrides the program default.
-  affiliateEnabled         Boolean  @default(false)
-  affiliateCommission      Float?
   // Primary image (kept for backward-compat / fallback); the gallery lives in
   // ProductImage. May be an http(s) URL or a data: URL.
   image                    String?
