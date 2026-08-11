@@ -89,6 +89,8 @@ export interface Category {
   productCount: number;
   /** Per-category commission override (percent). Null/undefined = platform default. */
   commissionRate?: number | null;
+  /** Default affiliate commission for the category (percent). Null = programme default. */
+  affiliateCommissionRate?: number | null;
 }
 
 export interface Vendor {
@@ -189,6 +191,14 @@ export interface Product {
   originCountry?: string;
   /** Key attributes / spec table rows. */
   attributes?: KeyAttribute[];
+  /** Offered to affiliate marketers? */
+  affiliateEnabled?: boolean;
+  /** Who enrolled it and funds the commission: "seller" | "admin" | "". */
+  affiliateEnrolledBy?: string;
+  /** Per-product affiliate commission override (percent). Null = inherit. */
+  affiliateCommissionRate?: number | null;
+  /** Archived products stay in reports but leave the storefront. */
+  isArchived?: boolean;
   preorderInfo?: PreorderInfo;
   serviceInfo?: ServiceInfo;
 }

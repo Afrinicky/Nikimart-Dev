@@ -7,14 +7,20 @@ import { ProductForm } from "@/components/admin/ProductForm";
 import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { createSellerProduct } from "@/lib/seller-actions";
+import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
 
 export const metadata: Metadata = { title: "New product — Seller — NikiMart" };
 
 export default async function NewSellerProductPage() {
   const user = await requireDashboard("/seller");
-  const [vendor, categories] = await Promise.all([
+  const [vendor, categories, defaultCommissionRate, defaultAffiliateRate] = await Promise.all([
     prisma.vendor.findFirst({ where: { ownerId: user.id }, select: { id: true } }),
-    prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.category.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, commissionRate: true, affiliateCommissionRate: true },
+    }),
+    getCommissionRate(),
+    getAffiliateRate(),
   ]);
   if (!vendor) redirect("/seller");
 
@@ -31,7 +37,11 @@ export default async function NewSellerProductPage() {
           categories={categories}
           vendors={[]}
           lockedVendorId={vendor.id}
+          actor="seller"
+          cancelHref="/seller/products"
           submitLabel="Create product"
+          defaultCommissionRate={defaultCommissionRate}
+          defaultAffiliateRate={defaultAffiliateRate}
         />
       </div>
     </Container>

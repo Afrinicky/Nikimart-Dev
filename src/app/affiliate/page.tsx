@@ -7,12 +7,11 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { ShareButton } from "@/components/share/ShareButton";
 import { BecomeAffiliateForm } from "@/components/affiliate/BecomeAffiliateForm";
 import { RequestAffiliatePayoutForm } from "@/components/affiliate/RequestAffiliatePayoutForm";
-import { AffiliatePromote } from "@/components/affiliate/AffiliatePromote";
+import { AffiliateProductList } from "@/components/affiliate/AffiliateProductList";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getAffiliateForUser, getAffiliateEarnings } from "@/lib/affiliate";
-import { getAffiliateProducts } from "@/lib/catalog";
-import { getAffiliateRate } from "@/lib/settings";
+import { getAffiliateForUser, getAffiliateEarnings, getPromotableProducts } from "@/lib/affiliate";
+import { getAffiliatePitch } from "@/lib/settings";
 import { formatPrice } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
 
@@ -20,7 +19,7 @@ export const metadata: Metadata = { title: "Affiliate — NikiMart" };
 
 export default async function AffiliatePage() {
   const session = await auth();
-  const rate = await getAffiliateRate();
+  const pitch = await getAffiliatePitch();
 
   // Logged-out visitors get a proper affiliate landing (not a bare sign-in
   // redirect) with clear sign-in / create-account options that return here.
@@ -30,10 +29,11 @@ export default async function AffiliatePage() {
         <PageHeader title="Become a NikiMart affiliate" subtitle="Earn commission for every sale you refer — no shop or stock needed." crumbs={[{ label: "Affiliate" }]} />
         <Container className="max-w-xl py-8">
           <div className="rounded-2xl bg-niki-navy p-6 text-white">
-            <div className="flex items-center gap-2 text-niki-orange"><Gift className="h-5 w-5" /><span className="font-display font-bold">Refer & earn {rate}%</span></div>
+            <div className="flex items-center gap-2 text-niki-orange"><Gift className="h-5 w-5" /><span className="font-display font-bold">Refer &amp; earn</span></div>
             <p className="mt-2 text-sm text-white/70">
-              Share your unique link and earn <strong className="text-white">{rate}%</strong> of every order placed through it.
-              Sign in or create a free account to get your link.
+              <strong className="text-white">{pitch}</strong> Commission is set per product, so browse
+              the catalogue, share the ones you like, and earn on every sale that comes through your
+              link. Sign in or create a free account to get started.
             </p>
           </div>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -58,10 +58,11 @@ export default async function AffiliatePage() {
         <PageHeader title="Become an affiliate" subtitle="Earn commission for every sale you refer to NikiMart." crumbs={[{ label: "Affiliate" }]} />
         <Container className="max-w-xl py-8">
           <div className="rounded-2xl bg-niki-navy p-6 text-white">
-            <div className="flex items-center gap-2 text-niki-orange"><Gift className="h-5 w-5" /><span className="font-display font-bold">Refer & earn</span></div>
+            <div className="flex items-center gap-2 text-niki-orange"><Gift className="h-5 w-5" /><span className="font-display font-bold">Refer &amp; earn</span></div>
             <p className="mt-2 text-sm text-white/70">
-              Get a unique link to share. When someone buys through it, you earn <strong className="text-white">{rate}%</strong> of the order.
-              No shop or stock needed.
+              <strong className="text-white">{pitch}</strong> You get a personal code, a catalogue of
+              products to share, and commission on every sale referred through your links. No shop or
+              stock needed.
             </p>
           </div>
           <div className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-black/5">
@@ -72,20 +73,19 @@ export default async function AffiliatePage() {
     );
   }
 
-  const [earnings, payouts, recentOrders, promoteProducts] = await Promise.all([
+  const [earnings, payouts, recentOrders, promotable] = await Promise.all([
     getAffiliateEarnings(affiliate.id),
     prisma.affiliatePayout.findMany({ where: { affiliateId: affiliate.id }, orderBy: { createdAt: "desc" } }),
     prisma.order.findMany({
       where: { affiliateId: affiliate.id, status: { notIn: ["cancelled", "pending"] } },
       orderBy: { createdAt: "desc" },
       take: 8,
-      select: { orderNumber: true, createdAt: true, affiliateCommission: true, total: true },
+      select: { orderNumber: true, createdAt: true, status: true, affiliateCommission: true, total: true },
     }),
-    getAffiliateProducts(),
+    getPromotableProducts(),
   ]);
 
   const refPath = `/?ref=${affiliate.code}`;
-  const effectiveRate = affiliate.commissionRate ?? rate;
   const suspended = affiliate.status !== "active";
 
   return (
@@ -97,39 +97,45 @@ export default async function AffiliatePage() {
             Your affiliate account is currently suspended — new orders won&apos;t earn commission. Please contact support.
           </div>
         ) : null}
-        {/* Referral link */}
+        {/* Store-wide referral link */}
         <div className="rounded-3xl bg-niki-navy p-6 text-white sm:p-8">
-          <div className="flex items-center gap-2 text-white/70"><BadgeCheck className="h-5 w-5 text-niki-orange" /><span className="text-sm font-medium">Your referral link</span></div>
-          <p className="mt-2 break-all font-mono text-sm text-white/90">nikimart.vercel.app{refPath}</p>
+          <div className="flex items-center gap-2 text-white/70"><BadgeCheck className="h-5 w-5 text-niki-orange" /><span className="text-sm font-medium">Your store-wide referral link</span></div>
+          <p className="mt-2 break-all font-mono text-sm text-white/90">{refPath}</p>
           <div className="mt-4">
-            <ShareButton path={refPath} title={`Shop on NikiMart with my link`} label="Share your link" tone="dark" />
+            <ShareButton path={refPath} title="Shop on NikiMart with my link" label="Share your link" tone="dark" />
           </div>
-          <p className="mt-3 text-xs text-white/50">You earn {effectiveRate}% of every order placed through your link.</p>
+          <p className="mt-3 text-xs text-white/50">
+            {pitch} Commission is set per product — share the ones below for a link that points
+            straight at the item.
+          </p>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
           <StatCard label="Referred orders" value={earnings.referredOrders} />
           <StatCard label="Total earned" value={formatPrice(earnings.earned)} />
+          <StatCard label="Pending delivery" value={formatPrice(earnings.inEscrow)} />
           <StatCard label="Paid out" value={formatPrice(earnings.paidOut)} />
           <StatCard label="Available" value={formatPrice(earnings.available)} />
         </div>
 
-        {/* Promote products */}
-        <div className="mt-8 flex items-center gap-2 text-niki-ink">
-          <Gift className="h-5 w-5 text-niki-orange" />
-          <h2 className="font-display text-lg font-bold">Promote products &amp; earn</h2>
+        {/* Shareable catalogue */}
+        <div className="mt-8">
+          <h2 className="font-display text-lg font-bold text-niki-ink">Products you can promote</h2>
+          <p className="mt-1 text-sm text-niki-ink/60">
+            Every product enrolled in the affiliate programme, with what you earn on each sale. Share
+            a link and any purchase made through it is credited to code{" "}
+            <strong className="font-mono text-niki-ink">{affiliate.code}</strong> for 30 days.
+          </p>
+          <AffiliateProductList products={promotable} code={affiliate.code ?? ""} suspended={suspended} />
         </div>
-        <p className="mt-1 mb-4 text-sm text-niki-ink/60">
-          Share any of these products with your own link. When someone buys through it, you earn the shown
-          commission. Tap <span className="font-medium">Copy my product catalogue</span> to paste them into a
-          WhatsApp chat or status.
-        </p>
-        <AffiliatePromote products={promoteProducts} code={affiliate.code ?? ""} defaultRate={effectiveRate} siteBase={siteUrl()} />
 
         {/* Payout request */}
         <div className="mt-8 rounded-2xl bg-white p-6 ring-1 ring-black/5">
           <div className="flex items-center gap-2 text-niki-ink"><Wallet className="h-5 w-5 text-niki-orange" /><h2 className="font-display font-bold">Request a payout</h2></div>
-          <p className="mt-1 mb-3 text-sm text-niki-ink/60">Request any amount up to your available balance.</p>
+          <p className="mt-1 mb-3 text-sm text-niki-ink/60">
+            Request any amount up to your available balance. Commission clears once the referred order
+            is delivered — {formatPrice(earnings.inEscrow)} is still waiting on delivery.
+          </p>
           <RequestAffiliatePayoutForm available={earnings.available} />
         </div>
 
@@ -141,13 +147,18 @@ export default async function AffiliatePage() {
           <div className="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">
             <table className="w-full min-w-[480px] text-left text-sm">
               <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/50">
-                <tr><th className="px-5 py-3 font-semibold">Order</th><th className="px-5 py-3 font-semibold">Date</th><th className="px-5 py-3 text-right font-semibold">Your commission</th></tr>
+                <tr><th className="px-5 py-3 font-semibold">Order</th><th className="px-5 py-3 font-semibold">Date</th><th className="px-5 py-3 font-semibold">Status</th><th className="px-5 py-3 text-right font-semibold">Your commission</th></tr>
               </thead>
               <tbody className="divide-y divide-black/5">
                 {recentOrders.map((o) => (
                   <tr key={o.orderNumber}>
                     <td className="px-5 py-3 font-medium text-niki-ink">{o.orderNumber}</td>
                     <td className="px-5 py-3 text-niki-ink/60">{o.createdAt.toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" })}</td>
+                    <td className="px-5 py-3">
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${o.status === "delivered" ? "bg-niki-success/10 text-niki-success" : "bg-niki-gold/20 text-niki-ink/70"}`}>
+                        {o.status === "delivered" ? "Cleared" : "Awaiting delivery"}
+                      </span>
+                    </td>
                     <td className="px-5 py-3 text-right font-semibold text-niki-ink">{formatPrice(o.affiliateCommission)}</td>
                   </tr>
                 ))}

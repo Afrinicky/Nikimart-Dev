@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
@@ -22,7 +23,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         <p className="mt-1 text-sm text-niki-ink/60">
           Orders are collected at NikiMart pickup points and priced by CBM. Set the per-route ₵/CBM rates,
           international rates, and the arrival hub in the{" "}
-          <a href="/admin/shipping" className="font-semibold text-niki-orange hover:underline">Shipping</a> tab.
+          <Link href="/admin/shipping" className="font-semibold text-niki-orange hover:underline">Shipping</Link> tab.
         </p>
       </section>
 
@@ -36,8 +37,26 @@ export function SettingsForm({ settings }: { settings: Settings }) {
           <Field label="Default commission (%)" htmlFor="commissionRate" hint={state.fieldErrors?.commissionRate ?? "Applied to items whose category has no override"}>
             <input id="commissionRate" name="commissionRate" type="number" min="0" max="100" step="0.1" defaultValue={settings.commissionRate} className={inputClass} />
           </Field>
-          <Field label="Affiliate commission (%)" htmlFor="affiliateRate" hint="Earned by affiliates on each referred order's subtotal">
+        </div>
+      </section>
+
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+        <h2 className="font-display text-lg font-bold text-niki-ink">Affiliate programme</h2>
+        <p className="mt-1 text-sm text-niki-ink/60">
+          Affiliates only earn on products enrolled in the programme. Sellers enrol their own products
+          at their own expense; you can enrol any product at NikiMart&apos;s expense from the product
+          page, capped at half the platform commission on that item. Set the per-category default in{" "}
+          <Link href="/admin/categories" className="font-semibold text-niki-orange hover:underline">Categories</Link>.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <Field label="Default commission (%)" htmlFor="affiliateRate" hint="Used when neither the product nor its category sets a rate">
             <input id="affiliateRate" name="affiliateRate" type="number" min="0" max="100" step="0.1" defaultValue={settings.affiliateRate} className={inputClass} />
+          </Field>
+          <Field label="Headline rate (%)" htmlFor="affiliateMaxRate" hint="The 'up to' figure shown in public affiliate copy">
+            <input id="affiliateMaxRate" name="affiliateMaxRate" type="number" min="0" max="100" step="0.1" defaultValue={settings.affiliateMaxRate} className={inputClass} />
+          </Field>
+          <Field label="Headline text" htmlFor="affiliatePitch" hint="{rate} is replaced with the headline rate">
+            <input id="affiliatePitch" name="affiliatePitch" defaultValue={settings.affiliatePitch} className={inputClass} />
           </Field>
         </div>
       </section>

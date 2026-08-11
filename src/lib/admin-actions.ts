@@ -9,6 +9,7 @@ import { requireAdmin } from "@/lib/session";
 import { ROLES } from "@/lib/roles";
 import { buildProductData, parseImages, validateProduct } from "@/lib/product-form";
 import { syncProductImages } from "@/lib/product-images";
+import { releaseStockForOrder } from "@/lib/stock";
 
 export type CrudState = { error?: string; fieldErrors?: Record<string, string> };
 
@@ -72,7 +73,7 @@ export async function createProduct(_prev: CrudState, fd: FormData): Promise<Cru
   const parsed = validateProduct(fd);
   if (!parsed.success) return zodErrors(parsed.error);
 
-  const data = buildProductData(fd);
+  const data = buildProductData(fd, { actor: "admin" });
   const existing = await prisma.product.findUnique({ where: { slug: data.slug } });
   if (existing) return { error: "Slug already in use.", fieldErrors: { slug: "Already exists." } };
 
@@ -88,7 +89,7 @@ export async function updateProduct(id: string, _prev: CrudState, fd: FormData):
   const parsed = validateProduct(fd);
   if (!parsed.success) return zodErrors(parsed.error);
 
-  const data = buildProductData(fd);
+  const data = buildProductData(fd, { actor: "admin" });
   const clash = await prisma.product.findFirst({ where: { slug: data.slug, NOT: { id } } });
   if (clash) return { error: "Slug already in use.", fieldErrors: { slug: "Already exists." } };
 
@@ -99,15 +100,41 @@ export async function updateProduct(id: string, _prev: CrudState, fd: FormData):
   redirect("/admin/products");
 }
 
+/**
+ * Remove a product from the storefront.
+ *
+ * A product that has been ordered is archived, not deleted: deleting it would
+ * take its order items with it, silently rewriting past orders, seller payouts,
+ * commission totals, and GMV. Archived products vanish from the storefront and
+ * from every affiliate's catalogue but keep their history intact. Products that
+ * have never sold are deleted outright.
+ */
 export async function deleteProduct(fd: FormData): Promise<void> {
   await requireAdmin();
   const id = str(fd, "id");
-  if (id) {
-    await prisma.orderItem.deleteMany({ where: { productId: id } });
+  if (!id) return;
+
+  const sold = await prisma.orderItem.count({ where: { productId: id } });
+  if (sold > 0) {
+    await prisma.product.update({
+      where: { id },
+      data: { isArchived: true, affiliateEnabled: false, affiliateEnrolledBy: "" },
+    });
+  } else {
     await prisma.product.delete({ where: { id } });
-    revalidatePath("/admin/products");
-    revalidateCatalog();
   }
+  revalidatePath("/admin/products");
+  revalidateCatalog();
+}
+
+/** Put an archived product back on the storefront. */
+export async function restoreProduct(fd: FormData): Promise<void> {
+  await requireAdmin();
+  const id = str(fd, "id");
+  if (!id) return;
+  await prisma.product.update({ where: { id }, data: { isArchived: false } });
+  revalidatePath("/admin/products");
+  revalidateCatalog();
 }
 
 // ===========================================================================
@@ -224,6 +251,13 @@ const categorySchema = z.object({
   description: z.string().trim().min(1, "Description is required."),
 });
 
+/** A percent field: blank or out of range → null (inherit the default). */
+function percent(fd: FormData, key: string): number | null {
+  const value = num(fd, key);
+  if (value === undefined || value < 0 || value > 100) return null;
+  return Math.round(value * 100) / 100;
+}
+
 function categoryData(fd: FormData) {
   const name = str(fd, "name");
   return {
@@ -233,7 +267,9 @@ function categoryData(fd: FormData) {
     description: str(fd, "description"),
     productCount: num(fd, "productCount") ?? 0,
     // Blank → null → falls back to the platform default commission rate.
-    commissionRate: num(fd, "commissionRate") ?? null,
+    commissionRate: percent(fd, "commissionRate"),
+    // Blank → null → falls back to the programme default affiliate rate.
+    affiliateCommissionRate: percent(fd, "affiliateCommissionRate"),
   };
 }
 
@@ -329,7 +365,7 @@ export async function createUser(_prev: CrudState, fd: FormData): Promise<CrudSt
 }
 
 export async function updateUser(id: string, _prev: CrudState, fd: FormData): Promise<CrudState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const parsed = userUpdateSchema.safeParse({
     name: str(fd, "name"),
     email: str(fd, "email"),
@@ -346,6 +382,14 @@ export async function updateUser(id: string, _prev: CrudState, fd: FormData): Pr
     return { error: "Password too short.", fieldErrors: { password: "At least 8 characters." } };
   }
 
+  // Demoting yourself would lock you out of the console the moment you saved.
+  if (id === admin.id && parsed.data.role !== "ADMIN") {
+    return {
+      error: "You can't remove your own admin role. Ask another admin to do it.",
+      fieldErrors: { role: "Can't change your own role." },
+    };
+  }
+
   await prisma.user.update({
     where: { id },
     data: {
@@ -360,10 +404,25 @@ export async function updateUser(id: string, _prev: CrudState, fd: FormData): Pr
   redirect("/admin/users");
 }
 
+/**
+ * Delete an account. Refused when the account carries records that would be
+ * destroyed with it — orders cascade-delete from User, so removing a customer
+ * who has bought anything would erase those orders, their items, and every
+ * commission and payout figure derived from them.
+ */
 export async function deleteUser(fd: FormData): Promise<void> {
   const admin = await requireAdmin();
   const id = str(fd, "id");
   if (!id || id === admin.id) return; // never delete yourself
+
+  const [orders, vendor, affiliate] = await Promise.all([
+    prisma.order.count({ where: { userId: id } }),
+    prisma.vendor.findFirst({ where: { ownerId: id }, select: { id: true } }),
+    prisma.affiliate.findFirst({ where: { userId: id }, select: { id: true } }),
+  ]);
+  // Surfaced as a disabled delete button with the reason in the users table.
+  if (orders > 0 || vendor || affiliate) return;
+
   await prisma.user.delete({ where: { id } });
   revalidatePath("/admin/users");
 }
@@ -379,7 +438,15 @@ export async function setOrderStatus(fd: FormData): Promise<void> {
   const id = str(fd, "id");
   const status = str(fd, "status");
   if (id && ORDER_STATUSES.includes(status)) {
+    const before = await prisma.order.findUnique({ where: { id }, select: { status: true } });
     await prisma.order.update({ where: { id }, data: { status } });
+
+    // Cancelling frees the units this order was holding. Guarded on the
+    // transition so re-saving "cancelled" can't inflate stock repeatedly.
+    if (status === "cancelled" && before && before.status !== "cancelled") {
+      await releaseStockForOrder(id);
+      revalidatePath("/products");
+    }
     // Admin override: force the shipment's confirmed stages to match, back-filling
     // the per-stage timestamps that drive the buyer's tracking timeline.
     const now = new Date();
@@ -410,11 +477,18 @@ export async function setOrderStatus(fd: FormData): Promise<void> {
   }
 }
 
+/**
+ * Delete an order outright. Only cancelled orders qualify — deleting a paid or
+ * delivered one would remove real money from GMV, commission, seller
+ * settlements, and affiliate earnings with no trace. Cancel it first; that path
+ * also returns the reserved stock.
+ */
 export async function deleteOrder(fd: FormData): Promise<void> {
   await requireAdmin();
   const id = str(fd, "id");
-  if (id) {
-    await prisma.order.delete({ where: { id } });
-    revalidatePath("/admin/orders");
-  }
+  if (!id) return;
+  const order = await prisma.order.findUnique({ where: { id }, select: { status: true } });
+  if (!order || order.status !== "cancelled") return;
+  await prisma.order.delete({ where: { id } });
+  revalidatePath("/admin/orders");
 }

@@ -49,6 +49,16 @@ export async function requestAffiliatePayout(_prev: AffiliateState, fd: FormData
   const method = String(fd.get("method") ?? "Mobile Money");
   const reference = String(fd.get("reference") ?? "").trim();
   try {
+    // One open request at a time. Without this, two submissions racing the
+    // balance check above would both pass and together claim more than the
+    // affiliate has cleared.
+    const openRequest = await prisma.affiliatePayout.findFirst({
+      where: { affiliateId: affiliate.id, status: "pending" },
+      select: { id: true },
+    });
+    if (openRequest) {
+      return { error: "You already have a payout request awaiting review." };
+    }
     await prisma.affiliatePayout.create({
       data: { affiliateId: affiliate.id, amount: Math.round(value * 100) / 100, status: "pending", method, note: reference ? `Pay to: ${reference}` : "Requested by affiliate" },
     });

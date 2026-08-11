@@ -21,7 +21,9 @@ export function CheckoutClient({
   const router = useRouter();
 
   const [quote, setQuote] = useState<CartShippingQuote | null>(null);
-  const [loadingQuote, setLoadingQuote] = useState(true);
+  // Which cart contents the current quote was fetched for. Anything else means
+  // a fetch is still in flight — derived rather than a second state flag.
+  const [quotedFor, setQuotedFor] = useState<string | null>(null);
   const [pickupPointId, setPickupPointId] = useState(defaultPickupId);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -33,27 +35,23 @@ export function CheckoutClient({
   );
 
   useEffect(() => {
-    if (!ready) return;
-    if (items.length === 0) {
-      setQuote(null);
-      setLoadingQuote(false);
-      return;
-    }
+    // Nothing to quote for an empty cart, and nothing reads the quote either —
+    // the empty-cart state renders before any of it is used.
+    if (!ready || items.length === 0) return;
     let cancelled = false;
-    setLoadingQuote(true);
     quoteCartShipping({ items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })) })
       .then((q) => {
         if (cancelled) return;
         setQuote(q);
+        setQuotedFor(itemsKey);
         setPickupPointId((prev) =>
           prev && q.points.some((p) => p.id === prev) ? prev : (q.points[0]?.id ?? ""),
         );
       })
       .catch(() => {
-        if (!cancelled) setQuote({ points: [], totalCbm: 0, hasAbroad: false });
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingQuote(false);
+        if (cancelled) return;
+        setQuote({ points: [], totalCbm: 0, hasAbroad: false });
+        setQuotedFor(itemsKey);
       });
     return () => {
       cancelled = true;
@@ -62,6 +60,7 @@ export function CheckoutClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemsKey, ready]);
 
+  const loadingQuote = quotedFor !== itemsKey;
   const points = quote?.points ?? [];
   const selected = points.find((p) => p.id === pickupPointId);
   const shippingFee = selected?.fee ?? 0;

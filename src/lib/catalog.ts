@@ -43,6 +43,7 @@ export function mapCategory(c: PrismaCategory): Category {
     description: c.description,
     productCount: c.productCount,
     commissionRate: c.commissionRate ?? null,
+    affiliateCommissionRate: c.affiliateCommissionRate ?? null,
   };
 }
 
@@ -110,6 +111,10 @@ export function mapProduct(
     images: gallery.length ? gallery : p.image ? [p.image] : [],
     originCountry: p.vendor?.originCountry ?? "GH",
     attributes: parseJSON<KeyAttribute[]>(p.attributes, []),
+    affiliateEnabled: p.affiliateEnabled,
+    affiliateEnrolledBy: p.affiliateEnrolledBy,
+    affiliateCommissionRate: p.affiliateCommissionRate ?? null,
+    isArchived: p.isArchived,
     preorderInfo: p.preorderInfo ? parseJSON<PreorderInfo | undefined>(p.preorderInfo, undefined) : undefined,
     serviceInfo: p.serviceInfo ? parseJSON<ServiceInfo | undefined>(p.serviceInfo, undefined) : undefined,
   };
@@ -146,6 +151,8 @@ export const getVendors = cache(async (): Promise<Vendor[]> => {
 export const getProducts = cache(async (): Promise<Product[]> => {
   try {
     const rows = await prisma.product.findMany({
+      // Archived products keep their order history but leave the storefront.
+      where: { isArchived: false },
       orderBy: { name: "asc" },
       include: { images: { orderBy: { order: "asc" } }, vendor: { select: { originCountry: true } } },
     });

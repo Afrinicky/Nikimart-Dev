@@ -6,6 +6,10 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    // `npm test` runs the *.test.ts files through Node's type stripping, which
+    // does no extension resolution — so those files import with an explicit
+    // .ts extension. Safe here because nothing is ever emitted.
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { CheckCircle2, MailCheck } from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
@@ -14,9 +14,14 @@ export function OtpResetFlow() {
   const [reqState, requestAction] = useActionState<ResetState, FormData>(requestResetOtp, {});
   const [resetState, resetAction] = useActionState<ResetState, FormData>(resetWithOtp, {});
 
-  useEffect(() => {
+  // Advance to the code-entry step when a request succeeds. Adjusted during
+  // render rather than in an effect — "Resend code" can send us back to step 1,
+  // so this can't just be derived from reqState.
+  const [ackedRequest, setAckedRequest] = useState(reqState.ok);
+  if (reqState.ok !== ackedRequest) {
+    setAckedRequest(reqState.ok);
     if (reqState.ok) setStep(2);
-  }, [reqState.ok]);
+  }
 
   if (resetState.ok) {
     return (

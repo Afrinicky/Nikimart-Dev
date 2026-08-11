@@ -108,7 +108,7 @@ export function VendorRegisterForm({
           <p className="text-sm text-niki-ink/50">How we and your customers reach you about orders.</p>
         </div>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Contact email" htmlFor="email">
+          <Field label="Contact email" htmlFor="email" hint="Shown to buyers. Your sign-in email doesn't change.">
             <input id="email" name="email" type="email" defaultValue={defaultEmail ?? ""} placeholder="shop@example.com" className={inputClass} />
           </Field>
           <Field label="Phone number" htmlFor="phone">

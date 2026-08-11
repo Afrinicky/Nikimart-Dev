@@ -10,6 +10,8 @@ import { getShippingRates, getCommissionRate, getAffiliateRate } from "@/lib/set
 import { REFERRAL_COOKIE } from "@/lib/affiliate";
 import { quoteShipping, itemCbm, type ShippingLine } from "@/lib/shipping";
 import { resolveCommissionRate } from "@/lib/commission";
+import { affiliateLineCommission, resolveAffiliateRate } from "@/lib/affiliate-commission";
+import { releaseStockForOrder, tracksStock } from "@/lib/stock";
 import { isPaymentConfigured, initializeTransaction, toPesewas } from "@/lib/payments";
 import { notifyOrderConfirmed, notifyStaffNewOrder } from "@/lib/order-notifications";
 
@@ -30,6 +32,14 @@ export type PlaceOrderInput = z.infer<typeof payloadSchema>;
 export type PlaceOrderResult =
   | { ok: true; orderNumber: string; authorizationUrl?: string }
   | { ok: false; error: string };
+
+/** Thrown inside the order transaction when a guarded stock decrement misses. */
+class OutOfStockError extends Error {
+  constructor(readonly productName: string) {
+    super(`Out of stock: ${productName}`);
+    this.name = "OutOfStockError";
+  }
+}
 
 function orderNumber(): string {
   return `NM-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 900 + 100)}`;
@@ -63,17 +73,21 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   // Re-price from the database — never trust client-supplied prices or CBM.
   const ids = data.items.map((i) => i.productId);
   const products = await prisma.product.findMany({
-    where: { id: { in: ids } },
+    where: { id: { in: ids }, isArchived: false },
     select: {
       id: true,
+      name: true,
       price: true,
       cbm: true,
       lengthCm: true,
       widthCm: true,
       heightCm: true,
+      productType: true,
+      stockQuantity: true,
       affiliateEnabled: true,
-      affiliateCommission: true,
-      category: { select: { commissionRate: true } },
+      affiliateEnrolledBy: true,
+      affiliateCommissionRate: true,
+      category: { select: { commissionRate: true, affiliateCommissionRate: true } },
       vendor: { select: { originPickupId: true, originCountry: true } },
     },
   });
@@ -82,25 +96,68 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   // Platform commission snapshot: category override, else the global default.
   const defaultCommission = await getCommissionRate();
 
+  // Affiliate attribution: a referral cookie set by ?ref=CODE. It only earns on
+  // products actually enrolled in the programme, and never on the referrer's
+  // own purchases.
+  const refCode = (await cookies()).get(REFERRAL_COOKIE)?.value;
+  const referrer = refCode
+    ? await prisma.affiliate.findUnique({
+        where: { code: refCode },
+        select: { id: true, userId: true, status: true, commissionRate: true },
+      })
+    : null;
+  const activeReferrer = referrer && referrer.status === "active" && referrer.userId !== user.id ? referrer : null;
+  const defaultAffiliateRate = activeReferrer
+    ? (activeReferrer.commissionRate ?? (await getAffiliateRate()))
+    : 0;
+
   const lineItems = data.items
     .filter((i) => productById.has(i.productId))
     .map((i) => {
       const p = productById.get(i.productId)!;
+      const commissionRate = resolveCommissionRate(p.category?.commissionRate, defaultCommission);
+      const affiliate = activeReferrer
+        ? resolveAffiliateRate({
+            affiliateEnabled: p.affiliateEnabled,
+            affiliateEnrolledBy: p.affiliateEnrolledBy,
+            affiliateCommissionRate: p.affiliateCommissionRate,
+            categoryAffiliateRate: p.category?.affiliateCommissionRate,
+            defaultAffiliateRate,
+            platformCommissionRate: commissionRate,
+          })
+        : { rate: 0, fundedBy: "" as const };
       return {
         productId: i.productId,
+        name: p.name,
+        productType: p.productType,
+        stockQuantity: p.stockQuantity,
         quantity: i.quantity,
         unitPrice: p.price,
         cbm: itemCbm(p),
         originHubId: p.vendor?.originPickupId ?? null,
         originCountry: p.vendor?.originCountry ?? "GH",
-        commissionRate: resolveCommissionRate(p.category?.commissionRate, defaultCommission),
-        affiliateEnabled: p.affiliateEnabled,
-        affiliateRate: p.affiliateCommission,
+        commissionRate,
+        affiliateCommissionRate: affiliate.rate,
+        affiliateCommission: affiliateLineCommission(p.price, i.quantity, affiliate.rate),
+        affiliateFundedBy: affiliate.fundedBy,
       };
     });
 
   if (lineItems.length === 0) {
     return { ok: false, error: "None of the items in your cart are available." };
+  }
+
+  // Stock check up front so the buyer gets a useful message rather than a bare
+  // failure. The authoritative check is the guarded decrement below.
+  const shortItem = lineItems.find((i) => tracksStock(i.productType) && i.stockQuantity < i.quantity);
+  if (shortItem) {
+    return {
+      ok: false,
+      error:
+        shortItem.stockQuantity > 0
+          ? `Only ${shortItem.stockQuantity} of "${shortItem.name}" left in stock.`
+          : `"${shortItem.name}" just sold out.`,
+    };
   }
 
   const subtotal = lineItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
@@ -116,26 +173,10 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   const deliveryFee = quoteShipping(shippingLines, pickupPoint.id, rates);
   const total = subtotal + deliveryFee;
 
-  // Affiliate attribution: if a referral cookie is present and belongs to a
-  // different user, snapshot their commission on this order.
-  let affiliateId: string | null = null;
-  let affiliateCommission = 0;
-  const refCode = (await cookies()).get(REFERRAL_COOKIE)?.value;
-  if (refCode) {
-    const affiliate = await prisma.affiliate.findUnique({ where: { code: refCode }, select: { id: true, userId: true, status: true, commissionRate: true } });
-    if (affiliate && affiliate.status === "active" && affiliate.userId !== user.id) {
-      affiliateId = affiliate.id;
-      // Only products enrolled in the affiliate program earn commission. Rate
-      // precedence: per-product override → per-affiliate override → program default.
-      const programRate = affiliate.commissionRate ?? (await getAffiliateRate());
-      const earned = lineItems.reduce((sum, i) => {
-        if (!i.affiliateEnabled) return sum;
-        const rate = i.affiliateRate ?? programRate;
-        return sum + (i.unitPrice * i.quantity * rate) / 100;
-      }, 0);
-      affiliateCommission = Math.round(earned * 100) / 100;
-    }
-  }
+  // The order's affiliate commission is the sum of its enrolled lines.
+  const affiliateId = activeReferrer?.id ?? null;
+  const affiliateCommission =
+    Math.round(lineItems.reduce((s, i) => s + i.affiliateCommission, 0) * 100) / 100;
 
   // A freight agent to carry the consignment from the seller hub to the pickup
   // point, if one exists.
@@ -154,45 +195,64 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   // Create with a few retries in case the generated order number collides.
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      const order = await prisma.order.create({
-        data: {
-          orderNumber: orderNumber(),
-          status: initialStatus,
-          subtotal,
-          deliveryFee,
-          total,
-          deliveryMethod: "pickup",
-          address: null,
-          pickupPointId: pickupPoint.id,
-          userId: user.id,
-          affiliateId,
-          affiliateCommission,
-          items: {
-            create: lineItems.map((i) => ({
-              productId: i.productId,
-              quantity: i.quantity,
-              unitPrice: i.unitPrice,
-              commissionRate: i.commissionRate,
-            })),
-          },
-          // Fulfilment only starts once the order is paid. The simulated flow
-          // is paid immediately, so the shipment is created here. The Paystack
-          // flow defers shipment creation to payment confirmation (see
-          // markOrderPaid) — otherwise an unpaid "pending" order would have a
-          // shipment that auto-advances by elapsed time.
-          shipment: collectPayment
-            ? undefined
-            : {
-                create: {
-                  trackingNumber: `NMF-${Date.now().toString(36).toUpperCase()}`,
-                  status: "created", // awaiting the seller's "prepared" confirmation
-                  origin: "NikiMart Warehouse",
-                  destination,
-                  eta: new Date(Date.now() + 1000 * 60 * 60 * 48),
-                  freightAgentId: freightAgent?.id ?? null,
+      const order = await prisma.$transaction(async (tx) => {
+        // Reserve stock first. The `gte` guard makes the decrement atomic, so
+        // two buyers racing for the last unit can't both win — the loser
+        // matches zero rows and the whole transaction rolls back.
+        for (const item of lineItems) {
+          if (!tracksStock(item.productType)) continue;
+          const reserved = await tx.product.updateMany({
+            where: { id: item.productId, stockQuantity: { gte: item.quantity } },
+            data: { stockQuantity: { decrement: item.quantity } },
+          });
+          if (reserved.count === 0) {
+            throw new OutOfStockError(item.name);
+          }
+        }
+
+        return tx.order.create({
+          data: {
+            orderNumber: orderNumber(),
+            status: initialStatus,
+            subtotal,
+            deliveryFee,
+            total,
+            deliveryMethod: "pickup",
+            address: null,
+            pickupPointId: pickupPoint.id,
+            userId: user.id,
+            affiliateId,
+            affiliateCommission,
+            items: {
+              create: lineItems.map((i) => ({
+                productId: i.productId,
+                quantity: i.quantity,
+                unitPrice: i.unitPrice,
+                commissionRate: i.commissionRate,
+                affiliateCommissionRate: i.affiliateCommissionRate,
+                affiliateCommission: i.affiliateCommission,
+                affiliateFundedBy: i.affiliateFundedBy,
+              })),
+            },
+            // Fulfilment only starts once the order is paid. The simulated flow
+            // is paid immediately, so the shipment is created here. The Paystack
+            // flow defers shipment creation to payment confirmation (see
+            // markOrderPaid) — otherwise an unpaid "pending" order would have a
+            // shipment that auto-advances by elapsed time.
+            shipment: collectPayment
+              ? undefined
+              : {
+                  create: {
+                    trackingNumber: `NMF-${Date.now().toString(36).toUpperCase()}`,
+                    status: "created", // awaiting the seller's "prepared" confirmation
+                    origin: "NikiMart Warehouse",
+                    destination,
+                    eta: new Date(Date.now() + 1000 * 60 * 60 * 48),
+                    freightAgentId: freightAgent?.id ?? null,
+                  },
                 },
-              },
-        },
+          },
+        });
       });
 
       // Real payment: start a Paystack transaction and hand back the hosted
@@ -209,9 +269,12 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
           });
           return { ok: true, orderNumber: order.orderNumber, authorizationUrl };
         } catch (err) {
+          // The order never became payable — cancel it and put the reserved
+          // stock back, otherwise the units stay locked behind a dead order.
           await prisma.order
             .update({ where: { id: order.id }, data: { status: "cancelled" } })
             .catch(() => {});
+          await releaseStockForOrder(order.id).catch(() => {});
           return {
             ok: false,
             error: err instanceof Error ? err.message : "Could not start the payment. Please try again.",
@@ -232,7 +295,12 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       revalidatePath("/freight");
       revalidatePath("/pickup");
       return { ok: true, orderNumber: order.orderNumber };
-    } catch {
+    } catch (err) {
+      // Someone else took the last unit between our check and our reservation.
+      // Retrying can't help, so surface it straight away.
+      if (err instanceof OutOfStockError) {
+        return { ok: false, error: `"${err.productName}" just sold out. Please update your cart.` };
+      }
       // unique collision on orderNumber/trackingNumber — retry with new values
       if (attempt === 4) {
         return { ok: false, error: "Could not place the order. Please try again." };

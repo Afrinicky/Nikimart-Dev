@@ -51,11 +51,32 @@ export function validateProduct(fd: FormData) {
   });
 }
 
+/**
+ * True for image sources we're willing to render: absolute http(s) URLs, images
+ * served from /public, and base64 image data URLs (device uploads). Anything
+ * else — `javascript:`, `data:text/html`, protocol-relative `//evil.tld` — is
+ * dropped, so a crafted form submission can't plant an active-content URL that
+ * later renders inside an <img src>.
+ */
+export function isSafeImageUrl(url: string): boolean {
+  const value = url.trim();
+  if (!value || value.length > 5_000_000) return false;
+  if (value.startsWith("//")) return false;
+  if (value.startsWith("/")) return true;
+  if (/^data:image\/(png|jpe?g|gif|webp|avif|svg\+xml);base64,[A-Za-z0-9+/=\s]+$/i.test(value)) {
+    // Inline SVG can carry script; only raster data URLs are accepted.
+    return !/^data:image\/svg/i.test(value);
+  }
+  return /^https?:\/\//i.test(value);
+}
+
 /** Reads the gallery image URLs submitted as a JSON string in the `images` field. */
 export function parseImages(fd: FormData): string[] {
   try {
     const arr = JSON.parse(str(fd, "images") || "[]");
-    if (Array.isArray(arr)) return arr.filter((u) => typeof u === "string" && u.length > 0);
+    if (Array.isArray(arr)) {
+      return arr.filter((u): u is string => typeof u === "string" && isSafeImageUrl(u));
+    }
   } catch {
     // ignore
   }
@@ -78,14 +99,45 @@ export function parseAttributes(fd: FormData): KeyAttribute[] {
   return [];
 }
 
+export interface BuildProductOptions {
+  /** Forces the owning shop (seller flow) regardless of the submitted value. */
+  vendorId?: string;
+  /**
+   * Who is submitting. Sellers can only enrol a product in the affiliate
+   * programme at their own expense; only admins can put it on the platform's
+   * tab (`affiliateFundedBy=admin`).
+   */
+  actor?: "admin" | "seller";
+}
+
+/** Reads the affiliate-enrolment fields, respecting who is submitting them. */
+function affiliateFields(fd: FormData, actor: "admin" | "seller") {
+  const enabled = bool(fd, "affiliateEnabled");
+  if (!enabled) {
+    return { affiliateEnabled: false, affiliateEnrolledBy: "", affiliateCommissionRate: null };
+  }
+  const requestedFunder = str(fd, "affiliateFundedBy");
+  const enrolledBy = actor === "admin" && requestedFunder === "admin" ? "admin" : "seller";
+  const rate = num(fd, "affiliateCommissionRate");
+  return {
+    affiliateEnabled: true,
+    affiliateEnrolledBy: enrolledBy,
+    // Blank → null → inherit the category rate, then the programme default.
+    affiliateCommissionRate:
+      rate !== undefined && rate >= 0 && rate <= 100 ? Math.round(rate * 100) / 100 : null,
+  };
+}
+
 /**
  * Builds the scalar Product fields from the form. `vendorId` can be forced
  * (seller flow) regardless of the submitted value.
  */
-export function buildProductData(fd: FormData, forceVendorId?: string) {
+export function buildProductData(fd: FormData, options: BuildProductOptions = {}) {
+  const { vendorId: forceVendorId, actor = "admin" } = options;
   const name = str(fd, "name");
   const images = parseImages(fd);
   return {
+    ...affiliateFields(fd, actor),
     name,
     slug: optStr(fd, "slug") ? slugify(str(fd, "slug")) : slugify(name),
     description: str(fd, "description"),

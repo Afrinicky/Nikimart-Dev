@@ -8,6 +8,7 @@ import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { mapProduct } from "@/lib/catalog";
 import { updateSellerProduct } from "@/lib/seller-actions";
+import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
 
 export const metadata: Metadata = { title: "Edit product — Seller — NikiMart" };
 
@@ -17,9 +18,14 @@ export default async function EditSellerProductPage({ params }: { params: Params
   const user = await requireDashboard("/seller");
   const { id } = await params;
 
-  const [vendor, categories] = await Promise.all([
+  const [vendor, categories, defaultCommissionRate, defaultAffiliateRate] = await Promise.all([
     prisma.vendor.findFirst({ where: { ownerId: user.id }, select: { id: true } }),
-    prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.category.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, commissionRate: true, affiliateCommissionRate: true },
+    }),
+    getCommissionRate(),
+    getAffiliateRate(),
   ]);
   if (!vendor) redirect("/seller");
 
@@ -46,7 +52,11 @@ export default async function EditSellerProductPage({ params }: { params: Params
           vendors={[]}
           product={product}
           lockedVendorId={vendor.id}
+          actor="seller"
+          cancelHref="/seller/products"
           submitLabel="Save changes"
+          defaultCommissionRate={defaultCommissionRate}
+          defaultAffiliateRate={defaultAffiliateRate}
         />
       </div>
     </Container>

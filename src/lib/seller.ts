@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { lineCommission, money } from "@/lib/commission";
+import { lineCommission, money, sellerAffiliateCost } from "@/lib/commission";
 
 /** The signed-in seller's vendor (shop), or null if they haven't registered one. */
 export async function getSellerVendor(userId: string) {
@@ -12,7 +12,12 @@ export interface SellerEarnings {
   gross: number;
   /** Total platform commission across those sales. */
   commission: number;
-  /** Net earned lifetime (gross − commission), excluding cancelled. */
+  /**
+   * Affiliate commission the seller funded on their own enrolled products.
+   * Products NikiMart enrolled cost the seller nothing.
+   */
+  affiliateCost: number;
+  /** Net earned lifetime (gross − commission − affiliateCost), excluding cancelled. */
   net: number;
   /** Net for orders not yet delivered (paid/shipped) — held until fulfilled. */
   inEscrow: number;
@@ -34,13 +39,21 @@ export async function getSellerEarnings(vendorId: string): Promise<SellerEarning
   const [items, payouts] = await Promise.all([
     prisma.orderItem.findMany({
       where: { product: { vendorId } },
-      select: { unitPrice: true, quantity: true, commissionRate: true, order: { select: { status: true } } },
+      select: {
+        unitPrice: true,
+        quantity: true,
+        commissionRate: true,
+        affiliateCommission: true,
+        affiliateFundedBy: true,
+        order: { select: { status: true } },
+      },
     }),
     prisma.payout.findMany({ where: { vendorId }, select: { amount: true, status: true } }),
   ]);
 
   let gross = 0;
   let commission = 0;
+  let affiliateCost = 0;
   let inEscrow = 0;
   let cleared = 0;
 
@@ -49,21 +62,24 @@ export async function getSellerEarnings(vendorId: string): Promise<SellerEarning
     if (status === "cancelled" || status === "pending") continue; // unpaid/cancelled don't count
     const lineGross = it.unitPrice * it.quantity;
     const lineComm = lineCommission(it);
-    const lineNet = lineGross - lineComm;
+    const lineAffiliate = sellerAffiliateCost(it);
+    const lineNet = lineGross - lineComm - lineAffiliate;
     gross += lineGross;
     commission += lineComm;
+    affiliateCost += lineAffiliate;
     if (status === "delivered") cleared += lineNet;
     else inEscrow += lineNet; // paid | shipped
   }
 
   const paidOut = payouts.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
   const pendingPayouts = payouts.filter((p) => p.status === "pending").reduce((s, p) => s + p.amount, 0);
-  const net = gross - commission;
+  const net = gross - commission - affiliateCost;
   const available = Math.max(0, cleared - paidOut - pendingPayouts);
 
   return {
     gross: money(gross),
     commission: money(commission),
+    affiliateCost: money(affiliateCost),
     net: money(net),
     inEscrow: money(inEscrow),
     cleared: money(cleared),
