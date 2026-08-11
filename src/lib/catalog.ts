@@ -105,8 +105,6 @@ export function mapProduct(
     widthCm: p.widthCm,
     heightCm: p.heightCm,
     cbm: p.cbm,
-    affiliateEnabled: p.affiliateEnabled,
-    affiliateCommission: p.affiliateCommission ?? undefined,
     image: gallery[0] ?? p.image ?? undefined,
     images: gallery.length ? gallery : p.image ? [p.image] : [],
     originCountry: p.vendor?.originCountry ?? "GH",
