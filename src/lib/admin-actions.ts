@@ -147,6 +147,9 @@ function vendorData(fd: FormData) {
     pickupAvailable: bool(fd, "pickupAvailable"),
     sameDayDeliveryAvailable: bool(fd, "sameDayDeliveryAvailable"),
     originPickupId: optStr(fd, "originPickupId") ?? null,
+    logoUrl: str(fd, "logoUrl"),
+    bannerUrl: str(fd, "bannerUrl"),
+    whatsapp: str(fd, "whatsapp"),
     ownerId: optStr(fd, "ownerId") ?? null,
   };
 }

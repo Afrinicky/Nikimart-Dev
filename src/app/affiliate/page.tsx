@@ -7,11 +7,14 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { ShareButton } from "@/components/share/ShareButton";
 import { BecomeAffiliateForm } from "@/components/affiliate/BecomeAffiliateForm";
 import { RequestAffiliatePayoutForm } from "@/components/affiliate/RequestAffiliatePayoutForm";
+import { AffiliatePromote } from "@/components/affiliate/AffiliatePromote";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getAffiliateForUser, getAffiliateEarnings } from "@/lib/affiliate";
+import { getAffiliateProducts } from "@/lib/catalog";
 import { getAffiliateRate } from "@/lib/settings";
 import { formatPrice } from "@/lib/format";
+import { siteUrl } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Affiliate — NikiMart" };
 
@@ -69,7 +72,7 @@ export default async function AffiliatePage() {
     );
   }
 
-  const [earnings, payouts, recentOrders] = await Promise.all([
+  const [earnings, payouts, recentOrders, promoteProducts] = await Promise.all([
     getAffiliateEarnings(affiliate.id),
     prisma.affiliatePayout.findMany({ where: { affiliateId: affiliate.id }, orderBy: { createdAt: "desc" } }),
     prisma.order.findMany({
@@ -78,6 +81,7 @@ export default async function AffiliatePage() {
       take: 8,
       select: { orderNumber: true, createdAt: true, affiliateCommission: true, total: true },
     }),
+    getAffiliateProducts(),
   ]);
 
   const refPath = `/?ref=${affiliate.code}`;
@@ -110,8 +114,20 @@ export default async function AffiliatePage() {
           <StatCard label="Available" value={formatPrice(earnings.available)} />
         </div>
 
+        {/* Promote products */}
+        <div className="mt-8 flex items-center gap-2 text-niki-ink">
+          <Gift className="h-5 w-5 text-niki-orange" />
+          <h2 className="font-display text-lg font-bold">Promote products &amp; earn</h2>
+        </div>
+        <p className="mt-1 mb-4 text-sm text-niki-ink/60">
+          Share any of these products with your own link. When someone buys through it, you earn the shown
+          commission. Tap <span className="font-medium">Copy my product catalogue</span> to paste them into a
+          WhatsApp chat or status.
+        </p>
+        <AffiliatePromote products={promoteProducts} code={affiliate.code ?? ""} defaultRate={effectiveRate} siteBase={siteUrl()} />
+
         {/* Payout request */}
-        <div className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-black/5">
+        <div className="mt-8 rounded-2xl bg-white p-6 ring-1 ring-black/5">
           <div className="flex items-center gap-2 text-niki-ink"><Wallet className="h-5 w-5 text-niki-orange" /><h2 className="font-display font-bold">Request a payout</h2></div>
           <p className="mt-1 mb-3 text-sm text-niki-ink/60">Request any amount up to your available balance.</p>
           <RequestAffiliatePayoutForm available={earnings.available} />

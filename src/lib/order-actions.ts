@@ -71,6 +71,8 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       lengthCm: true,
       widthCm: true,
       heightCm: true,
+      affiliateEnabled: true,
+      affiliateCommission: true,
       category: { select: { commissionRate: true } },
       vendor: { select: { originPickupId: true, originCountry: true } },
     },
@@ -92,6 +94,8 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         originHubId: p.vendor?.originPickupId ?? null,
         originCountry: p.vendor?.originCountry ?? "GH",
         commissionRate: resolveCommissionRate(p.category?.commissionRate, defaultCommission),
+        affiliateEnabled: p.affiliateEnabled,
+        affiliateRate: p.affiliateCommission,
       };
     });
 
@@ -121,8 +125,15 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     const affiliate = await prisma.affiliate.findUnique({ where: { code: refCode }, select: { id: true, userId: true, status: true, commissionRate: true } });
     if (affiliate && affiliate.status === "active" && affiliate.userId !== user.id) {
       affiliateId = affiliate.id;
-      const affRate = affiliate.commissionRate ?? (await getAffiliateRate());
-      affiliateCommission = Math.round(subtotal * affRate) / 100;
+      // Only products enrolled in the affiliate program earn commission. Rate
+      // precedence: per-product override → per-affiliate override → program default.
+      const programRate = affiliate.commissionRate ?? (await getAffiliateRate());
+      const earned = lineItems.reduce((sum, i) => {
+        if (!i.affiliateEnabled) return sum;
+        const rate = i.affiliateRate ?? programRate;
+        return sum + (i.unitPrice * i.quantity * rate) / 100;
+      }, 0);
+      affiliateCommission = Math.round(earned * 100) / 100;
     }
   }
 

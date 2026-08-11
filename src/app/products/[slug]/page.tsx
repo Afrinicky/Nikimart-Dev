@@ -6,6 +6,7 @@ import {
   Check,
   GraduationCap,
   MapPin,
+  MessageCircle,
   Plane,
   ShieldCheck,
   Star,
@@ -30,6 +31,7 @@ import {
 import { discountPercent, formatPrice } from "@/lib/format";
 import { countryByCode, estimatedArrival, isAbroad } from "@/lib/countries";
 import { getLeadDays } from "@/lib/settings";
+import { waChatLink } from "@/lib/whatsapp";
 
 type Params = Promise<{ slug: string }>;
 
@@ -119,6 +121,17 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
                   <ShieldCheck className="h-4 w-4 text-niki-success" />
                 ) : null}
               </Link>
+            ) : null}
+            {vendor?.whatsapp && waChatLink(vendor.whatsapp) ? (
+              <a
+                href={waChatLink(vendor.whatsapp, `Hi ${vendor.businessName}, I'm interested in "${product.name}" on NikiMart.`)!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[#25D366] hover:underline"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Chat on WhatsApp
+              </a>
             ) : null}
 
             <div className="mt-2 flex items-start justify-between gap-3">

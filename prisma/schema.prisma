@@ -128,6 +128,11 @@ model Vendor {
   locationIds              String    @default("[]")
   // ISO-ish origin code: GH (local), CN, US, EU, AE. Non-GH = ships from abroad.
   originCountry            String    @default("GH")
+  // Shop branding: a square logo and a wide cover banner (http(s) or data: URL).
+  logoUrl                  String    @default("")
+  bannerUrl                String    @default("")
+  // Seller's WhatsApp number (any format) for the "Chat on WhatsApp" button.
+  whatsapp                 String    @default("")
   verificationStatus       String    @default("pending")
   rating                   Float     @default(0)
   reviewCount              Int       @default(0)
@@ -251,6 +256,10 @@ model Product {
   // Shipping volume in cubic metres (CBM) — the basis for the shipping fee.
   // Set at listing time (directly, or auto-computed from L×W×H ÷ 1,000,000).
   cbm                      Float    @default(0)
+  // Affiliate program: when enabled, affiliates can promote this product and
+  // earn on referred sales. affiliateCommission overrides the program default.
+  affiliateEnabled         Boolean  @default(false)
+  affiliateCommission      Float?
   // Primary image (kept for backward-compat / fallback); the gallery lives in
   // ProductImage. May be an http(s) URL or a data: URL.
   image                    String?

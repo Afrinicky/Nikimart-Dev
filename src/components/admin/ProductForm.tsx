@@ -168,6 +168,28 @@ export function ProductForm({
         </div>
       </fieldset>
 
+      <fieldset className="rounded-xl bg-niki-surface p-4 ring-1 ring-black/5">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-niki-ink/50">Affiliate program</legend>
+        <label className="flex items-center gap-2 text-sm font-medium text-niki-ink">
+          <input type="checkbox" name="affiliateEnabled" defaultChecked={Boolean(p?.affiliateEnabled)} className="h-4 w-4 rounded" />
+          Available to affiliates (they can promote it and earn on referred sales)
+        </label>
+        <div className="mt-3 max-w-xs">
+          <Field label="Affiliate commission (%)" htmlFor="affiliateCommission" hint="Blank = use the program default rate">
+            <input
+              id="affiliateCommission"
+              name="affiliateCommission"
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              defaultValue={p?.affiliateCommission ?? ""}
+              className={inputClass}
+            />
+          </Field>
+        </div>
+      </fieldset>
+
       <input type="hidden" name="locationIds" value={product?.locationIds.join(",") ?? "any"} />
 
       <div className="flex items-center gap-3">
