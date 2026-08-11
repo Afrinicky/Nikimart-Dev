@@ -15,7 +15,18 @@ type Params = Promise<{ slug: string }>;
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
   const vendor = await getVendorBySlug(slug);
-  return { title: vendor ? `${vendor.businessName} — NikiMart` : "Shop — NikiMart" };
+  if (!vendor) return { title: "Shop — NikiMart" };
+
+  const title = `${vendor.businessName} — NikiMart`;
+  const description = (vendor.description?.trim() || `Shop ${vendor.businessName} on NikiMart.`).slice(0, 200);
+  const url = `/shops/${slug}`;
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: { title, description, url, type: "website", siteName: "NikiMart" },
+    twitter: { card: "summary_large_image", title, description },
+  };
 }
 
 export default async function ShopDetailPage({ params }: { params: Params }) {
