@@ -50,8 +50,15 @@ export default async function VerifyDataPaymentPage({
   // Redirect outside the try/catch: Next's redirect() throws NEXT_REDIRECT,
   // which a catch would otherwise swallow.
   if (paid) {
-    if (isAfa) await settleAfaRegistration(reference);
-    else await settleDataOrder(reference);
+    // The buyer has already been charged, so this must not be able to show them
+    // an error screen. If settlement throws, we still land them on their order
+    // with its reference, and the Paystack webhook settles it independently.
+    try {
+      if (isAfa) await settleAfaRegistration(reference);
+      else await settleDataOrder(reference);
+    } catch (err) {
+      console.error(`[data-bundles] settling ${reference} failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
     const done = isAfa ? "afa" : "paid";
     redirect(`/data-bundles/orders?q=${encodeURIComponent(reference)}&${done}=1`);
   }

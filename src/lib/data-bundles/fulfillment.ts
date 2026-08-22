@@ -1,5 +1,4 @@
 import "server-only";
-import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { toPesewas } from "@/lib/payments";
@@ -22,6 +21,12 @@ import {
 
 /**
  * Payment settlement and provider dispatch for bundle purchases.
+ *
+ * Nothing here calls `revalidatePath`. Settlement runs from the Paystack
+ * redirect, which is a *page render*, and Next throws on revalidation during
+ * render — that crash is what put an error screen in front of buyers who had
+ * already paid. Leaving it out costs nothing: every page that reads this data
+ * is `force-dynamic`, so there is no cached copy to invalidate.
  *
  * The two halves are deliberately separate: money in (`settleDataOrder`) and
  * data out (`dispatchDataOrder`). Payment is settled with a guarded
@@ -46,11 +51,6 @@ export function newDataReference(): string {
 }
 export function newAfaReference(): string {
   return `${AFA_REFERENCE_PREFIX}${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 900 + 100)}`;
-}
-
-function revalidateData() {
-  revalidatePath("/admin/data");
-  revalidatePath("/admin/data/orders");
 }
 
 /** The provider status callback for one of our references, or undefined. */
@@ -100,7 +100,6 @@ export async function settleDataOrder(reference: string): Promise<boolean> {
     await dispatchDataOrder(id);
   });
 
-  revalidateData();
   return true;
 }
 
@@ -156,7 +155,6 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
       where: { id: orderId },
       data: { status: "failed", providerMessage: res.message.slice(0, 500) },
     });
-    revalidateData();
     after(async () => {
       await notifyDataOrderFailed(orderId);
     });
@@ -179,7 +177,6 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
     },
   });
 
-  revalidateData();
   after(async () => {
     await notifyDataOrderDispatched(orderId);
   });
@@ -215,7 +212,6 @@ export async function applyProviderStatus(
     },
   });
 
-  revalidateData();
   if (next === "completed") {
     after(async () => {
       await notifyDataOrderCompleted(orderId);
@@ -321,7 +317,6 @@ export async function settleAfaRegistration(reference: string): Promise<boolean>
   after(async () => {
     await dispatchAfaRegistration(id);
   });
-  revalidatePath("/admin/data/afa");
   return true;
 }
 
@@ -360,7 +355,6 @@ export async function dispatchAfaRegistration(id: string): Promise<DispatchResul
       where: { id },
       data: { status: "failed", providerMessage: res.message.slice(0, 500) },
     });
-    revalidatePath("/admin/data/afa");
     return { ok: false, message: res.message };
   }
 
@@ -375,8 +369,6 @@ export async function dispatchAfaRegistration(id: string): Promise<DispatchResul
       completedAt: status === "completed" ? new Date() : null,
     },
   });
-  revalidatePath("/admin/data/afa");
-
   await sendSms(
     row.phoneNumber,
     `NikiMart Data: your AFA registration (ref ${row.reference}) has been submitted. We'll text you once it's approved.`,
@@ -402,5 +394,4 @@ export async function applyAfaProviderStatus(
       completedAt: next === "completed" ? new Date() : null,
     },
   });
-  revalidatePath("/admin/data/afa");
 }
