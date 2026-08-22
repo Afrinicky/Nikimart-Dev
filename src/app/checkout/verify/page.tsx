@@ -50,7 +50,15 @@ export default async function VerifyPaymentPage({
   // Redirect outside the try/catch: Next's redirect() throws NEXT_REDIRECT,
   // which a catch would otherwise swallow.
   if (paid) {
-    await markOrderPaid(reference);
+    // `revalidate: false` because this is a page render — see markOrderPaid.
+    // Wrapped as well: the buyer has already been charged, so a settlement
+    // hiccup must not put an error screen in front of them. The Paystack
+    // webhook settles the order independently if this call didn't.
+    try {
+      await markOrderPaid(reference, { revalidate: false });
+    } catch (err) {
+      console.error(`[checkout] settling ${reference} failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
     redirect(`/orders?placed=${reference}`);
   }
   redirect(`/orders?failed=${reference}`);

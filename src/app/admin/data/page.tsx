@@ -68,11 +68,18 @@ export default async function AdminDataOverviewPage() {
 
   const checks = [
     {
-      ok: providerReady,
+      // A key being *present* proves nothing — the provider still has to accept
+      // it. The balance call above already asked, so use its answer rather than
+      // reporting a green tick over a key that gets rejected on every order.
+      ok: providerReady && balance.balance !== null,
       label: "Justice Datashop API key",
-      detail: providerReady
-        ? `Connected to ${providerBase()}`
-        : "Set JUSTICE_API_KEY so paid orders can be fulfilled.",
+      detail: !providerReady
+        ? "Set JUSTICE_API_KEY so paid orders can be fulfilled."
+        : balance.balance !== null
+          ? `Working — connected to ${providerBase()}`
+          : `Key rejected by the provider: “${balance.message}”. Re-copy it from ` +
+            "justicedatashop.com → Developer → Authentication (no quotes, no spaces), " +
+            "update it in Vercel, and redeploy.",
     },
     {
       ok: isPaymentConfigured(),

@@ -28,7 +28,16 @@ export async function paymentCoversOrder(orderNumber: string, amountPesewas: num
  * shipment on an unpaid order would auto-advance by elapsed time and mark the
  * order paid without payment.
  */
-export async function markOrderPaid(orderNumber: string): Promise<boolean> {
+export async function markOrderPaid(
+  orderNumber: string,
+  /**
+   * Refresh the pages that list orders. Must be `false` when calling from a
+   * page render (the Paystack redirect) — Next throws on revalidation during
+   * render, and that crash would land on a buyer who has already paid. Route
+   * handlers and server actions can leave it on.
+   */
+  { revalidate = true }: { revalidate?: boolean } = {},
+): Promise<boolean> {
   const flipped = await prisma.order.updateMany({
     where: { orderNumber, status: "pending" },
     data: { status: "paid" },
@@ -74,10 +83,12 @@ export async function markOrderPaid(orderNumber: string): Promise<boolean> {
     });
   }
 
-  revalidatePath("/orders");
-  revalidatePath("/account");
-  revalidatePath("/admin/orders");
-  revalidatePath("/freight");
-  revalidatePath("/pickup");
+  if (revalidate) {
+    revalidatePath("/orders");
+    revalidatePath("/account");
+    revalidatePath("/admin/orders");
+    revalidatePath("/freight");
+    revalidatePath("/pickup");
+  }
   return true;
 }
