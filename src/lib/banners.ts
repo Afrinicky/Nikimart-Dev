@@ -30,10 +30,10 @@ export const DEFAULT_BANNERS: BannerSlide[] = [
   {
     id: "default-2",
     title: "Buy data bundles",
-    subtitle: "MTN, Telecel & AirtelTigo data at great rates.",
+    subtitle: "MTN, Telecel & AirtelTigo data — delivered in seconds.",
     eventWindow: "ALL NETWORKS",
     ctaLabel: "Buy data",
-    ctaHref: "https://www.4ubundles.store/store/Nickland",
+    ctaHref: "/data-bundles",
     image: null,
     accentFrom: "#1f7a4d",
     accentTo: "#0e1f36",

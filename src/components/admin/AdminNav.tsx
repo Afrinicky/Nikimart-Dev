@@ -18,6 +18,7 @@ import {
   Users,
   Wallet,
   Gift,
+  Signal,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -28,6 +29,7 @@ const TABS = [
   { href: "/admin/categories", label: "Categories", icon: LayoutGrid },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
+  { href: "/admin/data", label: "Data", icon: Signal },
   { href: "/admin/finance", label: "Finance", icon: Wallet },
   { href: "/admin/affiliates", label: "Affiliates", icon: Gift },
   { href: "/admin/pages", label: "Pages", icon: LayoutTemplate },

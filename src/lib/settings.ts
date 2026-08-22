@@ -25,8 +25,24 @@ export const SETTINGS_DEFAULTS = {
   copyrightName: "NikiMart",
   // Brand logo (http(s) URL or a data: URL). Empty → bundled /logo.png.
   logoUrl: "",
-  // External data-bundles storefront (agent shop). Empty hides the shortcuts.
-  dataBundlesUrl: "https://www.4ubundles.store/store/Nickland",
+  // Where "Buy Data Bundles" points. Defaults to NikiMart's own bundle
+  // storefront; set an external URL to hand the traffic elsewhere, or empty to
+  // hide the shortcuts entirely.
+  dataBundlesUrl: "/data-bundles",
+  // --- Data bundle storefront ----------------------------------------------
+  // Master switch. "0" takes the storefront offline (browsing and buying) while
+  // leaving the admin console reachable.
+  dataBundlesEnabled: "1",
+  // Storefront branding, shown on /data-bundles.
+  dataStoreName: "NikiMart Data",
+  dataStoreTagline: "MTN, Telecel & AirtelTigo bundles — delivered in seconds.",
+  // Support contact for bundle buyers. Empty hides the button.
+  dataSupportWhatsapp: "",
+  // AFA (agent SIM) registration: whether it's sold, and for how much (GH₵).
+  dataAfaEnabled: "1",
+  dataAfaPrice: "12",
+  // Default markup (percent over upstream cost) the admin price tool suggests.
+  dataMarkupPercent: "25",
   // Platform commission (percent) taken on every sale. Sellers register free
   // and NikiMart earns this cut per item; overridable per category.
   commissionRate: "10",
@@ -210,5 +226,39 @@ export async function getShippingRates(): Promise<ShippingRates> {
     },
     intlDefaultRatePerCbm: numOr(settings.intlDefaultRatePerCbm, 1500),
     arrivalHubId,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Data bundle storefront
+// ---------------------------------------------------------------------------
+
+export interface DataStoreConfig {
+  enabled: boolean;
+  name: string;
+  tagline: string;
+  whatsapp: string;
+  afaEnabled: boolean;
+  afaPrice: number;
+  markupPercent: number;
+}
+
+/** Storefront configuration for /data-bundles, merged with defaults. */
+export async function getDataStoreConfig(): Promise<DataStoreConfig> {
+  const settings = await getSettings();
+  const numOr = (raw: string, fallback: number) => {
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : fallback;
+  };
+  return {
+    // Anything other than an explicit "0"/"off" keeps the store open, so a
+    // half-written value never silently takes the storefront down.
+    enabled: !["0", "off", "false", "no"].includes(settings.dataBundlesEnabled.trim().toLowerCase()),
+    name: settings.dataStoreName.trim() || "NikiMart Data",
+    tagline: settings.dataStoreTagline.trim(),
+    whatsapp: settings.dataSupportWhatsapp.trim(),
+    afaEnabled: !["0", "off", "false", "no"].includes(settings.dataAfaEnabled.trim().toLowerCase()),
+    afaPrice: numOr(settings.dataAfaPrice, 12),
+    markupPercent: numOr(settings.dataMarkupPercent, 25),
   };
 }

@@ -112,8 +112,12 @@ export function SettingsForm({ settings }: { settings: Settings }) {
           <Field label="Live chat status" htmlFor="liveChatStatus" hint="Shown under “Live chat” on the Help page">
             <input id="liveChatStatus" name="liveChatStatus" defaultValue={settings.liveChatStatus} className={inputClass} />
           </Field>
-          <Field label="Data bundles storefront URL" htmlFor="dataBundlesUrl" hint="Where “Buy Data Bundles” links to. Leave empty to hide the shortcuts.">
-            <input id="dataBundlesUrl" name="dataBundlesUrl" type="url" defaultValue={settings.dataBundlesUrl} className={inputClass} placeholder="https://…" />
+          <Field
+            label="“Buy Data Bundles” link"
+            htmlFor="dataBundlesUrl"
+            hint="Defaults to NikiMart's own bundle store at /data-bundles. Manage it in the Data tab. Empty hides the shortcuts."
+          >
+            <input id="dataBundlesUrl" name="dataBundlesUrl" defaultValue={settings.dataBundlesUrl} className={inputClass} placeholder="/data-bundles" />
           </Field>
         </div>
       </section>

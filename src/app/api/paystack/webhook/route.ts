@@ -2,6 +2,14 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { paystackSecretKey } from "@/lib/payments";
 import { markOrderPaid, paymentCoversOrder } from "@/lib/order-fulfillment";
+import {
+  afaPaymentCovers,
+  dataPaymentCovers,
+  isAfaReference,
+  isDataReference,
+  settleAfaRegistration,
+  settleDataOrder,
+} from "@/lib/data-bundles/fulfillment";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +19,10 @@ export const dynamic = "force-dynamic";
  * request body, keyed by the secret key, in the `x-paystack-signature` header.
  * We verify that before trusting anything, then settle the order on
  * `charge.success`. Settlement is idempotent, so redelivery is safe.
+ *
+ * One endpoint serves both storefronts: the reference prefix says which ledger
+ * a charge belongs to — "ND-"/"NA-" are data bundles and AFA registrations,
+ * anything else is a mall order.
  */
 export async function POST(req: Request) {
   const secret = paystackSecretKey();
@@ -45,8 +57,18 @@ export async function POST(req: Request) {
     const currency = event.data.currency ?? "GHS";
     // A signed event still has to pay for the order it names, in the right
     // currency, before we settle it.
-    if (currency === "GHS" && (await paymentCoversOrder(reference, amount))) {
-      await markOrderPaid(reference);
+    const covered =
+      currency === "GHS" &&
+      (isDataReference(reference)
+        ? await dataPaymentCovers(reference, amount)
+        : isAfaReference(reference)
+          ? await afaPaymentCovers(reference, amount)
+          : await paymentCoversOrder(reference, amount));
+
+    if (covered) {
+      if (isDataReference(reference)) await settleDataOrder(reference);
+      else if (isAfaReference(reference)) await settleAfaRegistration(reference);
+      else await markOrderPaid(reference);
     } else {
       console.warn(`[paystack] underpaid or mismatched charge for ${reference}: ${amount} ${currency}`);
     }
