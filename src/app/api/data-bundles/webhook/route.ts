@@ -1,6 +1,6 @@
-import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { callbackTokenMatches } from "@/lib/data-bundles/callback-token";
 import {
   applyAfaProviderStatus,
   applyProviderStatus,
@@ -14,34 +14,21 @@ export const dynamic = "force-dynamic";
  * Status callback from the data provider.
  *
  * The provider's order API takes a `callback` URL but signs nothing, so the URL
- * we hand it carries a shared secret (DATA_WEBHOOK_SECRET) plus the reference
- * of the order it belongs to. That means a caller must already know the secret
- * *and* a valid reference, and even then can only move that one order's status.
- * Without the secret configured we register no callback at all and reject
- * everything here.
+ * we hand it carries the reference it belongs to plus a token derived from that
+ * reference (see callback-token.ts). A caller therefore needs a valid reference
+ * *and* its matching token, and even then can only move that one order's
+ * status — never another's.
  */
-
-function tokenMatches(provided: string, expected: string): boolean {
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 export async function POST(req: Request) {
-  const secret = process.env.DATA_WEBHOOK_SECRET?.trim();
-  if (!secret) {
-    return NextResponse.json({ error: "Callbacks are not enabled." }, { status: 404 });
-  }
-
   const url = new URL(req.url);
-  const token = url.searchParams.get("token") ?? "";
-  if (!tokenMatches(token, secret)) {
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-  }
-
   const reference = (url.searchParams.get("ref") ?? "").trim();
   if (!reference) {
     return NextResponse.json({ error: "Missing reference" }, { status: 400 });
+  }
+
+  const token = url.searchParams.get("token") ?? "";
+  if (!callbackTokenMatches(reference, token)) {
+    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
 
   type CallbackBody = { status?: string; message?: string; payload?: { status?: string } };

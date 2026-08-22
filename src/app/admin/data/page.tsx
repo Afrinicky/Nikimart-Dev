@@ -96,11 +96,11 @@ export default async function AdminDataOverviewPage() {
         : "Set ARKESEL_API_KEY to text buyers their receipts.",
     },
     {
-      ok: Boolean(process.env.DATA_WEBHOOK_SECRET?.trim()),
+      // Derived from AUTH_SECRET, which the app can't run without — so this is
+      // green on any working deployment and needs no setup.
+      ok: Boolean((process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET)?.trim()),
       label: "Provider status callback",
-      detail: process.env.DATA_WEBHOOK_SECRET?.trim()
-        ? "Orders update themselves when the provider finishes."
-        : "Set DATA_WEBHOOK_SECRET to get automatic status updates (otherwise refresh orders by hand).",
+      detail: "Orders update themselves when the provider finishes. Nothing to configure.",
     },
     {
       ok: stats.available,
