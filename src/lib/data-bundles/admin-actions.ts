@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 import { isNetwork, type Network } from "@/lib/data-bundles/networks";
 import { dispatchDataOrder, refreshDataOrder, dispatchAfaRegistration } from "@/lib/data-bundles/fulfillment";
+import { runDataBundleSweep } from "@/lib/data-bundles/monitor";
 
 /**
  * Admin console actions for the data bundle storefront. Every one of these
@@ -225,4 +226,16 @@ export async function retryAfaRegistration(fd: FormData): Promise<void> {
   const id = str(fd, "id");
   if (id) await dispatchAfaRegistration(id);
   revalidatePath("/admin/data/afa");
+}
+
+/**
+ * Run the safety-net sweep on demand — the same work the daily cron does.
+ * Useful right after topping up the wallet, when you'd rather not wait until
+ * tomorrow for stalled orders to be re-driven.
+ */
+export async function sweepDataOrders(): Promise<void> {
+  await requireAdmin();
+  await runDataBundleSweep();
+  revalidatePath("/admin/data");
+  revalidatePath("/admin/data/orders");
 }

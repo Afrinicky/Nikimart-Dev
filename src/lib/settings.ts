@@ -43,6 +43,10 @@ export const SETTINGS_DEFAULTS = {
   dataAfaPrice: "12",
   // Default markup (percent over upstream cost) the admin price tool suggests.
   dataMarkupPercent: "25",
+  // Warn admins when the agent wallet falls below this (GH₵). An empty wallet
+  // fails every order *after* the customer has paid, so the alarm has to come
+  // while there's still time to top up.
+  dataLowBalanceThreshold: "50",
   // Platform commission (percent) taken on every sale. Sellers register free
   // and NikiMart earns this cut per item; overridable per category.
   commissionRate: "10",
@@ -241,6 +245,7 @@ export interface DataStoreConfig {
   afaEnabled: boolean;
   afaPrice: number;
   markupPercent: number;
+  lowBalanceThreshold: number;
 }
 
 /** Storefront configuration for /data-bundles, merged with defaults. */
@@ -260,5 +265,6 @@ export async function getDataStoreConfig(): Promise<DataStoreConfig> {
     afaEnabled: !["0", "off", "false", "no"].includes(settings.dataAfaEnabled.trim().toLowerCase()),
     afaPrice: numOr(settings.dataAfaPrice, 12),
     markupPercent: numOr(settings.dataMarkupPercent, 25),
+    lowBalanceThreshold: numOr(settings.dataLowBalanceThreshold, 50),
   };
 }

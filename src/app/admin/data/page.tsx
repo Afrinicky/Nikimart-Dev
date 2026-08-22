@@ -7,6 +7,7 @@ import {
   Clock3,
   ExternalLink,
   ListOrdered,
+  RefreshCw,
   TrendingUp,
   Wallet,
   XCircle,
@@ -19,6 +20,7 @@ import { isPaymentConfigured } from "@/lib/payments";
 import { isSmsConfigured } from "@/lib/notifications";
 import { getDataStoreConfig } from "@/lib/settings";
 import { getAllBundles } from "@/lib/data-bundles/catalog";
+import { sweepDataOrders } from "@/lib/data-bundles/admin-actions";
 
 export const metadata: Metadata = { title: "Data Bundles — Admin — NikiMart" };
 export const dynamic = "force-dynamic";
@@ -123,12 +125,25 @@ export default async function AdminDataOverviewPage() {
             </span>
           </p>
         </div>
-        <Link
-          href="/admin/data/bundles"
-          className="rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
-        >
-          Set bundle prices
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          {/* The cron runs this daily; the button is for right after a top-up,
+              when waiting until tomorrow for stalled orders isn't acceptable. */}
+          <form action={sweepDataOrders}>
+            <button
+              type="submit"
+              className="flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/5 transition-colors hover:bg-niki-navy/5"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Run checks now
+            </button>
+          </form>
+          <Link
+            href="/admin/data/bundles"
+            className="rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+          >
+            Set bundle prices
+          </Link>
+        </div>
       </div>
 
       {/* Agent wallet — the balance every order is drawn from. */}
