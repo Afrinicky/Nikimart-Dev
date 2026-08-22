@@ -47,6 +47,29 @@ export const SETTINGS_DEFAULTS = {
   // fails every order *after* the customer has paid, so the alarm has to come
   // while there's still time to top up.
   dataLowBalanceThreshold: "50",
+  // --- Sub-agent programme --------------------------------------------------
+  // Master switch for recruiting agents. "0" hides the pitch page and closes
+  // signup; existing agents keep trading.
+  agentProgramEnabled: "1",
+  // What it costs an agent to open a storefront (GH₵). Charged as a debit the
+  // moment the store is created, so the account opens on a negative balance
+  // that clears itself out of their commissions.
+  agentSetupFee: "30",
+  // Flat fee (GH₵) added to every commission withdrawal, and the smallest
+  // amount an agent may withdraw.
+  agentWithdrawalFee: "1",
+  agentMinWithdrawal: "10",
+  // Default discount (percent off the public retail price) suggested when the
+  // admin sets the agent price on a bundle.
+  agentAgentMarkupPercent: "12",
+  // Support contacts shown on the agent Support screen. Empty falls back to
+  // the site-wide support details.
+  agentSupportPhone: "",
+  agentSupportWhatsapp: "",
+  agentWhatsappGroup: "",
+  // The headline on the public recruitment page.
+  agentPitch:
+    "Resell MTN, Telecel and AirtelTigo bundles under your own store name. You set the prices, we deliver the data.",
   // Platform commission (percent) taken on every sale. Sellers register free
   // and NikiMart earns this cut per item; overridable per category.
   commissionRate: "10",
@@ -266,5 +289,42 @@ export async function getDataStoreConfig(): Promise<DataStoreConfig> {
     afaPrice: numOr(settings.dataAfaPrice, 12),
     markupPercent: numOr(settings.dataMarkupPercent, 25),
     lowBalanceThreshold: numOr(settings.dataLowBalanceThreshold, 50),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Sub-agent programme
+// ---------------------------------------------------------------------------
+
+export interface AgentProgramConfig {
+  enabled: boolean;
+  setupFee: number;
+  withdrawalFee: number;
+  minWithdrawal: number;
+  /** Suggested discount (percent off retail) for the agent price. */
+  agentDiscountPercent: number;
+  supportPhone: string;
+  supportWhatsapp: string;
+  whatsappGroup: string;
+  pitch: string;
+}
+
+/** Configuration for /agent and the recruitment page, merged with defaults. */
+export async function getAgentProgramConfig(): Promise<AgentProgramConfig> {
+  const settings = await getSettings();
+  const numOr = (raw: string, fallback: number) => {
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : fallback;
+  };
+  return {
+    enabled: !["0", "off", "false", "no"].includes(settings.agentProgramEnabled.trim().toLowerCase()),
+    setupFee: numOr(settings.agentSetupFee, 30),
+    withdrawalFee: numOr(settings.agentWithdrawalFee, 1),
+    minWithdrawal: numOr(settings.agentMinWithdrawal, 10),
+    agentDiscountPercent: numOr(settings.agentAgentMarkupPercent, 12),
+    supportPhone: settings.agentSupportPhone.trim() || settings.supportPhone.trim(),
+    supportWhatsapp: settings.agentSupportWhatsapp.trim() || settings.dataSupportWhatsapp.trim(),
+    whatsappGroup: settings.agentWhatsappGroup.trim(),
+    pitch: settings.agentPitch.trim(),
   };
 }

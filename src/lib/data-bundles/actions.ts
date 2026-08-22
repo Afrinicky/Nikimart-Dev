@@ -10,6 +10,11 @@ import { initializeTransaction, isPaymentConfigured, toPesewas } from "@/lib/pay
 import { getDataStoreConfig } from "@/lib/settings";
 import { findSellableBundle } from "@/lib/data-bundles/catalog";
 import {
+  agentIsSelling,
+  findAgentSellableBundle,
+  getAgentBySlug,
+} from "@/lib/data-bundles/agents";
+import {
   NETWORKS,
   bundleLabel,
   networkLabel,
@@ -47,13 +52,16 @@ async function clientIp(): Promise<string> {
 // Buy a bundle
 // ---------------------------------------------------------------------------
 
+// The checkout form asks for two things and nothing else: the number to top up
+// and (optionally) an email for the Paystack receipt. That number is also how
+// the buyer is identified afterwards, so there is no separate "your number".
 const buySchema = z.object({
   network: z.enum(NETWORKS),
   sizeGb: z.number().positive().max(1000),
   recipientPhone: z.string().min(9, "Enter the number to top up."),
-  buyerPhone: z.string().min(9, "Enter your own number so we can text you the receipt."),
   buyerEmail: z.string().trim().email("Enter a valid email address.").optional().or(z.literal("")),
-  buyerName: z.string().trim().max(80).optional(),
+  /** Buy through an agent's storefront: their slug. Omitted on NikiMart's own store. */
+  storeSlug: z.string().trim().max(40).optional(),
 });
 
 export type BuyBundleInput = z.infer<typeof buySchema>;
@@ -85,10 +93,9 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
     };
   }
 
-  const buyerPhone = toLocalGhPhone(data.buyerPhone);
-  if (!buyerPhone) {
-    return { ok: false, error: "Enter a valid Ghana number for yourself, e.g. 0241234567." };
-  }
+  // The number being topped up is also the buyer's contact — the form asks for
+  // nothing more than that.
+  const buyerPhone = recipientPhone;
 
   // One buyer shouldn't be able to spray orders — a burst of failed provider
   // calls costs real money upstream.
@@ -100,12 +107,28 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
     };
   }
 
+  // A sale through an agent's storefront is priced from *their* ladder, and
+  // earns them the difference over what NikiMart charges them. Everything else
+  // (payment, dispatch, delivery) is identical.
+  const agent = data.storeSlug ? await getAgentBySlug(data.storeSlug) : null;
+  if (data.storeSlug && (!agent || !agentIsSelling(agent))) {
+    return { ok: false, error: "This store is not taking orders right now." };
+  }
+
   // Re-price from the database — the browser only tells us which bundle, never
   // what it costs.
-  const bundle = await findSellableBundle(data.network, data.sizeGb);
+  const bundle = agent
+    ? await findAgentSellableBundle(agent.id, data.network, data.sizeGb)
+    : await findSellableBundle(data.network, data.sizeGb);
   if (!bundle) {
     return { ok: false, error: "That bundle is no longer available. Please pick another size." };
   }
+
+  // On an agent sale the cost basis is the agent price, and the commission is
+  // whatever they charge above it. On NikiMart's own store there is neither.
+  const agentCost = agent && "agentPrice" in bundle ? bundle.agentPrice : 0;
+  const agentCommission = agent ? Math.max(0, Math.round((bundle.price - agentCost) * 100) / 100) : 0;
+  const costPrice = "costPrice" in bundle ? bundle.costPrice : 0;
 
   const session = await auth();
   const userId = session?.user?.id ?? null;
@@ -122,14 +145,19 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
           network: bundle.network,
           sizeGb: bundle.sizeGb,
           price: bundle.price,
-          costPrice: bundle.costPrice,
+          costPrice,
           recipientPhone,
           buyerPhone,
           buyerEmail,
-          buyerName: data.buyerName?.trim() || null,
+          buyerName: null,
           status: "pending",
           paymentStatus: "unpaid",
           userId,
+          agentId: agent?.id ?? null,
+          source: agent ? "STOREFRONT" : "WEB",
+          agentCost,
+          agentCommission,
+          commissionStatus: agent ? "pending" : "void",
         },
       });
 
@@ -149,13 +177,14 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
           email: buyerEmail ?? `${buyerPhone}@data.nikimart.app`,
           amountPesewas: toPesewas(bundle.price),
           reference,
-          callbackUrl: `${await requestOrigin()}/data-bundles/verify`,
+          callbackUrl: `${await requestOrigin()}${agent ? `/store/${agent.slug}/verify` : "/data-bundles/verify"}`,
           metadata: {
             kind: "data-bundle",
             dataOrderId: order.id,
             network: bundle.network,
             size: bundleLabel(bundle.sizeGb),
             recipientPhone,
+            ...(agent ? { store: agent.slug, agentCode: agent.code } : {}),
           },
         });
         return { ok: true, reference, authorizationUrl };
@@ -189,6 +218,8 @@ const afaSchema = z.object({
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter the date of birth."),
   town: z.string().trim().min(2, "Enter the town or city."),
   occupation: z.string().trim().min(2, "Enter the occupation."),
+  /** Registered through an agent's storefront: their slug. */
+  storeSlug: z.string().trim().max(40).optional(),
 });
 
 export type AfaInputForm = z.infer<typeof afaSchema>;
@@ -229,6 +260,15 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
   const session = await auth();
   const collectPayment = isPaymentConfigured();
 
+  // An agent may charge their own AFA price; the difference over NikiMart's is
+  // their commission, exactly as on a bundle.
+  const agent = data.storeSlug ? await getAgentBySlug(data.storeSlug) : null;
+  if (data.storeSlug && (!agent || !agentIsSelling(agent) || !agent.afaEnabled)) {
+    return { ok: false, error: "This store is not taking AFA registrations right now." };
+  }
+  const price = agent && agent.afaPrice > 0 ? agent.afaPrice : config.afaPrice;
+  const agentCommission = agent ? Math.max(0, Math.round((price - config.afaPrice) * 100) / 100) : 0;
+
   for (let attempt = 0; attempt < 5; attempt++) {
     const reference = newAfaReference();
     try {
@@ -241,8 +281,13 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
           dateOfBirth: data.dateOfBirth,
           town: data.town,
           occupation: data.occupation,
-          price: config.afaPrice,
+          price,
           userId: session?.user?.id ?? null,
+          agentId: agent?.id ?? null,
+          source: agent ? "STOREFRONT" : "WEB",
+          agentCost: agent ? config.afaPrice : 0,
+          agentCommission,
+          commissionStatus: agent ? "pending" : "void",
         },
       });
 
@@ -256,10 +301,15 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
       try {
         const { authorizationUrl } = await initializeTransaction({
           email: `${phoneNumber}@data.nikimart.app`,
-          amountPesewas: toPesewas(config.afaPrice),
+          amountPesewas: toPesewas(price),
           reference,
-          callbackUrl: `${await requestOrigin()}/data-bundles/verify`,
-          metadata: { kind: "afa-registration", afaId: row.id, phoneNumber },
+          callbackUrl: `${await requestOrigin()}${agent ? `/store/${agent.slug}/verify` : "/data-bundles/verify"}`,
+          metadata: {
+            kind: "afa-registration",
+            afaId: row.id,
+            phoneNumber,
+            ...(agent ? { store: agent.slug, agentCode: agent.code } : {}),
+          },
         });
         return { ok: true, reference, authorizationUrl };
       } catch (err) {

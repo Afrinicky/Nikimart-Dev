@@ -32,6 +32,11 @@ export const ROLE_HOME: Record<Role, string> = {
  */
 export const DASHBOARD_ACCESS: Record<string, Role[]> = {
   "/account": ["CUSTOMER", "SELLER", "ADMIN", "FREIGHT", "PICKUP"],
+  // The agent platform is gated by membership, not by role: any signed-in user
+  // may hold a DataAgent account alongside whatever else they are. Middleware
+  // only enforces "signed in" here; /agent/layout.tsx redirects anyone without
+  // an agent account to the recruitment page.
+  "/agent": ["CUSTOMER", "SELLER", "ADMIN", "FREIGHT", "PICKUP"],
   "/seller": ["SELLER", "ADMIN"],
   "/admin": ["ADMIN"],
   "/freight": ["FREIGHT", "ADMIN"],

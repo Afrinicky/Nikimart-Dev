@@ -1,13 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { BadgeCheck, Loader2 } from "lucide-react";
+import { BadgeCheck } from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
+import { BusyButton } from "@/components/ui/motion";
 import { formatPrice } from "@/lib/format";
 import { registerAfa } from "@/lib/data-bundles/actions";
 
-/** AFA (agent SIM) registration form — pays through Paystack, then submits upstream. */
-export function AfaForm({ price }: { price: number }) {
+/**
+ * AFA (agent SIM) registration form — pays through Paystack, then submits
+ * upstream. `storeSlug` routes it through an agent's storefront so their AFA
+ * price applies and they earn the difference.
+ */
+export function AfaForm({
+  price,
+  storeSlug,
+  trackHref = "/data-bundles/orders",
+}: {
+  price: number;
+  storeSlug?: string;
+  trackHref?: string;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState<string | null>(null);
@@ -24,6 +37,7 @@ export function AfaForm({ price }: { price: number }) {
       dateOfBirth: String(fd.get("dateOfBirth") ?? ""),
       town: String(fd.get("town") ?? ""),
       occupation: String(fd.get("occupation") ?? ""),
+      storeSlug,
     });
     if (!result.ok) {
       setError(result.error);
@@ -40,7 +54,7 @@ export function AfaForm({ price }: { price: number }) {
 
   if (done) {
     return (
-      <div className="rounded-2xl bg-niki-success/10 p-6 text-center ring-1 ring-niki-success/30">
+      <div className="animate-scale-in rounded-2xl bg-niki-success/10 p-6 text-center ring-1 ring-niki-success/30">
         <BadgeCheck className="mx-auto h-8 w-8 text-niki-success" />
         <p className="mt-2 font-display font-bold text-niki-ink">Registration submitted</p>
         <p className="mt-1 text-sm text-niki-ink/70">
@@ -48,8 +62,8 @@ export function AfaForm({ price }: { price: number }) {
           once it&apos;s approved.
         </p>
         <a
-          href={`/data-bundles/orders?q=${encodeURIComponent(done)}`}
-          className="mt-4 inline-flex rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white"
+          href={`${trackHref}?q=${encodeURIComponent(done)}`}
+          className="niki-press mt-4 inline-flex rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white"
         >
           Check status
         </a>
@@ -60,7 +74,7 @@ export function AfaForm({ price }: { price: number }) {
   return (
     <form onSubmit={submit} className="space-y-4" noValidate>
       {error ? (
-        <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
+        <p className="animate-fade-up rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
           {error}
         </p>
       ) : null}
@@ -96,14 +110,15 @@ export function AfaForm({ price }: { price: number }) {
         <span className="font-display text-xl font-bold text-niki-ink">{formatPrice(price)}</span>
       </div>
 
-      <button
+      <BusyButton
         type="submit"
-        disabled={pending}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-niki-orange px-4 py-3.5 text-sm font-bold text-white transition-colors hover:bg-niki-orange-light disabled:cursor-not-allowed disabled:opacity-60"
+        busy={pending}
+        pendingLabel="Opening Paystack…"
+        icon={<BadgeCheck className="h-4 w-4" />}
+        className="w-full rounded-xl bg-niki-orange px-4 py-3.5 text-sm font-bold text-white hover:bg-niki-orange-light"
       >
-        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
-        {pending ? "Starting payment…" : `Pay ${formatPrice(price)} & register`}
-      </button>
+        {`Pay ${formatPrice(price)} & register`}
+      </BusyButton>
       <p className="text-center text-[11px] text-niki-ink/40">
         Secured by Paystack · MTN MoMo, Telecel Cash, AT Money & cards
       </p>

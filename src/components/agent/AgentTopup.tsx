@@ -14,52 +14,47 @@ import {
   toLocalGhPhone,
   type Network,
 } from "@/lib/data-bundles/networks";
-import { buyBundle } from "@/lib/data-bundles/actions";
+import { agentTopup } from "@/lib/data-bundles/agent-actions";
 
-export interface StoreBundle {
+export interface TopupBundle {
   network: Network;
   sizeGb: number;
-  price: number;
+  /** What the agent pays — their wholesale rate. */
+  agentPrice: number;
+  /** What their own storefront charges, shown so they can quote a customer. */
+  storePrice: number;
   validity: string;
 }
 
-export interface NetworkGroup {
-  network: Network;
-  bundles: StoreBundle[];
-}
-
 /**
- * The storefront: pick a network, pick a size, pay. No cart and no account —
- * every bundle is a one-off Paystack payment, so tapping a bundle goes straight
- * to the pay dialog.
+ * Data Topup: the agent serving a walk-in customer from their own dashboard.
  *
- * `storeSlug` routes the sale through an agent's storefront: the server prices
- * it from that agent's ladder and credits them the difference. Omitted on
- * NikiMart's own /data-bundles page.
+ * They pay the agent price through Paystack there and then — no wallet to
+ * stock, nothing fronted. Each card shows both numbers: what it costs them and
+ * what their store charges, so the margin is never a mental sum.
  */
-export function BundleStore({
-  groups,
-  storeSlug,
-  trackHref = "/data-bundles/orders",
-}: {
-  groups: NetworkGroup[];
-  storeSlug?: string;
-  trackHref?: string;
-}) {
-  const [network, setNetwork] = useState<Network>(groups[0]?.network ?? "MTN");
-  const [selected, setSelected] = useState<StoreBundle | null>(null);
+export function AgentTopup({ bundles }: { bundles: TopupBundle[] }) {
+  const networks = useMemo(() => {
+    const seen: Network[] = [];
+    for (const b of bundles) if (!seen.includes(b.network)) seen.push(b.network);
+    return seen;
+  }, [bundles]);
 
-  const active = useMemo(
-    () => groups.find((g) => g.network === network) ?? groups[0],
-    [groups, network],
+  const [network, setNetwork] = useState<Network>(networks[0] ?? "MTN");
+  const [selected, setSelected] = useState<TopupBundle | null>(null);
+
+  const shown = useMemo(
+    () => bundles.filter((b) => b.network === network).sort((a, b) => a.sizeGb - b.sizeGb),
+    [bundles, network],
   );
 
-  if (groups.length === 0) {
+  if (bundles.length === 0) {
     return (
-      <div className="animate-fade-up rounded-3xl bg-white p-10 text-center ring-1 ring-black/5">
-        <p className="font-display text-lg font-bold text-niki-ink">No bundles on sale yet</p>
+      <div className="animate-fade-up rounded-2xl bg-white p-8 text-center ring-1 ring-black/5">
+        <p className="font-display font-bold text-niki-ink">No bundles available yet</p>
         <p className="mt-2 text-sm text-niki-ink/60">
-          Prices are being set up. Please check back shortly.
+          NikiMart hasn&apos;t published agent prices for any bundle. Check back shortly, or ask
+          support.
         </p>
       </div>
     );
@@ -67,65 +62,40 @@ export function BundleStore({
 
   return (
     <div>
-      {/* Network chooser */}
-      <NetworkTabs networks={groups.map((g) => g.network)} value={network} onChange={setNetwork} />
+      <NetworkTabs networks={networks} value={network} onChange={setNetwork} />
 
-      {active ? (
-        <>
-          <p className="mt-4 text-sm text-niki-ink/60">{NETWORK_INFO[active.network].blurb}</p>
+      <div
+        key={network}
+        className="stagger-children mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+      >
+        {shown.map((b) => {
+          const margin = Math.round((b.storePrice - b.agentPrice) * 100) / 100;
+          return (
+            <BundleCard
+              key={`${b.network}-${b.sizeGb}`}
+              network={b.network}
+              sizeGb={b.sizeGb}
+              price={b.agentPrice}
+              validity={b.validity}
+              costLabel="Your cost"
+              actionLabel="Send now"
+              footnote={
+                margin > 0
+                  ? `Your store sells this at ${formatPrice(b.storePrice)} — ${formatPrice(margin)} margin`
+                  : undefined
+              }
+              onSelect={() => setSelected(b)}
+            />
+          );
+        })}
+      </div>
 
-          {/* One column on a phone so each card keeps its full width and the
-              two numbers stay side by side; the desktop grid is unchanged.
-              Keyed on the network so switching re-runs the stagger — the change
-              is then visibly a change, not a swap. */}
-          <div
-            key={active.network}
-            className="stagger-children mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-          >
-            {active.bundles.map((b) => (
-              <BundleCard
-                key={`${b.network}-${b.sizeGb}`}
-                network={b.network}
-                sizeGb={b.sizeGb}
-                price={b.price}
-                validity={b.validity}
-                onSelect={() => setSelected(b)}
-              />
-            ))}
-          </div>
-        </>
-      ) : null}
-
-      {selected ? (
-        <PaystackDialog
-          bundle={selected}
-          storeSlug={storeSlug}
-          trackHref={trackHref}
-          onClose={() => setSelected(null)}
-        />
-      ) : null}
+      {selected ? <TopupDialog bundle={selected} onClose={() => setSelected(null)} /> : null}
     </div>
   );
 }
 
-/**
- * "Pay with Paystack" — the whole checkout.
- *
- * It asks for the number to top up and, optionally, an email for the receipt.
- * Nothing else: there is no separate buyer number and no name field, because
- * the number being credited is also how the buyer looks the order up later.
- */
-export function PaystackDialog({
-  bundle,
-  storeSlug,
-  trackHref = "/data-bundles/orders",
-  onClose,
-}: {
-  bundle: StoreBundle;
-  storeSlug?: string;
-  trackHref?: string;
-  onClose: () => void;
-}) {
+function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => void }) {
   const info = NETWORK_INFO[bundle.network];
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -133,13 +103,10 @@ export function PaystackDialog({
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState<string | null>(null);
 
-  // Live feedback on the number: sending data to the wrong network can't be
-  // reversed, so flag the mismatch before payment rather than after.
   const local = toLocalGhPhone(phone);
   const detected = local ? networkForPhone(local) : null;
   const mismatch = Boolean(local && !phoneMatchesNetwork(local, bundle.network));
 
-  // Escape closes; the body stops scrolling behind the dialog.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !pending) onClose();
@@ -156,12 +123,11 @@ export function PaystackDialog({
     e.preventDefault();
     setError(null);
     setPending(true);
-    const result = await buyBundle({
+    const result = await agentTopup({
       network: bundle.network,
       sizeGb: bundle.sizeGb,
       recipientPhone: phone,
-      buyerEmail: email,
-      storeSlug,
+      email,
     });
     if (!result.ok) {
       setError(result.error);
@@ -169,8 +135,6 @@ export function PaystackDialog({
       return;
     }
     if (result.authorizationUrl) {
-      // Hand over to Paystack's hosted MoMo/card checkout. Stay "pending" —
-      // the spinner should survive right up to the redirect.
       window.location.href = result.authorizationUrl;
       return;
     }
@@ -186,14 +150,12 @@ export function PaystackDialog({
         className="absolute inset-0"
         onClick={() => !pending && onClose()}
       />
-
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Pay with Paystack"
         className="animate-sheet-up relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-w-md sm:rounded-3xl"
       >
-        {/* Header */}
         <div className="flex items-center justify-between gap-4 border-b border-black/5 px-5 py-4">
           <p className="font-display text-lg font-bold text-niki-ink">Pay with Paystack</p>
           <button
@@ -212,19 +174,17 @@ export function PaystackDialog({
               <Check className="mx-auto h-8 w-8 text-niki-success" />
               <p className="mt-2 font-display font-bold text-niki-ink">Order placed</p>
               <p className="mt-1 text-sm text-niki-ink/70">
-                Reference <span className="font-mono font-semibold">{done}</span>. We&apos;ll text{" "}
-                {toLocalGhPhone(phone)} once the data lands.
+                Reference <span className="font-mono font-semibold">{done}</span>.
               </p>
               <a
-                href={`${trackHref}?q=${encodeURIComponent(done)}`}
+                href="/agent/orders"
                 className="niki-press mt-4 inline-flex rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white"
               >
-                Track this order
+                See my orders
               </a>
             </div>
           ) : (
             <form onSubmit={submit} className="space-y-4" noValidate>
-              {/* What you're buying, and what it costs. */}
               <dl className="rounded-2xl bg-niki-surface p-4 text-sm">
                 <div className="flex items-center justify-between py-1">
                   <dt className="text-niki-ink/55">Network</dt>
@@ -237,7 +197,7 @@ export function PaystackDialog({
                 <div className="flex items-center justify-between py-1">
                   <dt className="text-niki-ink/55">Amount to pay</dt>
                   <dd className="font-display text-lg font-bold text-niki-orange">
-                    {formatPrice(bundle.price)}
+                    {formatPrice(bundle.agentPrice)}
                   </dd>
                 </div>
               </dl>
@@ -264,8 +224,8 @@ export function PaystackDialog({
                 />
                 {mismatch ? (
                   <span className="animate-fade-in mt-1 block text-xs font-medium text-niki-danger">
-                    That looks like {detected ? NETWORK_INFO[detected].label : "another network"}. Data
-                    sent to the wrong network can&apos;t be reversed.
+                    That looks like {detected ? NETWORK_INFO[detected].label : "another network"}.
+                    Data sent to the wrong network can&apos;t be reversed.
                   </span>
                 ) : (
                   <span className="mt-1 block text-xs text-niki-ink/50">
@@ -307,10 +267,6 @@ export function PaystackDialog({
                   Continue to Paystack
                 </BusyButton>
               </div>
-
-              <p className="text-center text-[11px] text-niki-ink/40">
-                Secured by Paystack · MTN MoMo, Telecel Cash, AT Money &amp; cards
-              </p>
             </form>
           )}
         </div>
