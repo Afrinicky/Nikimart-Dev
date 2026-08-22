@@ -158,7 +158,8 @@ INSERT INTO "SiteSetting" ("key","value") VALUES
   ('dataSupportWhatsapp',''),
   ('dataAfaEnabled','1'),
   ('dataAfaPrice','12'),
-  ('dataMarkupPercent','25')
+  ('dataMarkupPercent','25'),
+  ('dataLowBalanceThreshold','50')
 ON CONFLICT ("key") DO NOTHING;
 
 -- 6) Repoint the seeded carousel slide (and any banner still pointing at the

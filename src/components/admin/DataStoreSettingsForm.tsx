@@ -109,6 +109,13 @@ export function DataStoreSettingsForm({ settings }: { settings: Settings }) {
             <input id="dataMarkupPercent" name="dataMarkupPercent" type="number" min="0" max="500" step="1" defaultValue={settings.dataMarkupPercent} className={inputClass} />
           </Field>
           <Field
+            label="Low wallet alert (GH₵)"
+            htmlFor="dataLowBalanceThreshold"
+            hint="Text admins when the agent wallet drops below this. An empty wallet fails orders after the customer has paid."
+          >
+            <input id="dataLowBalanceThreshold" name="dataLowBalanceThreshold" type="number" min="0" step="1" defaultValue={settings.dataLowBalanceThreshold} className={inputClass} />
+          </Field>
+          <Field
             label="“Buy Data Bundles” link"
             htmlFor="dataBundlesUrl"
             hint="Where the sidebar, footer and carousel shortcuts point. Keep /data-bundles for this store."

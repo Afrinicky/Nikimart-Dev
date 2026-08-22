@@ -292,7 +292,13 @@ before advertising the store.
    (Paystack dashboard → Settings → API Keys & Webhooks). It settles orders
    where the buyer closed the browser before the redirect finished, and serves
    the mall and the bundle store alike.
-4. Keep the agent wallet funded — every bundle you sell is bought from it.
+4. Keep the agent wallet funded — every bundle you sell is bought from it. A
+   daily sweep (`/api/cron/data-bundles`, in `vercel.json`) texts admins when it
+   drops below the threshold in Store settings, re-drives orders that were paid
+   but never reached the provider, and re-checks ones the provider never
+   confirmed. **Run checks now** on the overview does the same on demand. Raise
+   it to hourly (`0 * * * *`) on a Vercel plan above Hobby, which refuses to
+   deploy crons that run more than once a day.
 
 Without `JUSTICE_API_KEY` the storefront still takes orders; they queue as paid
 and undispatched until the key is added and you press **Send now**.

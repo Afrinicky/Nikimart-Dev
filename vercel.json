@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/advance",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/data-bundles",
+      "schedule": "0 7 * * *"
     }
   ]
 }
