@@ -95,6 +95,7 @@ idempotent, and records itself in `_prisma_migrations` so a later
 | CBM shipping routes | `nikimart-neon-shipping-cbm.sql` |
 | Commission + seller payouts | `nikimart-neon-commission.sql` |
 | Affiliates (Finance console) | `nikimart-neon-affiliates.sql` |
+| Data bundle storefront | `nikimart-neon-data-bundles.sql` |
 
 ## Demo accounts
 
@@ -142,6 +143,7 @@ Signed in as an **Admin**, `/admin` is a full operator console (tabbed shell):
 - **Products / Shops / Categories / Users** — create, edit, delete; shops have
   verify/unverify; users have role assignment.
 - **Orders** — inline status changes.
+- **Data** — the data bundle storefront: prices, orders, AFA (see below).
 - **Pages** — a section-based **page builder** (see below).
 
 All admin mutations run through admin-only server actions (`requireAdmin`) and
@@ -216,12 +218,89 @@ later enrolment changes never rewrite past payouts. It **clears on delivery**,
 mirroring seller settlements, so a payout is never made against an order that
 can still be cancelled.
 
+## Data bundles
+
+NikiMart sells internet data bundles alongside the mall, on its own storefront at
+**`/data-bundles`** — MTN, Telecel, AirtelTigo iShare and AirtelTigo BigTime.
+Buyers no longer leave the site for an external agent storefront.
+
+It is deliberately its own world. Bundles are not `Product` rows, bundle orders
+are not `Order` rows, and nothing about them touches the cart, shipping, pickup
+points, or seller settlements. What they *do* share is NikiMart's infrastructure:
+the same Paystack account collects the money and the same Arkesel sender texts
+the buyer.
+
+**Buying** (no account needed — a phone number is the whole identity):
+
+1. Pick a network and a size. The price comes from the database, never the page.
+2. Enter the number to top up. The network is checked against the number's prefix
+   before payment, because data sent to the wrong network can't be reversed.
+3. Pay through Paystack (MoMo or card). On confirmation the order is handed to
+   the provider and the buyer gets an SMS; `/data-bundles/orders` tracks it by
+   reference or phone number.
+
+**AFA registration** is sold the same way at `/data-bundles/afa` — pay, then the
+details are submitted upstream for approval.
+
+### Fulfilment
+
+Orders are fulfilled through the **Justice Datashop** agent API
+(`https://backend.justicedatashop.com`, `X-API-Key`). `src/lib/data-bundles/`
+holds the whole feature: `provider.ts` (the API client), `catalog.ts` (prices),
+`fulfillment.ts` (settle payment → dispatch → notify), and the public and admin
+actions.
+
+Money in and data out are separate steps on purpose. Payment settles with a
+guarded `updateMany`, so the Paystack redirect and the Paystack webhook racing
+each other still dispatch exactly once — and a dispatch that fails upstream
+leaves a **paid** order the admin can retry, rather than a lost sale. Provider
+prices arrive in pesewas and are converted once, in the client.
+
+Set `DATA_WEBHOOK_SECRET` and each order registers a status callback at
+`/api/data-bundles/webhook`, so deliveries confirm themselves. The URL carries
+that secret plus the order's reference; without the secret no callback is
+registered and the endpoint rejects everything.
+
+### Admin
+
+`/admin/data` is a section of the existing admin console (same shell, same
+`requireAdmin` guard) with five tabs:
+
+- **Overview** — agent wallet balance, today's takings, in-flight and failed
+  orders, revenue against provider cost, and a setup checklist.
+- **Bundle prices** — the price table per network. Record the provider's cost
+  beside each size and the margin is worked out as you type; "Price from cost"
+  re-prices a whole network at a markup in one move.
+- **Bundle orders** — filter by status, search by reference or phone, and per
+  order: send now, refresh from the provider, mark refunded.
+- **AFA** — registrations and their approval status.
+- **Store settings** — store name, tagline, open/closed, support WhatsApp, the
+  AFA fee, and the default markup.
+
+Prices ship seeded with a **placeholder** ladder so the store is never empty.
+Check every row against your agent cost in **Admin → Data → Bundle prices**
+before advertising the store.
+
+### Setup
+
+1. Run `nikimart-neon-data-bundles.sql` on the database (tables + seed ladder +
+   settings). It's idempotent and never overwrites prices you've already set.
+2. Generate an API key at justicedatashop.com → Developer → Authentication and
+   set `JUSTICE_API_KEY`.
+3. Set `DATA_WEBHOOK_SECRET` (`openssl rand -hex 32`) for automatic status
+   updates.
+4. Keep the agent wallet funded — every bundle you sell is bought from it.
+
+Without `JUSTICE_API_KEY` the storefront still takes orders; they queue as paid
+and undispatched until the key is added and you press **Send now**.
+
 ## Data model
 
 Prisma schema (`prisma/schema.prisma`) covers the Auth.js tables plus the
 application domain: `Category`, `Vendor`, `Product`, `Order`, `OrderItem`,
-`PickupPoint`, `Shipment`, and the page builder (`Page`, `PageSection`,
-`SiteSetting`). The datasource is PostgreSQL in every environment; set
+`PickupPoint`, `Shipment`, the page builder (`Page`, `PageSection`,
+`SiteSetting`), and the data bundle storefront (`DataBundle`, `DataOrder`,
+`AfaRegistration`). The datasource is PostgreSQL in every environment; set
 `DATABASE_URL` accordingly.
 
 ## Useful scripts

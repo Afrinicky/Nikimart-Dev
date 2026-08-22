@@ -492,3 +492,114 @@ model Banner {
   order       Int      @default(0)
   createdAt   DateTime @default(now())
 }
+
+// ---------------------------------------------------------------------------
+// Data bundles — NikiMart's own internet-bundle storefront, fulfilled through
+// the Justice Datashop agent API. Kept deliberately separate from the shopping
+// mall's catalogue/orders so bundle stock, pricing, and fulfilment never mix
+// with physical goods.
+// ---------------------------------------------------------------------------
+
+// One sellable bundle: a size on a network, at the price NikiMart charges.
+// `costPrice` is what the upstream agent account is billed, so the admin can
+// see the margin on every row. Prices are GH₵ (the provider quotes pesewas).
+model DataBundle {
+  id        String   @id @default(cuid())
+  // MTN | TELECEL | AIRTELTIGO_ISHARE | AIRTELTIGO_BIGTIME (see lib/data-bundles/networks.ts).
+  network   String
+  // Volume in GB, as sent to the provider's `size` field.
+  sizeGb    Float
+  // Selling price shown on the storefront (GH₵).
+  price     Float
+  // Upstream cost (GH₵). 0 when unknown — margin is then just not shown.
+  costPrice Float    @default(0)
+  // Optional marketing line, e.g. "No expiry · instant delivery".
+  validity  String   @default("No expiry")
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([network, sizeGb])
+  @@index([network, isActive])
+}
+
+// A single bundle purchase. Guests can buy (no account needed), so `userId` is
+// optional and the buyer is identified by phone.
+model DataOrder {
+  id        String @id @default(cuid())
+  // Doubles as the Paystack transaction reference (ND-…), so it must be unique.
+  reference String @unique
+
+  network        String
+  sizeGb         Float
+  // Price charged and upstream cost, snapshotted at purchase time so later
+  // price edits never rewrite past orders or the profit report.
+  price          Float
+  costPrice      Float  @default(0)
+  // Local Ghana number the data is credited to (0XXXXXXXXX).
+  recipientPhone String
+  // Who bought it — for the receipt SMS and order lookup.
+  buyerPhone     String
+  buyerEmail     String?
+  buyerName      String?
+
+  // pending | paid | processing | completed | failed | refunded
+  status        String @default("pending")
+  // unpaid | paid — payment is separate from delivery, so a paid-but-undelivered
+  // order is visible to the admin as exactly that.
+  paymentStatus String @default("unpaid")
+  paidAt        DateTime?
+
+  // Upstream (Justice Datashop) references, filled in once dispatched.
+  providerOrderId String?
+  providerCode    String?
+  providerStatus  String?
+  providerMessage String?
+  dispatchedAt    DateTime?
+  completedAt     DateTime?
+
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([buyerPhone])
+  @@index([recipientPhone])
+  @@index([status])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// An AFA (agent SIM) registration sold through the storefront and submitted to
+// the provider once paid.
+model AfaRegistration {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  fullName    String
+  phoneNumber String
+  idNumber    String
+  dateOfBirth String
+  town        String
+  occupation  String
+
+  price         Float
+  // pending | paid | processing | completed | failed
+  status        String @default("pending")
+  paymentStatus String @default("unpaid")
+  paidAt        DateTime?
+
+  providerId      String?
+  providerStatus  String?
+  providerMessage String?
+  dispatchedAt    DateTime?
+  completedAt     DateTime?
+
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([phoneNumber])
+  @@index([status])
+  @@index([createdAt])
+}

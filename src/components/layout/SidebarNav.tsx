@@ -162,15 +162,27 @@ export function SidebarNav({
           </Link>
 
           {dataBundlesUrl ? (
-            <a
-              href={dataBundlesUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mb-3 flex items-center gap-3 rounded-xl bg-niki-navy px-4 py-3 text-sm font-semibold text-white"
-            >
-              <Smartphone className="h-5 w-5 text-niki-gold" />
-              Buy Data Bundles
-            </a>
+            // The bundle store now lives on NikiMart itself, so an in-app path
+            // navigates in place; an external URL still opens in a new tab.
+            /^https?:\/\//.test(dataBundlesUrl) ? (
+              <a
+                href={dataBundlesUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mb-3 flex items-center gap-3 rounded-xl bg-niki-navy px-4 py-3 text-sm font-semibold text-white"
+              >
+                <Smartphone className="h-5 w-5 text-niki-gold" />
+                Buy Data Bundles
+              </a>
+            ) : (
+              <Link
+                href={dataBundlesUrl}
+                className="mb-3 flex items-center gap-3 rounded-xl bg-niki-navy px-4 py-3 text-sm font-semibold text-white"
+              >
+                <Smartphone className="h-5 w-5 text-niki-gold" />
+                Buy Data Bundles
+              </Link>
+            )
           ) : null}
 
           {categories.length > 0 ? (
