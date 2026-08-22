@@ -256,10 +256,11 @@ each other still dispatch exactly once — and a dispatch that fails upstream
 leaves a **paid** order the admin can retry, rather than a lost sale. Provider
 prices arrive in pesewas and are converted once, in the client.
 
-Set `DATA_WEBHOOK_SECRET` and each order registers a status callback at
-`/api/data-bundles/webhook`, so deliveries confirm themselves. The URL carries
-that secret plus the order's reference; without the secret no callback is
-registered and the endpoint rejects everything.
+Each order registers a status callback at `/api/data-bundles/webhook`, so
+deliveries confirm themselves with nothing to set up. The URL carries the
+order's reference plus a token derived from it by HMAC, keyed by `AUTH_SECRET` —
+so a callback URL that leaks proves nothing about any other order, and the
+endpoint rejects anything whose token doesn't match its reference.
 
 ### Admin
 
@@ -287,8 +288,10 @@ before advertising the store.
    settings). It's idempotent and never overwrites prices you've already set.
 2. Generate an API key at justicedatashop.com → Developer → Authentication and
    set `JUSTICE_API_KEY`.
-3. Set `DATA_WEBHOOK_SECRET` (`openssl rand -hex 32`) for automatic status
-   updates.
+3. Point Paystack's webhook at `https://<your-domain>/api/paystack/webhook`
+   (Paystack dashboard → Settings → API Keys & Webhooks). It settles orders
+   where the buyer closed the browser before the redirect finished, and serves
+   the mall and the bundle store alike.
 4. Keep the agent wallet funded — every bundle you sell is bought from it.
 
 Without `JUSTICE_API_KEY` the storefront still takes orders; they queue as paid

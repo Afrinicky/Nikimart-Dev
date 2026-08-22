@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { toPesewas } from "@/lib/payments";
 import { sendSms, notify } from "@/lib/notifications";
 import { siteUrl } from "@/lib/site";
+import { callbackToken } from "@/lib/data-bundles/callback-token";
 import { formatPrice } from "@/lib/format";
 import {
   bundleLabel,
@@ -53,13 +54,16 @@ export function newAfaReference(): string {
   return `${AFA_REFERENCE_PREFIX}${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 900 + 100)}`;
 }
 
-/** The provider status callback for one of our references, or undefined. */
+/**
+ * The status callback we hand the provider with each order. Nothing to
+ * configure — the token is derived from AUTH_SECRET (see callback-token.ts).
+ */
 function callbackUrl(reference: string): string | undefined {
-  const secret = process.env.DATA_WEBHOOK_SECRET?.trim();
-  if (!secret) return undefined; // no secret → no callback we could trust
+  const token = callbackToken(reference);
+  if (!token) return undefined; // no AUTH_SECRET → no callback we could trust
   const url = new URL("/api/data-bundles/webhook", siteUrl());
   url.searchParams.set("ref", reference);
-  url.searchParams.set("token", secret);
+  url.searchParams.set("token", token);
   return url.toString();
 }
 
