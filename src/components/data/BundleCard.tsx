@@ -71,13 +71,13 @@ export function BundleCard({
       <div className="grid flex-1 grid-cols-2 divide-x divide-niki-edge-strong">
         <div className="px-4 py-3.5">
           <p className="text-[11px] font-medium text-niki-ink/45">Data</p>
-          <p className="mt-0.5 font-display text-lg font-bold text-niki-ink sm:text-xl">
+          <p className="mt-0.5 font-figures text-lg font-bold text-niki-ink sm:text-xl">
             {bundleLabel(sizeGb)}
           </p>
         </div>
         <div className="px-4 py-3.5">
           <p className="text-[11px] font-medium text-niki-ink/45">{costLabel}</p>
-          <p className="mt-0.5 font-display text-lg font-bold text-niki-ink sm:text-xl">
+          <p className="mt-0.5 font-figures text-lg font-bold text-niki-ink sm:text-xl">
             {formatMoney(price)}
           </p>
         </div>

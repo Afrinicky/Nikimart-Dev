@@ -144,7 +144,7 @@ export default async function OrderTrackingDetailPage({ params }: { params: Para
                 ))}
                 <div className="flex items-center justify-between border-t border-niki-edge pt-2">
                   <dt className="font-semibold text-niki-ink">Total paid</dt>
-                  <dd className="font-display font-bold text-niki-orange">
+                  <dd className="font-figures font-bold text-niki-orange">
                     {formatPrice(order.cost.total)}
                   </dd>
                 </div>

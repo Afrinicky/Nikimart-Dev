@@ -119,7 +119,7 @@ export function BundlePriceTable({
                   <tr key={b.id} className="border-b border-niki-edge last:border-0">
                     <td className="px-5 py-2.5">
                       <input type="hidden" name="bundleId" value={b.id} />
-                      <span className="font-display font-bold text-niki-ink">{bundleLabel(b.sizeGb)}</span>
+                      <span className="font-figures font-bold text-niki-ink">{bundleLabel(b.sizeGb)}</span>
                     </td>
                     <td className="px-3 py-2.5">
                       <input

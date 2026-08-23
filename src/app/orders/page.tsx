@@ -129,7 +129,7 @@ export default async function OrdersPage({
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="font-display font-bold text-niki-ink">
+                    <span className="font-figures font-bold text-niki-ink">
                       Total {formatPrice(order.total)}
                     </span>
                     <Link

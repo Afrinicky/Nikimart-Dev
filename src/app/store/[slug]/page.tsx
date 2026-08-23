@@ -119,7 +119,7 @@ export default async function AgentStorefrontPage({
         {showAfa ? (
           <section className="niki-gradient-card mt-8 flex flex-col justify-between gap-4 rounded-2xl p-6 text-white sm:flex-row sm:items-center">
             <div>
-              <p className="font-display text-lg font-bold">AFA registration</p>
+              <p className="font-figures text-lg font-bold">AFA registration</p>
               <p className="mt-1 max-w-sm text-sm text-white/70">
                 Register a number for AFA and unlock agent bundle rates. {formatPrice(afaPrice)} —
                 done online, no paperwork.

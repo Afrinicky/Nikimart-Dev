@@ -48,7 +48,7 @@ export default async function AdminDataOrdersPage({
     <Container className="py-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold text-niki-ink">Bundle orders</h1>
+          <h1 className="font-figures text-2xl font-bold text-niki-ink">Bundle orders</h1>
           <p className="mt-1 text-sm text-niki-ink/60">
             {available ? `${total} ${total === 1 ? "order" : "orders"}` : "Tables not migrated yet"}
           </p>
@@ -97,7 +97,7 @@ export default async function AdminDataOrdersPage({
               <div key={o.id} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-display font-bold text-niki-ink">
+                    <p className="font-figures font-bold text-niki-ink">
                       {bundleLabel(o.sizeGb)} {networkLabel(o.network)}
                       <span className="ml-2 font-sans text-sm font-normal text-niki-ink/50">
                         → {o.recipientPhone}
@@ -121,7 +121,7 @@ export default async function AdminDataOrdersPage({
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${DATA_STATUS_TONES[known]}`}>
                       {DATA_STATUS_LABELS[known]}
                     </span>
-                    <span className="font-display font-bold text-niki-ink">{formatPrice(o.price)}</span>
+                    <span className="font-figures font-bold text-niki-ink">{formatPrice(o.price)}</span>
                     {margin !== null ? (
                       <span className="text-[11px] text-niki-ink/40">
                         cost {formatPrice(o.costPrice)} · margin {formatPrice(Math.round(margin * 100) / 100)}

@@ -46,7 +46,7 @@ export default async function AdminOrdersPage() {
                 </p>
               </Link>
               <div className="flex items-center gap-3">
-                <span className="font-display font-bold text-niki-ink">{formatPrice(o.total)}</span>
+                <span className="font-figures font-bold text-niki-ink">{formatPrice(o.total)}</span>
                 <OrderStatusSelect id={o.id} status={o.status} />
                 <DeleteButton id={o.id} action={deleteOrder} label="" title="Delete order" />
               </div>

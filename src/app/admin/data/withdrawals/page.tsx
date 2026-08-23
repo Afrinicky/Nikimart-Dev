@@ -123,7 +123,7 @@ export default async function AdminWithdrawalsPage({
                       </ActionLink>
                       <p className="font-mono text-[11px] text-niki-ink/40">{w.agent.code}</p>
                     </td>
-                    <td className="py-3 pr-4 font-display font-bold text-niki-ink">
+                    <td className="py-3 pr-4 font-figures font-bold text-niki-ink">
                       {formatMoney(w.amount)}
                     </td>
                     <td className="py-3 pr-4 text-niki-ink/55">

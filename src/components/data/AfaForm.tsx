@@ -107,7 +107,7 @@ export function AfaForm({
 
       <div className="flex items-center justify-between rounded-2xl bg-niki-surface px-4 py-3">
         <span className="text-sm text-niki-ink/60">Registration fee</span>
-        <span className="font-display text-xl font-bold text-niki-ink">{formatPrice(price)}</span>
+        <span className="font-figures text-xl font-bold text-niki-ink">{formatPrice(price)}</span>
       </div>
 
       <BusyButton

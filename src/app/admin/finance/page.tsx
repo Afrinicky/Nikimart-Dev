@@ -56,7 +56,7 @@ export default async function AdminFinancePage() {
           ["earnings", "Platform earnings (net)", overview.platformEarnings],
         ] as const).map(([metric, label, value]) => (
           <Link key={metric} href={`/admin/finance/breakdown/${metric}`} className="group rounded-2xl bg-white p-5 ring-1 ring-niki-edge transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-niki-navy/5">
-            <p className="font-display text-2xl font-bold text-niki-ink">{formatPrice(value)}</p>
+            <p className="font-figures text-2xl font-bold text-niki-ink">{formatPrice(value)}</p>
             <p className="mt-1 flex items-center gap-1 text-sm text-niki-ink/60">
               {label}
               <ArrowUpRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />

@@ -70,7 +70,7 @@ export function AfaPricingForm({
         <p className="text-xs font-semibold uppercase tracking-wide text-niki-ink/45">
           NikiMart&apos;s price
         </p>
-        <p className="mt-1 font-display text-2xl font-bold text-niki-ink">
+        <p className="mt-1 font-figures text-2xl font-bold text-niki-ink">
           {formatMoney(basePrice)}
         </p>
       </div>

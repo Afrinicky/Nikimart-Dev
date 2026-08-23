@@ -67,7 +67,7 @@ export default function CartPage() {
                       <Plus className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  <div className="w-20 text-right font-display font-bold text-niki-ink">
+                  <div className="w-20 text-right font-figures font-bold text-niki-ink">
                     {formatPrice(item.price * item.quantity)}
                   </div>
                   <button

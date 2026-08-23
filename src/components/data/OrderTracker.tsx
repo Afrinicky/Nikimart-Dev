@@ -99,7 +99,7 @@ function OrderCard({ hit }: { hit: LookupHit }) {
     <div className="animate-fade-up mt-5 overflow-hidden rounded-2xl bg-niki-surface ring-1 ring-niki-edge-strong">
       <div className="flex flex-wrap items-start justify-between gap-4 p-5">
         <div className="min-w-0">
-          <p className="font-display text-xl font-bold text-niki-ink">{title}</p>
+          <p className="font-figures text-xl font-bold text-niki-ink">{title}</p>
           <p className="mt-1 text-sm text-niki-ink/60">To {maskPhone(recipient)}</p>
         </div>
         <StatusPill status={status} />

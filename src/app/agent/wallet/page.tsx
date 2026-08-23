@@ -60,7 +60,7 @@ function Tile({
         <Icon className="h-4 w-4" />
         <span className="text-[11px] font-semibold uppercase leading-tight tracking-wide sm:text-xs">{label}</span>
       </div>
-      <p className={`mt-2 font-display text-xl font-bold sm:text-2xl ${tones[tone]}`}>{value}</p>
+      <p className={`mt-2 font-figures text-xl font-bold sm:text-2xl ${tones[tone]}`}>{value}</p>
       {hint ? <p className="mt-0.5 text-[11px] leading-snug text-niki-ink/50 sm:text-xs">{hint}</p> : null}
     </div>
   );

@@ -25,7 +25,7 @@ function Tile({ label, value, tone = "ink" }: { label: string; value: string; to
   return (
     <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
       <p className="text-[11px] font-semibold uppercase leading-tight tracking-wide text-niki-ink/45 sm:text-xs">{label}</p>
-      <p className={`mt-2 font-display text-xl font-bold sm:text-2xl ${tones[tone]}`}>{value}</p>
+      <p className={`mt-2 font-figures text-xl font-bold sm:text-2xl ${tones[tone]}`}>{value}</p>
     </div>
   );
 }

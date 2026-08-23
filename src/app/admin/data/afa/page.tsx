@@ -55,7 +55,7 @@ export default async function AdminAfaPage() {
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${DATA_STATUS_TONES[known]}`}>
                       {DATA_STATUS_LABELS[known]}
                     </span>
-                    <span className="font-display font-bold text-niki-ink">{formatPrice(r.price)}</span>
+                    <span className="font-figures font-bold text-niki-ink">{formatPrice(r.price)}</span>
                     {r.paymentStatus === "paid" && !r.providerId ? (
                       <form action={retryAfaRegistration}>
                         <input type="hidden" name="id" value={r.id} />

@@ -150,7 +150,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
             </div>
 
             <div className="mt-5 flex items-baseline gap-3">
-              <span className="font-display text-3xl font-bold text-niki-ink">
+              <span className="font-figures text-3xl font-bold text-niki-ink">
                 {formatPrice(product.price)}
               </span>
               {product.oldPrice ? (
