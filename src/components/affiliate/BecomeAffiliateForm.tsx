@@ -11,7 +11,7 @@ export function BecomeAffiliateForm() {
   return (
     <form action={formAction} className="space-y-4" noValidate>
       {state.error ? (
-        <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
+        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
       ) : null}
       <Field label="Preferred referral code (optional)" htmlFor="code" hint="Letters & numbers, e.g. AMA10. We'll assign one if it's taken.">
         <input id="code" name="code" className={inputClass} placeholder="AMA10" />

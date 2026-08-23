@@ -83,7 +83,7 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
 
   // One buyer shouldn't be able to spray orders — a burst of failed provider
   // calls costs real money upstream.
-  const limit = rateLimit(`bundle:${buyerPhone}:${await clientIp()}`, 8, 10 * 60_000);
+  const limit = await rateLimit(`bundle:${buyerPhone}:${await clientIp()}`, 8, 10 * 60_000);
   if (!limit.ok) {
     return {
       ok: false,
@@ -232,7 +232,7 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
     return { ok: false, error: "Enter a valid date of birth." };
   }
 
-  const limit = rateLimit(`afa:${phoneNumber}:${await clientIp()}`, 4, 30 * 60_000);
+  const limit = await rateLimit(`afa:${phoneNumber}:${await clientIp()}`, 4, 30 * 60_000);
   if (!limit.ok) {
     return {
       ok: false,

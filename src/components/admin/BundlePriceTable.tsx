@@ -81,7 +81,7 @@ export function BundlePriceTable({
 
       <form action={formAction}>
         {state.error ? (
-          <p className="mx-5 mt-4 rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
+          <p role="alert" className="mx-5 mt-4 rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
             {state.error}
           </p>
         ) : null}

@@ -37,7 +37,7 @@ export function BannerForm({
   return (
     <form action={formAction} className="space-y-5" noValidate>
       {state.error ? (
-        <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
+        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
       ) : null}
 
       <Field label="Title" htmlFor="title" hint={state.fieldErrors?.title ?? "The big headline, e.g. “Samsung Hour — GH₵100 off”"}>

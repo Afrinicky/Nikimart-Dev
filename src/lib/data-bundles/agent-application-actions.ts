@@ -75,7 +75,7 @@ export async function checkStoreName(raw: string): Promise<SlugCheck> {
   // Unauthenticated and one query per call, so cap it. The allowance is
   // generous — a debounced field fires a handful of times per name — but it
   // stops the endpoint being used to walk the slug space.
-  const limit = rateLimit(`slug-check:${await clientIp()}`, 60, 5 * 60_000);
+  const limit = await rateLimit(`slug-check:${await clientIp()}`, 60, 5 * 60_000);
   if (!limit.ok) {
     return { state: "invalid", message: "Too many checks. Please wait a moment and try again." };
   }
@@ -139,7 +139,7 @@ export async function applyToBeAgent(
 
   // Applications are free to submit, so rate-limit them or the queue becomes
   // someone's plaything.
-  const limit = rateLimit(`agent-apply:${await clientIp()}`, 5, 60 * 60_000);
+  const limit = await rateLimit(`agent-apply:${await clientIp()}`, 5, 60 * 60_000);
   if (!limit.ok) {
     return { error: `Too many applications from here. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }
@@ -411,7 +411,7 @@ export async function completeAgentSetup(
   if (password !== confirm) return { error: "Both passwords must match." };
   if (storeName.length < 2) return { error: "Give your store a name." };
 
-  const limit = rateLimit(`agent-setup:${await clientIp()}`, 10, 15 * 60_000);
+  const limit = await rateLimit(`agent-setup:${await clientIp()}`, 10, 15 * 60_000);
   if (!limit.ok) {
     return { error: `Too many attempts. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }

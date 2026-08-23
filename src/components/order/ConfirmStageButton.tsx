@@ -38,7 +38,7 @@ export function ConfirmStageButton({
       <input type="hidden" name="shipmentId" value={shipmentId} />
       <input type="hidden" name="stage" value={stage} />
       <Inner label={label} />
-      {state.error ? <span className="text-[11px] font-medium text-niki-danger">{state.error}</span> : null}
+      {state.error ? <span role="alert" className="text-[11px] font-medium text-niki-danger">{state.error}</span> : null}
     </form>
   );
 }

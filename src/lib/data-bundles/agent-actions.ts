@@ -279,7 +279,7 @@ export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): 
     return { ok: false, error: `The smallest withdrawal is GH₵${config.minWithdrawal.toFixed(2)}.` };
   }
 
-  const limit = rateLimit(`agent-withdraw:${agent.id}`, 5, 60 * 60_000);
+  const limit = await rateLimit(`agent-withdraw:${agent.id}`, 5, 60 * 60_000);
   if (!limit.ok) {
     return { ok: false, error: `Too many requests. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }
@@ -364,7 +364,7 @@ export async function requestCallback(input: z.infer<typeof callbackSchema>): Pr
   if (!parsedPhone.ok) return { ok: false, error: parsedPhone.message };
   const phone = parsedPhone.local;
 
-  const limit = rateLimit(`agent-callback:${user.id}`, 3, 60 * 60_000);
+  const limit = await rateLimit(`agent-callback:${user.id}`, 3, 60 * 60_000);
   if (!limit.ok) {
     return { ok: false, error: `You've already asked us to call. We'll be in touch shortly.` };
   }
@@ -456,7 +456,7 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
   if (!recipient.ok) return { ok: false, error: recipient.message };
   const recipientPhone = recipient.local;
 
-  const limit = rateLimit(`agent-topup:${agent.id}`, 40, 10 * 60_000);
+  const limit = await rateLimit(`agent-topup:${agent.id}`, 40, 10 * 60_000);
   if (!limit.ok) {
     return { ok: false, error: `Too many orders. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }

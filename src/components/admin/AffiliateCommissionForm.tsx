@@ -20,7 +20,7 @@ export function AffiliateCommissionForm({ id, current, defaultRate }: { id: stri
       </label>
       <button type="submit" className="rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white hover:bg-niki-navy-light">Save</button>
       {state.ok ? <span className="text-xs font-medium text-niki-success">Saved ✓</span> : null}
-      {state.error ? <span className="text-xs font-medium text-niki-danger">{state.error}</span> : null}
+      {state.error ? <span role="alert" className="text-xs font-medium text-niki-danger">{state.error}</span> : null}
     </form>
   );
 }

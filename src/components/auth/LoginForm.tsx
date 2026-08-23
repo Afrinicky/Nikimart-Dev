@@ -12,7 +12,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
     <form action={formAction} className="mt-6 space-y-4" noValidate>
       {callbackUrl ? <input type="hidden" name="callbackUrl" value={callbackUrl} /> : null}
       {state.error ? (
-        <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
+        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
           {state.error}
         </p>
       ) : null}
@@ -22,6 +22,8 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
           id="email"
           name="email"
           type="text"
+          defaultValue={state.values?.email ?? ""}
+          key={state.values?.email ?? ""}
           autoComplete="username"
           required
           placeholder="you@example.com or 024 000 0000"

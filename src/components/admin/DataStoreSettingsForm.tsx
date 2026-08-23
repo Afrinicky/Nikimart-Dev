@@ -21,7 +21,7 @@ export function DataStoreSettingsForm({ settings }: { settings: Settings }) {
   return (
     <form action={formAction} className="space-y-6" noValidate>
       {state.error ? (
-        <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
+        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
           {state.error}
         </p>
       ) : null}

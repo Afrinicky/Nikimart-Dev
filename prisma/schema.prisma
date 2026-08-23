@@ -17,29 +17,29 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  phone         String?
-  passwordHash  String?
+  id                String    @id @default(cuid())
+  name              String?
+  email             String    @unique
+  emailVerified     DateTime?
+  image             String?
+  phone             String?
+  passwordHash      String?
   // Role gates every dashboard. SQLite has no enums, so we store the role as a
   // string constrained by the Role helper in src/lib/roles.ts.
-  role          String    @default("CUSTOMER")
+  role              String    @default("CUSTOMER")
   // Default delivery address + preferred pickup centre (set at registration).
-  address       String?
+  address           String?
   preferredPickupId String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   accounts        Account[]
   sessions        Session[]
   vendor          Vendor?
   orders          Order[]
-  pickupPoint     PickupPoint?  @relation("PickupOperator")
-  preferredPickup PickupPoint?  @relation("PreferredPickup", fields: [preferredPickupId], references: [id], onDelete: SetNull)
-  shipments       Shipment[]    @relation("FreightAgent")
+  pickupPoint     PickupPoint?         @relation("PickupOperator")
+  preferredPickup PickupPoint?         @relation("PreferredPickup", fields: [preferredPickupId], references: [id], onDelete: SetNull)
+  shipments       Shipment[]           @relation("FreightAgent")
   passwordResets  PasswordResetToken[]
   affiliate       Affiliate?
   dataAgent       DataAgent?
@@ -103,50 +103,50 @@ model VerificationToken {
 // ---------------------------------------------------------------------------
 
 model Category {
-  id           String    @id @default(cuid())
-  name         String
-  slug         String    @unique
-  icon         String
-  description  String
-  productCount Int       @default(0)
+  id                      String    @id @default(cuid())
+  name                    String
+  slug                    String    @unique
+  icon                    String
+  description             String
+  productCount            Int       @default(0)
   // Optional per-category commission override (percent). Null = use the
   // platform default commission rate from site settings.
-  commissionRate Float?
+  commissionRate          Float?
   // Admin-set default affiliate commission (percent of the item price) for
   // products in this category. Null = use the programme default from settings.
   // It's the rate a seller sees suggested when enrolling a product, and the
   // rate used when a product is enrolled without its own override.
   affiliateCommissionRate Float?
-  products     Product[]
+  products                Product[]
 }
 
 model Vendor {
-  id                       String    @id @default(cuid())
-  slug                     String    @unique
+  id                       String  @id @default(cuid())
+  slug                     String  @unique
   businessName             String
   // JSON-encoded string[] of SellerType values.
-  sellerTypes              String    @default("[]")
+  sellerTypes              String  @default("[]")
   description              String
   initials                 String
   accentFrom               String
   accentTo                 String
   // JSON-encoded string[] of location ids.
-  locationIds              String    @default("[]")
+  locationIds              String  @default("[]")
   // ISO-ish origin code: GH (local), CN, US, EU, AE. Non-GH = ships from abroad.
-  originCountry            String    @default("GH")
+  originCountry            String  @default("GH")
   // Shop branding: a square logo and a wide cover banner (http(s) or data: URL).
-  logoUrl                  String    @default("")
-  bannerUrl                String    @default("")
+  logoUrl                  String  @default("")
+  bannerUrl                String  @default("")
   // Seller's WhatsApp number (any format) for the "Chat on WhatsApp" button.
-  whatsapp                 String    @default("")
-  verificationStatus       String    @default("pending")
-  rating                   Float     @default(0)
-  reviewCount              Int       @default(0)
-  totalSales               Int       @default(0)
-  isOfficial               Boolean   @default(false)
-  deliveryAvailable        Boolean   @default(false)
-  pickupAvailable          Boolean   @default(false)
-  sameDayDeliveryAvailable Boolean   @default(false)
+  whatsapp                 String  @default("")
+  verificationStatus       String  @default("pending")
+  rating                   Float   @default(0)
+  reviewCount              Int     @default(0)
+  totalSales               Int     @default(0)
+  isOfficial               Boolean @default(false)
+  deliveryAvailable        Boolean @default(false)
+  pickupAvailable          Boolean @default(false)
+  sameDayDeliveryAvailable Boolean @default(false)
 
   // Where the seller wants to be paid: "" | momo | bank.
   payoutMethod      String @default("")
@@ -193,17 +193,17 @@ model Payout {
 // attribution is manual for now: admins record what each affiliate is owed and
 // pay it out.
 model Affiliate {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String   @default("")
-  email     String   @default("")
-  code      String?  @unique
-  note      String   @default("")
+  id             String   @id @default(cuid())
+  name           String
+  phone          String   @default("")
+  email          String   @default("")
+  code           String?  @unique
+  note           String   @default("")
   // active | suspended. Suspended affiliates stop earning on new orders.
-  status    String   @default("active")
+  status         String   @default("active")
   // Optional per-affiliate commission override (percent). Null = program default.
   commissionRate Float?
-  createdAt DateTime @default(now())
+  createdAt      DateTime @default(now())
 
   // Self-registered affiliates are linked to their user account. Admin-created
   // affiliates leave this null.
@@ -231,37 +231,37 @@ model AffiliatePayout {
 }
 
 model Product {
-  id                       String   @id @default(cuid())
-  slug                     String   @unique
+  id                       String  @id @default(cuid())
+  slug                     String  @unique
   name                     String
   description              String
   price                    Float
   oldPrice                 Float?
-  stockQuantity            Int      @default(0)
-  productType              String   @default("in_stock")
+  stockQuantity            Int     @default(0)
+  productType              String  @default("in_stock")
   // JSON-encoded string[] of BadgeKind values.
-  badges                   String   @default("[]")
+  badges                   String  @default("[]")
   // JSON-encoded string[] of location ids.
-  locationIds              String   @default("[]")
-  campusDeliveryAvailable  Boolean  @default(false)
-  pickupAvailable          Boolean  @default(false)
-  sameDayDeliveryAvailable Boolean  @default(false)
-  isOfficial               Boolean  @default(false)
-  isFeatured               Boolean  @default(false)
-  rating                   Float    @default(0)
-  reviewCount              Int      @default(0)
+  locationIds              String  @default("[]")
+  campusDeliveryAvailable  Boolean @default(false)
+  pickupAvailable          Boolean @default(false)
+  sameDayDeliveryAvailable Boolean @default(false)
+  isOfficial               Boolean @default(false)
+  isFeatured               Boolean @default(false)
+  rating                   Float   @default(0)
+  reviewCount              Int     @default(0)
   gradientFrom             String
   gradientTo               String
   emoji                    String
   // Billable shipping weight in kg (max of actual/volumetric) for delivery fees.
-  shippingWeightKg         Float    @default(0.5)
+  shippingWeightKg         Float   @default(0.5)
   // Parcel dimensions in cm (used to derive the CBM when it isn't set directly).
-  lengthCm                 Float    @default(0)
-  widthCm                  Float    @default(0)
-  heightCm                 Float    @default(0)
+  lengthCm                 Float   @default(0)
+  widthCm                  Float   @default(0)
+  heightCm                 Float   @default(0)
   // Shipping volume in cubic metres (CBM) — the basis for the shipping fee.
   // Set at listing time (directly, or auto-computed from L×W×H ÷ 1,000,000).
-  cbm                      Float    @default(0)
+  cbm                      Float   @default(0)
   // Primary image (kept for backward-compat / fallback); the gallery lives in
   // ProductImage. May be an http(s) URL or a data: URL.
   image                    String?
@@ -269,26 +269,26 @@ model Product {
   preorderInfo             String?
   serviceInfo              String?
   // JSON-encoded array of { label, value } key attributes (spec table).
-  attributes               String   @default("[]")
+  attributes               String  @default("[]")
 
   // --- Affiliate programme enrolment ---------------------------------------
   // Whether this product is offered to affiliate marketers. Only enrolled
   // products appear in an affiliate's shareable catalogue and earn commission.
-  affiliateEnabled         Boolean  @default(false)
+  affiliateEnabled        Boolean @default(false)
   // Who enrolled it, and therefore who funds the commission:
   //   "seller"   — the seller opted in; the commission comes out of their net.
   //   "admin"    — NikiMart opted in; the platform funds it out of its own
   //                commission, capped at half of it (see lib/affiliate-commission).
   //   ""         — not enrolled.
-  affiliateEnrolledBy      String   @default("")
+  affiliateEnrolledBy     String  @default("")
   // Commission percent of the item price paid to the referring affiliate.
   // Null = fall back to the category rate, then the programme default.
-  affiliateCommissionRate  Float?
+  affiliateCommissionRate Float?
 
   // Archived products are hidden from the storefront but keep their sales
   // history. Deleting a product that has been ordered would destroy order,
   // payout, and commission records, so those are archived instead.
-  isArchived               Boolean  @default(false)
+  isArchived Boolean @default(false)
 
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id])
@@ -340,12 +340,12 @@ model Order {
 }
 
 model OrderItem {
-  id        String @id @default(cuid())
-  quantity  Int    @default(1)
-  unitPrice Float
+  id             String @id @default(cuid())
+  quantity       Int    @default(1)
+  unitPrice      Float
   // Platform commission percent captured at sale time, so seller payouts stay
   // accurate even if the rate changes later. Seller earns unitPrice*qty*(1-rate/100).
-  commissionRate Float @default(0)
+  commissionRate Float  @default(0)
 
   // Affiliate commission snapshot for this line: the percent applied, the cash
   // amount, and who funds it ("seller" | "platform" | "" when there's none).
@@ -400,24 +400,24 @@ model ShippingRate {
 }
 
 model Shipment {
-  id             String   @id @default(cuid())
-  trackingNumber String   @unique
+  id               String    @id @default(cuid())
+  trackingNumber   String    @unique
   // Derived "furthest confirmed" stage: created | processing | in_transit |
   // out_for_delivery | delivered. Advanced only by role-based confirmations.
-  status         String   @default("created")
-  manualHold     Boolean  @default(false)
-  carrier        String   @default("NikiMart Freight")
-  origin         String
-  destination    String
-  eta            DateTime?
+  status           String    @default("created")
+  manualHold       Boolean   @default(false)
+  carrier          String    @default("NikiMart Freight")
+  origin           String
+  destination      String
+  eta              DateTime?
   // Per-stage confirmation timestamps. A non-null value = that stage is
   // confirmed (ticked). Confirming a later stage back-fills earlier ones.
-  processingAt      DateTime?
-  transitAt         DateTime?
-  outForDeliveryAt  DateTime?
-  deliveredAt       DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  processingAt     DateTime?
+  transitAt        DateTime?
+  outForDeliveryAt DateTime?
+  deliveredAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   orderId String @unique
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -465,14 +465,14 @@ model Faq {
 }
 
 model Location {
-  id       String  @id @default(cuid())
-  name     String
-  type     String  @default("city") // city | town | campus | institution | community
-  region   String
-  isActive Boolean @default(true)
-  order    Int     @default(0)
+  id                     String  @id @default(cuid())
+  name                   String
+  type                   String  @default("city") // city | town | campus | institution | community
+  region                 String
+  isActive               Boolean @default(true)
+  order                  Int     @default(0)
   // Delivery-fee zone multiplier (1 = standard; <1 nearer/cheaper, >1 farther).
-  deliveryZoneMultiplier Float @default(1)
+  deliveryZoneMultiplier Float   @default(1)
 }
 
 // Homepage promotional carousel slides (editable in the admin console).
@@ -505,26 +505,26 @@ model Banner {
 // `costPrice` is what the upstream agent account is billed, so the admin can
 // see the margin on every row. Prices are GH₵ (the provider quotes pesewas).
 model DataBundle {
-  id        String   @id @default(cuid())
+  id         String   @id @default(cuid())
   // MTN | TELECEL | AIRTELTIGO_ISHARE | AIRTELTIGO_BIGTIME (see lib/data-bundles/networks.ts).
-  network   String
+  network    String
   // Volume in GB, as sent to the provider's `size` field.
-  sizeGb    Float
+  sizeGb     Float
   // Selling price shown on the storefront (GH₵).
-  price     Float
+  price      Float
   // Upstream cost (GH₵). 0 when unknown — margin is then just not shown.
-  costPrice Float    @default(0)
+  costPrice  Float    @default(0)
   // What NikiMart charges its own sub-agents for this bundle (GH₵). It is the
   // agent's cost basis: their commission on a storefront sale is whatever they
   // charge above this. 0 means "not resold to agents", and the bundle is then
   // hidden from agent storefronts. Set it in Admin → Data → Bundle prices.
-  agentPrice Float   @default(0)
+  agentPrice Float    @default(0)
   // Optional marketing line, e.g. "No expiry · instant delivery".
-  validity  String   @default("No expiry")
-  isActive  Boolean  @default(true)
-  order     Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  validity   String   @default("No expiry")
+  isActive   Boolean  @default(true)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([network, sizeGb])
   @@index([network, isActive])
@@ -542,7 +542,7 @@ model DataOrder {
   // Price charged and upstream cost, snapshotted at purchase time so later
   // price edits never rewrite past orders or the profit report.
   price          Float
-  costPrice      Float  @default(0)
+  costPrice      Float   @default(0)
   // Local Ghana number the data is credited to (0XXXXXXXXX).
   recipientPhone String
   // Who bought it — for the receipt SMS and order lookup.
@@ -551,10 +551,10 @@ model DataOrder {
   buyerName      String?
 
   // pending | paid | processing | completed | failed | refunded
-  status        String @default("pending")
+  status        String    @default("pending")
   // unpaid | paid — payment is separate from delivery, so a paid-but-undelivered
   // order is visible to the admin as exactly that.
-  paymentStatus String @default("unpaid")
+  paymentStatus String    @default("unpaid")
   paidAt        DateTime?
 
   // Upstream (Justice Datashop) references, filled in once dispatched.
@@ -568,19 +568,19 @@ model DataOrder {
   // --- Sub-agent attribution ------------------------------------------------
   // Set when the sale came through an agent: either their public storefront or
   // the Data Topup screen inside their own dashboard.
-  agentId String?
-  agent   DataAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  agentId          String?
+  agent            DataAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
   // WEB | STOREFRONT | AGENT — where the order was placed. WEB is NikiMart's
   // own /data-bundles storefront.
-  source  String @default("WEB")
+  source           String     @default("WEB")
   // The agent price in force when the order was placed (the agent's cost), and
   // the commission they earn on it. Both are snapshotted so a later price edit
   // never rewrites what was owed.
-  agentCost       Float  @default(0)
-  agentCommission Float  @default(0)
+  agentCost        Float      @default(0)
+  agentCommission  Float      @default(0)
   // pending | earned | void. Commission is only credited once the bundle has
   // actually been delivered, so a failed order never pays out.
-  commissionStatus String @default("pending")
+  commissionStatus String     @default("pending")
   commissionPaidAt DateTime?
 
   userId    String?
@@ -610,8 +610,8 @@ model AfaRegistration {
 
   price         Float
   // pending | paid | processing | completed | failed
-  status        String @default("pending")
-  paymentStatus String @default("unpaid")
+  status        String    @default("pending")
+  paymentStatus String    @default("unpaid")
   paidAt        DateTime?
 
   providerId      String?
@@ -621,12 +621,12 @@ model AfaRegistration {
   completedAt     DateTime?
 
   // Sub-agent attribution, exactly as on DataOrder.
-  agentId String?
-  agent   DataAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
-  source  String @default("WEB")
-  agentCost       Float @default(0)
-  agentCommission Float @default(0)
-  commissionStatus String @default("pending")
+  agentId          String?
+  agent            DataAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  source           String     @default("WEB")
+  agentCost        Float      @default(0)
+  agentCommission  Float      @default(0)
+  commissionStatus String     @default("pending")
   commissionPaidAt DateTime?
 
   userId    String?
@@ -660,17 +660,17 @@ model DataAgent {
   code String @unique
 
   // The storefront. `slug` is the public path segment: /store/<slug>.
-  slug      String  @unique
-  storeName String
+  slug         String  @unique
+  storeName    String
   // Short line under the store name on the public storefront.
-  storeTagline String @default("")
-  storeAbout   String @default("")
+  storeTagline String  @default("")
+  storeAbout   String  @default("")
   // "open" hides nothing; "closed" shows a closed notice instead of the grid.
-  storeOpen Boolean @default(true)
+  storeOpen    Boolean @default(true)
 
-  supportPhone     String @default("")
-  supportWhatsapp  String @default("")
-  whatsappGroup    String @default("")
+  supportPhone    String @default("")
+  supportWhatsapp String @default("")
+  whatsappGroup   String @default("")
 
   // The agent's own AFA registration price. 0 means "use NikiMart's price"
   // (and earn nothing on it); afaEnabled hides AFA from their storefront.
@@ -684,7 +684,7 @@ model DataAgent {
   // Running balance in GH₵. Opens negative — the storefront setup fee is
   // charged the moment the store is created — and climbs back through zero as
   // commissions land. Only a positive balance can be withdrawn.
-  balance Float @default(0)
+  balance  Float @default(0)
   // What the store cost to open, kept for the ledger narration and for the
   // "still to clear" line on the wallet.
   setupFee Float @default(0)
@@ -705,12 +705,12 @@ model DataAgent {
 // bundle at NikiMart's agent price (zero commission) — present and inactive =
 // the bundle is hidden from their storefront entirely.
 model DataAgentPrice {
-  id      String @id @default(cuid())
+  id      String    @id @default(cuid())
   agentId String
   agent   DataAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
-  network String
-  sizeGb  Float
+  network  String
+  sizeGb   Float
   // What the agent charges their customer (GH₵). Must be ≥ the agent price.
   price    Float
   isActive Boolean @default(true)
@@ -726,19 +726,19 @@ model DataAgentPrice {
 // Balances are only ever changed by writing one of these rows, so the ledger
 // and the balance can always be reconciled against each other.
 model DataAgentLedger {
-  id      String @id @default(cuid())
+  id      String    @id @default(cuid())
   agentId String
   agent   DataAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   // SETUP_FEE | COMMISSION | WITHDRAWAL | WITHDRAWAL_REVERSAL | ADJUSTMENT
-  type String
+  type         String
   // Signed GH₵: negative debits the agent, positive credits them.
-  amount Float
+  amount       Float
   // Balance after this entry was applied, so history never has to be replayed.
   balanceAfter Float
-  narration    String @default("")
+  narration    String  @default("")
   // The order / withdrawal / admin action this entry came from.
-  reference String?
+  reference    String?
 
   createdAt DateTime @default(now())
 
@@ -749,22 +749,22 @@ model DataAgentLedger {
 // A commission withdrawal to MoMo. Admins process these by hand from the
 // data console, exactly as Justice does.
 model DataAgentWithdrawal {
-  id      String @id @default(cuid())
+  id      String    @id @default(cuid())
   agentId String
   agent   DataAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   // What the agent receives on MoMo.
   amount Float
   // Flat platform fee added on top and debited with the payout.
-  fee Float @default(0)
+  fee    Float @default(0)
 
   momoPhone   String
   momoName    String
   momoNetwork String
 
   // pending | processed | rejected
-  status      String  @default("pending")
-  adminNote   String  @default("")
+  status      String    @default("pending")
+  adminNote   String    @default("")
   processedBy String?
   processedAt DateTime?
 
@@ -794,11 +794,11 @@ model DataAnnouncement {
 
 // A callback request raised from the agent Support screen.
 model DataSupportRequest {
-  id       String @id @default(cuid())
+  id       String  @id @default(cuid())
   agentId  String?
   fullName String
   phone    String
-  language String @default("English")
+  language String  @default("English")
   message  String
 
   // open | resolved
@@ -813,13 +813,11 @@ model DataSupportRequest {
 
 /**
  * An application to become an agent.
- *
  * Signup is an application, not an instant account: someone gives their name,
  * contact, email and the store name they want, and an admin approves it. That
  * ordering matters — the store slug is a public URL and the agent's identity to
  * their customers, so it gets a human look before it exists, and NikiMart
  * chooses who resells under its name.
- *
  * Approving provisions the User and the DataAgent and issues a one-time setup
  * link, so no password is collected here — nothing worth stealing sits in this
  * table while it waits.
@@ -827,20 +825,26 @@ model DataSupportRequest {
 model DataAgentApplication {
   id String @id @default(cuid())
 
-  fullName String
-  phone    String
-  email    String
-  /** The store link they asked for, already normalised. */
+  fullName    String
+  phone       String
+  email       String
+  /**
+   * The store link they asked for, already normalised.
+   */
   desiredSlug String
-  /** Optional note from the applicant. */
-  note String @default("")
+  /**
+   * Optional note from the applicant.
+   */
+  note        String @default("")
 
   // pending | approved | rejected
   status     String    @default("pending")
   reviewedBy String?
   reviewedAt DateTime?
-  /** Why it was rejected, shown to the applicant if they ask. */
-  adminNote String @default("")
+  /**
+   * Why it was rejected, shown to the applicant if they ask.
+   */
+  adminNote  String    @default("")
 
   /**
    * SHA-256 of the one-time setup token, never the token itself. Set on
@@ -848,8 +852,10 @@ model DataAgentApplication {
    */
   setupTokenHash String?
   setupExpiresAt DateTime?
-  /** The account created on approval, once it exists. */
-  agentId String?
+  /**
+   * The account created on approval, once it exists.
+   */
+  agentId        String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -857,4 +863,26 @@ model DataAgentApplication {
   @@index([status, createdAt])
   @@index([email])
   @@index([desiredSlug])
+}
+
+/**
+ * One fixed rate-limit window.
+ * In the database rather than in memory because the app runs serverless: a
+ * process-local counter is per-instance, so "8 attempts" is really "8 per warm
+ * lambda" and spreading requests across instances buys an attacker as many
+ * multiples as the platform will start. One row, incremented by one atomic
+ * statement, is the same limit however many instances are running.
+ */
+model RateLimit {
+  /**
+   * The bucket: an action plus whatever identifies the caller.
+   */
+  key     String   @id
+  count   Int      @default(1)
+  /**
+   * When this window ends and the count starts again.
+   */
+  resetAt DateTime
+
+  @@index([resetAt])
 }

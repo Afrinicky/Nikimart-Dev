@@ -19,7 +19,7 @@ export function RequestAffiliatePayoutForm({ available }: { available: number })
   return (
     <form action={formAction} className="space-y-3">
       {state.error ? (
-        <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
+        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Amount (GH₵)" htmlFor="amount" hint={`Up to ${available}`}>
