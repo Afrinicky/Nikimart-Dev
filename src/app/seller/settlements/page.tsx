@@ -57,7 +57,7 @@ export default async function SellerSettlementsPage() {
             <Wallet className="h-5 w-5 text-niki-orange" />
             <span className="text-sm font-medium">Available for payout</span>
           </div>
-          <p className="mt-2 font-display text-4xl font-bold">{formatPrice(earnings.available)}</p>
+          <p className="mt-2 font-figures text-4xl font-bold">{formatPrice(earnings.available)}</p>
           <p className="mt-2 max-w-lg text-sm text-white/60">
             Cleared earnings from delivered orders, minus anything already paid out or being processed.
           </p>

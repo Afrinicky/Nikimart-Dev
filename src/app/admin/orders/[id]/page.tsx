@@ -89,7 +89,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
               <dl className="mt-4 ml-auto max-w-xs space-y-1.5 text-sm">
                 <div className="flex justify-between text-niki-ink/70"><dt>Subtotal</dt><dd className="font-medium text-niki-ink">{formatPrice(order.subtotal)}</dd></div>
                 <div className="flex justify-between text-niki-ink/70"><dt>{method === "pickup" ? "Pickup" : "Delivery"}</dt><dd className="font-medium text-niki-ink">{order.deliveryFee === 0 ? "Free" : formatPrice(order.deliveryFee)}</dd></div>
-                <div className="flex justify-between border-t border-niki-edge-strong pt-2 text-base font-bold text-niki-ink"><dt>Total</dt><dd className="font-display">{formatPrice(order.total)}</dd></div>
+                <div className="flex justify-between border-t border-niki-edge-strong pt-2 text-base font-bold text-niki-ink"><dt>Total</dt><dd className="font-figures">{formatPrice(order.total)}</dd></div>
               </dl>
             </div>
 

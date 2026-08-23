@@ -87,7 +87,7 @@ export default async function OrderTrackingPage({ params }: { params: Params }) 
                 </div>
               ))}
             </div>
-            <div className="mt-4 flex justify-between border-t border-niki-edge pt-4 font-display font-bold text-niki-ink">
+            <div className="mt-4 flex justify-between border-t border-niki-edge pt-4 font-figures font-bold text-niki-ink">
               <span>Total</span>
               <span>{formatPrice(order.total)}</span>
             </div>

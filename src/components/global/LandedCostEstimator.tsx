@@ -44,8 +44,8 @@ export function LandedCostEstimator({ defaultPrice = 1000 }: { defaultPrice?: nu
           </div>
         ))}
         <div className="flex items-center justify-between pt-2">
-          <dt className="font-display text-base font-bold text-niki-ink">Estimated total</dt>
-          <dd className="font-display text-lg font-bold text-niki-orange">{formatPrice(cost.total)}</dd>
+          <dt className="font-figures text-base font-bold text-niki-ink">Estimated total</dt>
+          <dd className="font-figures text-lg font-bold text-niki-orange">{formatPrice(cost.total)}</dd>
         </div>
       </dl>
 

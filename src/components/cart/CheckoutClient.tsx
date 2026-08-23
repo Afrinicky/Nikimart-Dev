@@ -224,7 +224,7 @@ export function CheckoutClient({
           </div>
           <div className="flex justify-between border-t border-niki-edge pt-2 text-base font-bold text-niki-ink">
             <dt>Total</dt>
-            <dd className="font-display">{formatPrice(total)}</dd>
+            <dd className="font-figures">{formatPrice(total)}</dd>
           </div>
         </dl>
         <button

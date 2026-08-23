@@ -68,7 +68,7 @@ export default async function AdminAgentsPage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-niki-ink/45">
               {t.label}
             </p>
-            <p className="mt-2 font-display text-xl font-bold text-niki-ink sm:text-2xl">{t.value}</p>
+            <p className="mt-2 font-figures text-xl font-bold text-niki-ink sm:text-2xl">{t.value}</p>
           </div>
         ))}
       </div>

@@ -232,7 +232,7 @@ export function PaystackDialog({
                 </div>
                 <div className="flex items-center justify-between py-1">
                   <dt className="text-niki-ink/55">Amount to pay</dt>
-                  <dd className="font-display text-lg font-bold text-niki-orange">
+                  <dd className="font-figures text-lg font-bold text-niki-orange">
                     {formatMoney(bundle.price)}
                   </dd>
                 </div>

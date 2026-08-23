@@ -40,7 +40,7 @@ function Tile({ label, value, icon: Icon }: { label: string; value: string; icon
         <Icon className="h-4 w-4" />
         <span className="text-[11px] font-semibold uppercase leading-tight tracking-wide sm:text-xs">{label}</span>
       </div>
-      <p className="mt-2 font-display text-xl font-bold text-niki-ink sm:text-2xl">{value}</p>
+      <p className="mt-2 font-figures text-xl font-bold text-niki-ink sm:text-2xl">{value}</p>
     </div>
   );
 }

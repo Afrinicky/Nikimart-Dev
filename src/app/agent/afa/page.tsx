@@ -53,7 +53,7 @@ export default async function AgentAfaPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-niki-ink/45">
             Your AFA price
           </p>
-          <p className="mt-1 font-display text-2xl font-bold text-niki-ink">{formatMoney(price)}</p>
+          <p className="mt-1 font-figures text-2xl font-bold text-niki-ink">{formatMoney(price)}</p>
           <p className="mt-0.5 text-xs text-niki-ink/50">
             NikiMart charges {formatMoney(store.afaPrice)}
           </p>
@@ -62,7 +62,7 @@ export default async function AgentAfaPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-niki-ink/45">
             You earn per registration
           </p>
-          <p className="mt-1 font-display text-2xl font-bold text-niki-success">
+          <p className="mt-1 font-figures text-2xl font-bold text-niki-success">
             {formatMoney(commission)}
           </p>
           <p className="mt-0.5 text-xs text-niki-ink/50">Credited once the registration is approved</p>

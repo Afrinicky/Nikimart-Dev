@@ -127,13 +127,13 @@ export default async function BecomeAnAgentPage() {
                         color: info.onAccent,
                       }}
                     >
-                      <p className="font-display text-sm font-bold">
+                      <p className="font-figures text-sm font-bold">
                         {info.short} · {bundleLabel(b.sizeGb)}
                       </p>
                     </div>
                     <div className="p-4">
                       <p className="text-[11px] font-medium text-niki-ink/45">Your cost</p>
-                      <p className="font-display text-xl font-bold text-niki-ink">
+                      <p className="font-figures text-xl font-bold text-niki-ink">
                         {formatPrice(b.agentPrice)}
                       </p>
                       <p className="mt-2 text-xs text-niki-ink/55">

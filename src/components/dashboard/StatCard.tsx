@@ -17,7 +17,7 @@ export function StatCard({
 }) {
   const body = (
     <>
-      <p className="font-display text-2xl font-bold text-niki-ink">{value}</p>
+      <p className="font-figures text-2xl font-bold text-niki-ink">{value}</p>
       <p className="mt-1 flex items-center gap-1 text-sm text-niki-ink/60">
         {label}
         {href ? (

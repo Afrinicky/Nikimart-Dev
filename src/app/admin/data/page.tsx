@@ -53,7 +53,7 @@ function Stat({
         <Icon className="h-4 w-4" />
         <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
       </div>
-      <p className={`mt-2 font-display text-2xl font-bold ${tones[tone]}`}>{value}</p>
+      <p className={`mt-2 font-figures text-2xl font-bold ${tones[tone]}`}>{value}</p>
       {hint ? <p className="mt-0.5 text-xs text-niki-ink/50">{hint}</p> : null}
     </div>
   );
@@ -165,7 +165,7 @@ export default async function AdminDataOverviewPage() {
             <Wallet className="h-4 w-4" />
             <span className="text-xs font-semibold uppercase tracking-wide">Agent wallet balance</span>
           </div>
-          <p className="mt-1 font-display text-3xl font-bold">
+          <p className="mt-1 font-figures text-3xl font-bold">
             {balance.balance === null ? "—" : formatPrice(balance.balance)}
           </p>
           <p className="mt-1 text-xs text-white/50">

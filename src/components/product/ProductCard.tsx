@@ -83,7 +83,7 @@ export function ProductCard({
         </div>
 
         <div className="mt-auto flex items-baseline gap-2 pt-1">
-          <span className="font-display text-base font-bold text-niki-ink">
+          <span className="font-figures text-base font-bold text-niki-ink">
             {formatPrice(product.price)}
           </span>
           {product.oldPrice ? (

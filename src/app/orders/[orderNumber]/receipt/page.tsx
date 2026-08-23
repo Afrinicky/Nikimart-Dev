@@ -136,7 +136,7 @@ export default async function ReceiptPage({ params }: { params: Params }) {
           </div>
           <div className="flex justify-between border-t border-niki-edge-strong pt-2 text-base font-bold text-niki-ink">
             <span>Total</span>
-            <span className="font-display">{formatPrice(order.total)}</span>
+            <span className="font-figures">{formatPrice(order.total)}</span>
           </div>
         </div>
 

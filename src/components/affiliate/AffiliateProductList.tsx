@@ -113,7 +113,7 @@ export function AffiliateProductList({
             <div className="mt-3 flex items-baseline justify-between gap-2 border-t border-niki-edge pt-3">
               <span className="text-sm text-niki-ink/60">{formatPrice(p.price)}</span>
               <span className="text-right">
-                <span className="font-display font-bold text-niki-success">
+                <span className="font-figures font-bold text-niki-success">
                   +{formatPrice(p.earnPerSale)}
                 </span>
                 <span className="ml-1 text-xs text-niki-ink/50">({p.rate}%)</span>

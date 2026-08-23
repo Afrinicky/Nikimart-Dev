@@ -54,7 +54,7 @@ function Tile({
           <ArrowUpRight className="ml-auto h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
         ) : null}
       </div>
-      <p className={`mt-2 font-display text-xl font-bold sm:text-2xl ${tones[tone]}`}>{value}</p>
+      <p className={`mt-2 font-figures text-xl font-bold sm:text-2xl ${tones[tone]}`}>{value}</p>
       {hint ? <p className="mt-0.5 text-[11px] leading-snug text-niki-ink/50 sm:text-xs">{hint}</p> : null}
     </>
   );
@@ -146,7 +146,7 @@ export default async function AgentDashboardPage() {
             <AlertTriangle className="h-5 w-5" />
           </span>
           <div>
-            <p className="font-display font-bold text-niki-ink">
+            <p className="font-figures font-bold text-niki-ink">
               {formatMoney(wallet.outstandingSetup)} of your setup fee is still clearing
             </p>
             <p className="mt-1 text-sm text-niki-ink/65">

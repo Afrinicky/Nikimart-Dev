@@ -95,7 +95,7 @@ export default async function AdminDashboardPage() {
                     >
                       {ORDER_STATUS_LABELS[order.status] ?? order.status}
                     </span>
-                    <span className="font-display font-bold text-niki-ink">
+                    <span className="font-figures font-bold text-niki-ink">
                       {formatPrice(order.total)}
                     </span>
                   </div>

@@ -336,6 +336,18 @@ summary {
       0 2px 8px rgba(255, 138, 0, 0.28);
   }
 
+  /* Numbers are data, and Space Grotesk is not the face for reading them.
+     Its "1" is a bare angled stroke with no base — fine in a logo, but in
+     "1GB", "10GB" and "GH₵1.50" it reads as a slash or a clipped glyph, and a
+     customer checking what they paid should never have to squint. So figures
+     go in the body face, with tabular spacing so columns of prices line up.
+     The display face keeps the words. */
+  .font-figures {
+    font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.011em;
+  }
+
   /* Keyboard users get the same focus ring everywhere. */
   .niki-focus:focus-visible {
     outline: none;
