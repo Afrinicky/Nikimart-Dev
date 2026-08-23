@@ -4,13 +4,17 @@ import { Container } from "@/components/ui/Container";
 import { BundlePriceTable } from "@/components/admin/BundlePriceTable";
 import { MarkupTool, NewBundleForm } from "@/components/admin/BundleTools";
 import { getAllBundles, groupByNetwork } from "@/lib/data-bundles/catalog";
-import { getDataStoreConfig } from "@/lib/settings";
+import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/settings";
 
 export const metadata: Metadata = { title: "Bundle Prices — Admin — NikiMart" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminBundlePricesPage() {
-  const [bundles, config] = await Promise.all([getAllBundles(), getDataStoreConfig()]);
+  const [bundles, config, program] = await Promise.all([
+    getAllBundles(),
+    getDataStoreConfig(),
+    getAgentProgramConfig(),
+  ]);
   const groups = groupByNetwork(bundles);
 
   return (
@@ -18,8 +22,8 @@ export default async function AdminBundlePricesPage() {
       <div>
         <h1 className="font-display text-2xl font-bold text-niki-ink">Bundle prices</h1>
         <p className="mt-1 text-sm text-niki-ink/60">
-          What buyers pay on the storefront. Record the provider&apos;s cost beside each size and the
-          margin is worked out for you.
+          Three prices per size: what the provider charges you, what your sub-agents pay, and what
+          a walk-in buyer pays. Both margins are worked out for you as you type.
         </p>
       </div>
 
@@ -44,7 +48,10 @@ export default async function AdminBundlePricesPage() {
       )}
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <MarkupTool defaultMarkup={config.markupPercent} />
+        <MarkupTool
+          defaultMarkup={config.markupPercent}
+          defaultAgentDiscount={program.agentDiscountPercent}
+        />
         <NewBundleForm />
       </div>
 
@@ -58,6 +65,7 @@ export default async function AdminBundlePricesPage() {
               sizeGb: b.sizeGb,
               price: b.price,
               costPrice: b.costPrice,
+              agentPrice: b.agentPrice,
               isActive: b.isActive,
             }))}
           />

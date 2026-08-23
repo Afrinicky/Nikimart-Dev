@@ -7,6 +7,7 @@ import { inputClass } from "@/components/ui/Field";
 import { BusyButton } from "@/components/ui/motion";
 import { Card } from "@/components/agent/AgentUi";
 import { formatPrice } from "@/lib/format";
+import { maxWithdrawal } from "@/lib/data-bundles/agent-pricing";
 import { requestWithdrawal } from "@/lib/data-bundles/agent-actions";
 
 const MOMO_NETWORKS = [
@@ -45,8 +46,9 @@ export function WithdrawPanel({
   const [pending, setPending] = useState(false);
 
   // The fee comes out of the balance alongside the payout, so the most that can
-  // actually be requested is the available amount less the fee.
-  const maxRequest = Math.max(0, Math.round((available - withdrawalFee) * 100) / 100);
+  // actually be requested is the available amount less the fee. Same helper the
+  // server validates with, so the form never offers a number it would reject.
+  const maxRequest = maxWithdrawal(available, 0, withdrawalFee);
   const canWithdraw = maxRequest >= minWithdrawal;
 
   async function submit(e: React.FormEvent) {

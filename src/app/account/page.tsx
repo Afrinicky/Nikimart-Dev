@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ClipboardList, Heart, MapPin, Package, Settings, Store, User } from "lucide-react";
+import { ClipboardList, Heart, MapPin, Package, Settings, Smartphone, Store, User } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -10,6 +10,8 @@ import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
 import { ROLE_LABELS, ROLE_HOME } from "@/lib/roles";
+import { getAgentForUser } from "@/lib/data-bundles/agents";
+import { getAgentProgramConfig } from "@/lib/settings";
 
 export const metadata: Metadata = {
   title: "My Account — NikiMart",
@@ -41,6 +43,10 @@ export default async function AccountPage() {
 
   const isStaff = user.role !== "CUSTOMER";
 
+  // Being a data agent is orthogonal to role — a customer can be one too — so
+  // it gets its own entry point rather than riding on ROLE_HOME.
+  const [agent, program] = await Promise.all([getAgentForUser(user.id), getAgentProgramConfig()]);
+
   return (
     <>
       <PageHeader title={`Hi, ${user.name ?? "there"}`} crumbs={[{ label: "Account" }]}>
@@ -65,6 +71,35 @@ export default async function AccountPage() {
               className="rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
             >
               Open dashboard
+            </Link>
+          </div>
+        ) : null}
+
+        {agent ? (
+          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl bg-niki-navy p-5">
+            <Smartphone className="h-5 w-5 shrink-0 text-niki-gold" />
+            <p className="flex-1 text-sm text-white/80">
+              You resell data as{" "}
+              <span className="font-semibold text-white">{agent.storeName}</span>.
+            </p>
+            <Link
+              href="/agent"
+              className="niki-press rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white hover:bg-niki-orange-light"
+            >
+              Agent platform
+            </Link>
+          </div>
+        ) : program.enabled ? (
+          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl bg-white p-5 ring-1 ring-black/5">
+            <Smartphone className="h-5 w-5 shrink-0 text-niki-orange" />
+            <p className="flex-1 text-sm text-niki-ink/70">
+              Resell data bundles under your own store name — nothing to pay up front.
+            </p>
+            <Link
+              href="/become-an-agent"
+              className="niki-press rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white"
+            >
+              Become an agent
             </Link>
           </div>
         ) : null}

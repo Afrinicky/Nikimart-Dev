@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BadgeCheck, Clock3, MessageCircle, Search, ShieldCheck, Smartphone, Zap } from "lucide-react";
+import { BadgeCheck, Clock3, MessageCircle, Search, ShieldCheck, Smartphone, Store, Zap } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { BundleStore, type NetworkGroup } from "@/components/data/BundleStore";
 import { getActiveBundles, groupByNetwork } from "@/lib/data-bundles/catalog";
-import { getDataStoreConfig } from "@/lib/settings";
+import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/settings";
 import { formatPrice } from "@/lib/format";
 
 export const metadata: Metadata = {
@@ -25,7 +25,11 @@ const STEPS = [
 ];
 
 export default async function DataBundlesPage() {
-  const [config, bundles] = await Promise.all([getDataStoreConfig(), getActiveBundles()]);
+  const [config, program, bundles] = await Promise.all([
+    getDataStoreConfig(),
+    getAgentProgramConfig(),
+    getActiveBundles(),
+  ]);
 
   if (!config.enabled) notFound();
 
@@ -154,6 +158,31 @@ export default async function DataBundlesPage() {
             </div>
           </div>
         </section>
+
+        {/* Recruitment. Placed after the store, not before it — someone who
+            came to buy data should be able to buy data first. */}
+        {program.enabled ? (
+          <section className="niki-gradient-card mt-8 flex flex-col justify-between gap-4 rounded-2xl p-6 text-white sm:flex-row sm:items-center">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-niki-gold ring-1 ring-white/15">
+                <Store className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="font-display text-lg font-bold">Sell data yourself</p>
+                <p className="mt-1 max-w-md text-sm text-white/70">
+                  {program.pitch} Nothing to pay up front — your storefront costs{" "}
+                  {formatPrice(program.setupFee)} and clears out of what you earn.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/become-an-agent"
+              className="niki-press shrink-0 rounded-full bg-niki-orange px-5 py-2.5 text-center text-sm font-semibold text-white hover:bg-niki-orange-light"
+            >
+              Become an agent
+            </Link>
+          </section>
+        ) : null}
 
         <p className="mt-8 text-center text-xs text-niki-ink/40">
           Data is credited to the exact number entered at checkout. Bundles sent to a wrong number

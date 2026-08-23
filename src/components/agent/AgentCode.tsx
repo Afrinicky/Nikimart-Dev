@@ -13,11 +13,14 @@ export function CopyChip({
   value,
   className,
   valueClassName,
+  hideValue = false,
 }: {
   label?: string;
   value: string;
   className?: string;
   valueClassName?: string;
+  /** For values too long to sit in a chip — the label alone, still copying. */
+  hideValue?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -47,18 +50,20 @@ export function CopyChip({
         className,
       )}
     >
-      {label ? <span className="opacity-60">{label}</span> : null}
-      <span className={cn("font-mono", valueClassName)}>{value}</span>
+      {label ? <span className={hideValue ? undefined : "opacity-60"}>{label}</span> : null}
+      {hideValue ? null : <span className={cn("font-mono", valueClassName)}>{value}</span>}
+      {/* When the label already says "copy", the trailing word would say it
+          twice — the icon alone carries it, and the tick still confirms. */}
       <span className="flex items-center gap-1 opacity-80">
         {copied ? (
           <>
             <Check className="animate-scale-in h-3.5 w-3.5 text-niki-success" />
-            Copied
+            {hideValue ? null : "Copied"}
           </>
         ) : (
           <>
             <Copy className="h-3.5 w-3.5" />
-            Copy
+            {hideValue ? null : "Copy"}
           </>
         )}
       </span>

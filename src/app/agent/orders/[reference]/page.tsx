@@ -5,7 +5,7 @@ import { ActionLink } from "@/components/ui/motion";
 import { Card, PaymentPill, SourcePill, StatusPill, formatWhen } from "@/components/agent/AgentUi";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { formatPrice } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { cn } from "@/lib/cn";
@@ -70,10 +70,10 @@ export default async function AgentOrderDetailPage({
           <dl className="divide-y divide-black/5">
             <Row label="Network" value={networkLabel(order.network)} />
             <Row label="Data size" value={bundleLabel(order.sizeGb)} />
-            <Row label="Price charged" value={formatPrice(order.price)} />
+            <Row label="Price charged" value={formatMoney(order.price)} />
             <Row
               label="Your cost"
-              value={order.agentCost > 0 ? formatPrice(order.agentCost) : "—"}
+              value={order.agentCost > 0 ? formatMoney(order.agentCost) : "—"}
             />
             <Row
               label="Your commission"
@@ -89,7 +89,7 @@ export default async function AgentOrderDetailPage({
                     )}
                     title={commissionNote}
                   >
-                    {formatPrice(order.agentCommission)}
+                    {formatMoney(order.agentCommission)}
                   </span>
                 ) : (
                   "—"

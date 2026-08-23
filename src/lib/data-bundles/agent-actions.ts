@@ -26,9 +26,9 @@ import {
   normaliseSlug,
   round2,
   slugProblem,
-  withdrawableFrom,
   type AgentAccount,
 } from "@/lib/data-bundles/agents";
+import { maxWithdrawal, priceAtMarkup } from "@/lib/data-bundles/agent-pricing";
 
 /**
  * Everything an agent can do to their own account: open a store, rename it,
@@ -305,7 +305,7 @@ export async function applyBulkMarkup(percent: number): Promise<ActionResult> {
   if (rows.length === 0) return { ok: false, error: "There are no bundles to price yet." };
 
   for (const row of rows) {
-    const price = round2(row.agentPrice * (1 + percent / 100));
+    const price = priceAtMarkup(row.agentPrice, percent);
     await prisma.dataAgentPrice.upsert({
       where: {
         agentId_network_sizeGb: { agentId: agent.id, network: row.network, sizeGb: row.sizeGb },
@@ -361,17 +361,17 @@ export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): 
   }
 
   const wallet = await getAgentWallet(agent);
-  const available = withdrawableFrom(wallet);
-  const total = round2(amount + config.withdrawalFee);
-  if (total > available) {
+  const ceiling = maxWithdrawal(wallet.balance, wallet.pendingWithdrawals, config.withdrawalFee);
+  if (amount > ceiling) {
     return {
       ok: false,
       error:
-        available <= 0
+        ceiling <= 0
           ? "You have nothing available to withdraw yet."
-          : `You can withdraw up to GH₵${round2(available - config.withdrawalFee).toFixed(2)} right now (a GH₵${config.withdrawalFee.toFixed(2)} fee applies).`,
+          : `You can withdraw up to GH₵${ceiling.toFixed(2)} right now${config.withdrawalFee > 0 ? ` (a GH₵${config.withdrawalFee.toFixed(2)} fee applies)` : ""}.`,
     };
   }
+  const total = round2(amount + config.withdrawalFee);
 
   await prisma.$transaction(async (tx) => {
     const row = await tx.dataAgentWithdrawal.create({

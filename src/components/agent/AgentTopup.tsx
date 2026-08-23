@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, CreditCard, X } from "lucide-react";
 import { inputClass } from "@/components/ui/Field";
-import { BusyButton } from "@/components/ui/motion";
+import { ActionLink, BusyButton } from "@/components/ui/motion";
 import { BundleCard, NetworkTabs } from "@/components/data/BundleCard";
-import { formatPrice } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import {
   NETWORK_INFO,
   bundleLabel,
@@ -81,7 +81,7 @@ export function AgentTopup({ bundles }: { bundles: TopupBundle[] }) {
               actionLabel="Send now"
               footnote={
                 margin > 0
-                  ? `Your store sells this at ${formatPrice(b.storePrice)} — ${formatPrice(margin)} margin`
+                  ? `Your store sells this at ${formatMoney(b.storePrice)} — ${formatMoney(margin)} margin`
                   : undefined
               }
               onSelect={() => setSelected(b)}
@@ -154,7 +154,7 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
         role="dialog"
         aria-modal="true"
         aria-label="Pay with Paystack"
-        className="animate-sheet-up relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-w-md sm:rounded-3xl"
+        className="animate-sheet-up relative z-10 max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-white pb-[max(env(safe-area-inset-bottom),4.5rem)] shadow-2xl sm:max-w-md sm:rounded-3xl sm:pb-0"
       >
         <div className="flex items-center justify-between gap-4 border-b border-black/5 px-5 py-4">
           <p className="font-display text-lg font-bold text-niki-ink">Pay with Paystack</p>
@@ -176,12 +176,12 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
               <p className="mt-1 text-sm text-niki-ink/70">
                 Reference <span className="font-mono font-semibold">{done}</span>.
               </p>
-              <a
+              <ActionLink
                 href="/agent/orders"
-                className="niki-press mt-4 inline-flex rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white"
+                className="mt-4 inline-flex rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white"
               >
                 See my orders
-              </a>
+              </ActionLink>
             </div>
           ) : (
             <form onSubmit={submit} className="space-y-4" noValidate>
@@ -197,7 +197,7 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
                 <div className="flex items-center justify-between py-1">
                   <dt className="text-niki-ink/55">Amount to pay</dt>
                   <dd className="font-display text-lg font-bold text-niki-orange">
-                    {formatPrice(bundle.agentPrice)}
+                    {formatMoney(bundle.agentPrice)}
                   </dd>
                 </div>
               </dl>
@@ -262,7 +262,7 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
                   busy={pending}
                   pendingLabel="Opening Paystack…"
                   icon={<CreditCard className="h-4 w-4" />}
-                  className="flex-1 rounded-xl bg-niki-orange px-4 py-3 text-sm font-bold text-white hover:bg-niki-orange-light"
+                  className="flex-[1.6] whitespace-nowrap rounded-xl bg-niki-orange px-4 py-3 text-sm font-bold text-white hover:bg-niki-orange-light"
                 >
                   Continue to Paystack
                 </BusyButton>

@@ -5,7 +5,7 @@ import { Check, CreditCard, X } from "lucide-react";
 import { inputClass } from "@/components/ui/Field";
 import { BusyButton } from "@/components/ui/motion";
 import { BundleCard, NetworkTabs } from "@/components/data/BundleCard";
-import { formatPrice } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import {
   NETWORK_INFO,
   bundleLabel,
@@ -191,7 +191,7 @@ export function PaystackDialog({
         role="dialog"
         aria-modal="true"
         aria-label="Pay with Paystack"
-        className="animate-sheet-up relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-w-md sm:rounded-3xl"
+        className="animate-sheet-up relative z-10 max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-white pb-[max(env(safe-area-inset-bottom),4.5rem)] shadow-2xl sm:max-w-md sm:rounded-3xl sm:pb-0"
       >
         {/* Header */}
         <div className="flex items-center justify-between gap-4 border-b border-black/5 px-5 py-4">
@@ -237,7 +237,7 @@ export function PaystackDialog({
                 <div className="flex items-center justify-between py-1">
                   <dt className="text-niki-ink/55">Amount to pay</dt>
                   <dd className="font-display text-lg font-bold text-niki-orange">
-                    {formatPrice(bundle.price)}
+                    {formatMoney(bundle.price)}
                   </dd>
                 </div>
               </dl>
@@ -302,7 +302,7 @@ export function PaystackDialog({
                   busy={pending}
                   pendingLabel="Opening Paystack…"
                   icon={<CreditCard className="h-4 w-4" />}
-                  className="flex-1 rounded-xl bg-niki-orange px-4 py-3 text-sm font-bold text-white hover:bg-niki-orange-light"
+                  className="flex-[1.6] whitespace-nowrap rounded-xl bg-niki-orange px-4 py-3 text-sm font-bold text-white hover:bg-niki-orange-light"
                 >
                   Continue to Paystack
                 </BusyButton>

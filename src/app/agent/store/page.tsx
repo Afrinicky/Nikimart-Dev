@@ -3,14 +3,15 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { BadgeDollarSign, Link2, Package, Receipt, Store, TrendingUp, Wallet } from "lucide-react";
 import { AgentPageHeading, Card, EmptyRow, TableScroll, formatWhen } from "@/components/agent/AgentUi";
-import { StoreTabs, isStoreTab } from "@/components/agent/StoreTabs";
+import { StoreTabs } from "@/components/agent/StoreTabs";
+import { isStoreTab } from "@/lib/data-bundles/store-tabs";
 import { StoreLinkForm } from "@/components/agent/StoreLinkForm";
 import { StoreOpenToggle } from "@/components/agent/StoreOpenToggle";
 import { PricingTable } from "@/components/agent/PricingTable";
 import { AfaPricingForm } from "@/components/agent/AfaPricingForm";
 import { requireUser } from "@/lib/session";
 import { siteUrl } from "@/lib/site";
-import { formatPrice } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { getDataStoreConfig } from "@/lib/settings";
 import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
 import {
@@ -35,11 +36,11 @@ const WITHDRAWAL_TONES: Record<string, string> = {
 function Tile({ label, value, icon: Icon }: { label: string; value: string; icon: React.ElementType }) {
   return (
     <div className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
-      <div className="flex items-center gap-2 text-niki-ink/50">
+      <div className="flex items-start gap-2 text-niki-ink/50">
         <Icon className="h-4 w-4" />
-        <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
+        <span className="text-[11px] font-semibold uppercase leading-tight tracking-wide sm:text-xs">{label}</span>
       </div>
-      <p className="mt-2 font-display text-2xl font-bold text-niki-ink">{value}</p>
+      <p className="mt-2 font-display text-xl font-bold text-niki-ink sm:text-2xl">{value}</p>
     </div>
   );
 }
@@ -120,9 +121,9 @@ async function OverviewPanel({ agent }: { agent: AgentAccount }) {
   return (
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-3">
-        <Tile label="Total sales" value={formatPrice(wallet.totalSales)} icon={TrendingUp} />
-        <Tile label="Commission earned" value={formatPrice(wallet.commissionEarned)} icon={Store} />
-        <Tile label="Withdrawn" value={formatPrice(wallet.totalWithdrawn)} icon={Wallet} />
+        <Tile label="Total sales" value={formatMoney(wallet.totalSales)} icon={TrendingUp} />
+        <Tile label="Commission earned" value={formatMoney(wallet.commissionEarned)} icon={Store} />
+        <Tile label="Withdrawn" value={formatMoney(wallet.totalWithdrawn)} icon={Wallet} />
       </div>
 
       <Card title="Recent store orders" description="The last ten sales through your store.">
@@ -150,14 +151,14 @@ async function OverviewPanel({ agent }: { agent: AgentAccount }) {
                     <td className="py-3 pr-4 text-niki-ink/70">
                       {networkLabel(o.network)} · {bundleLabel(o.sizeGb)}
                     </td>
-                    <td className="py-3 pr-4 font-semibold text-niki-ink">{formatPrice(o.price)}</td>
+                    <td className="py-3 pr-4 font-semibold text-niki-ink">{formatMoney(o.price)}</td>
                     <td
                       className={cn(
                         "py-3 pr-4 font-semibold",
                         o.commissionStatus === "earned" ? "text-niki-success" : "text-niki-ink/40",
                       )}
                     >
-                      {o.agentCommission > 0 ? formatPrice(o.agentCommission) : "—"}
+                      {o.agentCommission > 0 ? formatMoney(o.agentCommission) : "—"}
                     </td>
                     <td className="py-3 pr-4">
                       <span
@@ -216,9 +217,9 @@ async function WithdrawalsPanel({ agentId }: { agentId: string }) {
                   <td className="py-3 pr-4 whitespace-nowrap text-xs text-niki-ink/55">
                     {formatWhen(w.createdAt)}
                   </td>
-                  <td className="py-3 pr-4 font-semibold text-niki-ink">{formatPrice(w.amount)}</td>
+                  <td className="py-3 pr-4 font-semibold text-niki-ink">{formatMoney(w.amount)}</td>
                   <td className="py-3 pr-4 text-niki-ink/55">
-                    {w.fee > 0 ? formatPrice(w.fee) : "—"}
+                    {w.fee > 0 ? formatMoney(w.fee) : "—"}
                   </td>
                   <td className="py-3 pr-4 font-mono text-xs text-niki-ink/70">{w.momoPhone}</td>
                   <td className="py-3 pr-4 text-niki-ink/70">{w.momoName}</td>

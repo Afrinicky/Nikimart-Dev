@@ -33,19 +33,33 @@ import { cn } from "@/lib/cn";
  */
 export function LinkSpinner({ className }: { className?: string }) {
   const { pending } = useLinkStatus();
-  const [show, setShow] = useState(false);
+  // `delayed` only ever turns on from the timer and off from its cleanup, so
+  // the effect never sets state synchronously on the way in.
+  const [delayed, setDelayed] = useState(false);
 
   useEffect(() => {
-    if (!pending) {
-      setShow(false);
-      return;
-    }
-    const t = setTimeout(() => setShow(true), 120);
-    return () => clearTimeout(t);
+    if (!pending) return;
+    const t = setTimeout(() => setDelayed(true), 120);
+    return () => {
+      clearTimeout(t);
+      setDelayed(false);
+    };
   }, [pending]);
 
-  if (!show) return null;
+  if (!pending || !delayed) return null;
   return <Loader2 className={cn("h-4 w-4 shrink-0 animate-spin", className)} aria-hidden />;
+}
+
+/**
+ * Hides its children while the surrounding Link is navigating — for places
+ * where the spinner has to *replace* something rather than sit beside it (an
+ * icon in a fixed-width tab, say) so nothing shifts under the finger.
+ * Must be rendered inside a <Link>.
+ */
+export function PendingHidden({ children }: { children: ReactNode }) {
+  const { pending } = useLinkStatus();
+  if (pending) return null;
+  return <>{children}</>;
 }
 
 /** Dims a pending Link's own content so the spinner reads as "this one". */

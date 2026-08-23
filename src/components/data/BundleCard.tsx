@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, Infinity as InfinityIcon } from "lucide-react";
-import { formatPrice } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { NETWORK_INFO, bundleLabel, type Network } from "@/lib/data-bundles/networks";
 
@@ -78,7 +78,7 @@ export function BundleCard({
         <div className="px-4 py-3.5">
           <p className="text-[11px] font-medium text-niki-ink/45">{costLabel}</p>
           <p className="mt-0.5 font-display text-lg font-bold text-niki-ink sm:text-xl">
-            {formatPrice(price)}
+            {formatMoney(price)}
           </p>
         </div>
       </div>
@@ -117,7 +117,9 @@ export function NetworkTabs({
   onChange: (n: Network) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+    // Two per row on a phone; from `sm` they share one row evenly however many
+    // there are, so three networks don't leave a hole where a fourth would be.
+    <div className="grid grid-cols-2 gap-2.5 sm:flex sm:gap-3">
       {networks.map((n) => {
         const info = NETWORK_INFO[n];
         const active = n === value;
@@ -128,7 +130,7 @@ export function NetworkTabs({
             onClick={() => onChange(n)}
             aria-pressed={active}
             className={cn(
-              "niki-press niki-focus flex items-center justify-center gap-2 rounded-2xl px-3 py-3.5 text-sm font-bold",
+              "niki-press niki-focus flex items-center justify-center gap-2 rounded-2xl px-3 py-3.5 text-sm font-bold sm:flex-1",
               active ? "shadow-lg" : "bg-white",
             )}
             style={

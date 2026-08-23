@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { Percent, Plus } from "lucide-react";
+import { Loader2, Percent, Plus } from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { NETWORK_LIST } from "@/lib/data-bundles/networks";
 import { applyMarkup, createBundle, type DataAdminState } from "@/lib/data-bundles/admin-actions";
@@ -13,8 +13,10 @@ function Submit({ label, busy }: { label: string; busy: string }) {
     <button
       type="submit"
       disabled={pending}
-      className="w-full rounded-xl bg-niki-navy px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-navy-soft disabled:cursor-not-allowed disabled:opacity-60"
+      aria-busy={pending || undefined}
+      className="niki-press niki-focus flex w-full items-center justify-center gap-2 rounded-xl bg-niki-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-niki-navy-soft disabled:cursor-not-allowed disabled:opacity-60"
     >
+      {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
       {pending ? busy : label}
     </button>
   );
@@ -38,8 +40,17 @@ function Result({ state }: { state: DataAdminState }) {
   return null;
 }
 
-/** Re-price a whole network from its recorded costs in one move. */
-export function MarkupTool({ defaultMarkup }: { defaultMarkup: number }) {
+/**
+ * Re-price a whole network from its recorded costs in one move — both the
+ * retail price and, optionally, the price sub-agents pay.
+ */
+export function MarkupTool({
+  defaultMarkup,
+  defaultAgentDiscount,
+}: {
+  defaultMarkup: number;
+  defaultAgentDiscount: number;
+}) {
   const [state, formAction] = useActionState<DataAdminState, FormData>(applyMarkup, {});
 
   return (
@@ -76,6 +87,22 @@ export function MarkupTool({ defaultMarkup }: { defaultMarkup: number }) {
           />
         </Field>
       </div>
+      <Field
+        label="Agent discount (%)"
+        htmlFor="agentDiscountPercent"
+        hint="How far under retail your agents buy. Leave blank to leave agent prices alone."
+      >
+        <input
+          id="agentDiscountPercent"
+          name="agentDiscountPercent"
+          type="number"
+          min="0"
+          max="90"
+          step="1"
+          defaultValue={defaultAgentDiscount}
+          className={inputClass}
+        />
+      </Field>
       <Submit label="Apply markup" busy="Re-pricing…" />
     </form>
   );
@@ -110,6 +137,13 @@ export function NewBundleForm() {
         </Field>
         <Field label="Selling price (GH₵)" htmlFor="new-price">
           <input id="new-price" name="price" type="number" min="0.01" step="0.01" required className={inputClass} />
+        </Field>
+        <Field
+          label="Agent price (GH₵)"
+          htmlFor="new-agent-price"
+          hint="What sub-agents pay. Leave blank to keep it off agent stores."
+        >
+          <input id="new-agent-price" name="agentPrice" type="number" min="0" step="0.01" className={inputClass} />
         </Field>
       </div>
       <Field label="Validity note" htmlFor="new-validity" hint="Shown under the size on the storefront">

@@ -14,6 +14,7 @@ import {
   findAgentSellableBundle,
   getAgentBySlug,
 } from "@/lib/data-bundles/agents";
+import { commissionOn } from "@/lib/data-bundles/agent-pricing";
 import {
   NETWORKS,
   bundleLabel,
@@ -127,7 +128,7 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
   // On an agent sale the cost basis is the agent price, and the commission is
   // whatever they charge above it. On NikiMart's own store there is neither.
   const agentCost = agent && "agentPrice" in bundle ? bundle.agentPrice : 0;
-  const agentCommission = agent ? Math.max(0, Math.round((bundle.price - agentCost) * 100) / 100) : 0;
+  const agentCommission = agent ? commissionOn(bundle.price, agentCost) : 0;
   const costPrice = "costPrice" in bundle ? bundle.costPrice : 0;
 
   const session = await auth();
@@ -267,7 +268,7 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
     return { ok: false, error: "This store is not taking AFA registrations right now." };
   }
   const price = agent && agent.afaPrice > 0 ? agent.afaPrice : config.afaPrice;
-  const agentCommission = agent ? Math.max(0, Math.round((price - config.afaPrice) * 100) / 100) : 0;
+  const agentCommission = agent ? commissionOn(price, config.afaPrice) : 0;
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const reference = newAfaReference();

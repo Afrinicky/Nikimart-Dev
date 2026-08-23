@@ -13,7 +13,7 @@ import { AgentTopup, type TopupBundle } from "@/components/agent/AgentTopup";
 import { CopyChip } from "@/components/agent/AgentCode";
 import { requireUser } from "@/lib/session";
 import { siteUrl } from "@/lib/site";
-import { formatPrice } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import {
   getAgentBundleRows,
   getAgentForUser,
@@ -47,15 +47,15 @@ function Tile({
 
   const body = (
     <>
-      <div className="flex items-center gap-2 text-niki-ink/50">
+      <div className="flex items-start gap-2 text-niki-ink/50">
         <Icon className="h-4 w-4" />
-        <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
+        <span className="text-[11px] font-semibold uppercase leading-tight tracking-wide sm:text-xs">{label}</span>
         {href ? (
           <ArrowUpRight className="ml-auto h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
         ) : null}
       </div>
-      <p className={`mt-2 font-display text-2xl font-bold ${tones[tone]}`}>{value}</p>
-      {hint ? <p className="mt-0.5 text-xs text-niki-ink/50">{hint}</p> : null}
+      <p className={`mt-2 font-display text-xl font-bold sm:text-2xl ${tones[tone]}`}>{value}</p>
+      {hint ? <p className="mt-0.5 text-[11px] leading-snug text-niki-ink/50 sm:text-xs">{hint}</p> : null}
     </>
   );
 
@@ -93,13 +93,13 @@ export default async function AgentDashboardPage() {
   return (
     <div className="space-y-6">
       {/* Balance and the numbers behind it. */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Tile
           label="Balance"
-          value={formatPrice(wallet.balance)}
+          value={formatMoney(wallet.balance)}
           hint={
             wallet.balance < 0
-              ? `${formatPrice(-wallet.balance)} still to clear from commissions`
+              ? `${formatMoney(-wallet.balance)} still to clear from commissions`
               : "Available to withdraw"
           }
           icon={Wallet}
@@ -108,10 +108,10 @@ export default async function AgentDashboardPage() {
         />
         <Tile
           label="Commission earned"
-          value={formatPrice(wallet.commissionEarned)}
+          value={formatMoney(wallet.commissionEarned)}
           hint={
             wallet.commissionPending > 0
-              ? `${formatPrice(wallet.commissionPending)} pending delivery`
+              ? `${formatMoney(wallet.commissionPending)} pending delivery`
               : "Credited on delivery"
           }
           icon={TrendingUp}
@@ -120,17 +120,17 @@ export default async function AgentDashboardPage() {
         />
         <Tile
           label="Store sales"
-          value={formatPrice(wallet.totalSales)}
+          value={formatMoney(wallet.totalSales)}
           hint={`${wallet.orderCount} paid ${wallet.orderCount === 1 ? "order" : "orders"}`}
           icon={ListOrdered}
           href="/agent/orders"
         />
         <Tile
           label="Withdrawn"
-          value={formatPrice(wallet.totalWithdrawn)}
+          value={formatMoney(wallet.totalWithdrawn)}
           hint={
             wallet.pendingWithdrawals > 0
-              ? `${formatPrice(wallet.pendingWithdrawals)} awaiting payout`
+              ? `${formatMoney(wallet.pendingWithdrawals)} awaiting payout`
               : "Paid to your MoMo"
           }
           icon={Wallet}
@@ -147,10 +147,10 @@ export default async function AgentDashboardPage() {
           </span>
           <div>
             <p className="font-display font-bold text-niki-ink">
-              {formatPrice(wallet.outstandingSetup)} of your setup fee is still clearing
+              {formatMoney(wallet.outstandingSetup)} of your setup fee is still clearing
             </p>
             <p className="mt-1 text-sm text-niki-ink/65">
-              Nothing to pay up front — your storefront cost {formatPrice(agent.setupFee)} and it
+              Nothing to pay up front — your storefront cost {formatMoney(agent.setupFee)} and it
               comes out of the commission you earn. Once the balance passes zero, everything above it
               is yours to withdraw.
             </p>
@@ -158,19 +158,22 @@ export default async function AgentDashboardPage() {
         </div>
       ) : null}
 
-      {/* Share the store. */}
-      <div className="flex flex-col gap-3 rounded-2xl bg-white p-5 ring-1 ring-black/5 sm:flex-row sm:items-center sm:justify-between">
+      {/* Share the store. The link is long, so it truncates and the copy
+          button carries the full value — never let it push the card wider than
+          the phone. */}
+      <div className="flex flex-col gap-3 overflow-hidden rounded-2xl bg-white p-5 ring-1 ring-black/5 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="flex items-center gap-2 font-display font-bold text-niki-ink">
-            <Link2 className="h-4 w-4 text-niki-orange" />
+            <Link2 className="h-4 w-4 shrink-0 text-niki-orange" />
             Your store link
           </p>
           <p className="mt-1 truncate font-mono text-sm text-niki-ink/60">{storeLink}</p>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <CopyChip
             value={storeLink}
-            label="Link"
+            label="Copy link"
+            hideValue
             className="bg-niki-surface text-niki-ink/70 ring-1 ring-black/5 hover:bg-niki-navy/5"
           />
           <ActionLink

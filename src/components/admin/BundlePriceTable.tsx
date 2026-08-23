@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { inputClass } from "@/components/ui/Field";
 import { formatPrice } from "@/lib/format";
 import { NETWORK_INFO, bundleLabel, type Network } from "@/lib/data-bundles/networks";
@@ -13,6 +13,8 @@ export interface EditableBundle {
   sizeGb: number;
   price: number;
   costPrice: number;
+  /** What sub-agents pay. 0 keeps the bundle off agent storefronts. */
+  agentPrice: number;
   isActive: boolean;
 }
 
@@ -22,17 +24,26 @@ function SaveButton() {
     <button
       type="submit"
       disabled={pending}
-      className="rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light disabled:cursor-not-allowed disabled:opacity-60"
+      aria-busy={pending || undefined}
+      className="niki-press niki-focus flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white hover:bg-niki-orange-light disabled:cursor-not-allowed disabled:opacity-60"
     >
+      {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
       {pending ? "Saving…" : "Save prices"}
     </button>
   );
 }
 
 /**
- * The price manager for one network. Rows carry both the provider's cost and
- * NikiMart's selling price so the margin is visible while you type — the number
- * that actually decides whether a sale is worth making.
+ * The price manager for one network.
+ *
+ * Three numbers per row, because there are three parties: what the provider
+ * charges NikiMart (cost), what NikiMart charges its own agents (agent), and
+ * what a walk-in buyer pays (sell). Both margins are worked out as you type —
+ * the numbers that actually decide whether a sale is worth making, and whether
+ * an agent has room to earn.
+ *
+ * An agent price of 0 means the bundle isn't resold, and it stays off every
+ * agent storefront.
  */
 export function BundlePriceTable({
   network,
@@ -44,11 +55,14 @@ export function BundlePriceTable({
   const info = NETWORK_INFO[network];
   const [state, formAction] = useActionState<DataAdminState, FormData>(saveBundlePrices, {});
   // Mirror the inputs so the margin column updates as you type.
-  const [draft, setDraft] = useState<Record<string, { price: number; cost: number }>>(() =>
-    Object.fromEntries(bundles.map((b) => [b.id, { price: b.price, cost: b.costPrice }])),
+  const [draft, setDraft] = useState<Record<string, { price: number; cost: number; agent: number }>>(
+    () =>
+      Object.fromEntries(
+        bundles.map((b) => [b.id, { price: b.price, cost: b.costPrice, agent: b.agentPrice }]),
+      ),
   );
 
-  function set(id: string, key: "price" | "cost", raw: string) {
+  function set(id: string, key: "price" | "cost" | "agent", raw: string) {
     const n = Number(raw);
     setDraft((d) => ({ ...d, [id]: { ...d[id], [key]: Number.isFinite(n) ? n : 0 } }));
   }
@@ -78,22 +92,29 @@ export function BundlePriceTable({
         ) : null}
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-sm">
+          <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b border-black/5 text-left text-xs font-semibold uppercase tracking-wide text-niki-ink/50">
                 <th className="px-5 py-3">Size</th>
                 <th className="px-3 py-3">Cost (GH₵)</th>
+                <th className="px-3 py-3">Agent (GH₵)</th>
                 <th className="px-3 py-3">Sell (GH₵)</th>
                 <th className="px-3 py-3">Margin</th>
+                <th className="px-3 py-3">Agent earns</th>
                 <th className="px-3 py-3">On sale</th>
                 <th className="px-5 py-3" />
               </tr>
             </thead>
             <tbody>
               {bundles.map((b) => {
-                const d = draft[b.id] ?? { price: b.price, cost: b.costPrice };
+                const d = draft[b.id] ?? { price: b.price, cost: b.costPrice, agent: b.agentPrice };
                 const margin = d.cost > 0 ? d.price - d.cost : null;
                 const marginPct = d.cost > 0 ? Math.round(((d.price - d.cost) / d.cost) * 100) : null;
+                // What an agent makes selling at NikiMart's own retail price —
+                // their headroom before they set a price of their own.
+                const agentRoom = d.agent > 0 ? d.price - d.agent : null;
+                // Selling to an agent below cost would be paying them to sell.
+                const agentUnderCost = d.agent > 0 && d.cost > 0 && d.agent < d.cost;
                 return (
                   <tr key={b.id} className="border-b border-black/5 last:border-0">
                     <td className="px-5 py-2.5">
@@ -110,6 +131,22 @@ export function BundlePriceTable({
                         onChange={(e) => set(b.id, "cost", e.target.value)}
                         placeholder="0.00"
                         className={`${inputClass} max-w-[7.5rem] px-3 py-1.5`}
+                      />
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <input
+                        name={`agent:${b.id}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        defaultValue={b.agentPrice || ""}
+                        onChange={(e) => set(b.id, "agent", e.target.value)}
+                        placeholder="0.00"
+                        aria-invalid={agentUnderCost || undefined}
+                        title="What sub-agents pay. Leave at 0 to keep this bundle off agent storefronts."
+                        className={`${inputClass} max-w-[7.5rem] px-3 py-1.5 ${
+                          agentUnderCost ? "border-niki-danger focus:border-niki-danger" : ""
+                        }`}
                       />
                     </td>
                     <td className="px-3 py-2.5">
@@ -133,6 +170,21 @@ export function BundlePriceTable({
                         >
                           {formatPrice(Math.round(margin * 100) / 100)}
                           <span className="ml-1 font-normal text-niki-ink/40">({marginPct}%)</span>
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {agentUnderCost ? (
+                        <span className="text-xs font-semibold text-niki-danger">Below cost</span>
+                      ) : agentRoom === null ? (
+                        <span className="text-xs text-niki-ink/40" title="Not resold to agents">
+                          —
+                        </span>
+                      ) : (
+                        <span
+                          className={`text-xs font-semibold ${agentRoom > 0 ? "text-niki-success" : "text-niki-ink/40"}`}
+                        >
+                          {formatPrice(Math.round(agentRoom * 100) / 100)}
                         </span>
                       )}
                     </td>

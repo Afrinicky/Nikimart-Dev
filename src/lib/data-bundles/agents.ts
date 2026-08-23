@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getActiveBundles } from "@/lib/data-bundles/catalog";
 import { NETWORKS, type Network } from "@/lib/data-bundles/networks";
 import { normaliseSlugClient } from "@/lib/data-bundles/slug";
+import { outstandingSetupFee, round2 } from "@/lib/data-bundles/agent-pricing";
 
 /**
  * Reads for the sub-agent platform.
@@ -241,7 +242,7 @@ export async function getAgentWallet(agent: AgentAccount): Promise<AgentWalletSu
     totalSales: round2(sales._sum.price ?? 0),
     totalWithdrawn: round2(withdrawn._sum.amount ?? 0),
     pendingWithdrawals: round2((awaiting._sum.amount ?? 0) + (awaiting._sum.fee ?? 0)),
-    outstandingSetup: agent.balance < 0 ? round2(Math.min(-agent.balance, agent.setupFee)) : 0,
+    outstandingSetup: outstandingSetupFee(agent.balance, agent.setupFee),
     orderCount: sales._count ?? 0,
   };
 }
@@ -340,6 +341,6 @@ export async function listAgents() {
   }
 }
 
-export function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
+// Re-exported so server modules that already import from here don't need a
+// second import just for rounding. The rule itself lives in agent-pricing.ts.
+export { round2 };

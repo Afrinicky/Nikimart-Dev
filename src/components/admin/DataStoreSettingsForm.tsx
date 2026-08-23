@@ -125,6 +125,138 @@ export function DataStoreSettingsForm({ settings }: { settings: Settings }) {
         </div>
       </section>
 
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+        <h2 className="font-display text-lg font-bold text-niki-ink">Sub-agent programme</h2>
+        <p className="mt-1 text-sm text-niki-ink/60">
+          Recruiting resellers who run their own storefront at{" "}
+          <code className="font-mono text-xs">/store/&lt;name&gt;</code>. Set an agent price on your
+          bundles before you recruit, or there will be nothing for them to sell.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Signup"
+            htmlFor="agentProgramEnabled"
+            hint="Closing hides the pitch page. Existing agents keep trading."
+          >
+            <select
+              id="agentProgramEnabled"
+              name="agentProgramEnabled"
+              defaultValue={settings.agentProgramEnabled === "0" ? "0" : "1"}
+              className={inputClass}
+            >
+              <option value="1">Open — anyone can join</option>
+              <option value="0">Closed — no new agents</option>
+            </select>
+          </Field>
+          <Field
+            label="Storefront setup fee (GH₵)"
+            htmlFor="agentSetupFee"
+            hint="Charged against the new agent's balance, not collected up front — it clears out of their commission."
+          >
+            <input
+              id="agentSetupFee"
+              name="agentSetupFee"
+              type="number"
+              min="0"
+              step="1"
+              defaultValue={settings.agentSetupFee}
+              className={inputClass}
+            />
+          </Field>
+          <Field
+            label="Withdrawal fee (GH₵)"
+            htmlFor="agentWithdrawalFee"
+            hint="Flat fee deducted with each MoMo payout"
+          >
+            <input
+              id="agentWithdrawalFee"
+              name="agentWithdrawalFee"
+              type="number"
+              min="0"
+              step="0.5"
+              defaultValue={settings.agentWithdrawalFee}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Minimum withdrawal (GH₵)" htmlFor="agentMinWithdrawal">
+            <input
+              id="agentMinWithdrawal"
+              name="agentMinWithdrawal"
+              type="number"
+              min="0"
+              step="1"
+              defaultValue={settings.agentMinWithdrawal}
+              className={inputClass}
+            />
+          </Field>
+          <Field
+            label="Default agent discount (%)"
+            htmlFor="agentAgentMarkupPercent"
+            hint="Pre-filled in “Price from cost”: how far under retail agents buy."
+          >
+            <input
+              id="agentAgentMarkupPercent"
+              name="agentAgentMarkupPercent"
+              type="number"
+              min="0"
+              max="90"
+              step="1"
+              defaultValue={settings.agentAgentMarkupPercent}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Agent support phone" htmlFor="agentSupportPhone">
+            <input
+              id="agentSupportPhone"
+              name="agentSupportPhone"
+              defaultValue={settings.agentSupportPhone}
+              placeholder="0241234567"
+              className={inputClass}
+            />
+          </Field>
+          <Field
+            label="Agent support WhatsApp"
+            htmlFor="agentSupportWhatsapp"
+            hint="Number, not a link — e.g. 0241234567"
+          >
+            <input
+              id="agentSupportWhatsapp"
+              name="agentSupportWhatsapp"
+              defaultValue={settings.agentSupportWhatsapp}
+              className={inputClass}
+            />
+          </Field>
+          <Field
+            label="Agent WhatsApp group"
+            htmlFor="agentWhatsappGroup"
+            hint="Pre-filled on every new agent's store"
+          >
+            <input
+              id="agentWhatsappGroup"
+              name="agentWhatsappGroup"
+              type="url"
+              defaultValue={settings.agentWhatsappGroup}
+              placeholder="https://chat.whatsapp.com/…"
+              className={inputClass}
+            />
+          </Field>
+        </div>
+        <div className="mt-4">
+          <Field
+            label="Recruitment pitch"
+            htmlFor="agentPitch"
+            hint="The line under the headline on /become-an-agent"
+          >
+            <input
+              id="agentPitch"
+              name="agentPitch"
+              defaultValue={settings.agentPitch}
+              className={inputClass}
+            />
+          </Field>
+        </div>
+      </section>
+
       <SubmitButton>Save data store settings</SubmitButton>
     </form>
   );

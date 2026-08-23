@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, Pencil, Percent, X } from "lucide-react";
 import { BusyButton } from "@/components/ui/motion";
 import { TableScroll } from "@/components/agent/AgentUi";
-import { formatPrice } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { NETWORK_INFO, bundleLabel, type Network } from "@/lib/data-bundles/networks";
 import {
@@ -188,7 +188,7 @@ export function PricingTable({ rows }: { rows: PricingRow[] }) {
                     </span>
                   </td>
                   <td className="py-3 pr-4 font-semibold text-niki-ink">{bundleLabel(r.sizeGb)}</td>
-                  <td className="py-3 pr-4 text-niki-ink/60">{formatPrice(r.agentPrice)}</td>
+                  <td className="py-3 pr-4 text-niki-ink/60">{formatMoney(r.agentPrice)}</td>
                   <td className="py-3 pr-4">
                     {isEditing ? (
                       <span className="flex items-center gap-1.5">
@@ -230,7 +230,7 @@ export function PricingTable({ rows }: { rows: PricingRow[] }) {
                         }}
                         className="niki-press niki-focus group flex items-center gap-1.5 rounded-lg px-2 py-1 font-semibold text-niki-ink hover:bg-niki-orange/10"
                       >
-                        {formatPrice(r.price)}
+                        {formatMoney(r.price)}
                         <Pencil className="h-3 w-3 text-niki-ink/30 group-hover:text-niki-orange" />
                       </button>
                     )}
@@ -241,7 +241,7 @@ export function PricingTable({ rows }: { rows: PricingRow[] }) {
                       r.profit > 0 ? "text-niki-success" : "text-niki-ink/30",
                     )}
                   >
-                    {r.profit > 0 ? `+${formatPrice(r.profit)}` : "—"}
+                    {r.profit > 0 ? `+${formatMoney(r.profit)}` : "—"}
                   </td>
                   <td className="py-3">
                     <button

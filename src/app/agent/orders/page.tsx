@@ -13,7 +13,7 @@ import {
   formatWhen,
 } from "@/components/agent/AgentUi";
 import { requireUser } from "@/lib/session";
-import { formatPrice } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { bundleLabel, networkLabel, DATA_ORDER_STATUSES } from "@/lib/data-bundles/networks";
 import { getAgentForUser, getAgentOrders } from "@/lib/data-bundles/agents";
 import { cn } from "@/lib/cn";
@@ -127,7 +127,7 @@ export default async function AgentOrdersPage({
                         {o.recipientPhone}
                       </td>
                       <td className="py-3 pr-4 font-semibold text-niki-ink">
-                        {formatPrice(o.price)}
+                        {formatMoney(o.price)}
                       </td>
                       <td className="py-3 pr-4">
                         {o.agentCommission > 0 ? (
@@ -148,7 +148,7 @@ export default async function AgentOrdersPage({
                                   : "Credited once the bundle is delivered"
                             }
                           >
-                            {formatPrice(o.agentCommission)}
+                            {formatMoney(o.agentCommission)}
                           </span>
                         ) : (
                           <span className="text-niki-ink/25">—</span>

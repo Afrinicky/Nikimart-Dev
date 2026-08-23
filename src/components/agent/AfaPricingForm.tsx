@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, Save } from "lucide-react";
 import { inputClass } from "@/components/ui/Field";
 import { BusyButton } from "@/components/ui/motion";
-import { formatPrice } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { setAgentAfaPrice } from "@/lib/data-bundles/agent-actions";
 
@@ -71,7 +71,7 @@ export function AfaPricingForm({
           NikiMart&apos;s price
         </p>
         <p className="mt-1 font-display text-2xl font-bold text-niki-ink">
-          {formatPrice(basePrice)}
+          {formatMoney(basePrice)}
         </p>
       </div>
 
@@ -89,7 +89,7 @@ export function AfaPricingForm({
         <span className="mt-1 block text-xs text-niki-ink/50">
           Your commission:{" "}
           <span className={cn("font-semibold", commission > 0 ? "text-niki-success" : "text-niki-ink/50")}>
-            {formatPrice(commission)}
+            {formatMoney(commission)}
           </span>
         </span>
       </label>

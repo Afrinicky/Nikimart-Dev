@@ -5,7 +5,7 @@ import { ActionLink } from "@/components/ui/motion";
 import { AgentPageHeading, Card, EmptyRow, TableScroll, formatWhen } from "@/components/agent/AgentUi";
 import { WithdrawPanel } from "@/components/agent/WithdrawPanel";
 import { requireUser } from "@/lib/session";
-import { formatPrice } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { getAgentProgramConfig } from "@/lib/settings";
 import {
   getAgentForUser,
@@ -56,12 +56,12 @@ function Tile({
   } as const;
   return (
     <div className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
-      <div className="flex items-center gap-2 text-niki-ink/50">
+      <div className="flex items-start gap-2 text-niki-ink/50">
         <Icon className="h-4 w-4" />
-        <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
+        <span className="text-[11px] font-semibold uppercase leading-tight tracking-wide sm:text-xs">{label}</span>
       </div>
-      <p className={`mt-2 font-display text-2xl font-bold ${tones[tone]}`}>{value}</p>
-      {hint ? <p className="mt-0.5 text-xs text-niki-ink/50">{hint}</p> : null}
+      <p className={`mt-2 font-display text-xl font-bold sm:text-2xl ${tones[tone]}`}>{value}</p>
+      {hint ? <p className="mt-0.5 text-[11px] leading-snug text-niki-ink/50 sm:text-xs">{hint}</p> : null}
     </div>
   );
 }
@@ -93,20 +93,20 @@ export default async function AgentWalletPage() {
         </ActionLink>
       </AgentPageHeading>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Tile
           label="Balance"
-          value={formatPrice(wallet.balance)}
+          value={formatMoney(wallet.balance)}
           hint={wallet.balance < 0 ? "Clearing from commissions" : "On your account"}
           icon={Wallet}
           tone={wallet.balance < 0 ? "danger" : "success"}
         />
         <Tile
           label="Available"
-          value={formatPrice(available)}
+          value={formatMoney(available)}
           hint={
             wallet.pendingWithdrawals > 0
-              ? `${formatPrice(wallet.pendingWithdrawals)} held for a pending payout`
+              ? `${formatMoney(wallet.pendingWithdrawals)} held for a pending payout`
               : "Ready to withdraw"
           }
           icon={Banknote}
@@ -114,10 +114,10 @@ export default async function AgentWalletPage() {
         />
         <Tile
           label="Commission earned"
-          value={formatPrice(wallet.commissionEarned)}
+          value={formatMoney(wallet.commissionEarned)}
           hint={
             wallet.commissionPending > 0
-              ? `${formatPrice(wallet.commissionPending)} awaiting delivery`
+              ? `${formatMoney(wallet.commissionPending)} awaiting delivery`
               : "Credited on delivery"
           }
           icon={TrendingUp}
@@ -125,7 +125,7 @@ export default async function AgentWalletPage() {
         />
         <Tile
           label="Sales"
-          value={formatPrice(wallet.totalSales)}
+          value={formatMoney(wallet.totalSales)}
           hint={`${wallet.orderCount} paid ${wallet.orderCount === 1 ? "order" : "orders"}`}
           icon={ArrowUpRight}
           tone="ink"
@@ -135,7 +135,7 @@ export default async function AgentWalletPage() {
       {wallet.outstandingSetup > 0 ? (
         <p className="animate-fade-up rounded-2xl bg-niki-gold/10 px-5 py-4 text-sm text-niki-ink/70 ring-1 ring-niki-gold/40">
           <span className="font-semibold text-niki-ink">
-            {formatPrice(wallet.outstandingSetup)} of your {formatPrice(agent.setupFee)} setup fee is
+            {formatMoney(wallet.outstandingSetup)} of your {formatMoney(agent.setupFee)} setup fee is
             still outstanding.
           </span>{" "}
           It clears itself as commission comes in — there is nothing to pay separately, and you can
@@ -192,11 +192,11 @@ export default async function AgentWalletPage() {
                           <ArrowDownLeft className="h-3.5 w-3.5" />
                         )}
                         {e.amount < 0 ? "−" : "+"}
-                        {formatPrice(Math.abs(e.amount))}
+                        {formatMoney(Math.abs(e.amount))}
                       </span>
                     </td>
                     <td className="py-3 pr-4 whitespace-nowrap font-semibold text-niki-ink">
-                      {formatPrice(e.balanceAfter)}
+                      {formatMoney(e.balanceAfter)}
                     </td>
                     <td className="py-3 pr-4 text-xs text-niki-ink/65">{e.narration}</td>
                     <td className="py-3 whitespace-nowrap text-xs text-niki-ink/55">

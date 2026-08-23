@@ -4,20 +4,18 @@ import { useSearchParams } from "next/navigation";
 import { BarChart3, BadgeDollarSign, Link2, Package, Receipt } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { cn } from "@/lib/cn";
+import type { StoreTab } from "@/lib/data-bundles/store-tabs";
 
-const TABS = [
+// Labels and icons live here; the values and their validator are in
+// lib/data-bundles/store-tabs so the server page can check `?tab=` without
+// calling into a client module.
+const TABS: Array<{ value: StoreTab; label: string; icon: React.ElementType }> = [
   { value: "overview", label: "Overview", icon: BarChart3 },
   { value: "link", label: "Store Link", icon: Link2 },
   { value: "pricing", label: "Pricing", icon: Package },
   { value: "afa", label: "AFA Pricing", icon: BadgeDollarSign },
   { value: "withdrawals", label: "Withdrawal History", icon: Receipt },
-] as const;
-
-export type StoreTab = (typeof TABS)[number]["value"];
-
-export function isStoreTab(value: unknown): value is StoreTab {
-  return typeof value === "string" && TABS.some((t) => t.value === value);
-}
+];
 
 /**
  * The Store screen's tabs. They're links rather than local state so a tab is

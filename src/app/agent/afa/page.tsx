@@ -6,7 +6,7 @@ import { AgentPageHeading, Card, EmptyRow, TableScroll, StatusPill, formatWhen }
 import { AfaForm } from "@/components/data/AfaForm";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { formatPrice } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { getDataStoreConfig } from "@/lib/settings";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 
@@ -53,9 +53,9 @@ export default async function AgentAfaPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-niki-ink/45">
             Your AFA price
           </p>
-          <p className="mt-1 font-display text-2xl font-bold text-niki-ink">{formatPrice(price)}</p>
+          <p className="mt-1 font-display text-2xl font-bold text-niki-ink">{formatMoney(price)}</p>
           <p className="mt-0.5 text-xs text-niki-ink/50">
-            NikiMart charges {formatPrice(store.afaPrice)}
+            NikiMart charges {formatMoney(store.afaPrice)}
           </p>
         </div>
         <div className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
@@ -63,7 +63,7 @@ export default async function AgentAfaPage() {
             You earn per registration
           </p>
           <p className="mt-1 font-display text-2xl font-bold text-niki-success">
-            {formatPrice(commission)}
+            {formatMoney(commission)}
           </p>
           <p className="mt-0.5 text-xs text-niki-ink/50">Credited once the registration is approved</p>
         </div>
@@ -99,7 +99,7 @@ export default async function AgentAfaPage() {
                     <td className="py-3 pr-4 font-semibold text-niki-ink">{r.fullName}</td>
                     <td className="py-3 pr-4 font-mono text-xs text-niki-ink/70">{r.phoneNumber}</td>
                     <td className="py-3 pr-4 text-niki-ink/70">{r.town}</td>
-                    <td className="py-3 pr-4 font-semibold text-niki-ink">{formatPrice(r.price)}</td>
+                    <td className="py-3 pr-4 font-semibold text-niki-ink">{formatMoney(r.price)}</td>
                     <td className="py-3 pr-4">
                       <StatusPill status={r.status} />
                     </td>

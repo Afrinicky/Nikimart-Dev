@@ -45,6 +45,13 @@ const SECTIONS: { title: string; items: Item[] }[] = [
     ],
   },
   {
+    title: "Earn",
+    items: [
+      { href: "/become-an-agent", label: "Become a Data Agent", icon: Smartphone },
+      { href: "/start-selling", label: "Sell on NikiMart", icon: Store },
+    ],
+  },
+  {
     title: "Support",
     items: [
       { href: "/help", label: "Help Centre", icon: HelpCircle },
