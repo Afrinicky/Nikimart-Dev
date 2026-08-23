@@ -4,6 +4,8 @@ import { ArrowLeft, ExternalLink, Package, Receipt, Wallet } from "lucide-react"
 import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { BalanceAdjuster } from "@/components/admin/AgentAdminTools";
+import { AgentAccountTools, SetupLinkTool } from "@/components/admin/AgentAccountTools";
+import { siteUrl } from "@/lib/site";
 import { formatWhen } from "@/components/agent/AgentUi";
 import { prisma } from "@/lib/prisma";
 import { formatMoney } from "@/lib/format";
@@ -40,7 +42,7 @@ export default async function AdminAgentDetailPage({
   const agent = await prisma.dataAgent
     .findUnique({
       where: { id },
-      include: { user: { select: { name: true, email: true, phone: true } } },
+      include: { user: { select: { name: true, email: true, phone: true, passwordHash: true } } },
     })
     .catch(() => null);
 
@@ -207,6 +209,24 @@ export default async function AdminAgentDetailPage({
 
         <div className="space-y-4">
           <BalanceAdjuster agentId={agent.id} />
+
+          {/* An agent whose account has no password has never been able to sign
+              in — the setup link either was never delivered or has expired. */}
+          {agent.user && !agent.user.passwordHash ? (
+            <SetupLinkTool agentId={agent.id} name={agent.user.name ?? agent.storeName} />
+          ) : null}
+
+          <AgentAccountTools
+            agentId={agent.id}
+            origin={siteUrl()}
+            initial={{
+              storeName: agent.storeName,
+              slug: agent.slug,
+              storeTagline: agent.storeTagline ?? "",
+              supportPhone: agent.supportPhone ?? "",
+              supportWhatsapp: agent.supportWhatsapp ?? "",
+            }}
+          />
 
           <section className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
             <div className="mb-4 flex items-center gap-2">

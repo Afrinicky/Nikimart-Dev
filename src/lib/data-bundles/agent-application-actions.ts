@@ -1,7 +1,6 @@
 "use server";
 
 import { createHash, randomBytes } from "crypto";
-import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -38,6 +37,17 @@ export type ApplyState = {
   message?: string;
   /** Shown against the acceptance box rather than at the top of the form. */
   termsError?: string;
+  /**
+   * The one-time setup link, handed back to the admin who approved it.
+   *
+   * It used to leave only by SMS and email. With no Arkesel or Resend key
+   * configured both are skipped silently, the applicant never receives it, and
+   * there is no other way to set a password — the account exists and nobody
+   * can sign in to it. The admin sees the link now and can send it themselves.
+   */
+  setupUrl?: string;
+  /** False when neither the text nor the email went out. */
+  delivered?: boolean;
 };
 
 const STORAGE_ERROR =
@@ -337,7 +347,7 @@ export async function approveApplication(
   }
 
   const setupUrl = `${siteUrl()}/agent-setup?token=${token}`;
-  await Promise.allSettled([
+  const sent = await Promise.allSettled([
     sendSms(
       application.phone,
       `NikiMart: your agent application is approved. Set your password and open your store: ${setupUrl}`,
@@ -358,8 +368,25 @@ export async function approveApplication(
     ),
   ]);
 
-  revalidatePath("/admin/data/agents");
-  return { ok: true, message: `Approved. ${application.fullName} has been sent a setup link.` };
+  const delivered = sent.some(
+    (r) =>
+      r.status === "fulfilled" &&
+      (r.value === true || (typeof r.value === "object" && r.value !== null && (r.value.sms || r.value.email))),
+  );
+
+  // No revalidatePath. Refreshing this route remounts the review panel and
+  // throws away the state it is about to return — and that state now carries
+  // the setup link, which is the only copy of it there will ever be. The queue
+  // catches up on the admin's next navigation; a second approve is refused by
+  // the status guard above, so a stale row is harmless.
+  return {
+    ok: true,
+    setupUrl,
+    delivered,
+    message: delivered
+      ? `Approved. ${application.fullName} has been sent a setup link.`
+      : `Approved — but the text and email could not be sent. Give ${application.fullName} the link below yourself.`,
+  };
 }
 
 export async function rejectApplication(
@@ -397,7 +424,8 @@ export async function rejectApplication(
     return { error: STORAGE_ERROR };
   }
 
-  revalidatePath("/admin/data/agents");
+  // Same reason as approval: a refresh here remounts the review panel and
+  // swallows the confirmation. The status guard makes a stale row harmless.
   return { ok: true, message: "Application rejected." };
 }
 

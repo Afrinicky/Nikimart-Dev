@@ -1,12 +1,17 @@
 "use server";
 
+import { createHash, randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
-import { sendSms } from "@/lib/notifications";
+import { notify, sendSms } from "@/lib/notifications";
 import { formatMoney } from "@/lib/format";
+import { siteUrl } from "@/lib/site";
+import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
-import { round2 } from "@/lib/data-bundles/agents";
+import { normaliseSlug, round2, slugProblem } from "@/lib/data-bundles/agents";
 
 /**
  * Admin actions for the sub-agent programme: suspend an agent, correct a
@@ -17,7 +22,13 @@ import { round2 } from "@/lib/data-bundles/agents";
  * auditable as a commission.
  */
 
-export type AgentAdminState = { ok?: boolean; error?: string; message?: string };
+export type AgentAdminState = {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+  /** A freshly issued setup link, for the admin to pass on. */
+  setupUrl?: string;
+};
 
 const STORAGE_ERROR =
   "Couldn't save — the agent tables aren't set up on this database yet. " +
@@ -294,4 +305,208 @@ export async function resolveSupportRequest(fd: FormData): Promise<void> {
   } catch {
     // Gone, or not migrated.
   }
+}
+
+// ---------------------------------------------------------------------------
+// Managing an agent like any other account
+// ---------------------------------------------------------------------------
+
+/**
+ * Issue a fresh setup link for an agent who still has no password.
+ *
+ * The link normally goes out by SMS and email on approval. When neither is
+ * configured — or the text simply never arrived, which happens — there was no
+ * second chance: the account existed, nobody could sign in to it, and the only
+ * way out was a database edit. This is that second chance.
+ */
+export async function reissueSetupLink(fd: FormData): Promise<AgentAdminState> {
+  await requireAdmin();
+  const agentId = str(fd, "agentId");
+  if (!agentId) return { error: "Missing agent." };
+
+  let agent;
+  try {
+    agent = await prisma.dataAgent.findUnique({
+      where: { id: agentId },
+      select: { id: true, storeName: true, slug: true, userId: true, user: { select: { email: true, phone: true, passwordHash: true } } },
+    });
+  } catch {
+    return { error: "Couldn't read that agent." };
+  }
+  if (!agent) return { error: "That agent no longer exists." };
+  if (agent.user?.passwordHash) {
+    return { error: "This agent already has a password — send them to Forgot password instead." };
+  }
+
+  const token = randomBytes(32).toString("hex");
+  const setupUrl = `${siteUrl()}/agent-setup?token=${token}`;
+
+  try {
+    // The link belongs to an application, which is where the token lives. If
+    // the agent was created some other way, make a record to hang it on.
+    const existing = await prisma.dataAgentApplication.findFirst({
+      where: { agentId },
+      select: { id: true },
+    });
+    const data = {
+      setupTokenHash: createHash("sha256").update(token).digest("hex"),
+      setupExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60_000),
+    };
+    if (existing) {
+      await prisma.dataAgentApplication.update({ where: { id: existing.id }, data });
+    } else {
+      await prisma.dataAgentApplication.create({
+        data: {
+          fullName: agent.storeName,
+          phone: agent.user?.phone ?? "",
+          email: agent.user?.email ?? "",
+          desiredSlug: agent.slug,
+          status: "approved",
+          agentId,
+          ...data,
+        },
+      });
+    }
+  } catch {
+    return { error: "Couldn't issue a new link. Please try again." };
+  }
+
+  await Promise.allSettled([
+    sendSms(agent.user?.phone, `NikiMart: set your agent password here — ${setupUrl}`),
+    notify(
+      { email: agent.user?.email ?? null, phone: null },
+      {
+        sms: `Set your NikiMart agent password: ${setupUrl}`,
+        emailSubject: "Set your NikiMart agent password",
+      },
+    ),
+  ]);
+
+  revalidateAgents(agentId);
+  return { ok: true, setupUrl, message: "New link issued — valid for 7 days." };
+}
+
+const editSchema = z.object({
+  storeName: z.string().trim().min(2, "Give the store a name.").max(60),
+  slug: z.string().trim().min(3, "Choose a store link."),
+  supportPhone: z.string().trim().optional(),
+  supportWhatsapp: z.string().trim().optional(),
+  storeTagline: z.string().trim().max(120).optional(),
+});
+
+/** Edit an agent's store details on their behalf. */
+export async function updateAgentDetails(
+  _prev: AgentAdminState,
+  fd: FormData,
+): Promise<AgentAdminState> {
+  await requireAdmin();
+  const agentId = str(fd, "agentId");
+  if (!agentId) return { error: "Missing agent." };
+
+  const parsed = editSchema.safeParse({
+    storeName: fd.get("storeName"),
+    slug: fd.get("slug"),
+    supportPhone: fd.get("supportPhone") ?? "",
+    supportWhatsapp: fd.get("supportWhatsapp") ?? "",
+    storeTagline: fd.get("storeTagline") ?? "",
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
+  }
+  const data = parsed.data;
+
+  const slug = normaliseSlug(data.slug);
+  const problem = slugProblem(slug);
+  if (problem) return { error: problem };
+
+  // Both are optional, but a stored number has to be a real one.
+  let support = "";
+  if (data.supportPhone) {
+    const check = parseGhPhone(data.supportPhone);
+    if (!check.ok) return { error: `Support number: ${check.message}` };
+    support = check.local;
+  }
+  let whatsapp = "";
+  if (data.supportWhatsapp) {
+    const check = parseGhPhone(data.supportWhatsapp);
+    if (!check.ok) return { error: `WhatsApp number: ${check.message}` };
+    whatsapp = check.local;
+  }
+
+  try {
+    const clash = await prisma.dataAgent.findFirst({
+      where: { slug, NOT: { id: agentId } },
+      select: { id: true },
+    });
+    if (clash) return { error: `“${slug}” is already taken by another store.` };
+
+    await prisma.dataAgent.update({
+      where: { id: agentId },
+      data: {
+        storeName: data.storeName,
+        slug,
+        supportPhone: support,
+        supportWhatsapp: whatsapp,
+        storeTagline: data.storeTagline ?? "",
+      },
+    });
+  } catch {
+    return { error: "Couldn't save those details. Please try again." };
+  }
+
+  revalidateAgents(agentId);
+  revalidatePath(`/store/${slug}`);
+  return { ok: true, message: "Agent details saved." };
+}
+
+/**
+ * Close an agent's storefront for good.
+ *
+ * The person keeps their NikiMart account — being an agent is something a user
+ * has, not something they are, so this removes the storefront and leaves them
+ * a customer. Their prices, ledger and withdrawal history go with it; orders
+ * they sold stay, unattributed, because those are the customers' records too.
+ *
+ * Refused while money is unsettled. A negative balance is an unpaid setup fee
+ * and a positive one is commission owed; deleting either would quietly write
+ * off somebody's money, which is not a thing a delete button should do.
+ */
+export async function deleteAgent(_prev: AgentAdminState, fd: FormData): Promise<AgentAdminState> {
+  await requireAdmin();
+  const agentId = str(fd, "agentId");
+  if (!agentId) return { error: "Missing agent." };
+
+  try {
+    const agent = await prisma.dataAgent.findUnique({
+      where: { id: agentId },
+      select: { id: true, storeName: true, balance: true },
+    });
+    if (!agent) return { error: "That agent no longer exists." };
+
+    if (Math.abs(agent.balance) >= 0.01) {
+      return {
+        error:
+          agent.balance > 0
+            ? `${agent.storeName} is still owed ${formatMoney(agent.balance)}. Pay it out or adjust the balance to zero first.`
+            : `${agent.storeName} still owes ${formatMoney(-agent.balance)}. Write it off with a balance adjustment first.`,
+      };
+    }
+
+    const pending = await prisma.dataAgentWithdrawal.count({
+      where: { agentId, status: "pending" },
+    });
+    if (pending > 0) {
+      return { error: "There's a withdrawal still waiting. Process or reject it first." };
+    }
+
+    await prisma.dataAgent.delete({ where: { id: agentId } });
+  } catch {
+    return { error: "Couldn't remove that agent. Please try again." };
+  }
+
+  revalidateAgents(agentId);
+  // Outside the try: this page is about the agent that no longer exists, so
+  // staying on it means staring at a 404. redirect() works by throwing, and a
+  // catch above would swallow it.
+  redirect("/admin/data/agents?removed=1");
 }
