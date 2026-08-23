@@ -55,7 +55,7 @@ export function OrderTracker({
         </p>
       ) : null}
 
-      <div className="rounded-3xl bg-white p-6 ring-1 ring-black/5 sm:p-8">
+      <div className="rounded-3xl bg-white p-6 ring-1 ring-niki-edge sm:p-8">
         <div className="mb-4 flex items-center gap-2">
           <PackageSearch className="h-5 w-5 text-niki-orange" />
           <h2 className="font-semibold text-niki-ink">Where&apos;s my data?</h2>

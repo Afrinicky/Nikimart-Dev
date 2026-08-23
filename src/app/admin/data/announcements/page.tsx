@@ -41,7 +41,7 @@ export default async function AdminAnnouncementsPage() {
 
         <div className="space-y-3">
           {notices.length === 0 ? (
-            <div className="rounded-2xl bg-white px-4 py-12 text-center ring-1 ring-black/5">
+            <div className="rounded-2xl bg-white px-4 py-12 text-center ring-1 ring-niki-edge">
               <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-niki-surface text-niki-ink/35">
                 <Megaphone className="h-5 w-5" />
               </span>
@@ -52,7 +52,7 @@ export default async function AdminAnnouncementsPage() {
               <article
                 key={n.id}
                 className={cn(
-                  "rounded-2xl bg-white p-5 ring-1 ring-black/5",
+                  "rounded-2xl bg-white p-5 ring-1 ring-niki-edge",
                   !n.isActive && "opacity-60",
                 )}
               >

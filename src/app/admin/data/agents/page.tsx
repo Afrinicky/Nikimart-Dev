@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
-import { Users } from "lucide-react";
+import { Inbox, Users } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { formatMoney } from "@/lib/format";
 import { getAgentProgramConfig } from "@/lib/settings";
 import { listAgents } from "@/lib/data-bundles/agents";
+import { ApplicationReview } from "@/components/admin/ApplicationReview";
+import { formatWhen } from "@/components/agent/AgentUi";
+import { prisma } from "@/lib/prisma";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Agents — Admin — NikiMart" };
@@ -12,7 +15,13 @@ export const dynamic = "force-dynamic";
 
 /** The agent roster: who's selling, what they've sold, and what they're owed. */
 export default async function AdminAgentsPage() {
-  const [agents, program] = await Promise.all([listAgents(), getAgentProgramConfig()]);
+  const [agents, program, applications] = await Promise.all([
+    listAgents(),
+    getAgentProgramConfig(),
+    prisma.dataAgentApplication
+      .findMany({ where: { status: "pending" }, orderBy: { createdAt: "asc" }, take: 50 })
+      .catch(() => []),
+  ]);
 
   const totals = agents.reduce(
     (acc, a) => ({
@@ -55,7 +64,7 @@ export default async function AdminAgentsPage() {
           { label: "Commission earned", value: formatMoney(totals.commission) },
           { label: "Balances owed", value: formatMoney(totals.owed) },
         ].map((t) => (
-          <div key={t.label} className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+          <div key={t.label} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
             <p className="text-xs font-semibold uppercase tracking-wide text-niki-ink/45">
               {t.label}
             </p>
@@ -70,7 +79,73 @@ export default async function AdminAgentsPage() {
         </p>
       ) : null}
 
-      <section className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-black/5">
+      {/* Applications waiting. Above the roster because it's the only thing
+          here that needs a decision. */}
+      <section className="mt-6">
+        <div className="flex items-center gap-2">
+          <h2 className="font-display text-lg font-bold text-niki-ink">Applications</h2>
+          {applications.length > 0 ? (
+            <span className="rounded-full bg-niki-orange px-2.5 py-0.5 text-[11px] font-bold text-white">
+              {applications.length} waiting
+            </span>
+          ) : null}
+        </div>
+
+        {applications.length === 0 ? (
+          <div className="mt-3 rounded-2xl bg-white px-4 py-10 text-center ring-1 ring-niki-edge">
+            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-niki-surface text-niki-ink/35">
+              <Inbox className="h-5 w-5" />
+            </span>
+            <p className="mt-3 text-sm text-niki-ink/55">
+              Nothing waiting. Applications from{" "}
+              <span className="font-mono">/become-an-agent</span> land here.
+            </p>
+          </div>
+        ) : (
+          <div className="stagger-children mt-3 space-y-3">
+            {applications.map((a) => (
+              <article key={a.id} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-display font-bold text-niki-ink">{a.fullName}</p>
+                    <p className="mt-0.5 text-sm text-niki-ink/65">
+                      <a href={`tel:${a.phone}`} className="font-mono hover:text-niki-orange">
+                        {a.phone}
+                      </a>
+                      {" · "}
+                      <a href={`mailto:${a.email}`} className="hover:text-niki-orange">
+                        {a.email}
+                      </a>
+                    </p>
+                    <p className="mt-1 text-xs text-niki-ink/50">
+                      Wants{" "}
+                      <span className="font-mono font-semibold text-niki-ink/70">
+                        /store/{a.desiredSlug}
+                      </span>
+                    </p>
+                  </div>
+                  <time className="shrink-0 text-xs text-niki-ink/45">
+                    {formatWhen(a.createdAt)}
+                  </time>
+                </div>
+
+                {a.note ? (
+                  <p className="mt-3 rounded-xl bg-niki-surface px-4 py-3 text-sm leading-relaxed text-niki-ink/70">
+                    {a.note}
+                  </p>
+                ) : null}
+
+                <div className="mt-4">
+                  <ApplicationReview id={a.id} />
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <h2 className="mt-8 font-display text-lg font-bold text-niki-ink">Active agents</h2>
+      <section className="mt-3 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
         {agents.length === 0 ? (
           <div className="px-4 py-12 text-center">
             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-niki-surface text-niki-ink/35">
@@ -86,7 +161,7 @@ export default async function AdminAgentsPage() {
           <div className="-mx-5 overflow-x-auto px-5">
             <table className="w-full min-w-[860px] text-left text-sm">
               <thead>
-                <tr className="border-b border-black/5 text-[11px] uppercase tracking-wide text-niki-ink/45">
+                <tr className="border-b border-niki-edge text-[11px] uppercase tracking-wide text-niki-ink/45">
                   <th className="py-2.5 pr-4 font-semibold">Store</th>
                   <th className="py-2.5 pr-4 font-semibold">Code</th>
                   <th className="py-2.5 pr-4 font-semibold">Contact</th>
@@ -97,7 +172,7 @@ export default async function AdminAgentsPage() {
                   <th className="py-2.5 font-semibold">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-black/5">
+              <tbody className="divide-y divide-niki-edge">
                 {agents.map((a) => (
                   <tr key={a.id} className="transition-colors hover:bg-niki-surface/70">
                     <td className="py-3 pr-4">

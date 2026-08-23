@@ -68,10 +68,10 @@ export function BannerForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Background colour (start)" htmlFor="accentFrom">
-          <input id="accentFrom" name="accentFrom" type="color" defaultValue={b?.accentFrom ?? "#ff7a1a"} className="h-11 w-full cursor-pointer rounded-xl ring-1 ring-black/10" />
+          <input id="accentFrom" name="accentFrom" type="color" defaultValue={b?.accentFrom ?? "#ff7a1a"} className="h-11 w-full cursor-pointer rounded-xl ring-1 ring-niki-edge-strong" />
         </Field>
         <Field label="Background colour (end)" htmlFor="accentTo">
-          <input id="accentTo" name="accentTo" type="color" defaultValue={b?.accentTo ?? "#0e1f36"} className="h-11 w-full cursor-pointer rounded-xl ring-1 ring-black/10" />
+          <input id="accentTo" name="accentTo" type="color" defaultValue={b?.accentTo ?? "#0e1f36"} className="h-11 w-full cursor-pointer rounded-xl ring-1 ring-niki-edge-strong" />
         </Field>
       </div>
 

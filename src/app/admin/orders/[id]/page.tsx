@@ -39,7 +39,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
         subtitle={`Placed ${order.createdAt.toLocaleString("en-GH", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}`}
         crumbs={[{ label: "Orders", href: "/admin/orders" }, { label: order.orderNumber }]}
       >
-        <Link href="/admin/orders" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 hover:bg-white">
+        <Link href="/admin/orders" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
           <ArrowLeft className="h-4 w-4" /> Orders
         </Link>
       </PageHeader>
@@ -55,7 +55,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
         <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
           <div className="space-y-6">
             {/* Items */}
-            <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+            <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
               <div className="flex items-center justify-between">
                 <h2 className="font-display text-lg font-bold text-niki-ink">Items</h2>
                 <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone(order.status)}`}>
@@ -63,7 +63,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
                 </span>
               </div>
               <table className="mt-4 w-full text-left text-sm">
-                <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/40">
+                <thead className="border-b border-niki-edge text-xs uppercase tracking-wide text-niki-ink/40">
                   <tr>
                     <th className="py-2 font-semibold">Product</th>
                     <th className="py-2 font-semibold">Seller</th>
@@ -71,7 +71,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
                     <th className="py-2 text-right font-semibold">Amount</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-black/5">
+                <tbody className="divide-y divide-niki-edge">
                   {order.items.map((it) => (
                     <tr key={it.id}>
                       <td className="py-2.5 text-niki-ink">
@@ -89,12 +89,12 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
               <dl className="mt-4 ml-auto max-w-xs space-y-1.5 text-sm">
                 <div className="flex justify-between text-niki-ink/70"><dt>Subtotal</dt><dd className="font-medium text-niki-ink">{formatPrice(order.subtotal)}</dd></div>
                 <div className="flex justify-between text-niki-ink/70"><dt>{method === "pickup" ? "Pickup" : "Delivery"}</dt><dd className="font-medium text-niki-ink">{order.deliveryFee === 0 ? "Free" : formatPrice(order.deliveryFee)}</dd></div>
-                <div className="flex justify-between border-t border-black/10 pt-2 text-base font-bold text-niki-ink"><dt>Total</dt><dd className="font-display">{formatPrice(order.total)}</dd></div>
+                <div className="flex justify-between border-t border-niki-edge-strong pt-2 text-base font-bold text-niki-ink"><dt>Total</dt><dd className="font-display">{formatPrice(order.total)}</dd></div>
               </dl>
             </div>
 
             {/* Fulfilment */}
-            <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+            <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
               <h2 className="font-display text-lg font-bold text-niki-ink">Fulfilment</h2>
               <div className="mt-3 flex items-center gap-2 text-sm text-niki-ink/70">
                 {method === "pickup" ? <MapPin className="h-4 w-4 text-niki-orange" /> : <Truck className="h-4 w-4 text-niki-orange" />}
@@ -113,7 +113,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
 
           {/* Customer */}
           <aside className="h-fit space-y-4">
-            <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+            <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
               <div className="flex items-center gap-2 text-niki-ink">
                 <User className="h-5 w-5 text-niki-orange" />
                 <h2 className="font-display font-bold">Customer</h2>
@@ -138,7 +138,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+            <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
               <h2 className="font-display font-bold text-niki-ink">Update status</h2>
               <p className="mt-1 mb-3 text-xs text-niki-ink/50">Admin override — syncs the tracking timeline.</p>
               <OrderStatusSelect id={order.id} status={order.status} />

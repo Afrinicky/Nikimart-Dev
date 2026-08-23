@@ -48,7 +48,7 @@ function Stat({
     orange: "text-niki-orange",
   } as const;
   return (
-    <div className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+    <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
       <div className="flex items-center gap-2 text-niki-ink/50">
         <Icon className="h-4 w-4" />
         <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
@@ -143,7 +143,7 @@ export default async function AdminDataOverviewPage() {
           <form action={sweepDataOrders}>
             <button
               type="submit"
-              className="flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/5 transition-colors hover:bg-niki-navy/5"
+              className="flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge transition-colors hover:bg-niki-navy/5"
             >
               <RefreshCw className="h-4 w-4" />
               Run checks now
@@ -221,7 +221,7 @@ export default async function AdminDataOverviewPage() {
       {openSupport > 0 ? (
         <Link
           href="/admin/data/support"
-          className="mt-4 flex items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-medium text-niki-ink ring-1 ring-black/5 hover:bg-niki-navy/5"
+          className="mt-4 flex items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-medium text-niki-ink ring-1 ring-niki-edge hover:bg-niki-navy/5"
         >
           <Clock3 className="h-5 w-5 shrink-0 text-niki-orange" />
           {openSupport} agent {openSupport === 1 ? "is" : "are"} waiting on a callback.
@@ -231,7 +231,7 @@ export default async function AdminDataOverviewPage() {
       {stats.afaPending > 0 ? (
         <Link
           href="/admin/data/afa"
-          className="mt-4 flex items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-medium text-niki-ink ring-1 ring-black/5 hover:bg-niki-navy/5"
+          className="mt-4 flex items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-medium text-niki-ink ring-1 ring-niki-edge hover:bg-niki-navy/5"
         >
           <Clock3 className="h-5 w-5 shrink-0 text-niki-orange" />
           {stats.afaPending} AFA {stats.afaPending === 1 ? "registration is" : "registrations are"} awaiting approval.
@@ -239,7 +239,7 @@ export default async function AdminDataOverviewPage() {
       ) : null}
 
       {/* The sub-agent programme */}
-      <section className="mt-8 rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="mt-8 rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="font-display text-lg font-bold text-niki-ink">Sub-agents</h2>
@@ -292,7 +292,7 @@ export default async function AdminDataOverviewPage() {
       </section>
 
       {/* Setup checklist */}
-      <section className="mt-8 rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="mt-8 rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Setup</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
           What the storefront needs before it can take real orders.

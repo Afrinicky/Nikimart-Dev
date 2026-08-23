@@ -34,7 +34,7 @@ export default function HowItWorksPage() {
               <span className="absolute -left-[35px] flex h-7 w-7 items-center justify-center rounded-full bg-niki-orange font-display text-xs font-bold text-white ring-4 ring-niki-surface">
                 {i + 1}
               </span>
-              <div className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+              <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
                 <h3 className="font-semibold text-niki-ink">{step.title}</h3>
                 <p className="mt-1.5 text-sm text-niki-ink/60">{step.body}</p>
               </div>

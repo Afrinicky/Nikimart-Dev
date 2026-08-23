@@ -76,7 +76,7 @@ export default async function AgentOrdersPage({
               "shrink-0 rounded-full px-4 py-2 text-xs font-semibold",
               f.value === status
                 ? "bg-niki-orange text-white"
-                : "bg-white text-niki-ink/65 ring-1 ring-black/5 hover:bg-niki-navy/5",
+                : "bg-white text-niki-ink/65 ring-1 ring-niki-edge hover:bg-niki-navy/5",
             )}
           >
             {f.label}
@@ -96,7 +96,7 @@ export default async function AgentOrdersPage({
             <TableScroll>
               <table className="w-full min-w-[820px] text-left text-sm">
                 <thead>
-                  <tr className="border-b border-black/5 text-[11px] uppercase tracking-wide text-niki-ink/45">
+                  <tr className="border-b border-niki-edge text-[11px] uppercase tracking-wide text-niki-ink/45">
                     <th className="py-2.5 pr-4 font-semibold">Reference</th>
                     <th className="py-2.5 pr-4 font-semibold">Network</th>
                     <th className="py-2.5 pr-4 font-semibold">Size</th>
@@ -108,7 +108,7 @@ export default async function AgentOrdersPage({
                     <th className="py-2.5 font-semibold">Date</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-black/5">
+                <tbody className="divide-y divide-niki-edge">
                   {rows.map((o) => (
                     <tr key={o.id} className="transition-colors hover:bg-niki-surface/70">
                       <td className="py-3 pr-4">

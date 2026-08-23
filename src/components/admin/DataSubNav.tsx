@@ -44,7 +44,7 @@ export function DataSubNav() {
               "flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold",
               active
                 ? "bg-niki-orange text-white"
-                : "bg-white text-niki-ink/70 ring-1 ring-black/5 hover:bg-niki-orange/10",
+                : "bg-white text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-orange/10",
             )}
           >
             <Icon className="h-4 w-4" />

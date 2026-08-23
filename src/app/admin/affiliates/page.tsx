@@ -28,7 +28,7 @@ export default async function AdminAffiliatesPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExportButton dataset="affiliates" />
-          <Link href="/admin/settings" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 hover:bg-white">
+          <Link href="/admin/settings" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
             <Settings className="h-4 w-4" /> Program settings
           </Link>
           <Link href="/admin/affiliates/new" className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white hover:bg-niki-orange-light">
@@ -49,13 +49,13 @@ export default async function AdminAffiliatesPage() {
       {/* Roster */}
       <h2 className="mt-8 font-display text-lg font-bold text-niki-ink">All affiliates</h2>
       {rows.length === 0 ? (
-        <p className="mt-4 rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/50 ring-1 ring-black/5">
+        <p className="mt-4 rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/50 ring-1 ring-niki-edge">
           No affiliates yet. People can join via <span className="font-semibold">Start Selling → Become an affiliate</span>, or add one here.
         </p>
       ) : (
-        <div className="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">
+        <div className="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-niki-edge">
           <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/50">
+            <thead className="border-b border-niki-edge text-xs uppercase tracking-wide text-niki-ink/50">
               <tr>
                 <th className="px-5 py-3 font-semibold">Affiliate</th>
                 <th className="px-5 py-3 font-semibold">Code</th>
@@ -66,7 +66,7 @@ export default async function AdminAffiliatesPage() {
                 <th className="px-5 py-3 font-semibold sr-only">Manage</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-black/5">
+            <tbody className="divide-y divide-niki-edge">
               {rows.map((a) => (
                 <tr key={a.id} className="hover:bg-niki-surface">
                   <td className="px-5 py-3 font-medium text-niki-ink">

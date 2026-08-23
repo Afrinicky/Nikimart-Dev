@@ -193,9 +193,9 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
                 <h2 className="font-display text-sm font-bold uppercase tracking-wide text-niki-ink/70">
                   Key attributes
                 </h2>
-                <div className="mt-2 overflow-hidden rounded-xl ring-1 ring-black/5">
+                <div className="mt-2 overflow-hidden rounded-xl ring-1 ring-niki-edge">
                   <table className="w-full text-sm">
-                    <tbody className="divide-y divide-black/5">
+                    <tbody className="divide-y divide-niki-edge">
                       {product.attributes.map((attr, i) => (
                         <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-niki-surface"}>
                           <th className="w-2/5 px-4 py-2.5 text-left font-medium text-niki-ink/60">{attr.label}</th>
@@ -228,7 +228,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
             ) : null}
 
             {product.serviceInfo ? (
-              <div className="mt-5 rounded-2xl bg-niki-surface p-4 text-sm ring-1 ring-black/5">
+              <div className="mt-5 rounded-2xl bg-niki-surface p-4 text-sm ring-1 ring-niki-edge">
                 <p className="font-semibold text-niki-ink">Service details</p>
                 <ul className="mt-3 space-y-1.5 text-niki-ink/70">
                   <li>Service area: {product.serviceInfo.serviceArea}</li>

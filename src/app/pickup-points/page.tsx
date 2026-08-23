@@ -20,7 +20,7 @@ export default function PickupPointsPage() {
       <Container className="py-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {pickupPoints.map((p) => (
-            <div key={p.id} className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+            <div key={p.id} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
               <div className="flex items-start gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-niki-navy text-niki-orange">
                   <MapPin className="h-5 w-5" />
@@ -46,7 +46,7 @@ export default function PickupPointsPage() {
           ))}
         </div>
 
-        <p className="mt-8 rounded-2xl bg-niki-surface p-4 text-sm text-niki-ink/60 ring-1 ring-black/5">
+        <p className="mt-8 rounded-2xl bg-niki-surface p-4 text-sm text-niki-ink/60 ring-1 ring-niki-edge">
           More pickup points are being added across Ghana. Home delivery is also available in many
           areas at checkout.
         </p>

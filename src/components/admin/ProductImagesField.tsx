@@ -82,7 +82,7 @@ export function ProductImagesField({ initial = [] }: { initial?: string[] }) {
       {urls.length > 0 ? (
         <div className="mb-3 grid grid-cols-3 gap-3 sm:grid-cols-4">
           {urls.map((url, i) => (
-            <div key={`${url.slice(0, 24)}-${i}`} className="group relative overflow-hidden rounded-xl ring-1 ring-black/10">
+            <div key={`${url.slice(0, 24)}-${i}`} className="group relative overflow-hidden rounded-xl ring-1 ring-niki-edge-strong">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={url} alt={`Image ${i + 1}`} className="aspect-square w-full object-cover" />
               {i === 0 ? (
@@ -105,7 +105,7 @@ export function ProductImagesField({ initial = [] }: { initial?: string[] }) {
           ))}
         </div>
       ) : (
-        <p className="mb-3 rounded-xl bg-niki-surface p-3 text-xs text-niki-ink/50 ring-1 ring-black/5">
+        <p className="mb-3 rounded-xl bg-niki-surface p-3 text-xs text-niki-ink/50 ring-1 ring-niki-edge">
           No images yet. Upload from your device or add an image URL. The first image is the primary
           one shown on cards.
         </p>
@@ -136,7 +136,7 @@ export function ProductImagesField({ initial = [] }: { initial?: string[] }) {
             placeholder="…or paste an image URL"
             className={`${inputClass} py-2 text-sm`}
           />
-          <button type="button" onClick={addUrl} className="flex items-center gap-1 rounded-full bg-niki-surface px-3 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-black/5 hover:bg-niki-navy/5">
+          <button type="button" onClick={addUrl} className="flex items-center gap-1 rounded-full bg-niki-surface px-3 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5">
             <Link2 className="h-3.5 w-3.5" />
             Add
           </button>

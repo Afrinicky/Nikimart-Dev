@@ -48,7 +48,7 @@ export function BundleCard({
     <button
       type="button"
       onClick={onSelect}
-      className="group niki-press niki-lift niki-focus flex w-full flex-col overflow-hidden rounded-2xl bg-white text-left shadow-sm ring-1 ring-black/5 hover:shadow-xl"
+      className="group niki-press niki-lift niki-focus flex w-full flex-col overflow-hidden rounded-2xl bg-white text-left shadow-sm ring-1 ring-niki-edge hover:shadow-xl"
     >
       {/* Colour band — the network's identity, and most of the card's weight. */}
       <div
@@ -68,7 +68,7 @@ export function BundleCard({
       </div>
 
       {/* The two numbers, given equal room and a rule between them. */}
-      <div className="grid flex-1 grid-cols-2 divide-x divide-black/10">
+      <div className="grid flex-1 grid-cols-2 divide-x divide-niki-edge-strong">
         <div className="px-4 py-3.5">
           <p className="text-[11px] font-medium text-niki-ink/45">Data</p>
           <p className="mt-0.5 font-display text-lg font-bold text-niki-ink sm:text-xl">
@@ -84,7 +84,7 @@ export function BundleCard({
       </div>
 
       {footnote ? (
-        <p className="border-t border-black/5 px-4 py-2 text-[11px] font-semibold text-niki-success">
+        <p className="border-t border-niki-edge px-4 py-2 text-[11px] font-semibold text-niki-success">
           {footnote}
         </p>
       ) : null}

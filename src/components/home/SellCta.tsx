@@ -12,7 +12,7 @@ export function SellCta() {
       <Container>
         <Link
           href="/start-selling"
-          className="group flex items-center justify-between gap-3 rounded-2xl bg-niki-navy px-4 py-3 ring-1 ring-black/5 transition-colors hover:bg-niki-navy/95 sm:px-5"
+          className="group flex items-center justify-between gap-3 rounded-2xl bg-niki-navy px-4 py-3 ring-1 ring-niki-edge transition-colors hover:bg-niki-navy/95 sm:px-5"
         >
           <span className="flex items-center gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-niki-orange/20 text-niki-orange">

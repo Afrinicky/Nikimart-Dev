@@ -63,7 +63,7 @@ export default async function AdminWithdrawalsPage({
                 "shrink-0 rounded-full px-4 py-2 text-xs font-semibold capitalize",
                 s === status
                   ? "bg-niki-orange text-white"
-                  : "bg-white text-niki-ink/65 ring-1 ring-black/5 hover:bg-niki-navy/5",
+                  : "bg-white text-niki-ink/65 ring-1 ring-niki-edge hover:bg-niki-navy/5",
               )}
             >
               {s}
@@ -82,7 +82,7 @@ export default async function AdminWithdrawalsPage({
         </p>
       ) : null}
 
-      <section className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-black/5">
+      <section className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
         {rows.length === 0 ? (
           <div className="px-4 py-12 text-center">
             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-niki-surface text-niki-ink/35">
@@ -96,7 +96,7 @@ export default async function AdminWithdrawalsPage({
           <div className="-mx-5 overflow-x-auto px-5">
             <table className="w-full min-w-[900px] text-left text-sm">
               <thead>
-                <tr className="border-b border-black/5 text-[11px] uppercase tracking-wide text-niki-ink/45">
+                <tr className="border-b border-niki-edge text-[11px] uppercase tracking-wide text-niki-ink/45">
                   <th className="py-2.5 pr-4 font-semibold">Requested</th>
                   <th className="py-2.5 pr-4 font-semibold">Agent</th>
                   <th className="py-2.5 pr-4 font-semibold">Amount</th>
@@ -108,7 +108,7 @@ export default async function AdminWithdrawalsPage({
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-black/5">
+              <tbody className="divide-y divide-niki-edge">
                 {rows.map((w) => (
                   <tr key={w.id} className="transition-colors hover:bg-niki-surface/70">
                     <td className="py-3 pr-4 whitespace-nowrap text-xs text-niki-ink/55">

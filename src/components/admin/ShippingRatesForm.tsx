@@ -39,7 +39,7 @@ export function ShippingRatesForm({
       ) : null}
 
       {/* Global default */}
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Default rate</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
           Charged per CBM on any route that doesn&apos;t have a specific rate below. Fee = product CBM × rate.
@@ -58,7 +58,7 @@ export function ShippingRatesForm({
       </section>
 
       {/* Domestic route matrix */}
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Domestic route rates (₵ / CBM)</h2>
         <p className="mt-1 mb-4 text-sm text-niki-ink/60">
           Rows are the seller&apos;s origin hub; columns are the buyer&apos;s pickup point. Same hub → set 0 for
@@ -101,7 +101,7 @@ export function ShippingRatesForm({
                             step="0.01"
                             defaultValue={val}
                             placeholder={o.id === d.id ? "0" : "—"}
-                            className="w-24 rounded-lg border border-black/10 bg-white px-2 py-1.5 text-sm outline-none focus:border-niki-orange focus:ring-2 focus:ring-niki-orange/20"
+                            className="w-24 rounded-lg border border-niki-edge-strong bg-white px-2 py-1.5 text-sm outline-none focus:border-niki-orange focus:ring-2 focus:ring-niki-orange/20"
                           />
                         </td>
                       );
@@ -115,7 +115,7 @@ export function ShippingRatesForm({
       </section>
 
       {/* International */}
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Shipped from abroad (₵ / CBM)</h2>
         <p className="mt-1 mb-4 text-sm text-niki-ink/60">
           International freight rate per origin country. Goods land at the arrival hub, then the domestic route

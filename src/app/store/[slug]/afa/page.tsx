@@ -25,7 +25,7 @@ export default async function StoreAfaPage({ params }: { params: Promise<{ slug:
   return (
     <Container className="py-8">
       <div className="mx-auto max-w-2xl">
-        <div className="rounded-3xl bg-white p-6 ring-1 ring-black/5 sm:p-8">
+        <div className="rounded-3xl bg-white p-6 ring-1 ring-niki-edge sm:p-8">
           <div className="mb-5 flex items-center gap-2.5">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-niki-orange/10 text-niki-orange">
               <BadgeCheck className="h-5 w-5" />

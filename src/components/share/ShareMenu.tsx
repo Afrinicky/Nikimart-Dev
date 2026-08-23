@@ -144,7 +144,7 @@ export function ShareMenu({
       ? "flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-semibold text-white ring-1 ring-white/25 transition-colors hover:bg-white/25"
       : size === "sm"
         ? "flex items-center gap-1.5 rounded-full bg-niki-orange px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-niki-orange-light"
-        : "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 transition-colors hover:bg-white";
+        : "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong transition-colors hover:bg-white";
 
   return (
     <div className="relative" ref={ref}>
@@ -154,7 +154,7 @@ export function ShareMenu({
       </button>
 
       {open ? (
-        <div role="menu" className="absolute right-0 z-30 mt-2 w-60 overflow-hidden rounded-2xl bg-white p-1.5 shadow-xl ring-1 ring-black/5">
+        <div role="menu" className="absolute right-0 z-30 mt-2 w-60 overflow-hidden rounded-2xl bg-white p-1.5 shadow-xl ring-1 ring-niki-edge">
           <button type="button" onClick={onCopy} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-niki-ink hover:bg-niki-surface">
             {copied ? <Check className="h-4 w-4 text-niki-success" /> : <Copy className="h-4 w-4 text-niki-orange" />}
             {copied ? "Link copied!" : "Copy link"}
@@ -166,7 +166,7 @@ export function ShareMenu({
             </button>
           ) : null}
 
-          <div className="my-1 border-t border-black/5" />
+          <div className="my-1 border-t border-niki-edge" />
 
           {SHARE_TARGETS.map((t) => (
             <a

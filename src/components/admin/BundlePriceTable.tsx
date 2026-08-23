@@ -68,7 +68,7 @@ export function BundlePriceTable({
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl bg-white ring-1 ring-black/5">
+    <section className="overflow-hidden rounded-2xl bg-white ring-1 ring-niki-edge">
       <div
         className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"
         style={{ background: `linear-gradient(135deg, ${info.accentFrom}, ${info.accentTo})`, color: info.onAccent }}
@@ -94,7 +94,7 @@ export function BundlePriceTable({
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
             <thead>
-              <tr className="border-b border-black/5 text-left text-xs font-semibold uppercase tracking-wide text-niki-ink/50">
+              <tr className="border-b border-niki-edge text-left text-xs font-semibold uppercase tracking-wide text-niki-ink/50">
                 <th className="px-5 py-3">Size</th>
                 <th className="px-3 py-3">Cost (GH₵)</th>
                 <th className="px-3 py-3">Agent (GH₵)</th>
@@ -116,7 +116,7 @@ export function BundlePriceTable({
                 // Selling to an agent below cost would be paying them to sell.
                 const agentUnderCost = d.agent > 0 && d.cost > 0 && d.agent < d.cost;
                 return (
-                  <tr key={b.id} className="border-b border-black/5 last:border-0">
+                  <tr key={b.id} className="border-b border-niki-edge last:border-0">
                     <td className="px-5 py-2.5">
                       <input type="hidden" name="bundleId" value={b.id} />
                       <span className="font-display font-bold text-niki-ink">{bundleLabel(b.sizeGb)}</span>

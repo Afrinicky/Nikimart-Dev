@@ -30,7 +30,7 @@ export default async function NewVendorPage() {
         Back to shops
       </Link>
       <h1 className="mt-3 font-display text-2xl font-bold text-niki-ink">New shop</h1>
-      <div className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <div className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <VendorForm action={createVendor} owners={owners} hubs={hubs} submitLabel="Create shop" />
       </div>
     </Container>

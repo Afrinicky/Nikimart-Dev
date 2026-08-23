@@ -83,7 +83,7 @@ export default async function AdminDashboardPage() {
                 <Link
                   key={order.id}
                   href={`/admin/orders/${order.id}`}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/5 transition-colors hover:bg-niki-navy/5"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 ring-1 ring-niki-edge transition-colors hover:bg-niki-navy/5"
                 >
                   <div>
                     <p className="font-semibold text-niki-ink">{order.orderNumber}</p>
@@ -102,7 +102,7 @@ export default async function AdminDashboardPage() {
                 </Link>
               ))}
               {orders.length === 0 ? (
-                <p className="rounded-2xl bg-white p-6 text-sm text-niki-ink/50 ring-1 ring-black/5">
+                <p className="rounded-2xl bg-white p-6 text-sm text-niki-ink/50 ring-1 ring-niki-edge">
                   No orders yet.
                 </p>
               ) : null}
@@ -116,16 +116,16 @@ export default async function AdminDashboardPage() {
                 View all
               </Link>
             </div>
-            <div className="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">
+            <div className="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-niki-edge">
               <table className="w-full min-w-[420px] text-left text-sm">
-                <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/50">
+                <thead className="border-b border-niki-edge text-xs uppercase tracking-wide text-niki-ink/50">
                   <tr>
                     <th className="px-5 py-3 font-semibold">Name</th>
                     <th className="px-5 py-3 font-semibold">Email</th>
                     <th className="px-5 py-3 font-semibold">Role</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-black/5">
+                <tbody className="divide-y divide-niki-edge">
                   {recentUsers.map((u) => (
                     <tr key={u.id} className="transition-colors hover:bg-niki-navy/5">
                       <td className="px-5 py-3 font-medium text-niki-ink">

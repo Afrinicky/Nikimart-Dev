@@ -6,14 +6,9 @@ import { inputClass } from "@/components/ui/Field";
 import { ActionLink, BusyButton } from "@/components/ui/motion";
 import { BundleCard, NetworkTabs } from "@/components/data/BundleCard";
 import { formatMoney } from "@/lib/format";
-import {
-  NETWORK_INFO,
-  bundleLabel,
-  networkForPhone,
-  phoneMatchesNetwork,
-  toLocalGhPhone,
-  type Network,
-} from "@/lib/data-bundles/networks";
+import { cn } from "@/lib/cn";
+import { NETWORK_INFO, bundleLabel, type Network } from "@/lib/data-bundles/networks";
+import { checkRecipient } from "@/lib/data-bundles/gh-phone";
 import { agentTopup } from "@/lib/data-bundles/agent-actions";
 
 export interface TopupBundle {
@@ -50,7 +45,7 @@ export function AgentTopup({ bundles }: { bundles: TopupBundle[] }) {
 
   if (bundles.length === 0) {
     return (
-      <div className="animate-fade-up rounded-2xl bg-white p-8 text-center ring-1 ring-black/5">
+      <div className="animate-fade-up rounded-2xl bg-white p-8 text-center ring-1 ring-niki-edge">
         <p className="font-display font-bold text-niki-ink">No bundles available yet</p>
         <p className="mt-2 text-sm text-niki-ink/60">
           NikiMart hasn&apos;t published agent prices for any bundle. Check back shortly, or ask
@@ -103,9 +98,12 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState<string | null>(null);
 
-  const local = toLocalGhPhone(phone);
-  const detected = local ? networkForPhone(local) : null;
-  const mismatch = Boolean(local && !phoneMatchesNetwork(local, bundle.network));
+  // The same check the server runs, so the button can be blocked before a
+  // payment is ever started. Only complain once there's enough typed to judge —
+  // flagging "too short" on the first keystroke is just nagging.
+  const check = checkRecipient(phone, bundle.network, info.label);
+  const worthJudging = phone.replace(/\D/g, "").length >= 10;
+  const phoneProblem = !check.ok && worthJudging ? check.message : null;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -156,7 +154,7 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
         aria-label="Pay with Paystack"
         className="animate-sheet-up relative z-10 max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-white pb-[max(env(safe-area-inset-bottom),4.5rem)] shadow-2xl sm:max-w-md sm:rounded-3xl sm:pb-0"
       >
-        <div className="flex items-center justify-between gap-4 border-b border-black/5 px-5 py-4">
+        <div className="flex items-center justify-between gap-4 border-b border-niki-edge px-5 py-4">
           <p className="font-display text-lg font-bold text-niki-ink">Pay with Paystack</p>
           <button
             type="button"
@@ -220,16 +218,23 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="0241234567"
-                  className={inputClass}
+                  maxLength={15}
+                  aria-invalid={phoneProblem ? true : undefined}
+                  className={cn(
+                    inputClass,
+                    phoneProblem && "border-niki-danger focus:border-niki-danger focus:ring-niki-danger/20",
+                  )}
                 />
-                {mismatch ? (
-                  <span className="animate-fade-in mt-1 block text-xs font-medium text-niki-danger">
-                    That looks like {detected ? NETWORK_INFO[detected].label : "another network"}.
-                    Data sent to the wrong network can&apos;t be reversed.
+                {phoneProblem ? (
+                  <span
+                    role="alert"
+                    className="animate-fade-in mt-1 block text-xs font-medium text-niki-danger"
+                  >
+                    {phoneProblem}
                   </span>
                 ) : (
                   <span className="mt-1 block text-xs text-niki-ink/50">
-                    The data is credited to this number.
+                    10 digits starting with 0. The data is credited to this number.
                   </span>
                 )}
               </label>
@@ -260,6 +265,7 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
                 <BusyButton
                   type="submit"
                   busy={pending}
+                  disabled={!check.ok}
                   pendingLabel="Opening Paystack…"
                   icon={<CreditCard className="h-4 w-4" />}
                   className="flex-[1.6] whitespace-nowrap rounded-xl bg-niki-orange px-4 py-3 text-sm font-bold text-white hover:bg-niki-orange-light"

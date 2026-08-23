@@ -30,7 +30,7 @@ export default async function CheckoutPage() {
       <PageHeader title="Checkout" crumbs={[{ label: "Cart", href: "/cart" }, { label: "Checkout" }]} />
       <Container className="py-8">
         {!session?.user ? (
-          <div className="mx-auto max-w-md rounded-2xl bg-white p-8 text-center ring-1 ring-black/5">
+          <div className="mx-auto max-w-md rounded-2xl bg-white p-8 text-center ring-1 ring-niki-edge">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-niki-surface text-niki-orange">
               <LogIn className="h-6 w-6" />
             </div>

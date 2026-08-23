@@ -34,7 +34,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         </button>
         <Link
           href="/"
-          className="rounded-full px-5 py-2.5 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 transition-colors hover:bg-white"
+          className="rounded-full px-5 py-2.5 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong transition-colors hover:bg-white"
         >
           Go home
         </Link>

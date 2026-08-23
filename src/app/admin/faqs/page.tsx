@@ -29,7 +29,7 @@ export default async function AdminFaqsPage() {
 
       <div className="mt-6 space-y-3">
         {faqs.map((f) => (
-          <div key={f.id} className="flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-white p-5 ring-1 ring-black/5">
+          <div key={f.id} className="flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
             <div className="min-w-0 flex-1">
               <p className="font-semibold text-niki-ink">{f.question}</p>
               <p className="mt-1 line-clamp-2 text-sm text-niki-ink/60">{f.answer}</p>
@@ -44,7 +44,7 @@ export default async function AdminFaqsPage() {
           </div>
         ))}
         {faqs.length === 0 ? (
-          <p className="rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/50 ring-1 ring-black/5">
+          <p className="rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/50 ring-1 ring-niki-edge">
             No FAQs yet. The Help page shows built-in defaults until you add some.
           </p>
         ) : null}

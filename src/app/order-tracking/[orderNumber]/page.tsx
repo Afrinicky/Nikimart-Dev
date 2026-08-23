@@ -33,7 +33,7 @@ export default async function OrderTrackingDetailPage({ params }: { params: Para
           crumbs={[{ label: "Order tracking", href: "/order-tracking" }, { label: decoded }]}
         />
         <Container className="py-8">
-          <div className="mx-auto max-w-2xl rounded-3xl bg-white p-6 ring-1 ring-black/5 sm:p-8">
+          <div className="mx-auto max-w-2xl rounded-3xl bg-white p-6 ring-1 ring-niki-edge sm:p-8">
             <p className="flex items-center gap-2 text-sm text-niki-ink/70">
               <AlertTriangle className="h-5 w-5 text-niki-danger" />
               We couldn&apos;t find an order matching <strong className="font-semibold">{decoded}</strong>.
@@ -62,7 +62,7 @@ export default async function OrderTrackingDetailPage({ params }: { params: Para
 
       <Container className="py-8">
         <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-          <div className="rounded-3xl bg-white p-6 ring-1 ring-black/5 sm:p-7">
+          <div className="rounded-3xl bg-white p-6 ring-1 ring-niki-edge sm:p-7">
             <h2 className="font-display text-lg font-bold text-niki-ink">Status</h2>
 
             {order.status === "ready_for_pickup" ? (
@@ -91,7 +91,7 @@ export default async function OrderTrackingDetailPage({ params }: { params: Para
                         "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
                         done && "bg-niki-success text-white",
                         active && "bg-niki-orange text-white ring-4 ring-niki-orange/15",
-                        !done && !active && "bg-niki-surface text-niki-ink/40 ring-1 ring-black/5",
+                        !done && !active && "bg-niki-surface text-niki-ink/40 ring-1 ring-niki-edge",
                       )}
                     >
                       {done ? <Check className="h-4 w-4" /> : i + 1}
@@ -122,7 +122,7 @@ export default async function OrderTrackingDetailPage({ params }: { params: Para
 
           <aside className="space-y-6">
             {pickup ? (
-              <div className="rounded-3xl bg-white p-6 ring-1 ring-black/5">
+              <div className="rounded-3xl bg-white p-6 ring-1 ring-niki-edge">
                 <h3 className="flex items-center gap-2 font-semibold text-niki-ink">
                   <MapPin className="h-4 w-4 text-niki-orange" />
                   Pickup point
@@ -133,7 +133,7 @@ export default async function OrderTrackingDetailPage({ params }: { params: Para
               </div>
             ) : null}
 
-            <div className="rounded-3xl bg-white p-6 ring-1 ring-black/5">
+            <div className="rounded-3xl bg-white p-6 ring-1 ring-niki-edge">
               <h3 className="font-semibold text-niki-ink">Order summary</h3>
               <dl className="mt-3 space-y-2 text-sm">
                 {LANDED_COST_LABELS.map(({ key, label }) => (
@@ -142,7 +142,7 @@ export default async function OrderTrackingDetailPage({ params }: { params: Para
                     <dd className="font-medium text-niki-ink">{formatPrice(order.cost[key])}</dd>
                   </div>
                 ))}
-                <div className="flex items-center justify-between border-t border-black/5 pt-2">
+                <div className="flex items-center justify-between border-t border-niki-edge pt-2">
                   <dt className="font-semibold text-niki-ink">Total paid</dt>
                   <dd className="font-display font-bold text-niki-orange">
                     {formatPrice(order.cost.total)}

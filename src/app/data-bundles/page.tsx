@@ -72,7 +72,7 @@ export default async function DataBundlesPage() {
       </PageHeader>
 
       {/* Trust strip */}
-      <div className="border-b border-black/5 bg-white">
+      <div className="border-b border-niki-edge bg-white">
         <Container className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 py-3 text-xs font-semibold text-niki-ink/60 sm:text-sm">
           <span className="flex items-center gap-1.5">
             <Zap className="h-4 w-4 text-niki-orange" /> Delivered in seconds
@@ -94,7 +94,7 @@ export default async function DataBundlesPage() {
           <h2 className="font-display text-xl font-bold text-niki-ink">How it works</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             {STEPS.map((s, i) => (
-              <div key={s.title} className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+              <div key={s.title} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
                 <div className="flex items-center gap-3">
                   <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-niki-surface text-niki-orange">
                     <s.icon className="h-5 w-5" />
@@ -130,7 +130,7 @@ export default async function DataBundlesPage() {
             </div>
           ) : null}
 
-          <div className="flex flex-col justify-between gap-4 rounded-2xl bg-white p-6 ring-1 ring-black/5 sm:flex-row sm:items-center">
+          <div className="flex flex-col justify-between gap-4 rounded-2xl bg-white p-6 ring-1 ring-niki-edge sm:flex-row sm:items-center">
             <div>
               <p className="font-display text-lg font-bold text-niki-ink">Need help with an order?</p>
               <p className="mt-1 max-w-sm text-sm text-niki-ink/60">

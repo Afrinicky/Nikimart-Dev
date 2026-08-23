@@ -20,7 +20,7 @@ export default async function FinanceBreakdownPage({ params }: { params: Promise
   return (
     <>
       <PageHeader title={data.title} subtitle={data.description} crumbs={[{ label: "Finance", href: "/admin/finance" }, { label: data.title }]}>
-        <Link href="/admin/finance" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 hover:bg-white">
+        <Link href="/admin/finance" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
           <ArrowLeft className="h-4 w-4" /> Finance
         </Link>
       </PageHeader>
@@ -33,18 +33,18 @@ export default async function FinanceBreakdownPage({ params }: { params: Promise
         </div>
 
         {data.rows.length === 0 ? (
-          <p className="mt-6 rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/50 ring-1 ring-black/5">Nothing here yet.</p>
+          <p className="mt-6 rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/50 ring-1 ring-niki-edge">Nothing here yet.</p>
         ) : (
-          <div className="mt-6 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">
+          <div className="mt-6 overflow-x-auto rounded-2xl bg-white ring-1 ring-niki-edge">
             <table className="w-full min-w-[560px] text-left text-sm">
-              <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/50">
+              <thead className="border-b border-niki-edge text-xs uppercase tracking-wide text-niki-ink/50">
                 <tr>
                   <th className="px-5 py-3 font-semibold">{data.columns[0]}</th>
                   <th className="px-5 py-3 font-semibold">{data.columns[1]}</th>
                   <th className="px-5 py-3 text-right font-semibold">{data.columns[2]}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-black/5">
+              <tbody className="divide-y divide-niki-edge">
                 {data.rows.map((r) => (
                   <tr key={r.id} className="hover:bg-niki-surface">
                     <td className="px-5 py-3 font-medium text-niki-ink">

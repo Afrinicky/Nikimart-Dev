@@ -41,7 +41,7 @@ export default async function AdminSupportPage({
                 "rounded-full px-4 py-2 text-xs font-semibold capitalize",
                 s === status
                   ? "bg-niki-orange text-white"
-                  : "bg-white text-niki-ink/65 ring-1 ring-black/5 hover:bg-niki-navy/5",
+                  : "bg-white text-niki-ink/65 ring-1 ring-niki-edge hover:bg-niki-navy/5",
               )}
             >
               {s}
@@ -52,7 +52,7 @@ export default async function AdminSupportPage({
 
       <div className="mt-6 space-y-3">
         {rows.length === 0 ? (
-          <div className="rounded-2xl bg-white px-4 py-12 text-center ring-1 ring-black/5">
+          <div className="rounded-2xl bg-white px-4 py-12 text-center ring-1 ring-niki-edge">
             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-niki-surface text-niki-ink/35">
               <LifeBuoy className="h-5 w-5" />
             </span>
@@ -62,7 +62,7 @@ export default async function AdminSupportPage({
           </div>
         ) : (
           rows.map((r) => (
-            <article key={r.id} className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+            <article key={r.id} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-display font-bold text-niki-ink">{r.fullName}</p>

@@ -37,7 +37,7 @@ export function BalanceAdjuster({ agentId }: { agentId: string }) {
   const [state, formAction] = useActionState<AgentAdminState, FormData>(adjustAgentBalance, {});
 
   return (
-    <form action={formAction} className="space-y-4 rounded-2xl bg-white p-5 ring-1 ring-black/5">
+    <form action={formAction} className="space-y-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
       <div className="flex items-center gap-2">
         <Scale className="h-4 w-4 text-niki-orange" />
         <h2 className="font-display font-bold text-niki-ink">Adjust balance</h2>
@@ -91,7 +91,7 @@ export function AnnouncementForm({
   const [state, formAction] = useActionState<AgentAdminState, FormData>(saveAnnouncement, {});
 
   return (
-    <form action={formAction} className="space-y-4 rounded-2xl bg-white p-5 ring-1 ring-black/5">
+    <form action={formAction} className="space-y-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
       <div className="flex items-center gap-2">
         <Megaphone className="h-4 w-4 text-niki-orange" />
         <h2 className="font-display font-bold text-niki-ink">

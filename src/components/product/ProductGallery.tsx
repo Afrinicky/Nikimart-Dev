@@ -37,7 +37,7 @@ export function ProductGallery({
   return (
     <div>
       <div
-        className="relative overflow-hidden rounded-3xl ring-1 ring-black/5 select-none"
+        className="relative overflow-hidden rounded-3xl ring-1 ring-niki-edge select-none"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
@@ -60,7 +60,7 @@ export function ProductGallery({
               type="button"
               onClick={() => go(-1)}
               aria-label="Previous image"
-              className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-niki-ink shadow-sm ring-1 ring-black/5 transition hover:bg-white"
+              className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-niki-ink shadow-sm ring-1 ring-niki-edge transition hover:bg-white"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
@@ -68,7 +68,7 @@ export function ProductGallery({
               type="button"
               onClick={() => go(1)}
               aria-label="Next image"
-              className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-niki-ink shadow-sm ring-1 ring-black/5 transition hover:bg-white"
+              className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-niki-ink shadow-sm ring-1 ring-niki-edge transition hover:bg-white"
             >
               <ChevronRight className="h-5 w-5" />
             </button>
@@ -91,7 +91,7 @@ export function ProductGallery({
               key={`${url.slice(0, 24)}-${i}`}
               type="button"
               onClick={() => setActive(i)}
-              className={`h-16 w-16 overflow-hidden rounded-xl ring-2 transition-colors ${i === active ? "ring-niki-orange" : "ring-black/5 hover:ring-niki-navy/20"}`}
+              className={`h-16 w-16 overflow-hidden rounded-xl ring-2 transition-colors ${i === active ? "ring-niki-orange" : "ring-niki-edge hover:ring-niki-navy/20"}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={url} alt={`${alt} thumbnail ${i + 1}`} className="h-full w-full object-cover" draggable={false} />

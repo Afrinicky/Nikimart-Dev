@@ -25,7 +25,7 @@ function ReadOnly({
   return (
     <div>
       <span className="mb-1.5 block text-sm font-medium text-niki-ink">{label}</span>
-      <div className="flex items-center gap-2 rounded-xl border border-black/10 bg-niki-surface px-4 py-2.5 text-sm text-niki-ink/75">
+      <div className="flex items-center gap-2 rounded-xl border border-niki-edge-strong bg-niki-surface px-4 py-2.5 text-sm text-niki-ink/75">
         {Icon ? <Icon className="h-4 w-4 shrink-0 text-niki-ink/35" /> : null}
         <span className="truncate">{value}</span>
       </div>
@@ -70,12 +70,12 @@ export default async function AgentSettingsPage() {
               <span className="mb-1.5 block text-sm font-medium text-niki-ink">Agent code</span>
               <CopyChip
                 value={agent.code}
-                className="w-full justify-start border border-black/10 bg-niki-surface py-2.5 text-niki-ink/75"
+                className="w-full justify-start border border-niki-edge-strong bg-niki-surface py-2.5 text-niki-ink/75"
               />
             </div>
             <div>
               <span className="mb-1.5 block text-sm font-medium text-niki-ink">Account status</span>
-              <div className="flex items-center gap-2 rounded-xl border border-black/10 bg-niki-surface px-4 py-2.5 text-sm">
+              <div className="flex items-center gap-2 rounded-xl border border-niki-edge-strong bg-niki-surface px-4 py-2.5 text-sm">
                 <span
                   className={cn(
                     "h-2 w-2 rounded-full",

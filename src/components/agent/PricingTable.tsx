@@ -125,7 +125,7 @@ export function PricingTable({ rows }: { rows: PricingRow[] }) {
                 "niki-press niki-focus shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold",
                 filter === n
                   ? "bg-niki-navy text-white"
-                  : "bg-white text-niki-ink/60 ring-1 ring-black/5 hover:bg-niki-navy/5",
+                  : "bg-white text-niki-ink/60 ring-1 ring-niki-edge hover:bg-niki-navy/5",
               )}
             >
               {n === "ALL" ? "All networks" : NETWORK_INFO[n as Network].short}
@@ -134,7 +134,7 @@ export function PricingTable({ rows }: { rows: PricingRow[] }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-semibold text-niki-ink/60 ring-1 ring-black/5">
+          <label className="flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-semibold text-niki-ink/60 ring-1 ring-niki-edge">
             <Percent className="h-3.5 w-3.5" />
             <input
               inputMode="decimal"
@@ -160,7 +160,7 @@ export function PricingTable({ rows }: { rows: PricingRow[] }) {
       <TableScroll>
         <table className={cn("w-full min-w-[680px] text-left text-sm", pending && "opacity-70")}>
           <thead>
-            <tr className="border-b border-black/5 text-[11px] uppercase tracking-wide text-niki-ink/45">
+            <tr className="border-b border-niki-edge text-[11px] uppercase tracking-wide text-niki-ink/45">
               <th className="py-2.5 pr-4 font-semibold">Package</th>
               <th className="py-2.5 pr-4 font-semibold">Size</th>
               <th className="py-2.5 pr-4 font-semibold">Your cost</th>
@@ -169,7 +169,7 @@ export function PricingTable({ rows }: { rows: PricingRow[] }) {
               <th className="py-2.5 font-semibold">In store</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-black/5">
+          <tbody className="divide-y divide-niki-edge">
             {shown.map((r) => {
               const key = keyOf(r);
               const isEditing = editing === key;

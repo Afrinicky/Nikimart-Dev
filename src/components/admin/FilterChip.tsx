@@ -19,7 +19,7 @@ export function FilterChip({
         "rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors",
         active
           ? "bg-niki-navy text-white"
-          : "bg-white text-niki-ink/70 ring-1 ring-black/5 hover:bg-niki-navy/5",
+          : "bg-white text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5",
       )}
     >
       {label}

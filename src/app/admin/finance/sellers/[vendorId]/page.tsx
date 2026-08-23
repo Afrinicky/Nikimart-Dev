@@ -28,7 +28,7 @@ export default async function PaySellerPage({ params }: { params: Promise<{ vend
   return (
     <>
       <PageHeader title={`Pay ${vendor.businessName}`} crumbs={[{ label: "Finance", href: "/admin/finance" }, { label: "Pay seller" }]}>
-        <Link href="/admin/finance" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 hover:bg-white">
+        <Link href="/admin/finance" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
           <ArrowLeft className="h-4 w-4" /> Finance
         </Link>
       </PageHeader>
@@ -40,7 +40,7 @@ export default async function PaySellerPage({ params }: { params: Promise<{ vend
           <StatCard label="Available" value={formatPrice(earnings.available)} />
         </div>
 
-        <div className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-black/5">
+        <div className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
           <h2 className="font-display text-lg font-bold text-niki-ink">Record a payout</h2>
           <p className="mt-1 mb-4 text-sm text-niki-ink/60">
             Pay the seller through Mobile Money or bank, then record it here. It&apos;s deducted from their available balance.
@@ -61,7 +61,7 @@ export default async function PaySellerPage({ params }: { params: Promise<{ vend
         {payouts.length > 0 ? (
           <div className="mt-6">
             <h3 className="font-display font-bold text-niki-ink">Payout history</h3>
-            <ul className="mt-3 divide-y divide-black/5 rounded-2xl bg-white ring-1 ring-black/5">
+            <ul className="mt-3 divide-y divide-niki-edge rounded-2xl bg-white ring-1 ring-niki-edge">
               {payouts.map((p) => (
                 <li key={p.id} className="flex items-center justify-between gap-2 px-5 py-3 text-sm">
                   <span className="text-niki-ink/70">

@@ -44,7 +44,7 @@ export default async function SellerSettlementsPage() {
         subtitle="Your sales, platform commission, and settlement history."
         crumbs={[{ label: "Seller", href: "/seller" }, { label: "Earnings" }]}
       >
-        <Link href="/seller" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 hover:bg-white">
+        <Link href="/seller" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
           <ArrowLeft className="h-4 w-4" />
           Dashboard
         </Link>
@@ -63,7 +63,7 @@ export default async function SellerSettlementsPage() {
           </p>
         </div>
 
-        <div className="mt-4 rounded-2xl bg-white p-5 ring-1 ring-black/5">
+        <div className="mt-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
           <h2 className="font-display font-bold text-niki-ink">Request a payout</h2>
           <p className="mt-1 mb-3 text-sm text-niki-ink/60">Request any amount up to your available balance. NikiMart pays it to your saved details.</p>
           <RequestPayoutForm available={earnings.available} hasPayoutDetails={Boolean(vendor.payoutMethod)} />
@@ -77,7 +77,7 @@ export default async function SellerSettlementsPage() {
           <StatCard label="Paid out" value={formatPrice(earnings.paidOut)} />
         </div>
 
-        <div className="mt-4 rounded-2xl bg-white p-5 text-sm text-niki-ink/70 ring-1 ring-black/5">
+        <div className="mt-4 rounded-2xl bg-white p-5 text-sm text-niki-ink/70 ring-1 ring-niki-edge">
           <p>
             <span className="font-semibold text-niki-ink">How settlements work:</span> when a buyer pays, your
             share (sale price minus commission) is held <span className="font-medium">in escrow</span>. Once the
@@ -94,13 +94,13 @@ export default async function SellerSettlementsPage() {
 
         <h2 className="mt-8 font-display text-lg font-bold text-niki-ink">Payout history</h2>
         {payouts.length === 0 ? (
-          <p className="mt-4 rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-black/5">
+          <p className="mt-4 rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-niki-edge">
             No payouts yet. When NikiMart settles your cleared earnings, they&apos;ll appear here.
           </p>
         ) : (
-          <div className="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">
+          <div className="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-niki-edge">
             <table className="w-full min-w-[560px] text-left text-sm">
-              <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/50">
+              <thead className="border-b border-niki-edge text-xs uppercase tracking-wide text-niki-ink/50">
                 <tr>
                   <th className="px-5 py-3 font-semibold">Date</th>
                   <th className="px-5 py-3 font-semibold">Amount</th>
@@ -109,7 +109,7 @@ export default async function SellerSettlementsPage() {
                   <th className="px-5 py-3 font-semibold">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-black/5">
+              <tbody className="divide-y divide-niki-edge">
                 {payouts.map((p) => (
                   <tr key={p.id}>
                     <td className="px-5 py-3 text-niki-ink/70">

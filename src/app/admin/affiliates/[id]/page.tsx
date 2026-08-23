@@ -42,7 +42,7 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
         subtitle={affiliate.code ? `Referral code: ${affiliate.code}` : "Affiliate"}
         crumbs={[{ label: "Affiliates", href: "/admin/affiliates" }, { label: affiliate.name }]}
       >
-        <Link href="/admin/affiliates" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 hover:bg-white">
+        <Link href="/admin/affiliates" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
           <ArrowLeft className="h-4 w-4" /> Affiliates
         </Link>
       </PageHeader>
@@ -59,7 +59,7 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
 
             {/* Pending payout requests from this affiliate */}
             {affiliate.payouts.some((p) => p.status === "pending") ? (
-              <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+              <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
                 <h2 className="font-display font-bold text-niki-ink">Payout requests</h2>
                 <div className="mt-3 space-y-2">
                   {affiliate.payouts.filter((p) => p.status === "pending").map((p) => (
@@ -76,23 +76,23 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
             ) : null}
 
             {/* Record a payment */}
-            <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+            <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
               <h2 className="font-display text-lg font-bold text-niki-ink">Record a payment</h2>
               <p className="mt-1 mb-4 text-sm text-niki-ink/60">Pay the affiliate, then log it here.</p>
               <PayoutForm action={createAffiliatePayout} hiddenName="affiliateId" hiddenValue={affiliate.id} cancelHref="/admin/affiliates" submitLabel="Record payment" />
             </div>
 
             {/* Referred orders */}
-            <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+            <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
               <h2 className="font-display text-lg font-bold text-niki-ink">Referred orders</h2>
               {referred.length === 0 ? (
                 <p className="mt-3 text-sm text-niki-ink/50">No referred orders yet.</p>
               ) : (
                 <table className="mt-3 w-full text-left text-sm">
-                  <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/40">
+                  <thead className="border-b border-niki-edge text-xs uppercase tracking-wide text-niki-ink/40">
                     <tr><th className="py-2 font-semibold">Order</th><th className="py-2 font-semibold">Subtotal</th><th className="py-2 text-right font-semibold">Commission</th></tr>
                   </thead>
-                  <tbody className="divide-y divide-black/5">
+                  <tbody className="divide-y divide-niki-edge">
                     {referred.map((o) => (
                       <tr key={o.id}>
                         <td className="py-2.5"><Link href={`/admin/orders/${o.id}`} className="font-medium text-niki-ink hover:text-niki-orange">{o.orderNumber}</Link></td>
@@ -106,9 +106,9 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
             </div>
 
             {affiliate.payouts.length > 0 ? (
-              <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+              <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
                 <h2 className="font-display text-lg font-bold text-niki-ink">Payment history</h2>
-                <ul className="mt-3 divide-y divide-black/5 text-sm">
+                <ul className="mt-3 divide-y divide-niki-edge text-sm">
                   {affiliate.payouts.map((p) => (
                     <li key={p.id} className="flex items-center justify-between gap-2 py-2.5">
                       <span className="text-niki-ink/70">{(p.paidAt ?? p.createdAt).toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" })} · {p.method}</span>
@@ -125,7 +125,7 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
 
           {/* Management sidebar */}
           <aside className="h-fit space-y-4">
-            <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+            <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
               <h2 className="font-display font-bold text-niki-ink">Profile</h2>
               <p className="mt-2 text-sm text-niki-ink/70">{affiliate.name}</p>
               {affiliate.phone ? <p className="mt-1 flex items-center gap-1.5 text-sm text-niki-ink/60"><Phone className="h-3.5 w-3.5" />{affiliate.phone}</p> : null}
@@ -134,7 +134,7 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
               <p className="break-all font-mono text-xs text-niki-orange">nikimart.vercel.app/?ref={affiliate.code}</p>
             </div>
 
-            <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+            <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
               <h2 className="font-display font-bold text-niki-ink">Status</h2>
               <p className="mt-1 mb-3 text-sm text-niki-ink/60">
                 {suspended ? "Suspended — not earning on new orders." : "Active — earning on referred orders."}
@@ -148,13 +148,13 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
               </form>
             </div>
 
-            <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+            <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
               <h2 className="font-display font-bold text-niki-ink">Commission</h2>
               <p className="mt-1 mb-3 text-sm text-niki-ink/60">Override the {rate}% program default for this affiliate.</p>
               <AffiliateCommissionForm id={affiliate.id} current={affiliate.commissionRate} defaultRate={rate} />
             </div>
 
-            <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+            <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-niki-ink/70">Remove affiliate</span>
                 <DeleteButton id={affiliate.id} action={deleteAffiliate} />

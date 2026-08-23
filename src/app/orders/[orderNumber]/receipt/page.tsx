@@ -40,8 +40,8 @@ export default async function ReceiptPage({ params }: { params: Params }) {
       </div>
 
       {/* Receipt sheet */}
-      <div className="receipt-sheet mx-auto max-w-2xl rounded-2xl bg-white p-8 ring-1 ring-black/5 print:ring-0">
-        <div className="flex items-start justify-between gap-4 border-b border-black/10 pb-5">
+      <div className="receipt-sheet mx-auto max-w-2xl rounded-2xl bg-white p-8 ring-1 ring-niki-edge print:ring-0">
+        <div className="flex items-start justify-between gap-4 border-b border-niki-edge-strong pb-5">
           <div>
             <div className="font-display text-2xl font-bold text-niki-ink">
               Niki<span className="text-niki-orange">Mart</span>
@@ -101,7 +101,7 @@ export default async function ReceiptPage({ params }: { params: Params }) {
 
         {/* Items */}
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-black/10 text-xs uppercase tracking-wide text-niki-ink/40">
+          <thead className="border-b border-niki-edge-strong text-xs uppercase tracking-wide text-niki-ink/40">
             <tr>
               <th className="py-2 font-semibold">Item</th>
               <th className="py-2 text-center font-semibold">Qty</th>
@@ -109,7 +109,7 @@ export default async function ReceiptPage({ params }: { params: Params }) {
               <th className="py-2 text-right font-semibold">Amount</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-black/5">
+          <tbody className="divide-y divide-niki-edge">
             {order.items.map((it) => (
               <tr key={it.id}>
                 <td className="py-2.5 text-niki-ink">
@@ -134,13 +134,13 @@ export default async function ReceiptPage({ params }: { params: Params }) {
             <span>{method === "pickup" ? "Pickup" : "Delivery"}</span>
             <span className="font-medium text-niki-ink">{order.deliveryFee === 0 ? "Free" : formatPrice(order.deliveryFee)}</span>
           </div>
-          <div className="flex justify-between border-t border-black/10 pt-2 text-base font-bold text-niki-ink">
+          <div className="flex justify-between border-t border-niki-edge-strong pt-2 text-base font-bold text-niki-ink">
             <span>Total</span>
             <span className="font-display">{formatPrice(order.total)}</span>
           </div>
         </div>
 
-        <div className="mt-8 border-t border-black/10 pt-5 text-center text-xs text-niki-ink/50">
+        <div className="mt-8 border-t border-niki-edge-strong pt-5 text-center text-xs text-niki-ink/50">
           <p>Thank you for shopping with NikiMart. This receipt was generated on {new Date().toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" })}.</p>
           <p className="mt-1">{settings.restrictionsText}</p>
         </div>

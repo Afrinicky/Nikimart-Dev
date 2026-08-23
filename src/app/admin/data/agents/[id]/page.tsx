@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
 function Tile({ label, value, tone = "ink" }: { label: string; value: string; tone?: "ink" | "success" | "danger" }) {
   const tones = { ink: "text-niki-ink", success: "text-niki-success", danger: "text-niki-danger" };
   return (
-    <div className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+    <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
       <p className="text-[11px] font-semibold uppercase leading-tight tracking-wide text-niki-ink/45 sm:text-xs">{label}</p>
       <p className={`mt-2 font-display text-xl font-bold sm:text-2xl ${tones[tone]}`}>{value}</p>
     </div>
@@ -83,7 +83,7 @@ export default async function AdminAgentDetailPage({
             href={`/store/${agent.slug}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="niki-press flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-black/5"
+            className="niki-press flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             View store
@@ -124,7 +124,7 @@ export default async function AdminAgentDetailPage({
 
       <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4">
-          <section className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+          <section className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
             <div className="mb-4 flex items-center gap-2">
               <Package className="h-4 w-4 text-niki-orange" />
               <h2 className="font-display font-bold text-niki-ink">Recent orders</h2>
@@ -137,7 +137,7 @@ export default async function AdminAgentDetailPage({
               <div className="-mx-5 overflow-x-auto px-5">
                 <table className="w-full min-w-[620px] text-left text-sm">
                   <thead>
-                    <tr className="border-b border-black/5 text-[11px] uppercase tracking-wide text-niki-ink/45">
+                    <tr className="border-b border-niki-edge text-[11px] uppercase tracking-wide text-niki-ink/45">
                       <th className="py-2.5 pr-4 font-semibold">Reference</th>
                       <th className="py-2.5 pr-4 font-semibold">Package</th>
                       <th className="py-2.5 pr-4 font-semibold">Price</th>
@@ -145,7 +145,7 @@ export default async function AdminAgentDetailPage({
                       <th className="py-2.5 font-semibold">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-black/5">
+                  <tbody className="divide-y divide-niki-edge">
                     {orders.rows.map((o) => (
                       <tr key={o.id}>
                         <td className="py-3 pr-4 font-mono text-xs text-niki-ink/70">
@@ -169,7 +169,7 @@ export default async function AdminAgentDetailPage({
             )}
           </section>
 
-          <section className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+          <section className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
             <div className="mb-4 flex items-center gap-2">
               <Wallet className="h-4 w-4 text-niki-orange" />
               <h2 className="font-display font-bold text-niki-ink">Ledger</h2>
@@ -179,7 +179,7 @@ export default async function AdminAgentDetailPage({
                 Nothing posted yet.
               </p>
             ) : (
-              <ul className="divide-y divide-black/5">
+              <ul className="divide-y divide-niki-edge">
                 {ledger.map((e) => (
                   <li key={e.id} className="flex items-start justify-between gap-4 py-3">
                     <div className="min-w-0">
@@ -208,7 +208,7 @@ export default async function AdminAgentDetailPage({
         <div className="space-y-4">
           <BalanceAdjuster agentId={agent.id} />
 
-          <section className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+          <section className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
             <div className="mb-4 flex items-center gap-2">
               <Receipt className="h-4 w-4 text-niki-orange" />
               <h2 className="font-display font-bold text-niki-ink">Withdrawals</h2>
@@ -216,7 +216,7 @@ export default async function AdminAgentDetailPage({
             {withdrawals.length === 0 ? (
               <p className="text-sm text-niki-ink/55">None yet.</p>
             ) : (
-              <ul className="divide-y divide-black/5">
+              <ul className="divide-y divide-niki-edge">
                 {withdrawals.map((w) => (
                   <li key={w.id} className="flex items-center justify-between gap-3 py-2.5">
                     <div>

@@ -50,7 +50,7 @@ export function AffiliateProductList({
 
   if (products.length === 0) {
     return (
-      <div className="mt-4 rounded-2xl bg-white p-8 text-center ring-1 ring-black/5">
+      <div className="mt-4 rounded-2xl bg-white p-8 text-center ring-1 ring-niki-edge">
         <PackageSearch className="mx-auto h-8 w-8 text-niki-ink/30" />
         <p className="mt-3 font-semibold text-niki-ink">No products in the programme yet</p>
         <p className="mx-auto mt-1 max-w-md text-sm text-niki-ink/60">
@@ -70,7 +70,7 @@ export function AffiliateProductList({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search products, shops, categories…"
           aria-label="Search promotable products"
-          className="w-full rounded-full bg-white py-2.5 pl-10 pr-4 text-sm text-niki-ink ring-1 ring-black/10 outline-none focus:ring-2 focus:ring-niki-orange"
+          className="w-full rounded-full bg-white py-2.5 pl-10 pr-4 text-sm text-niki-ink ring-1 ring-niki-edge-strong outline-none focus:ring-2 focus:ring-niki-orange"
         />
       </label>
 
@@ -87,7 +87,7 @@ export function AffiliateProductList({
 
       <ul className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {filtered.map((p) => (
-          <li key={p.id} className="flex flex-col rounded-2xl bg-white p-4 ring-1 ring-black/5">
+          <li key={p.id} className="flex flex-col rounded-2xl bg-white p-4 ring-1 ring-niki-edge">
             <div className="flex items-start gap-3">
               <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-niki-surface text-xl">
                 {p.image ? (
@@ -110,7 +110,7 @@ export function AffiliateProductList({
               </div>
             </div>
 
-            <div className="mt-3 flex items-baseline justify-between gap-2 border-t border-black/5 pt-3">
+            <div className="mt-3 flex items-baseline justify-between gap-2 border-t border-niki-edge pt-3">
               <span className="text-sm text-niki-ink/60">{formatPrice(p.price)}</span>
               <span className="text-right">
                 <span className="font-display font-bold text-niki-success">
@@ -124,7 +124,7 @@ export function AffiliateProductList({
               <button
                 type="button"
                 onClick={() => copy(p)}
-                className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-niki-ink/70 ring-1 ring-black/10 transition-colors hover:bg-niki-surface"
+                className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong transition-colors hover:bg-niki-surface"
               >
                 {copiedId === p.id ? (
                   <>
@@ -148,7 +148,7 @@ export function AffiliateProductList({
       </ul>
 
       {filtered.length === 0 ? (
-        <p className="mt-3 rounded-2xl bg-white p-6 text-center text-sm text-niki-ink/60 ring-1 ring-black/5">
+        <p className="mt-3 rounded-2xl bg-white p-6 text-center text-sm text-niki-ink/60 ring-1 ring-niki-edge">
           Nothing matches “{query}”.
         </p>
       ) : null}

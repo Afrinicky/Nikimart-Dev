@@ -11,7 +11,7 @@ export function LandedCostEstimator({ defaultPrice = 1000 }: { defaultPrice?: nu
   const cost = computeLandedCost(price);
 
   return (
-    <div className="rounded-3xl bg-white p-6 ring-1 ring-black/5 sm:p-7">
+    <div className="rounded-3xl bg-white p-6 ring-1 ring-niki-edge sm:p-7">
       <div className="flex items-center gap-2">
         <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-niki-navy text-niki-orange">
           <Calculator className="h-5 w-5" />
@@ -38,7 +38,7 @@ export function LandedCostEstimator({ defaultPrice = 1000 }: { defaultPrice?: nu
 
       <dl className="mt-5 space-y-2 text-sm">
         {LANDED_COST_LABELS.map(({ key, label }) => (
-          <div key={key} className="flex items-center justify-between border-b border-black/5 pb-2">
+          <div key={key} className="flex items-center justify-between border-b border-niki-edge pb-2">
             <dt className="text-niki-ink/60">{label}</dt>
             <dd className="font-medium text-niki-ink">{formatPrice(cost[key])}</dd>
           </div>

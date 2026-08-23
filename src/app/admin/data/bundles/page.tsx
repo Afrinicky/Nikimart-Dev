@@ -38,7 +38,7 @@ export default async function AdminBundlePricesPage() {
           </span>
         </p>
       ) : (
-        <p className="mt-6 flex items-start gap-3 rounded-2xl bg-niki-surface px-5 py-4 text-sm text-niki-ink/70 ring-1 ring-black/5">
+        <p className="mt-6 flex items-start gap-3 rounded-2xl bg-niki-surface px-5 py-4 text-sm text-niki-ink/70 ring-1 ring-niki-edge">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-niki-orange" />
           <span>
             The seeded prices are placeholders. Check every row against your Justice Datashop agent

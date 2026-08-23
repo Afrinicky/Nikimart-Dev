@@ -30,7 +30,7 @@ export default function BuyerProtectionPage() {
       <Container className="py-10">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {GUARANTEES.map(({ icon: Icon, title, body }) => (
-            <div key={title} className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+            <div key={title} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-niki-success/10 text-niki-success">
                 <Icon className="h-5 w-5" />
               </span>

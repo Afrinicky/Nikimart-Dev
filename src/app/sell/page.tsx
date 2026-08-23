@@ -63,6 +63,20 @@ export default function SellPage() {
                 Seller dashboard
               </Link>
             </div>
+            {/* Not everyone who lands here wants to stock products — reselling
+                data needs no inventory at all, so it belongs alongside. */}
+            <div className="mt-5 border-t border-white/10 pt-5">
+              <p className="text-sm text-white/60">
+                No products to sell?{" "}
+                <Link
+                  href="/become-an-agent"
+                  className="font-semibold text-niki-gold underline-offset-4 hover:underline"
+                >
+                  Resell data bundles instead
+                </Link>{" "}
+                — your own storefront, your own prices, no stock.
+              </p>
+            </div>
           </div>
         </Container>
       </section>
@@ -71,7 +85,7 @@ export default function SellPage() {
         <h2 className="font-display text-2xl font-bold text-niki-ink">Why sell on NikiMart?</h2>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {BENEFITS.map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+            <div key={title} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-niki-navy text-niki-orange">
                 <Icon className="h-5 w-5" />
               </span>
@@ -84,7 +98,7 @@ export default function SellPage() {
         <h2 className="mt-14 font-display text-2xl font-bold text-niki-ink">How to get started</h2>
         <div className="mt-6 grid gap-4 md:grid-cols-4">
           {STEPS.map((step, i) => (
-            <div key={step} className="rounded-2xl bg-niki-surface p-5 ring-1 ring-black/5">
+            <div key={step} className="rounded-2xl bg-niki-surface p-5 ring-1 ring-niki-edge">
               <span className="font-display text-2xl font-bold text-niki-orange">0{i + 1}</span>
               <p className="mt-2 text-sm font-medium text-niki-ink">{step}</p>
             </div>

@@ -22,7 +22,7 @@ export default async function AfaPage() {
       />
 
       <Container className="py-8">
-        <div className="mx-auto max-w-2xl rounded-3xl bg-white p-6 ring-1 ring-black/5 sm:p-8">
+        <div className="mx-auto max-w-2xl rounded-3xl bg-white p-6 ring-1 ring-niki-edge sm:p-8">
           <AfaForm price={config.afaPrice} />
         </div>
         <p className="mx-auto mt-6 max-w-2xl text-center text-xs text-niki-ink/40">

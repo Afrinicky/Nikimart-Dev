@@ -12,7 +12,7 @@ import { DataSubNav } from "@/components/admin/DataSubNav";
 export default function AdminDataLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <div className="border-b border-black/5 bg-white/60">
+      <div className="border-b border-niki-edge bg-white/60">
         <Container className="py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">

@@ -27,7 +27,7 @@ export default async function SellerSettingsPage() {
         subtitle="Update how your shop appears to buyers."
         crumbs={[{ label: "Seller", href: "/seller" }, { label: "Shop settings" }]}
       >
-        <Link href="/seller" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 hover:bg-white">
+        <Link href="/seller" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
           <ArrowLeft className="h-4 w-4" />
           Dashboard
         </Link>

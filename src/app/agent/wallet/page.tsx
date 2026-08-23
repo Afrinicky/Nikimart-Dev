@@ -55,7 +55,7 @@ function Tile({
     trust: "text-niki-trust",
   } as const;
   return (
-    <div className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+    <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
       <div className="flex items-start gap-2 text-niki-ink/50">
         <Icon className="h-4 w-4" />
         <span className="text-[11px] font-semibold uppercase leading-tight tracking-wide sm:text-xs">{label}</span>
@@ -87,7 +87,7 @@ export default async function AgentWalletPage() {
       >
         <ActionLink
           href="/agent/store?tab=withdrawals"
-          className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-black/5 hover:bg-niki-navy/5"
+          className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5"
         >
           Withdrawal history
         </ActionLink>
@@ -158,7 +158,7 @@ export default async function AgentWalletPage() {
           <TableScroll>
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead>
-                <tr className="border-b border-black/5 text-[11px] uppercase tracking-wide text-niki-ink/45">
+                <tr className="border-b border-niki-edge text-[11px] uppercase tracking-wide text-niki-ink/45">
                   <th className="py-2.5 pr-4 font-semibold">Type</th>
                   <th className="py-2.5 pr-4 font-semibold">Amount</th>
                   <th className="py-2.5 pr-4 font-semibold">Balance after</th>
@@ -166,7 +166,7 @@ export default async function AgentWalletPage() {
                   <th className="py-2.5 font-semibold">Date</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-black/5">
+              <tbody className="divide-y divide-niki-edge">
                 {ledger.map((e) => (
                   <tr key={e.id} className="transition-colors hover:bg-niki-surface/70">
                     <td className="py-3 pr-4">

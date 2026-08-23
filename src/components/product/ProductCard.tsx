@@ -24,7 +24,7 @@ export function ProductCard({
   const stockPct = Math.min(100, Math.max(10, Math.round((itemsLeft / 20) * 100)));
 
   return (
-    <div className="group niki-press niki-lift relative flex h-full flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-black/5 hover:shadow-xl hover:shadow-niki-navy/10">
+    <div className="group niki-press niki-lift relative flex h-full flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-niki-edge hover:shadow-xl hover:shadow-niki-navy/10">
       <Link
         href={`/products/${product.slug}`}
         className="absolute inset-0 z-0"

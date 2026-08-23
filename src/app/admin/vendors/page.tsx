@@ -71,9 +71,9 @@ export default async function AdminVendorsPage({
         ))}
       </div>
 
-      <div className="mt-5 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">
+      <div className="mt-5 overflow-x-auto rounded-2xl bg-white ring-1 ring-niki-edge">
         <table className="w-full min-w-[820px] text-left text-sm">
-          <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/50">
+          <thead className="border-b border-niki-edge text-xs uppercase tracking-wide text-niki-ink/50">
             <tr>
               <th className="px-5 py-3 font-semibold">Shop</th>
               <th className="px-5 py-3 font-semibold">Owner</th>
@@ -82,7 +82,7 @@ export default async function AdminVendorsPage({
               <th className="px-5 py-3 text-right font-semibold">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-black/5">
+          <tbody className="divide-y divide-niki-edge">
             {vendors.map((v) => (
               <tr key={v.id}>
                 <td className="px-5 py-3 font-medium text-niki-ink">{v.businessName}</td>

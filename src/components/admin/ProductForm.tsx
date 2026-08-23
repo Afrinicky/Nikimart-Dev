@@ -188,7 +188,7 @@ export function ProductForm({
         defaultAffiliateRate={defaultAffiliateRate}
       />
 
-      <fieldset className="rounded-xl bg-niki-surface p-4 ring-1 ring-black/5">
+      <fieldset className="rounded-xl bg-niki-surface p-4 ring-1 ring-niki-edge">
         <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-niki-ink/50">
           Flags
         </legend>

@@ -48,7 +48,7 @@ export default async function AgentStorefrontPage({
   if (closed) {
     return (
       <Container className="py-16">
-        <div className="animate-fade-up mx-auto max-w-md rounded-3xl bg-white p-10 text-center ring-1 ring-black/5">
+        <div className="animate-fade-up mx-auto max-w-md rounded-3xl bg-white p-10 text-center ring-1 ring-niki-edge">
           <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-niki-surface text-niki-ink/40">
             <Store className="h-6 w-6" />
           </span>
@@ -89,7 +89,7 @@ export default async function AgentStorefrontPage({
 
   return (
     <>
-      <div className="border-b border-black/5 bg-white">
+      <div className="border-b border-niki-edge bg-white">
         <Container className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 py-3 text-xs font-semibold text-niki-ink/60 sm:text-sm">
           <span className="flex items-center gap-1.5">
             <Zap className="h-4 w-4 text-niki-orange" /> Delivered in seconds
@@ -105,7 +105,7 @@ export default async function AgentStorefrontPage({
 
       <Container className="py-8">
         {agent.storeAbout ? (
-          <p className="mb-6 rounded-2xl bg-white p-5 text-sm leading-relaxed text-niki-ink/70 ring-1 ring-black/5">
+          <p className="mb-6 rounded-2xl bg-white p-5 text-sm leading-relaxed text-niki-ink/70 ring-1 ring-niki-edge">
             {agent.storeAbout}
           </p>
         ) : null}

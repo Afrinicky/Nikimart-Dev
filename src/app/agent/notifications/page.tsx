@@ -39,7 +39,7 @@ export default async function AgentNotificationsPage() {
       ) : (
         <div className="stagger-children space-y-3">
           {notices.map((n) => (
-            <article key={n.id} className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+            <article key={n.id} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <span

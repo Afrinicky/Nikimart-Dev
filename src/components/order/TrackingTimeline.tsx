@@ -11,7 +11,7 @@ export function TrackingTimeline({
   const steps = buildTimeline(timestamps, method);
 
   return (
-    <ol className="relative ml-3 border-l-2 border-black/5">
+    <ol className="relative ml-3 border-l-2 border-niki-edge">
       {steps.map((step) => (
         <li key={step.stage} className="relative mb-6 pl-6 last:mb-0">
           <span

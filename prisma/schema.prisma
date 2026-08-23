@@ -810,3 +810,51 @@ model DataSupportRequest {
 
   @@index([status, createdAt])
 }
+
+/**
+ * An application to become an agent.
+ *
+ * Signup is an application, not an instant account: someone gives their name,
+ * contact, email and the store name they want, and an admin approves it. That
+ * ordering matters — the store slug is a public URL and the agent's identity to
+ * their customers, so it gets a human look before it exists, and NikiMart
+ * chooses who resells under its name.
+ *
+ * Approving provisions the User and the DataAgent and issues a one-time setup
+ * link, so no password is collected here — nothing worth stealing sits in this
+ * table while it waits.
+ */
+model DataAgentApplication {
+  id String @id @default(cuid())
+
+  fullName String
+  phone    String
+  email    String
+  /** The store link they asked for, already normalised. */
+  desiredSlug String
+  /** Optional note from the applicant. */
+  note String @default("")
+
+  // pending | approved | rejected
+  status     String    @default("pending")
+  reviewedBy String?
+  reviewedAt DateTime?
+  /** Why it was rejected, shown to the applicant if they ask. */
+  adminNote String @default("")
+
+  /**
+   * SHA-256 of the one-time setup token, never the token itself. Set on
+   * approval and cleared once the agent has chosen a password.
+   */
+  setupTokenHash String?
+  setupExpiresAt DateTime?
+  /** The account created on approval, once it exists. */
+  agentId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([email])
+  @@index([desiredSlug])
+}

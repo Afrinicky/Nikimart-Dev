@@ -67,6 +67,9 @@ export async function lookupOrders(rawQuery: string | undefined): Promise<Lookup
   }
 
   const reference = q.toUpperCase();
+  // Deliberately the lenient normaliser, not the strict one used at purchase:
+  // someone tracking an order is searching, not buying, and may well paste
+  // "+233…" out of their call log. Nothing is sent anywhere on a match.
   const phone = toLocalGhPhone(q);
 
   try {

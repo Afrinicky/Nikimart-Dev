@@ -61,7 +61,7 @@ export default async function HelpPage() {
       <Container className="py-8">
         <div className="grid gap-4 sm:grid-cols-3">
           {contacts.map(({ icon: Icon, title, desc, value }) => (
-            <div key={title} className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+            <div key={title} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-niki-navy text-niki-orange">
                 <Icon className="h-5 w-5" />
               </span>
@@ -81,7 +81,7 @@ export default async function HelpPage() {
             {faqs.map((f, i) => (
               <details
                 key={i}
-                className="group rounded-2xl bg-white p-5 ring-1 ring-black/5 [&_summary]:cursor-pointer"
+                className="group rounded-2xl bg-white p-5 ring-1 ring-niki-edge [&_summary]:cursor-pointer"
               >
                 <summary className="flex items-center justify-between font-semibold text-niki-ink marker:content-['']">
                   {f.question}

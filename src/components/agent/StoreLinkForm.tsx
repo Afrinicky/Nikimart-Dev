@@ -75,7 +75,7 @@ export function StoreLinkForm({
       {/* The URL, split so the fixed part reads as fixed. */}
       <div>
         <span className="mb-1.5 block text-sm font-medium text-niki-ink">Store URL</span>
-        <div className="flex flex-col overflow-hidden rounded-xl border border-black/10 sm:flex-row">
+        <div className="flex flex-col overflow-hidden rounded-xl border border-niki-edge-strong sm:flex-row">
           <span className="bg-niki-surface px-4 py-2.5 font-mono text-sm text-niki-ink/50">
             {origin}/store/
           </span>
@@ -99,7 +99,7 @@ export function StoreLinkForm({
           </span>
           <CopyChip
             value={fullLink}
-            className="bg-white text-niki-ink/70 ring-1 ring-black/5 hover:bg-niki-navy/5"
+            className="bg-white text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5"
           />
           <a
             href={`/store/${preview}`}

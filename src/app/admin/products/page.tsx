@@ -35,9 +35,9 @@ export default async function AdminProductsPage() {
         </div>
       </div>
 
-      <div className="mt-6 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">
+      <div className="mt-6 overflow-x-auto rounded-2xl bg-white ring-1 ring-niki-edge">
         <table className="w-full min-w-[720px] text-left text-sm">
-          <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/50">
+          <thead className="border-b border-niki-edge text-xs uppercase tracking-wide text-niki-ink/50">
             <tr>
               <th className="px-5 py-3 font-semibold">Product</th>
               <th className="px-5 py-3 font-semibold">Category</th>
@@ -48,7 +48,7 @@ export default async function AdminProductsPage() {
               <th className="px-5 py-3 text-right font-semibold">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-black/5">
+          <tbody className="divide-y divide-niki-edge">
             {products.map((p) => (
               <tr key={p.id} className={p.isArchived ? "bg-niki-surface/60" : undefined}>
                 <td className="px-5 py-3">

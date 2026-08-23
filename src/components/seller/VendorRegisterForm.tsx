@@ -35,7 +35,7 @@ export function VendorRegisterForm({
       ) : null}
 
       {/* 1 — Business details */}
-      <section className="space-y-5 rounded-3xl bg-white p-6 ring-1 ring-black/5 sm:p-8">
+      <section className="space-y-5 rounded-3xl bg-white p-6 ring-1 ring-niki-edge sm:p-8">
         <div>
           <h2 className="font-display text-lg font-bold text-niki-ink">Business details</h2>
           <p className="text-sm text-niki-ink/50">The basics buyers will see on your shop page.</p>
@@ -102,7 +102,7 @@ export function VendorRegisterForm({
       </section>
 
       {/* 2 — Contact / account details */}
-      <section className="space-y-5 rounded-3xl bg-white p-6 ring-1 ring-black/5 sm:p-8">
+      <section className="space-y-5 rounded-3xl bg-white p-6 ring-1 ring-niki-edge sm:p-8">
         <div>
           <h2 className="font-display text-lg font-bold text-niki-ink">Account & contact details</h2>
           <p className="text-sm text-niki-ink/50">How we and your customers reach you about orders.</p>
@@ -135,7 +135,7 @@ export function VendorRegisterForm({
       </section>
 
       {/* 3 — Payment / payout details */}
-      <section className="space-y-5 rounded-3xl bg-white p-6 ring-1 ring-black/5 sm:p-8">
+      <section className="space-y-5 rounded-3xl bg-white p-6 ring-1 ring-niki-edge sm:p-8">
         <div>
           <h2 className="font-display text-lg font-bold text-niki-ink">Payment details</h2>
           <p className="text-sm text-niki-ink/50">Where NikiMart sends your earnings after each settled order. You can change this later in Shop settings.</p>
@@ -146,7 +146,7 @@ export function VendorRegisterForm({
             <label
               key={m}
               className={`cursor-pointer rounded-2xl border p-4 text-center text-sm font-semibold transition-colors ${
-                payoutMethod === m ? "border-niki-orange bg-niki-orange/5 text-niki-ink" : "border-black/10 text-niki-ink/60 hover:border-black/20"
+                payoutMethod === m ? "border-niki-orange bg-niki-orange/5 text-niki-ink" : "border-niki-edge-strong text-niki-ink/60 hover:border-black/20"
               }`}
             >
               <input

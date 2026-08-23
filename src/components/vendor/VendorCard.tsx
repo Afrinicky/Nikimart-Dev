@@ -14,7 +14,7 @@ export function VendorCard({ vendor }: { vendor: Vendor }) {
   return (
     <Link
       href={`/shops/${vendor.slug}`}
-      className="group flex flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-black/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-niki-navy/10"
+      className="group flex flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-niki-edge transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-niki-navy/10"
     >
       <div
         className="h-16 w-full"
@@ -45,7 +45,7 @@ export function VendorCard({ vendor }: { vendor: Vendor }) {
           {vendor.sellerTypes.slice(0, 2).map((type) => (
             <span
               key={type}
-              className="rounded-full bg-niki-surface px-2 py-0.5 text-[10px] font-semibold text-niki-ink/70 ring-1 ring-black/5"
+              className="rounded-full bg-niki-surface px-2 py-0.5 text-[10px] font-semibold text-niki-ink/70 ring-1 ring-niki-edge"
             >
               {SELLER_TYPE_LABELS[type]}
             </span>
