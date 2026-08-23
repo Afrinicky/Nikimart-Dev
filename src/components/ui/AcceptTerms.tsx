@@ -68,6 +68,13 @@ export function AcceptTerms({
             : "bg-niki-surface ring-niki-edge-strong",
       )}
     >
+      {/*
+        The tappable label holds no links.
+        With the policy names inline, the middle of the label — where a thumb
+        lands — was a link, so tapping to agree opened a policy instead. The
+        checkbox and its sentence are one target; the documents sit below it,
+        on their own line, where they are meant to be tapped.
+      */}
       <label className="flex cursor-pointer items-start gap-3">
         {/* The real control, kept in the accessibility tree and reachable by
             keyboard; the square below is what's actually painted. */}
@@ -78,7 +85,7 @@ export function AcceptTerms({
           checked={accepted}
           onChange={(e) => set(e.target.checked)}
           aria-invalid={error ? true : undefined}
-          aria-describedby={error ? "acceptTerms-error" : undefined}
+          aria-describedby={error ? "acceptTerms-error" : "acceptTerms-policies"}
           className="peer sr-only"
         />
         <span
@@ -95,24 +102,23 @@ export function AcceptTerms({
         </span>
 
         <span className="text-sm leading-relaxed text-niki-ink/75">
-          I have read and agree to NikiMart&apos;s{" "}
-          {policies.map((p, i) => (
-            <span key={p.slug}>
-              <a
-                href={`/legal/${p.slug}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="font-semibold text-niki-orange underline underline-offset-2 hover:text-niki-orange-light"
-              >
-                {p.label}
-              </a>
-              {i < policies.length - 2 ? ", " : i === policies.length - 2 ? " and " : ""}
-            </span>
-          ))}
-          .
+          I have read and agree to NikiMart&apos;s terms.
         </span>
       </label>
+
+      <p id="acceptTerms-policies" className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 pl-8 text-sm">
+        {policies.map((p) => (
+          <a
+            key={p.slug}
+            href={`/legal/${p.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-niki-orange underline underline-offset-2 hover:text-niki-orange-light"
+          >
+            {p.label}
+          </a>
+        ))}
+      </p>
 
       {error ? (
         <p id="acceptTerms-error" role="alert" className="mt-2 pl-8 text-xs font-medium text-niki-danger">

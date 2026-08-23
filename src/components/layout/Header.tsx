@@ -25,7 +25,11 @@ export async function Header() {
 
         <Link href="/" className="flex shrink-0 items-center gap-2">
           <BrandLogo className="h-9 w-9" src={settings.logoUrl} />
-          <span className="font-display text-xl font-bold tracking-tight text-white">
+          {/* A step smaller on the narrowest phones. At 320px the header row
+              was 1.6px wider than the screen, which is all it takes: the phone
+              zooms the whole page out to fit, and every fixed element then
+              renders at a fraction of the width. */}
+          <span className="font-display text-lg font-bold tracking-tight text-white sm:text-xl">
             Niki<span className="text-niki-orange">Mart</span>
           </span>
         </Link>
@@ -43,9 +47,11 @@ export async function Header() {
             <span>Help</span>
           </Link>
 
+          {/* Hidden on phones: the bottom nav already has Account, and three
+              icon buttons plus the wordmark do not fit a 320px screen. */}
           <Link
             href={accountHref}
-            className="flex flex-col items-center gap-0.5 rounded-xl px-2.5 py-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+            className="hidden flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white sm:flex sm:px-2.5"
             aria-label={accountLabel}
           >
             <User className="h-5 w-5" />
@@ -54,7 +60,7 @@ export async function Header() {
 
           <Link
             href="/orders"
-            className="flex flex-col items-center gap-0.5 rounded-xl px-2.5 py-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+            className="flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white sm:px-2.5"
             aria-label="Orders"
           >
             <ClipboardList className="h-5 w-5" />

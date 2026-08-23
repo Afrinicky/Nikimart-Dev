@@ -318,7 +318,9 @@ export async function listAgents() {
   try {
     const agents = await prisma.dataAgent.findMany({
       orderBy: { createdAt: "desc" },
-      include: { user: { select: { name: true, email: true, phone: true } } },
+      // `passwordHash` is read only to answer "has this person ever been able
+      // to sign in?" — it is reduced to a boolean below and never leaves here.
+      include: { user: { select: { name: true, email: true, phone: true, passwordHash: true } } },
     });
     const sales = await prisma.dataOrder.groupBy({
       by: ["agentId"],
@@ -329,8 +331,12 @@ export async function listAgents() {
     const byAgent = new Map(sales.map((s) => [s.agentId, s]));
     return agents.map((a) => {
       const s = byAgent.get(a.id);
+      const { user, ...rest } = a;
       return {
-        ...a,
+        ...rest,
+        user: user ? { name: user.name, email: user.email, phone: user.phone } : null,
+        /** False until they have redeemed their setup link and chosen one. */
+        canSignIn: Boolean(user?.passwordHash),
         totalSales: round2(s?._sum.price ?? 0),
         totalCommission: round2(s?._sum.agentCommission ?? 0),
         orderCount: s?._count ?? 0,

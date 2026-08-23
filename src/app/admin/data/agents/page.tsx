@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inbox, Users } from "lucide-react";
+import { Inbox, Pencil, Users } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { formatMoney } from "@/lib/format";
@@ -14,7 +14,12 @@ export const metadata: Metadata = { title: "Agents — Admin — NikiMart" };
 export const dynamic = "force-dynamic";
 
 /** The agent roster: who's selling, what they've sold, and what they're owed. */
-export default async function AdminAgentsPage() {
+export default async function AdminAgentsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ removed?: string }>;
+}) {
+  const { removed } = (await searchParams) ?? {};
   const [agents, program, applications] = await Promise.all([
     listAgents(),
     getAgentProgramConfig(),
@@ -144,6 +149,12 @@ export default async function AdminAgentsPage() {
         )}
       </section>
 
+      {removed ? (
+        <p className="animate-fade-up mt-6 rounded-xl bg-niki-success/10 px-4 py-3 text-sm font-medium text-niki-success ring-1 ring-niki-success/30">
+          Storefront removed. The person keeps their NikiMart account.
+        </p>
+      ) : null}
+
       <h2 className="mt-8 font-display text-lg font-bold text-niki-ink">Active agents</h2>
       <section className="mt-3 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
         {agents.length === 0 ? (
@@ -169,7 +180,8 @@ export default async function AdminAgentsPage() {
                   <th className="py-2.5 pr-4 font-semibold">Sales</th>
                   <th className="py-2.5 pr-4 font-semibold">Commission</th>
                   <th className="py-2.5 pr-4 font-semibold">Balance</th>
-                  <th className="py-2.5 font-semibold">Status</th>
+                  <th className="py-2.5 pr-4 font-semibold">Status</th>
+                  <th className="py-2.5 font-semibold">Manage</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-niki-edge">
@@ -189,6 +201,11 @@ export default async function AdminAgentsPage() {
                       {a.user?.name ?? "—"}
                       <br />
                       <span className="font-mono">{a.supportPhone || a.user?.phone || "—"}</span>
+                      {!a.canSignIn ? (
+                        <span className="mt-1 flex w-fit items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                          Never signed in
+                        </span>
+                      ) : null}
                     </td>
                     <td className="py-3 pr-4 text-niki-ink/70">{a.orderCount}</td>
                     <td className="py-3 pr-4 font-semibold text-niki-ink">
@@ -203,7 +220,7 @@ export default async function AdminAgentsPage() {
                     >
                       {formatMoney(a.balance)}
                     </td>
-                    <td className="py-3">
+                    <td className="py-3 pr-4">
                       <span
                         className={cn(
                           "inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase",
@@ -214,6 +231,15 @@ export default async function AdminAgentsPage() {
                       >
                         {a.status}
                       </span>
+                    </td>
+                    <td className="py-3">
+                      <ActionLink
+                        href={`/admin/data/agents/${a.id}`}
+                        className="niki-chip niki-focus inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold text-niki-ink/75"
+                      >
+                        <Pencil className="h-3 w-3" />
+                        Edit
+                      </ActionLink>
                     </td>
                   </tr>
                 ))}
