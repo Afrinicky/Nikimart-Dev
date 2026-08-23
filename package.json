@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && node scripts/migrate.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",
-    "db:setup-sql": "tsx scripts/generate-setup-sql.ts"
+    "db:setup-sql": "tsx scripts/generate-setup-sql.ts",
+    "db:migrate:deploy": "node scripts/migrate.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
