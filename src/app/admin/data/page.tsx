@@ -9,6 +9,7 @@ import {
   ListOrdered,
   RefreshCw,
   TrendingUp,
+  Users,
   Wallet,
   XCircle,
 } from "lucide-react";
@@ -20,7 +21,9 @@ import { isPaymentConfigured } from "@/lib/payments";
 import { isSmsConfigured } from "@/lib/notifications";
 import { getDataStoreConfig } from "@/lib/settings";
 import { getAllBundles } from "@/lib/data-bundles/catalog";
+import { listAgents } from "@/lib/data-bundles/agents";
 import { sweepDataOrders } from "@/lib/data-bundles/admin-actions";
+import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Data Bundles — Admin — NikiMart" };
 export const dynamic = "force-dynamic";
@@ -58,15 +61,24 @@ function Stat({
 
 export default async function AdminDataOverviewPage() {
   const providerReady = isDataProviderConfigured();
-  const [stats, balance, config, bundles] = await Promise.all([
-    getDataStats(),
-    providerReady ? getProviderBalance() : Promise.resolve({ balance: null, message: "Not configured" }),
-    getDataStoreConfig(),
-    getAllBundles(),
-  ]);
+  const [stats, balance, config, bundles, agents, pendingWithdrawals, openSupport] =
+    await Promise.all([
+      getDataStats(),
+      providerReady ? getProviderBalance() : Promise.resolve({ balance: null, message: "Not configured" }),
+      getDataStoreConfig(),
+      getAllBundles(),
+      listAgents(),
+      prisma.dataAgentWithdrawal.count({ where: { status: "pending" } }).catch(() => 0),
+      prisma.dataSupportRequest.count({ where: { status: "open" } }).catch(() => 0),
+    ]);
 
   const activeBundles = bundles.filter((b) => b.isActive && b.price > 0).length;
   const missingCost = bundles.filter((b) => b.costPrice <= 0).length;
+  // Bundles with no agent price are invisible to agents, so a full ladder with
+  // none set means a recruited agent lands on an empty store.
+  const missingAgentPrice = bundles.filter((b) => b.isActive && b.agentPrice <= 0).length;
+  const agentSales = agents.reduce((sum, a) => sum + a.totalSales, 0);
+  const owedToAgents = agents.reduce((sum, a) => sum + Math.max(0, a.balance), 0);
 
   const checks = [
     {
@@ -195,6 +207,27 @@ export default async function AdminDataOverviewPage() {
         </Link>
       ) : null}
 
+      {pendingWithdrawals > 0 ? (
+        <Link
+          href="/admin/data/withdrawals"
+          className="mt-4 flex items-center gap-3 rounded-2xl bg-niki-gold/10 px-5 py-4 text-sm font-medium text-niki-ink ring-1 ring-niki-gold/40 transition-colors hover:bg-niki-gold/15"
+        >
+          <Wallet className="h-5 w-5 shrink-0 text-niki-orange" />
+          {pendingWithdrawals} agent {pendingWithdrawals === 1 ? "withdrawal is" : "withdrawals are"}{" "}
+          waiting to be sent on MoMo.
+        </Link>
+      ) : null}
+
+      {openSupport > 0 ? (
+        <Link
+          href="/admin/data/support"
+          className="mt-4 flex items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-medium text-niki-ink ring-1 ring-black/5 hover:bg-niki-navy/5"
+        >
+          <Clock3 className="h-5 w-5 shrink-0 text-niki-orange" />
+          {openSupport} agent {openSupport === 1 ? "is" : "are"} waiting on a callback.
+        </Link>
+      ) : null}
+
       {stats.afaPending > 0 ? (
         <Link
           href="/admin/data/afa"
@@ -204,6 +237,59 @@ export default async function AdminDataOverviewPage() {
           {stats.afaPending} AFA {stats.afaPending === 1 ? "registration is" : "registrations are"} awaiting approval.
         </Link>
       ) : null}
+
+      {/* The sub-agent programme */}
+      <section className="mt-8 rounded-2xl bg-white p-6 ring-1 ring-black/5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-display text-lg font-bold text-niki-ink">Sub-agents</h2>
+            <p className="mt-1 text-sm text-niki-ink/60">
+              Resellers running their own storefront on your prices.
+            </p>
+          </div>
+          <Link
+            href="/admin/data/agents"
+            className="rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white"
+          >
+            Manage agents
+          </Link>
+        </div>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="Agents" value={String(agents.length)} icon={Users} />
+          <Stat
+            label="Agent sales"
+            value={formatPrice(agentSales)}
+            hint="Sold through agent storefronts"
+            icon={TrendingUp}
+          />
+          <Stat
+            label="Owed to agents"
+            value={formatPrice(owedToAgents)}
+            hint="Commission they can withdraw"
+            icon={Wallet}
+            tone={owedToAgents > 0 ? "orange" : "ink"}
+          />
+          <Stat
+            label="Payouts waiting"
+            value={String(pendingWithdrawals)}
+            hint={pendingWithdrawals ? "Send on MoMo, then mark sent" : "Nothing outstanding"}
+            icon={CircleDollarSign}
+            tone={pendingWithdrawals ? "orange" : "ink"}
+          />
+        </div>
+
+        {missingAgentPrice > 0 ? (
+          <Link
+            href="/admin/data/bundles"
+            className="mt-4 flex items-center gap-3 rounded-2xl bg-amber-50 px-5 py-4 text-sm font-medium text-amber-800 ring-1 ring-amber-200 transition-colors hover:bg-amber-100"
+          >
+            <AlertTriangle className="h-5 w-5 shrink-0" />
+            {missingAgentPrice} bundles on sale have no agent price, so agents can&apos;t resell
+            them. Set one on the Bundle prices tab before you recruit.
+          </Link>
+        ) : null}
+      </section>
 
       {/* Setup checklist */}
       <section className="mt-8 rounded-2xl bg-white p-6 ring-1 ring-black/5">

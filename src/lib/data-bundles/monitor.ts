@@ -5,6 +5,7 @@ import { formatPrice } from "@/lib/format";
 import { getDataStoreConfig, getStaffNotifyChannel } from "@/lib/settings";
 import { getProviderBalance, isDataProviderConfigured } from "@/lib/data-bundles/provider";
 import { dispatchAfaRegistration, dispatchDataOrder, refreshDataOrder } from "@/lib/data-bundles/fulfillment";
+import { sweepAgentCommissions } from "@/lib/data-bundles/agent-ledger";
 import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
 
 /**
@@ -35,6 +36,8 @@ export interface SweepResult {
   dispatched: number;
   refreshed: number;
   afaDispatched: number;
+  /** Delivered agent orders whose commission had never been credited. */
+  commissionsCredited: number;
   notes: string[];
 }
 
@@ -64,6 +67,7 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
     dispatched: 0,
     refreshed: 0,
     afaDispatched: 0,
+    commissionsCredited: 0,
     notes: [],
   };
 
@@ -164,6 +168,11 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
   } catch {
     // as above
   }
+
+  // Commission is credited from the delivery callback, which can be missed —
+  // a callback that arrived while the ledger was briefly down, or an agent
+  // reactivated after their order landed. Catch those up here.
+  result.commissionsCredited = await sweepAgentCommissions();
 
   return result;
 }

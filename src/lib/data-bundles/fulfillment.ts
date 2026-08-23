@@ -19,6 +19,11 @@ import {
   getProviderOrder,
   isDataProviderConfigured,
 } from "@/lib/data-bundles/provider";
+import {
+  creditAfaCommission,
+  creditAgentCommission,
+  voidAgentCommission,
+} from "@/lib/data-bundles/agent-ledger";
 
 /**
  * Payment settlement and provider dispatch for bundle purchases.
@@ -161,6 +166,7 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
     });
     after(async () => {
       await notifyDataOrderFailed(orderId);
+      await voidAgentCommission(orderId);
     });
     return { ok: false, message: res.message };
   }
@@ -183,6 +189,9 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
 
   after(async () => {
     await notifyDataOrderDispatched(orderId);
+    // A provider that completes on the spot still owes the selling agent their
+    // commission — applyProviderStatus never runs for that order.
+    if (status === "completed") await creditAgentCommission(orderId);
   });
   return { ok: true, message: res.message };
 }
@@ -219,10 +228,14 @@ export async function applyProviderStatus(
   if (next === "completed") {
     after(async () => {
       await notifyDataOrderCompleted(orderId);
+      // Commission is earned on delivery, never on payment — a bundle that
+      // never lands is a sale the agent was never owed for.
+      await creditAgentCommission(orderId);
     });
   } else if (next === "failed") {
     after(async () => {
       await notifyDataOrderFailed(orderId);
+      await voidAgentCommission(orderId);
     });
   }
   return next;
@@ -398,4 +411,10 @@ export async function applyAfaProviderStatus(
       completedAt: next === "completed" ? new Date() : null,
     },
   });
+
+  if (next === "completed") {
+    after(async () => {
+      await creditAfaCommission(id);
+    });
+  }
 }

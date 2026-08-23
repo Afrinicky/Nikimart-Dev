@@ -9,6 +9,7 @@ import { siteUrl } from "@/lib/site";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
+import { RouteProgress } from "@/components/ui/motion";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -63,6 +64,9 @@ export default async function RootLayout({
     >
       <body className="flex min-h-full flex-col bg-niki-surface text-niki-ink">
         <ReferralCapture />
+        {/* A thin bar under the header while a route is loading, so a tap is
+            never followed by a silent pause. */}
+        <RouteProgress />
         <LocationProvider locations={locations}>
           <CartProvider>
             <Header />

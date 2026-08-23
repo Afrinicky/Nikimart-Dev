@@ -42,6 +42,7 @@ model User {
   shipments       Shipment[]    @relation("FreightAgent")
   passwordResets  PasswordResetToken[]
   affiliate       Affiliate?
+  dataAgent       DataAgent?
 }
 
 // Single-use, time-limited password-reset tokens. Only the SHA-256 hash of the
@@ -513,6 +514,11 @@ model DataBundle {
   price     Float
   // Upstream cost (GH₵). 0 when unknown — margin is then just not shown.
   costPrice Float    @default(0)
+  // What NikiMart charges its own sub-agents for this bundle (GH₵). It is the
+  // agent's cost basis: their commission on a storefront sale is whatever they
+  // charge above this. 0 means "not resold to agents", and the bundle is then
+  // hidden from agent storefronts. Set it in Admin → Data → Bundle prices.
+  agentPrice Float   @default(0)
   // Optional marketing line, e.g. "No expiry · instant delivery".
   validity  String   @default("No expiry")
   isActive  Boolean  @default(true)
@@ -559,6 +565,24 @@ model DataOrder {
   dispatchedAt    DateTime?
   completedAt     DateTime?
 
+  // --- Sub-agent attribution ------------------------------------------------
+  // Set when the sale came through an agent: either their public storefront or
+  // the Data Topup screen inside their own dashboard.
+  agentId String?
+  agent   DataAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  // WEB | STOREFRONT | AGENT — where the order was placed. WEB is NikiMart's
+  // own /data-bundles storefront.
+  source  String @default("WEB")
+  // The agent price in force when the order was placed (the agent's cost), and
+  // the commission they earn on it. Both are snapshotted so a later price edit
+  // never rewrites what was owed.
+  agentCost       Float  @default(0)
+  agentCommission Float  @default(0)
+  // pending | earned | void. Commission is only credited once the bundle has
+  // actually been delivered, so a failed order never pays out.
+  commissionStatus String @default("pending")
+  commissionPaidAt DateTime?
+
   userId    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -568,6 +592,7 @@ model DataOrder {
   @@index([status])
   @@index([userId])
   @@index([createdAt])
+  @@index([agentId, createdAt])
 }
 
 // An AFA (agent SIM) registration sold through the storefront and submitted to
@@ -595,6 +620,15 @@ model AfaRegistration {
   dispatchedAt    DateTime?
   completedAt     DateTime?
 
+  // Sub-agent attribution, exactly as on DataOrder.
+  agentId String?
+  agent   DataAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  source  String @default("WEB")
+  agentCost       Float @default(0)
+  agentCommission Float @default(0)
+  commissionStatus String @default("pending")
+  commissionPaidAt DateTime?
+
   userId    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -602,4 +636,177 @@ model AfaRegistration {
   @@index([phoneNumber])
   @@index([status])
   @@index([createdAt])
+  @@index([agentId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Sub-agent platform — NikiMart resells to its own agents exactly as Justice
+// Datashop resells to NikiMart. An agent opens a storefront, sets their own
+// retail prices on top of the agent price NikiMart charges them, and earns the
+// difference as commission once each order is delivered.
+//
+// Agents never stock a wallet: every sale is paid by the customer through
+// Paystack at the moment of purchase. The only money that moves into an agent
+// account is commission, and the only money out is a MoMo withdrawal.
+// ---------------------------------------------------------------------------
+
+model DataAgent {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Human-friendly agent code, e.g. "NKM4821" — shown on the dashboard and
+  // quoted in support.
+  code String @unique
+
+  // The storefront. `slug` is the public path segment: /store/<slug>.
+  slug      String  @unique
+  storeName String
+  // Short line under the store name on the public storefront.
+  storeTagline String @default("")
+  storeAbout   String @default("")
+  // "open" hides nothing; "closed" shows a closed notice instead of the grid.
+  storeOpen Boolean @default(true)
+
+  supportPhone     String @default("")
+  supportWhatsapp  String @default("")
+  whatsappGroup    String @default("")
+
+  // The agent's own AFA registration price. 0 means "use NikiMart's price"
+  // (and earn nothing on it); afaEnabled hides AFA from their storefront.
+  afaPrice   Float   @default(0)
+  afaEnabled Boolean @default(true)
+
+  // active | suspended. A suspended agent keeps their balance and history but
+  // their storefront stops selling and they stop earning.
+  status String @default("active")
+
+  // Running balance in GH₵. Opens negative — the storefront setup fee is
+  // charged the moment the store is created — and climbs back through zero as
+  // commissions land. Only a positive balance can be withdrawn.
+  balance Float @default(0)
+  // What the store cost to open, kept for the ledger narration and for the
+  // "still to clear" line on the wallet.
+  setupFee Float @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prices      DataAgentPrice[]
+  ledger      DataAgentLedger[]
+  withdrawals DataAgentWithdrawal[]
+  orders      DataOrder[]
+  afa         AfaRegistration[]
+
+  @@index([status])
+}
+
+// An agent's own retail price for one bundle. Absent = the agent sells that
+// bundle at NikiMart's agent price (zero commission) — present and inactive =
+// the bundle is hidden from their storefront entirely.
+model DataAgentPrice {
+  id      String @id @default(cuid())
+  agentId String
+  agent   DataAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  network String
+  sizeGb  Float
+  // What the agent charges their customer (GH₵). Must be ≥ the agent price.
+  price    Float
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([agentId, network, sizeGb])
+  @@index([agentId, isActive])
+}
+
+// Every movement on an agent's balance, newest first on the wallet screen.
+// Balances are only ever changed by writing one of these rows, so the ledger
+// and the balance can always be reconciled against each other.
+model DataAgentLedger {
+  id      String @id @default(cuid())
+  agentId String
+  agent   DataAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  // SETUP_FEE | COMMISSION | WITHDRAWAL | WITHDRAWAL_REVERSAL | ADJUSTMENT
+  type String
+  // Signed GH₵: negative debits the agent, positive credits them.
+  amount Float
+  // Balance after this entry was applied, so history never has to be replayed.
+  balanceAfter Float
+  narration    String @default("")
+  // The order / withdrawal / admin action this entry came from.
+  reference String?
+
+  createdAt DateTime @default(now())
+
+  @@index([agentId, createdAt])
+  @@index([reference])
+}
+
+// A commission withdrawal to MoMo. Admins process these by hand from the
+// data console, exactly as Justice does.
+model DataAgentWithdrawal {
+  id      String @id @default(cuid())
+  agentId String
+  agent   DataAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  // What the agent receives on MoMo.
+  amount Float
+  // Flat platform fee added on top and debited with the payout.
+  fee Float @default(0)
+
+  momoPhone   String
+  momoName    String
+  momoNetwork String
+
+  // pending | processed | rejected
+  status      String  @default("pending")
+  adminNote   String  @default("")
+  processedBy String?
+  processedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentId, createdAt])
+  @@index([status])
+}
+
+// Broadcast announcements shown to agents (Justice's Notifications screen).
+model DataAnnouncement {
+  id       String  @id @default(cuid())
+  title    String
+  body     String
+  // info | warning | success — drives the accent on the notice card.
+  tone     String  @default("info")
+  isActive Boolean @default(true)
+  // Pinned notices sort above the rest regardless of date.
+  isPinned Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, createdAt])
+}
+
+// A callback request raised from the agent Support screen.
+model DataSupportRequest {
+  id       String @id @default(cuid())
+  agentId  String?
+  fullName String
+  phone    String
+  language String @default("English")
+  message  String
+
+  // open | resolved
+  status     String    @default("open")
+  adminNote  String    @default("")
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
 }

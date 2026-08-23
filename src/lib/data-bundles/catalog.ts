@@ -9,6 +9,11 @@ export interface Bundle {
   sizeGb: number;
   price: number;
   costPrice: number;
+  /**
+   * What NikiMart charges its own sub-agents. 0 means the bundle isn't resold
+   * to agents, and it stays off every agent storefront.
+   */
+  agentPrice: number;
   validity: string;
   isActive: boolean;
   order: number;
@@ -48,6 +53,9 @@ function fallbackBundles(): Bundle[] {
     sizeGb: b.sizeGb,
     price: b.price,
     costPrice: 0,
+    // The starter ladder is a placeholder for the storefront, not a price list
+    // to resell from — agents see nothing until an admin sets real numbers.
+    agentPrice: 0,
     validity: "No expiry",
     isActive: true,
     order: i,
@@ -60,6 +68,7 @@ function toBundle(row: {
   sizeGb: number;
   price: number;
   costPrice: number;
+  agentPrice: number;
   validity: string;
   isActive: boolean;
   order: number;
