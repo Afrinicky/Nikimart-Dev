@@ -6,14 +6,9 @@ import { inputClass } from "@/components/ui/Field";
 import { BusyButton } from "@/components/ui/motion";
 import { BundleCard, NetworkTabs } from "@/components/data/BundleCard";
 import { formatMoney } from "@/lib/format";
-import {
-  NETWORK_INFO,
-  bundleLabel,
-  networkForPhone,
-  phoneMatchesNetwork,
-  toLocalGhPhone,
-  type Network,
-} from "@/lib/data-bundles/networks";
+import { cn } from "@/lib/cn";
+import { NETWORK_INFO, bundleLabel, type Network } from "@/lib/data-bundles/networks";
+import { checkRecipient } from "@/lib/data-bundles/gh-phone";
 import { buyBundle } from "@/lib/data-bundles/actions";
 
 export interface StoreBundle {
@@ -133,11 +128,12 @@ export function PaystackDialog({
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState<string | null>(null);
 
-  // Live feedback on the number: sending data to the wrong network can't be
-  // reversed, so flag the mismatch before payment rather than after.
-  const local = toLocalGhPhone(phone);
-  const detected = local ? networkForPhone(local) : null;
-  const mismatch = Boolean(local && !phoneMatchesNetwork(local, bundle.network));
+  // The same check the server runs, so the button can be blocked before a
+  // payment is ever started. Only complain once there's enough typed to judge —
+  // flagging "too short" on the first keystroke is just nagging.
+  const check = checkRecipient(phone, bundle.network, info.label);
+  const worthJudging = phone.replace(/\D/g, "").length >= 10;
+  const phoneProblem = !check.ok && worthJudging ? check.message : null;
 
   // Escape closes; the body stops scrolling behind the dialog.
   useEffect(() => {
@@ -213,7 +209,7 @@ export function PaystackDialog({
               <p className="mt-2 font-display font-bold text-niki-ink">Order placed</p>
               <p className="mt-1 text-sm text-niki-ink/70">
                 Reference <span className="font-mono font-semibold">{done}</span>. We&apos;ll text{" "}
-                {toLocalGhPhone(phone)} once the data lands.
+                {check.ok ? check.local : phone} once the data lands.
               </p>
               <a
                 href={`${trackHref}?q=${encodeURIComponent(done)}`}
@@ -260,16 +256,23 @@ export function PaystackDialog({
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="0241234567"
-                  className={inputClass}
+                  maxLength={15}
+                  aria-invalid={phoneProblem ? true : undefined}
+                  className={cn(
+                    inputClass,
+                    phoneProblem && "border-niki-danger focus:border-niki-danger focus:ring-niki-danger/20",
+                  )}
                 />
-                {mismatch ? (
-                  <span className="animate-fade-in mt-1 block text-xs font-medium text-niki-danger">
-                    That looks like {detected ? NETWORK_INFO[detected].label : "another network"}. Data
-                    sent to the wrong network can&apos;t be reversed.
+                {phoneProblem ? (
+                  <span
+                    role="alert"
+                    className="animate-fade-in mt-1 block text-xs font-medium text-niki-danger"
+                  >
+                    {phoneProblem}
                   </span>
                 ) : (
                   <span className="mt-1 block text-xs text-niki-ink/50">
-                    The data is credited to this number.
+                    10 digits starting with 0. The data is credited to this number.
                   </span>
                 )}
               </label>
@@ -300,6 +303,7 @@ export function PaystackDialog({
                 <BusyButton
                   type="submit"
                   busy={pending}
+                  disabled={!check.ok}
                   pendingLabel="Opening Paystack…"
                   icon={<CreditCard className="h-4 w-4" />}
                   className="flex-[1.6] whitespace-nowrap rounded-xl bg-niki-orange px-4 py-3 text-sm font-bold text-white hover:bg-niki-orange-light"

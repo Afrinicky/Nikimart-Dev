@@ -10,13 +10,8 @@ import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/settings";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { initializeTransaction, isPaymentConfigured, toPesewas } from "@/lib/payments";
 import { newDataReference, settleDataOrder } from "@/lib/data-bundles/fulfillment";
-import {
-  bundleLabel,
-  networkLabel,
-  phoneMatchesNetwork,
-  toLocalGhPhone,
-  NETWORKS,
-} from "@/lib/data-bundles/networks";
+import { bundleLabel, networkLabel, NETWORKS } from "@/lib/data-bundles/networks";
+import { checkRecipient, parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import {
   generateAgentCode,
@@ -97,8 +92,9 @@ export async function joinAgentProgram(input: JoinAgentInput): Promise<JoinAgent
   const problem = slugProblem(slug);
   if (problem) return { ok: false, error: problem };
 
-  const supportPhone = toLocalGhPhone(data.supportPhone);
-  if (!supportPhone) return { ok: false, error: "Enter a valid Ghana number, e.g. 0241234567." };
+  const parsedSupport = parseGhPhone(data.supportPhone);
+  if (!parsedSupport.ok) return { ok: false, error: parsedSupport.message };
+  const supportPhone = parsedSupport.local;
 
   const taken = await prisma.dataAgent.findUnique({ where: { slug }, select: { id: true } });
   if (taken) return { ok: false, error: `“${slug}” is already taken. Try another store link.` };
@@ -171,13 +167,18 @@ export async function updateAgentStore(input: z.infer<typeof storeSchema>): Prom
     if (taken) return { ok: false, error: `“${slug}” is already taken. Try another store link.` };
   }
 
-  const support = data.supportPhone ? (toLocalGhPhone(data.supportPhone) ?? "") : "";
-  if (data.supportPhone && !support) {
-    return { ok: false, error: "Enter a valid support number, e.g. 0241234567." };
+  // Both are optional; if given, they have to be real Ghana numbers.
+  let support = "";
+  if (data.supportPhone) {
+    const parsed = parseGhPhone(data.supportPhone);
+    if (!parsed.ok) return { ok: false, error: `Support number: ${parsed.message}` };
+    support = parsed.local;
   }
-  const whatsapp = data.supportWhatsapp ? (toLocalGhPhone(data.supportWhatsapp) ?? "") : "";
-  if (data.supportWhatsapp && !whatsapp) {
-    return { ok: false, error: "Enter a valid WhatsApp number, e.g. 0241234567." };
+  let whatsapp = "";
+  if (data.supportWhatsapp) {
+    const parsed = parseGhPhone(data.supportWhatsapp);
+    if (!parsed.ok) return { ok: false, error: `WhatsApp number: ${parsed.message}` };
+    whatsapp = parsed.local;
   }
 
   const group = data.whatsappGroup?.trim() ?? "";
@@ -347,8 +348,9 @@ export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): 
   const data = parsed.data;
   const config = await getAgentProgramConfig();
 
-  const momoPhone = toLocalGhPhone(data.momoPhone);
-  if (!momoPhone) return { ok: false, error: "Enter a valid MoMo number, e.g. 0241234567." };
+  const parsedMomo = parseGhPhone(data.momoPhone);
+  if (!parsedMomo.ok) return { ok: false, error: `MoMo number: ${parsedMomo.message}` };
+  const momoPhone = parsedMomo.local;
 
   const amount = round2(data.amount);
   if (amount < config.minWithdrawal) {
@@ -422,8 +424,9 @@ export async function requestCallback(input: z.infer<typeof callbackSchema>): Pr
   }
   const data = parsed.data;
 
-  const phone = toLocalGhPhone(data.phone);
-  if (!phone) return { ok: false, error: "Enter a valid Ghana number, e.g. 0241234567." };
+  const parsedPhone = parseGhPhone(data.phone);
+  if (!parsedPhone.ok) return { ok: false, error: parsedPhone.message };
+  const phone = parsedPhone.local;
 
   const limit = rateLimit(`agent-callback:${user.id}`, 3, 60 * 60_000);
   if (!limit.ok) {
@@ -513,16 +516,9 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
   }
   const data = parsed.data;
 
-  const recipientPhone = toLocalGhPhone(data.recipientPhone);
-  if (!recipientPhone) {
-    return { ok: false, error: "Enter a valid Ghana number, e.g. 0241234567." };
-  }
-  if (!phoneMatchesNetwork(recipientPhone, data.network)) {
-    return {
-      ok: false,
-      error: `${recipientPhone} is not a ${networkLabel(data.network)} number. Pick the right network, or check the number.`,
-    };
-  }
+  const recipient = checkRecipient(data.recipientPhone, data.network, networkLabel(data.network));
+  if (!recipient.ok) return { ok: false, error: recipient.message };
+  const recipientPhone = recipient.local;
 
   const limit = rateLimit(`agent-topup:${agent.id}`, 40, 10 * 60_000);
   if (!limit.ok) {

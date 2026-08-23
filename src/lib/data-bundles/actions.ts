@@ -15,13 +15,8 @@ import {
   getAgentBySlug,
 } from "@/lib/data-bundles/agents";
 import { commissionOn } from "@/lib/data-bundles/agent-pricing";
-import {
-  NETWORKS,
-  bundleLabel,
-  networkLabel,
-  phoneMatchesNetwork,
-  toLocalGhPhone,
-} from "@/lib/data-bundles/networks";
+import { NETWORKS, bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
+import { checkRecipient, parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import {
   newAfaReference,
   newDataReference,
@@ -83,16 +78,11 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
   }
   const data = parsed.data;
 
-  const recipientPhone = toLocalGhPhone(data.recipientPhone);
-  if (!recipientPhone) {
-    return { ok: false, error: "Enter a valid Ghana number for the recipient, e.g. 0241234567." };
-  }
-  if (!phoneMatchesNetwork(recipientPhone, data.network)) {
-    return {
-      ok: false,
-      error: `${recipientPhone} is not a ${networkLabel(data.network)} number. Pick the right network, or check the number.`,
-    };
-  }
+  // One gate covers format, length, prefix and network — and hands back the
+  // exact reason, so the browser and the server say the same thing.
+  const recipient = checkRecipient(data.recipientPhone, data.network, networkLabel(data.network));
+  if (!recipient.ok) return { ok: false, error: recipient.message };
+  const recipientPhone = recipient.local;
 
   // The number being topped up is also the buyer's contact — the form asks for
   // nothing more than that.
@@ -240,10 +230,9 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
   }
   const data = parsed.data;
 
-  const phoneNumber = toLocalGhPhone(data.phoneNumber);
-  if (!phoneNumber) {
-    return { ok: false, error: "Enter a valid Ghana number, e.g. 0241234567." };
-  }
+  const parsedPhone = parseGhPhone(data.phoneNumber);
+  if (!parsedPhone.ok) return { ok: false, error: parsedPhone.message };
+  const phoneNumber = parsedPhone.local;
 
   const dob = new Date(`${data.dateOfBirth}T00:00:00Z`);
   if (Number.isNaN(dob.getTime()) || dob.getTime() > Date.now()) {
