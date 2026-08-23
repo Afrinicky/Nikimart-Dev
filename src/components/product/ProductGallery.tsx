@@ -60,7 +60,7 @@ export function ProductGallery({
               type="button"
               onClick={() => go(-1)}
               aria-label="Previous image"
-              className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-niki-ink shadow-sm ring-1 ring-niki-edge transition hover:bg-white"
+              className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-niki-ink shadow-[0_2px_6px_rgba(7,17,31,0.35)] ring-1 ring-niki-edge-strong transition hover:bg-white"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
@@ -68,7 +68,7 @@ export function ProductGallery({
               type="button"
               onClick={() => go(1)}
               aria-label="Next image"
-              className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-niki-ink shadow-sm ring-1 ring-niki-edge transition hover:bg-white"
+              className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-niki-ink shadow-[0_2px_6px_rgba(7,17,31,0.35)] ring-1 ring-niki-edge-strong transition hover:bg-white"
             >
               <ChevronRight className="h-5 w-5" />
             </button>

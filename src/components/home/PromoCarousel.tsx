@@ -146,7 +146,7 @@ export function PromoCarousel({ slides }: { slides: BannerSlide[] }) {
             type="button"
             aria-label="Previous slide"
             onClick={() => goTo(active - 1)}
-            className="absolute left-2 top-[calc(50%-1rem)] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-niki-ink shadow-md ring-1 ring-niki-edge transition-colors hover:bg-white lg:flex"
+            className="absolute left-2 top-[calc(50%-1rem)] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-niki-ink shadow-[0_2px_6px_rgba(7,17,31,0.35)] ring-1 ring-niki-edge-strong transition-colors hover:bg-white lg:flex"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
@@ -154,7 +154,7 @@ export function PromoCarousel({ slides }: { slides: BannerSlide[] }) {
             type="button"
             aria-label="Next slide"
             onClick={() => goTo(active + 1)}
-            className="absolute right-2 top-[calc(50%-1rem)] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-niki-ink shadow-md ring-1 ring-niki-edge transition-colors hover:bg-white lg:flex"
+            className="absolute right-2 top-[calc(50%-1rem)] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-niki-ink shadow-[0_2px_6px_rgba(7,17,31,0.35)] ring-1 ring-niki-edge-strong transition-colors hover:bg-white lg:flex"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
