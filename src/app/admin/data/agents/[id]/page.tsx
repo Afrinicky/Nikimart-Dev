@@ -83,7 +83,7 @@ export default async function AdminAgentDetailPage({
             href={`/store/${agent.slug}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="niki-press flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge"
+            className="niki-press niki-chip flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-niki-ink/75"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             View store

@@ -1,13 +1,14 @@
 import { PackageSearch } from "lucide-react";
 import { DataOrderLookup } from "@/components/data/DataOrderLookup";
 import { formatPrice } from "@/lib/format";
-import { maskPhone, type LookupOutcome } from "@/lib/data-bundles/lookup";
+import { maskPhone, type LookupHit, type LookupOutcome } from "@/lib/data-bundles/lookup";
 import {
   DATA_STATUS_LABELS,
   DATA_STATUS_TONES,
   bundleLabel,
   isDataOrderStatus,
   networkLabel,
+  type DataOrderStatus,
 } from "@/lib/data-bundles/networks";
 
 /**
@@ -19,9 +20,112 @@ import {
 function StatusPill({ status }: { status: string }) {
   const known = isDataOrderStatus(status) ? status : "processing";
   return (
-    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${DATA_STATUS_TONES[known]}`}>
+    <span
+      className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold tracking-wide ${DATA_STATUS_TONES[known]}`}
+    >
+      <StatusDot status={known} />
       {DATA_STATUS_LABELS[known]}
     </span>
+  );
+}
+
+/** A pulsing dot while work is still happening, a still one once it isn't. */
+function StatusDot({ status }: { status: DataOrderStatus }) {
+  const live = status === "paid" || status === "processing";
+  return (
+    <span className="relative flex h-2 w-2" aria-hidden>
+      {live ? (
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-60" />
+      ) : null}
+      <span className="relative inline-flex h-2 w-2 rounded-full bg-current" />
+    </span>
+  );
+}
+
+/**
+ * What to tell someone standing on this status.
+ *
+ * A bundle and an AFA registration reach the same statuses by different routes,
+ * and "your bundle is on its way" is the wrong sentence to show somebody who
+ * registered for AFA — so each kind gets its own words.
+ */
+const STATUS_NOTE: Record<"bundle" | "afa", Record<DataOrderStatus, string>> = {
+  bundle: {
+    pending:
+      "This order hasn't been paid for yet. Nothing was charged — order it again to complete payment.",
+    paid: "Payment received. Your bundle is on its way — this page updates as it goes.",
+    processing: "Your bundle is being sent now — this page updates as it goes.",
+    completed: "Sent. If the data hasn't shown on the number, dial your network's balance check.",
+    failed:
+      "This one didn't go through. Nothing stays charged — contact support with the reference below.",
+    refunded: "This order was refunded. The money is on its way back to where it was paid from.",
+  },
+  afa: {
+    pending:
+      "This registration hasn't been paid for yet. Nothing was charged — submit it again to complete payment.",
+    paid: "Payment received. Your registration has been sent for approval.",
+    processing: "Your registration is with the network for approval.",
+    completed: "Approved. The number is registered and agent rates apply to it.",
+    failed:
+      "This registration wasn't accepted. Nothing stays charged — contact support with the reference below.",
+    refunded: "This registration was refunded. The money is on its way back to where it was paid from.",
+  },
+};
+
+function Detail({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium text-niki-ink/45">{label}</dt>
+      <dd className="mt-0.5 text-sm font-semibold text-niki-ink">{value}</dd>
+    </div>
+  );
+}
+
+/**
+ * The one order being tracked.
+ *
+ * Status first and largest: it is the only thing the person came to find out.
+ * Everything else is the supporting detail that proves it is the right order.
+ */
+function OrderCard({ hit }: { hit: LookupHit }) {
+  const status = isDataOrderStatus(hit.status) ? hit.status : "processing";
+  const title =
+    hit.kind === "bundle"
+      ? `${bundleLabel(hit.sizeGb)} ${networkLabel(hit.network)}`
+      : `AFA registration — ${hit.fullName}`;
+  const recipient = hit.kind === "bundle" ? hit.recipientPhone : hit.phoneNumber;
+
+  return (
+    <div className="animate-fade-up mt-5 overflow-hidden rounded-2xl bg-niki-surface ring-1 ring-niki-edge-strong">
+      <div className="flex flex-wrap items-start justify-between gap-4 p-5">
+        <div className="min-w-0">
+          <p className="font-display text-xl font-bold text-niki-ink">{title}</p>
+          <p className="mt-1 text-sm text-niki-ink/60">To {maskPhone(recipient)}</p>
+        </div>
+        <StatusPill status={status} />
+      </div>
+
+      <p className="border-t border-niki-edge px-5 py-4 text-sm leading-relaxed text-niki-ink/70">
+        {STATUS_NOTE[hit.kind][status]}
+      </p>
+
+      <dl className="grid grid-cols-2 gap-4 border-t border-niki-edge bg-white p-5 sm:grid-cols-3">
+        <Detail label="Amount" value={formatPrice(hit.price)} />
+        <Detail
+          label="Ordered"
+          value={new Date(hit.createdAt).toLocaleString("en-GH", {
+            day: "numeric",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        />
+        <Detail
+          label="Reference"
+          value={<span className="font-mono text-xs">{hit.reference}</span>}
+        />
+      </dl>
+    </div>
   );
 }
 
@@ -75,42 +179,8 @@ export function OrderTracker({
           </p>
         ) : null}
 
-        {outcome.state === "found" ? (
-          <ul className="stagger-children mt-5 space-y-3">
-            {outcome.hits.map((hit) => (
-              <li key={hit.reference} className="rounded-2xl bg-niki-surface p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    {hit.kind === "bundle" ? (
-                      <p className="font-display font-bold text-niki-ink">
-                        {bundleLabel(hit.sizeGb)} {networkLabel(hit.network)}
-                      </p>
-                    ) : (
-                      <p className="font-display font-bold text-niki-ink">
-                        AFA registration — {hit.fullName}
-                      </p>
-                    )}
-                    <p className="mt-0.5 text-xs text-niki-ink/50">
-                      {hit.kind === "bundle"
-                        ? `To ${maskPhone(hit.recipientPhone)}`
-                        : `For ${maskPhone(hit.phoneNumber)}`}{" "}
-                      · {new Date(hit.createdAt).toLocaleString("en-GH")}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <StatusPill status={hit.status} />
-                    <p className="mt-1 font-display text-sm font-bold text-niki-ink">
-                      {formatPrice(hit.price)}
-                    </p>
-                  </div>
-                </div>
-                <p className="mt-3 font-mono text-[11px] text-niki-ink/40">
-                  {hit.reference}
-                  {hit.kind === "bundle" && hit.providerCode ? ` · ${hit.providerCode}` : ""}
-                </p>
-              </li>
-            ))}
-          </ul>
+        {outcome.state === "found" && outcome.hits[0] ? (
+          <OrderCard hit={outcome.hits[0]} />
         ) : null}
       </div>
     </>

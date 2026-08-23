@@ -13,6 +13,7 @@ import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
 import { getAgentProgramConfig } from "@/lib/settings";
 import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
+import { termsAccepted, TERMS_REQUIRED_MESSAGE } from "@/lib/terms";
 import { normaliseSlugClient } from "@/lib/data-bundles/slug";
 import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { generateAgentCode, slugProblem } from "@/lib/data-bundles/agents";
@@ -31,7 +32,13 @@ import { generateAgentCode, slugProblem } from "@/lib/data-bundles/agents";
  * applications table while it waits.
  */
 
-export type ApplyState = { ok?: boolean; error?: string; message?: string };
+export type ApplyState = {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+  /** Shown against the acceptance box rather than at the top of the form. */
+  termsError?: string;
+};
 
 const STORAGE_ERROR =
   "Couldn't submit — the agent tables aren't set up on this database yet. " +
@@ -119,6 +126,8 @@ export async function applyToBeAgent(
     return { error: "Agent signup is closed at the moment. Please check back soon." };
   }
 
+  if (!termsAccepted(fd)) return { termsError: TERMS_REQUIRED_MESSAGE };
+
   const parsed = applySchema.safeParse({
     fullName: fd.get("fullName"),
     phone: fd.get("phone"),
@@ -175,7 +184,14 @@ export async function applyToBeAgent(
     }
 
     await prisma.dataAgentApplication.create({
-      data: { fullName: data.fullName, phone, email, desiredSlug, note: data.note ?? "" },
+      data: {
+        fullName: data.fullName,
+        phone,
+        email,
+        desiredSlug,
+        note: data.note ?? "",
+        termsAcceptedAt: new Date(),
+      },
     });
   } catch {
     return { error: STORAGE_ERROR };

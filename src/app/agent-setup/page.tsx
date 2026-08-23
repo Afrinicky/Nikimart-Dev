@@ -64,7 +64,7 @@ export default async function AgentSetupPage({
                 </ActionLink>
                 <ActionLink
                   href="/become-an-agent"
-                  className="rounded-full bg-niki-surface px-5 py-2.5 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge"
+                  className="niki-chip rounded-full px-5 py-2.5 text-sm font-semibold text-niki-ink/75"
                 >
                   Back to the programme
                 </ActionLink>

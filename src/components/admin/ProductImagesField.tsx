@@ -136,7 +136,7 @@ export function ProductImagesField({ initial = [] }: { initial?: string[] }) {
             placeholder="…or paste an image URL"
             className={`${inputClass} py-2 text-sm`}
           />
-          <button type="button" onClick={addUrl} className="flex items-center gap-1 rounded-full bg-niki-surface px-3 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5">
+          <button type="button" onClick={addUrl} className="niki-chip flex items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold text-niki-ink/75 hover:text-niki-ink">
             <Link2 className="h-3.5 w-3.5" />
             Add
           </button>

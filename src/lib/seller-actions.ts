@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { termsAccepted, TERMS_REQUIRED_MESSAGE } from "@/lib/terms";
 import { requireUser } from "@/lib/session";
 import { buildProductData, parseImages, validateProduct } from "@/lib/product-form";
 import { syncProductImages } from "@/lib/product-images";
@@ -197,6 +198,7 @@ export async function registerVendor(_prev: VendorRegisterState, fd: FormData): 
   const payoutMethod = s("payoutMethod");
 
   const fieldErrors: Record<string, string> = {};
+  if (!termsAccepted(fd)) fieldErrors.acceptTerms = TERMS_REQUIRED_MESSAGE;
   if (businessName.length < 2) fieldErrors.businessName = "Enter your shop name.";
   if (!SELLER_TYPE_VALUES.has(sellerType)) fieldErrors.sellerType = "Choose a seller type.";
   if (description.length < 10) fieldErrors.description = "Tell buyers a little about your shop (10+ characters).";
@@ -256,6 +258,7 @@ export async function registerVendor(_prev: VendorRegisterState, fd: FormData): 
         bankAccountNumber,
         originPickupId: s("originPickupId") || null,
         ownerId: user.id,
+        termsAcceptedAt: new Date(),
       },
     });
 

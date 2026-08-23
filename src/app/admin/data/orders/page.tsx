@@ -179,7 +179,7 @@ export default async function AdminDataOrdersPage({
       {pages > 1 ? (
         <div className="mt-6 flex items-center justify-center gap-2">
           {page > 1 ? (
-            <Link href={href({ status, q: query, page: page - 1 })} className="rounded-full bg-white px-4 py-2 text-sm font-semibold ring-1 ring-niki-edge">
+            <Link href={href({ status, q: query, page: page - 1 })} className="niki-chip rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/75">
               Previous
             </Link>
           ) : null}
@@ -187,7 +187,7 @@ export default async function AdminDataOrdersPage({
             Page {page} of {pages}
           </span>
           {page < pages ? (
-            <Link href={href({ status, q: query, page: page + 1 })} className="rounded-full bg-white px-4 py-2 text-sm font-semibold ring-1 ring-niki-edge">
+            <Link href={href({ status, q: query, page: page + 1 })} className="niki-chip rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/75">
               Next
             </Link>
           ) : null}

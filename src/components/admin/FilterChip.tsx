@@ -18,8 +18,8 @@ export function FilterChip({
       className={cn(
         "rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors",
         active
-          ? "bg-niki-navy text-white"
-          : "bg-white text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5",
+          ? "niki-chip-active bg-niki-navy text-white"
+          : "niki-chip text-niki-ink/75 hover:text-niki-ink",
       )}
     >
       {label}

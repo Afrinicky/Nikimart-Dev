@@ -51,7 +51,7 @@ export function AllProductsSection({
           </div>
           <Link
             href="/products"
-            className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge transition-colors hover:bg-niki-navy/5"
+            className="niki-chip rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/75 hover:text-niki-ink"
           >
             Filter &amp; search
           </Link>

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
+import { AcceptTerms } from "@/components/ui/AcceptTerms";
 import { registerAction, type AuthFormState } from "@/lib/auth-actions";
 
 export function RegisterForm({
@@ -103,6 +104,8 @@ export function RegisterForm({
           </select>
         </Field>
       ) : null}
+
+      <AcceptTerms audience="customer" error={state.fieldErrors?.acceptTerms} />
 
       <SubmitButton>Create account</SubmitButton>
     </form>

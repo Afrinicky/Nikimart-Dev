@@ -9,9 +9,9 @@ import { AFA_REFERENCE_PREFIX } from "@/lib/data-bundles/fulfillment";
  * Public order lookup for the bundle storefront.
  *
  * Guests buy without an account, so the reference or the phone number they paid
- * with is the only key they have. The result set is deliberately narrow — the
- * fields a receipt would show and nothing else — and rate-limited per IP so the
- * number space can't be walked.
+ * with is the only key they have. The result is deliberately narrow — one
+ * order, the fields a receipt would show and nothing else — and rate-limited
+ * per IP so the number space can't be walked.
  */
 
 export interface LookupOrder {
@@ -97,7 +97,11 @@ export async function lookupOrders(rawQuery: string | undefined): Promise<Lookup
         ? { OR: [{ buyerPhone: phone }, { recipientPhone: phone }] }
         : { reference },
       orderBy: { createdAt: "desc" },
-      take: 20,
+      // One order, not a history. A phone number can have bought a dozen
+      // bundles, and showing all of them buries the one the person is standing
+      // there waiting for behind orders they already received. The newest match
+      // is the one they mean; older ones are still reachable by reference.
+      take: 1,
       select: {
         reference: true,
         network: true,
