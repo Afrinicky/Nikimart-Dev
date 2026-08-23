@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
+import { ActionLink } from "@/components/ui/motion";
 
 /**
  * A dashboard metric. Pass `href` and the whole tile becomes a link to wherever
@@ -28,15 +28,15 @@ export function StatCard({
   );
 
   if (!href) {
-    return <div className="rounded-2xl bg-white p-5 ring-1 ring-black/5">{body}</div>;
+    return <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">{body}</div>;
   }
 
   return (
-    <Link
+    <ActionLink
       href={href}
-      className="group rounded-2xl bg-white p-5 ring-1 ring-black/5 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-niki-navy/5"
+      className="group niki-lift block rounded-2xl bg-white p-5 ring-1 ring-niki-edge hover:shadow-lg hover:shadow-niki-navy/5"
     >
       {body}
-    </Link>
+    </ActionLink>
   );
 }

@@ -13,12 +13,12 @@ export default async function NewAffiliatePage() {
   return (
     <>
       <PageHeader title="Add affiliate" crumbs={[{ label: "Affiliates", href: "/admin/affiliates" }, { label: "New" }]}>
-        <Link href="/admin/affiliates" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 hover:bg-white">
+        <Link href="/admin/affiliates" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
           <ArrowLeft className="h-4 w-4" /> Back
         </Link>
       </PageHeader>
       <Container className="max-w-2xl py-8">
-        <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+        <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
           <AffiliateForm />
         </div>
       </Container>

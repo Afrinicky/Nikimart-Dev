@@ -28,7 +28,7 @@ export function StoreTabs({ afaEnabled = true }: { afaEnabled?: boolean }) {
   const tabs = TABS.filter((t) => afaEnabled || t.value !== "afa");
 
   return (
-    <div className="scrollbar-none -mx-1 flex gap-1 overflow-x-auto border-b border-black/5 px-1">
+    <div className="scrollbar-none -mx-1 flex gap-1 overflow-x-auto border-b border-niki-edge px-1">
       {tabs.map(({ value, label, icon: Icon }) => {
         const active = current === value;
         return (

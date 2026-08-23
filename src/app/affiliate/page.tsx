@@ -40,7 +40,7 @@ export default async function AffiliatePage() {
             <Link href="/register?callbackUrl=/affiliate" className="flex-1 rounded-full bg-niki-orange px-5 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light">
               Create a free account
             </Link>
-            <Link href="/login?callbackUrl=/affiliate" className="flex-1 rounded-full px-5 py-3 text-center text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 transition-colors hover:bg-white">
+            <Link href="/login?callbackUrl=/affiliate" className="flex-1 rounded-full px-5 py-3 text-center text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong transition-colors hover:bg-white">
               Sign in
             </Link>
           </div>
@@ -65,7 +65,7 @@ export default async function AffiliatePage() {
               stock needed.
             </p>
           </div>
-          <div className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-black/5">
+          <div className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
             <BecomeAffiliateForm />
           </div>
         </Container>
@@ -130,7 +130,7 @@ export default async function AffiliatePage() {
         </div>
 
         {/* Payout request */}
-        <div className="mt-8 rounded-2xl bg-white p-6 ring-1 ring-black/5">
+        <div className="mt-8 rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
           <div className="flex items-center gap-2 text-niki-ink"><Wallet className="h-5 w-5 text-niki-orange" /><h2 className="font-display font-bold">Request a payout</h2></div>
           <p className="mt-1 mb-3 text-sm text-niki-ink/60">
             Request any amount up to your available balance. Commission clears once the referred order
@@ -142,14 +142,14 @@ export default async function AffiliatePage() {
         {/* Referred orders */}
         <h2 className="mt-8 font-display text-lg font-bold text-niki-ink">Referred orders</h2>
         {recentOrders.length === 0 ? (
-          <p className="mt-4 rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-black/5">No referred orders yet. Share your link to start earning.</p>
+          <p className="mt-4 rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-niki-edge">No referred orders yet. Share your link to start earning.</p>
         ) : (
-          <div className="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">
+          <div className="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-niki-edge">
             <table className="w-full min-w-[480px] text-left text-sm">
-              <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/50">
+              <thead className="border-b border-niki-edge text-xs uppercase tracking-wide text-niki-ink/50">
                 <tr><th className="px-5 py-3 font-semibold">Order</th><th className="px-5 py-3 font-semibold">Date</th><th className="px-5 py-3 font-semibold">Status</th><th className="px-5 py-3 text-right font-semibold">Your commission</th></tr>
               </thead>
-              <tbody className="divide-y divide-black/5">
+              <tbody className="divide-y divide-niki-edge">
                 {recentOrders.map((o) => (
                   <tr key={o.orderNumber}>
                     <td className="px-5 py-3 font-medium text-niki-ink">{o.orderNumber}</td>
@@ -170,7 +170,7 @@ export default async function AffiliatePage() {
         {payouts.length > 0 ? (
           <>
             <h2 className="mt-8 font-display text-lg font-bold text-niki-ink">Payout history</h2>
-            <ul className="mt-4 divide-y divide-black/5 rounded-2xl bg-white ring-1 ring-black/5">
+            <ul className="mt-4 divide-y divide-niki-edge rounded-2xl bg-white ring-1 ring-niki-edge">
               {payouts.map((p) => (
                 <li key={p.id} className="flex items-center justify-between gap-2 px-5 py-3 text-sm">
                   <span className="text-niki-ink/70">{(p.paidAt ?? p.createdAt).toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" })} · {p.method}</span>

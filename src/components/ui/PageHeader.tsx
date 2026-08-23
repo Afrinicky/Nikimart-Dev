@@ -24,7 +24,7 @@ export function PageHeader({
 }) {
   const dark = tone === "dark";
   return (
-    <div className={cn(dark ? "niki-gradient-hero text-white" : "bg-white ring-1 ring-black/5")}>
+    <div className={cn(dark ? "niki-gradient-hero text-white" : "bg-white ring-1 ring-niki-edge")}>
       <Container className="py-8 sm:py-10">
         <nav
           className={cn(

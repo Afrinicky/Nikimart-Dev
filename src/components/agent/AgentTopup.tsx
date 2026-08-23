@@ -45,7 +45,7 @@ export function AgentTopup({ bundles }: { bundles: TopupBundle[] }) {
 
   if (bundles.length === 0) {
     return (
-      <div className="animate-fade-up rounded-2xl bg-white p-8 text-center ring-1 ring-black/5">
+      <div className="animate-fade-up rounded-2xl bg-white p-8 text-center ring-1 ring-niki-edge">
         <p className="font-display font-bold text-niki-ink">No bundles available yet</p>
         <p className="mt-2 text-sm text-niki-ink/60">
           NikiMart hasn&apos;t published agent prices for any bundle. Check back shortly, or ask
@@ -154,7 +154,7 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
         aria-label="Pay with Paystack"
         className="animate-sheet-up relative z-10 max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-white pb-[max(env(safe-area-inset-bottom),4.5rem)] shadow-2xl sm:max-w-md sm:rounded-3xl sm:pb-0"
       >
-        <div className="flex items-center justify-between gap-4 border-b border-black/5 px-5 py-4">
+        <div className="flex items-center justify-between gap-4 border-b border-niki-edge px-5 py-4">
           <p className="font-display text-lg font-bold text-niki-ink">Pay with Paystack</p>
           <button
             type="button"

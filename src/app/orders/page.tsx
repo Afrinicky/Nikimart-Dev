@@ -73,8 +73,8 @@ export default async function OrdersPage({
         ) : (
           <div className="space-y-4">
             {orders.map((order) => (
-              <div key={order.id} className="rounded-2xl bg-white ring-1 ring-black/5">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/5 p-5">
+              <div key={order.id} className="rounded-2xl bg-white ring-1 ring-niki-edge">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-niki-edge p-5">
                   <div>
                     <p className="font-display font-bold text-niki-ink">Order {order.orderNumber}</p>
                     <p className="mt-0.5 text-sm text-niki-ink/60">
@@ -93,7 +93,7 @@ export default async function OrdersPage({
                   </span>
                 </div>
 
-                <div className="divide-y divide-black/5">
+                <div className="divide-y divide-niki-edge">
                   {order.items.map((item) => (
                     <div key={item.id} className="flex items-center gap-3 px-5 py-3">
                       <span className="text-xl" aria-hidden>
@@ -112,7 +112,7 @@ export default async function OrdersPage({
                   ))}
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/5 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-niki-edge p-5">
                   <div className="flex items-center gap-2 text-sm text-niki-ink/70">
                     {order.deliveryMethod === "pickup" ? (
                       <>
@@ -134,7 +134,7 @@ export default async function OrdersPage({
                     </span>
                     <Link
                       href={`/orders/${order.orderNumber}/receipt`}
-                      className="rounded-full px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-black/10 transition-colors hover:bg-niki-surface"
+                      className="rounded-full px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong transition-colors hover:bg-niki-surface"
                     >
                       Receipt
                     </Link>

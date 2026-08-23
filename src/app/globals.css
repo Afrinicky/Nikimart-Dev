@@ -25,6 +25,19 @@
   --color-niki-ink: #111827;
   --color-niki-trust: #0ea5e9;
   --color-niki-ghana: #16a34a;
+
+  /* --- Edges ---------------------------------------------------------------
+     White cards on the near-white page background (#f5f6fa) lose their edge:
+     the card and the page read as one surface and the layout goes soft. These
+     are hairlines tinted with the brand navy rather than pure black, so they
+     separate a surface from its background without greying the palette down.
+
+     `edge`        — the default hairline on any raised light surface.
+     `edge-strong` — inputs and controls, which need to read as interactive.
+     `edge-light`  — the same job on navy, where a dark line would vanish. */
+  --color-niki-edge: rgba(7, 17, 31, 0.1);
+  --color-niki-edge-strong: rgba(7, 17, 31, 0.16);
+  --color-niki-edge-light: rgba(255, 255, 255, 0.14);
 }
 
 body {
@@ -269,6 +282,13 @@ summary {
 
   .animate-progress-bar {
     animation: niki-progress 1.1s ease-in-out infinite;
+  }
+
+  /* A hairline that separates a surface from whatever is behind it. Use
+     `niki-edge-on-dark` for elements sitting on the navy shell, where a dark
+     line disappears entirely. */
+  .niki-edge-on-dark {
+    box-shadow: inset 0 0 0 1px var(--color-niki-edge-light);
   }
 
   /* Keyboard users get the same focus ring everywhere. */

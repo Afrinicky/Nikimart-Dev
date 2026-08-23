@@ -16,7 +16,7 @@ export default function CartPage() {
       <PageHeader title="Your Cart" crumbs={[{ label: "Cart" }]} />
       <Container className="py-8">
         {!ready ? (
-          <div className="rounded-2xl bg-white p-10 text-center text-sm text-niki-ink/50 ring-1 ring-black/5">
+          <div className="rounded-2xl bg-white p-10 text-center text-sm text-niki-ink/50 ring-1 ring-niki-edge">
             Loading your cart…
           </div>
         ) : items.length === 0 ? (
@@ -31,7 +31,7 @@ export default function CartPage() {
           <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
             <div className="space-y-3">
               {items.map((item) => (
-                <div key={item.productId} className="flex items-center gap-4 rounded-2xl bg-white p-4 ring-1 ring-black/5">
+                <div key={item.productId} className="flex items-center gap-4 rounded-2xl bg-white p-4 ring-1 ring-niki-edge">
                   <div
                     className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-cover bg-center text-2xl"
                     style={
@@ -82,7 +82,7 @@ export default function CartPage() {
               ))}
             </div>
 
-            <aside className="h-fit rounded-2xl bg-white p-6 ring-1 ring-black/5">
+            <aside className="h-fit rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
               <h2 className="font-display text-lg font-bold text-niki-ink">Order summary</h2>
               <dl className="mt-4 space-y-2 text-sm">
                 <div className="flex justify-between text-niki-ink/70">

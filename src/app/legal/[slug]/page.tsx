@@ -87,7 +87,7 @@ export default async function LegalPage({ params }: { params: Params }) {
       <Container className="py-8">
         <div className="mx-auto max-w-3xl space-y-6">
           {policy.sections.map((s) => (
-            <section key={s.heading} className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+            <section key={s.heading} className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
               <h2 className="font-display text-lg font-bold text-niki-ink">{s.heading}</h2>
               <p className="mt-2 text-sm leading-relaxed text-niki-ink/70">{s.body}</p>
             </section>

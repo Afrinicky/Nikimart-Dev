@@ -22,7 +22,7 @@ export function AllProductsSection({
     return (
       <section className="py-10 sm:py-14">
         <Container>
-          <div className="mx-auto max-w-md rounded-2xl bg-white p-8 text-center ring-1 ring-black/5">
+          <div className="mx-auto max-w-md rounded-2xl bg-white p-8 text-center ring-1 ring-niki-edge">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-niki-surface text-niki-orange">
               <LayoutGrid className="h-6 w-6" />
             </div>
@@ -51,7 +51,7 @@ export function AllProductsSection({
           </div>
           <Link
             href="/products"
-            className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/5 transition-colors hover:bg-niki-navy/5"
+            className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge transition-colors hover:bg-niki-navy/5"
           >
             Filter &amp; search
           </Link>

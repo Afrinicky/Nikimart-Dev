@@ -48,7 +48,7 @@ export default async function VendorRegisterPage() {
             </Link>
             <Link
               href="/login?callbackUrl=/vendor-register"
-              className="flex-1 rounded-full px-5 py-3 text-center text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 transition-colors hover:bg-white"
+              className="flex-1 rounded-full px-5 py-3 text-center text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong transition-colors hover:bg-white"
             >
               Sign in
             </Link>

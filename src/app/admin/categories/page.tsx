@@ -34,9 +34,9 @@ export default async function AdminCategoriesPage() {
         </div>
       </div>
 
-      <div className="mt-6 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">
+      <div className="mt-6 overflow-x-auto rounded-2xl bg-white ring-1 ring-niki-edge">
         <table className="w-full min-w-[560px] text-left text-sm">
-          <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/50">
+          <thead className="border-b border-niki-edge text-xs uppercase tracking-wide text-niki-ink/50">
             <tr>
               <th className="px-5 py-3 font-semibold">Name</th>
               <th className="px-5 py-3 font-semibold">Slug</th>
@@ -44,7 +44,7 @@ export default async function AdminCategoriesPage() {
               <th className="px-5 py-3 text-right font-semibold">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-black/5">
+          <tbody className="divide-y divide-niki-edge">
             {categories.map((c) => (
               <tr key={c.id}>
                 <td className="px-5 py-3 font-medium text-niki-ink">{c.name}</td>

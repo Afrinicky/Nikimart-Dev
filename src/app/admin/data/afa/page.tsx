@@ -23,7 +23,7 @@ export default async function AdminAfaPage() {
       </div>
 
       {rows.length === 0 ? (
-        <p className="mt-6 rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/50 ring-1 ring-black/5">
+        <p className="mt-6 rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/50 ring-1 ring-niki-edge">
           No AFA registrations yet.
         </p>
       ) : (
@@ -31,7 +31,7 @@ export default async function AdminAfaPage() {
           {rows.map((r) => {
             const known = isDataOrderStatus(r.status) ? r.status : "processing";
             return (
-              <div key={r.id} className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+              <div key={r.id} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-display font-bold text-niki-ink">{r.fullName}</p>

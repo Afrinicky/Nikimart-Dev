@@ -52,7 +52,7 @@ export default async function PickupDashboardPage() {
 
       <Container className="py-8">
         {pickupPoints.length === 0 ? (
-          <p className="rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-black/5">
+          <p className="rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-niki-edge">
             You are not assigned to a pickup point yet. Ask an administrator to link your account.
           </p>
         ) : (
@@ -84,7 +84,7 @@ export default async function PickupDashboardPage() {
                 </div>
 
                 {point.orders.length === 0 ? (
-                  <p className="mt-4 rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-black/5">
+                  <p className="mt-4 rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-niki-edge">
                     No orders routed here yet.
                   </p>
                 ) : (
@@ -92,7 +92,7 @@ export default async function PickupDashboardPage() {
                     {point.orders.map((order) => (
                       <div
                         key={order.id}
-                        className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white p-5 ring-1 ring-black/5"
+                        className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge"
                       >
                         <div>
                           <p className="font-semibold text-niki-ink">Order {order.orderNumber}</p>

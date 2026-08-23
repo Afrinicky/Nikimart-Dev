@@ -54,7 +54,7 @@ export function MarkupTool({
   const [state, formAction] = useActionState<DataAdminState, FormData>(applyMarkup, {});
 
   return (
-    <form action={formAction} className="space-y-4 rounded-2xl bg-white p-6 ring-1 ring-black/5">
+    <form action={formAction} className="space-y-4 rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
       <div className="flex items-center gap-2">
         <Percent className="h-4 w-4 text-niki-orange" />
         <h2 className="font-display font-bold text-niki-ink">Price from cost</h2>
@@ -113,7 +113,7 @@ export function NewBundleForm() {
   const [state, formAction] = useActionState<DataAdminState, FormData>(createBundle, {});
 
   return (
-    <form action={formAction} className="space-y-4 rounded-2xl bg-white p-6 ring-1 ring-black/5">
+    <form action={formAction} className="space-y-4 rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
       <div className="flex items-center gap-2">
         <Plus className="h-4 w-4 text-niki-orange" />
         <h2 className="font-display font-bold text-niki-ink">Add a bundle</h2>

@@ -119,7 +119,7 @@ export function VendorForm({
         </Field>
       </div>
 
-      <fieldset className="rounded-xl bg-niki-surface p-4 ring-1 ring-black/5">
+      <fieldset className="rounded-xl bg-niki-surface p-4 ring-1 ring-niki-edge">
         <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-niki-ink/50">Flags</legend>
         <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[
@@ -136,7 +136,7 @@ export function VendorForm({
         </div>
       </fieldset>
 
-      <fieldset className="rounded-xl bg-niki-surface p-4 ring-1 ring-black/5">
+      <fieldset className="rounded-xl bg-niki-surface p-4 ring-1 ring-niki-edge">
         <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-niki-ink/50">Branding & WhatsApp</legend>
         <div className="mt-2 grid gap-4 sm:grid-cols-2">
           <SingleImageField name="logoUrl" label="Shop logo (square)" initial={v?.logoUrl ?? ""} />

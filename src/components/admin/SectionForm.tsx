@@ -25,7 +25,7 @@ export function SectionForm({
 
   if (!def || def.fields.length === 0) {
     return (
-      <div className="rounded-xl bg-niki-surface p-4 text-sm text-niki-ink/60 ring-1 ring-black/5">
+      <div className="rounded-xl bg-niki-surface p-4 text-sm text-niki-ink/60 ring-1 ring-niki-edge">
         This block has no editable settings. Use the controls on the page to move, hide, or remove it.
         <div className="mt-4">
           <Link href={`/admin/pages/${pageId}`} className="text-sm font-semibold text-niki-orange hover:underline">

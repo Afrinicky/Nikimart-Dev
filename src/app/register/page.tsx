@@ -28,7 +28,7 @@ export default async function RegisterPage({
 
   return (
     <Container className="flex justify-center py-14">
-      <div className="w-full max-w-md rounded-3xl bg-white p-8 ring-1 ring-black/5">
+      <div className="w-full max-w-md rounded-3xl bg-white p-8 ring-1 ring-niki-edge">
         <div className="flex items-center gap-2">
           <BrandLogo className="h-9 w-9" />
           <span className="font-display text-xl font-bold text-niki-ink">

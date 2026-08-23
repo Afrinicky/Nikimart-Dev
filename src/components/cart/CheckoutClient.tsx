@@ -67,7 +67,7 @@ export function CheckoutClient({
   const total = subtotal + shippingFee;
 
   if (!ready) {
-    return <div className="rounded-2xl bg-white p-10 text-center text-sm text-niki-ink/50 ring-1 ring-black/5">Loading…</div>;
+    return <div className="rounded-2xl bg-white p-10 text-center text-sm text-niki-ink/50 ring-1 ring-niki-edge">Loading…</div>;
   }
 
   if (items.length === 0) {
@@ -115,7 +115,7 @@ export function CheckoutClient({
           <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{error}</p>
         ) : null}
 
-        <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+        <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
           <div className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-niki-orange" />
             <h2 className="font-display text-lg font-bold text-niki-ink">Choose a pickup point</h2>
@@ -148,7 +148,7 @@ export function CheckoutClient({
                   <label
                     key={p.id}
                     className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-4 transition-colors ${
-                      active ? "border-niki-orange bg-niki-orange/5" : "border-black/10 hover:bg-niki-surface"
+                      active ? "border-niki-orange bg-niki-orange/5" : "border-niki-edge-strong hover:bg-niki-surface"
                     }`}
                   >
                     <span className="flex items-center gap-3">
@@ -175,7 +175,7 @@ export function CheckoutClient({
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+        <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
           <h2 className="font-display text-lg font-bold text-niki-ink">Payment</h2>
           {paymentEnabled ? (
             <p className="mt-2 text-sm text-niki-ink/60">
@@ -192,7 +192,7 @@ export function CheckoutClient({
         </div>
       </div>
 
-      <aside className="h-fit rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <aside className="h-fit rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Order summary</h2>
         <ul className="mt-4 space-y-2 text-sm">
           {items.map((i) => (
@@ -204,7 +204,7 @@ export function CheckoutClient({
             </li>
           ))}
         </ul>
-        <dl className="mt-4 space-y-2 border-t border-black/5 pt-4 text-sm">
+        <dl className="mt-4 space-y-2 border-t border-niki-edge pt-4 text-sm">
           <div className="flex justify-between text-niki-ink/70">
             <dt>Subtotal</dt>
             <dd className="font-medium text-niki-ink">{formatPrice(subtotal)}</dd>
@@ -222,7 +222,7 @@ export function CheckoutClient({
               {loadingQuote ? "…" : shippingFee === 0 ? "Free" : formatPrice(shippingFee)}
             </dd>
           </div>
-          <div className="flex justify-between border-t border-black/5 pt-2 text-base font-bold text-niki-ink">
+          <div className="flex justify-between border-t border-niki-edge pt-2 text-base font-bold text-niki-ink">
             <dt>Total</dt>
             <dd className="font-display">{formatPrice(total)}</dd>
           </div>

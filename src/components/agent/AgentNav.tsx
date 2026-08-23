@@ -90,7 +90,7 @@ export function AgentRail({ afaEnabled = true }: { afaEnabled?: boolean }) {
               "flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold",
               active
                 ? "bg-niki-orange text-white"
-                : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white",
+                : "niki-edge-on-dark bg-white/10 text-white/70 hover:bg-white/20 hover:text-white",
             )}
           >
             <Icon className="h-4 w-4" />

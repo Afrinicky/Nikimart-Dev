@@ -27,7 +27,7 @@ export function FlashSaleSection({
   return (
     <section className="py-5 sm:py-7">
       <Container>
-        <div className="overflow-hidden rounded-2xl ring-1 ring-black/5">
+        <div className="overflow-hidden rounded-2xl ring-1 ring-niki-edge">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 bg-gradient-to-r from-niki-danger to-[#c81e5b] px-4 py-3 sm:px-5">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 text-white">

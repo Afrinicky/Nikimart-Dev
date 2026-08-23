@@ -30,7 +30,7 @@ export default async function AdminOrdersPage() {
 
       <div className="mt-6 space-y-3">
         {orders.map((o) => (
-          <div key={o.id} className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+          <div key={o.id} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Link href={`/admin/orders/${o.id}`} className="group min-w-0 flex-1">
                 <p className="flex items-center gap-1 font-semibold text-niki-ink group-hover:text-niki-orange">
@@ -54,7 +54,7 @@ export default async function AdminOrdersPage() {
           </div>
         ))}
         {orders.length === 0 ? (
-          <p className="rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/50 ring-1 ring-black/5">
+          <p className="rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/50 ring-1 ring-niki-edge">
             No orders yet.
           </p>
         ) : null}

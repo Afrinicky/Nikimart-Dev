@@ -57,7 +57,7 @@ export default async function FreightDashboardPage() {
 
         <h2 className="mt-8 font-display text-lg font-bold text-niki-ink">Consignments</h2>
         {shipments.length === 0 ? (
-          <p className="mt-4 rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-black/5">
+          <p className="mt-4 rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-niki-edge">
             No consignments assigned to you yet.
           </p>
         ) : (
@@ -65,7 +65,7 @@ export default async function FreightDashboardPage() {
             {shipments.map((s) => (
               <div
                 key={s.id}
-                className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white p-5 ring-1 ring-black/5"
+                className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge"
               >
                 <div className="min-w-0">
                   <p className="font-semibold text-niki-ink">

@@ -4,7 +4,6 @@ import {
   BadgeCheck,
   Banknote,
   Link2,
-  LogIn,
   Store,
   Tags,
   TrendingUp,
@@ -14,9 +13,8 @@ import {
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ActionLink } from "@/components/ui/motion";
-import { JoinAgentForm } from "@/components/agent/JoinAgentForm";
+import { ApplyAgentForm } from "@/components/agent/ApplyAgentForm";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { siteUrl } from "@/lib/site";
 import { formatPrice } from "@/lib/format";
 import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/settings";
@@ -60,17 +58,9 @@ export default async function BecomeAnAgentPage() {
   const [program, store] = await Promise.all([getAgentProgramConfig(), getDataStoreConfig()]);
 
   // Already an agent? There's nothing to pitch — send them to their platform.
-  // Their saved phone pre-fills the support number on the form.
-  let defaultPhone = "";
   if (session?.user?.id) {
     const existing = await getAgentForUser(session.user.id);
     if (existing) redirect("/agent");
-    defaultPhone =
-      (
-        await prisma.user
-          .findUnique({ where: { id: session.user.id }, select: { phone: true } })
-          .catch(() => null)
-      )?.phone ?? "";
   }
 
   // A sample of what they'd be reselling, so the numbers are concrete.
@@ -101,7 +91,7 @@ export default async function BecomeAnAgentPage() {
         {/* What you get */}
         <section className="stagger-children grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((s, i) => (
-            <div key={s.title} className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+            <div key={s.title} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-niki-surface text-niki-orange">
                   <s.icon className="h-5 w-5" />
@@ -128,7 +118,7 @@ export default async function BecomeAnAgentPage() {
                 return (
                   <div
                     key={b.id}
-                    className="overflow-hidden rounded-2xl bg-white ring-1 ring-black/5"
+                    className="overflow-hidden rounded-2xl bg-white ring-1 ring-niki-edge"
                   >
                     <div
                       className="px-4 py-3"
@@ -187,7 +177,7 @@ export default async function BecomeAnAgentPage() {
                   body: `Minimum ${formatPrice(program.minWithdrawal)}${program.withdrawalFee > 0 ? `, with a flat ${formatPrice(program.withdrawalFee)} fee` : ""}. Paid by hand, usually the same day.`,
                 },
               ].map((r) => (
-                <div key={r.title} className="flex gap-3 rounded-2xl bg-white p-5 ring-1 ring-black/5">
+                <div key={r.title} className="flex gap-3 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-niki-surface text-niki-orange">
                     <r.icon className="h-5 w-5" />
                   </span>
@@ -200,7 +190,7 @@ export default async function BecomeAnAgentPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl bg-white p-6 ring-1 ring-black/5 lg:sticky lg:top-6 lg:self-start">
+          <div className="rounded-3xl bg-white p-6 ring-1 ring-niki-edge lg:sticky lg:top-6 lg:self-start">
             {!program.enabled ? (
               <>
                 <p className="font-display text-lg font-bold text-niki-ink">Signup is closed</p>
@@ -215,38 +205,14 @@ export default async function BecomeAnAgentPage() {
                   The bundle store is offline for maintenance. Signup reopens with it.
                 </p>
               </>
-            ) : session?.user?.id ? (
-              <>
-                <p className="font-display text-lg font-bold text-niki-ink">Open your store</p>
-                <p className="mt-1 mb-5 text-sm text-niki-ink/60">
-                  Two minutes, and you can change any of it later.
-                </p>
-                <JoinAgentForm
-                  origin={siteUrl()}
-                  setupFee={program.setupFee}
-                  defaultPhone={defaultPhone}
-                />
-              </>
             ) : (
               <>
-                <p className="font-display text-lg font-bold text-niki-ink">Sign in to start</p>
-                <p className="mt-2 text-sm text-niki-ink/60">
-                  Your agent platform sits on your NikiMart account, so sign in (or register — it
-                  takes a minute) and you&apos;ll come straight back here.
+                <p className="font-display text-lg font-bold text-niki-ink">Apply to join</p>
+                <p className="mt-1 mb-5 text-sm text-niki-ink/60">
+                  Tell us who you are and what you want your store called. No account or payment
+                  needed to apply.
                 </p>
-                <ActionLink
-                  href="/login?callbackUrl=%2Fbecome-an-agent"
-                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-niki-orange px-4 py-3.5 text-sm font-bold text-white hover:bg-niki-orange-light"
-                >
-                  <LogIn className="h-4 w-4" />
-                  Sign in to continue
-                </ActionLink>
-                <ActionLink
-                  href="/register?callbackUrl=%2Fbecome-an-agent"
-                  className="mt-2 flex w-full items-center justify-center rounded-xl bg-niki-surface px-4 py-3 text-sm font-bold text-niki-ink/70 hover:bg-niki-navy/5"
-                >
-                  Create an account
-                </ActionLink>
+                <ApplyAgentForm origin={siteUrl()} />
               </>
             )}
           </div>

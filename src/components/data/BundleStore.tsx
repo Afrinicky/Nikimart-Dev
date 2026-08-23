@@ -51,7 +51,7 @@ export function BundleStore({
 
   if (groups.length === 0) {
     return (
-      <div className="animate-fade-up rounded-3xl bg-white p-10 text-center ring-1 ring-black/5">
+      <div className="animate-fade-up rounded-3xl bg-white p-10 text-center ring-1 ring-niki-edge">
         <p className="font-display text-lg font-bold text-niki-ink">No bundles on sale yet</p>
         <p className="mt-2 text-sm text-niki-ink/60">
           Prices are being set up. Please check back shortly.
@@ -190,7 +190,7 @@ export function PaystackDialog({
         className="animate-sheet-up relative z-10 max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-white pb-[max(env(safe-area-inset-bottom),4.5rem)] shadow-2xl sm:max-w-md sm:rounded-3xl sm:pb-0"
       >
         {/* Header */}
-        <div className="flex items-center justify-between gap-4 border-b border-black/5 px-5 py-4">
+        <div className="flex items-center justify-between gap-4 border-b border-niki-edge px-5 py-4">
           <p className="font-display text-lg font-bold text-niki-ink">Pay with Paystack</p>
           <button
             type="button"

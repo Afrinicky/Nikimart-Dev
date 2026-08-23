@@ -72,9 +72,9 @@ export default async function AdminUsersPage({
         ))}
       </div>
 
-      <div className="mt-5 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">
+      <div className="mt-5 overflow-x-auto rounded-2xl bg-white ring-1 ring-niki-edge">
         <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/50">
+          <thead className="border-b border-niki-edge text-xs uppercase tracking-wide text-niki-ink/50">
             <tr>
               <th className="px-5 py-3 font-semibold">Name</th>
               <th className="px-5 py-3 font-semibold">Email</th>
@@ -82,7 +82,7 @@ export default async function AdminUsersPage({
               <th className="px-5 py-3 text-right font-semibold">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-black/5">
+          <tbody className="divide-y divide-niki-edge">
             {users.map((u) => {
               // Deleting an account cascades to its orders, so accounts with
               // history can't be removed — the server refuses too.

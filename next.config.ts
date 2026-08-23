@@ -27,6 +27,26 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+
+  /**
+   * Path aliases.
+   *
+   * The data bundles route has always been hyphenated, but the unhyphenated
+   * spelling escaped into the "Buy Data Bundles" setting and from there into
+   * the sidebar, the footer and the carousel — so it is out in the world on
+   * shared links and in people's history. Stored settings are repaired on read
+   * (see normaliseDataBundlesUrl); this catches everything already sent.
+   *
+   * It lives here rather than in a page that redirects because a config
+   * redirect answers before any rendering happens, so there is no route to
+   * resolve and nothing that can fall through to the not-found boundary.
+   */
+  async redirects() {
+    return [
+      { source: "/databundles", destination: "/data-bundles", permanent: true },
+      { source: "/databundles/:path*", destination: "/data-bundles/:path*", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

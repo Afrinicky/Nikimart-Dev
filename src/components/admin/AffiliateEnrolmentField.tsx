@@ -58,7 +58,7 @@ export function AffiliateEnrolmentField({
   });
 
   return (
-    <fieldset className="rounded-xl bg-niki-surface p-4 ring-1 ring-black/5">
+    <fieldset className="rounded-xl bg-niki-surface p-4 ring-1 ring-niki-edge">
       <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-niki-ink/50">
         Affiliate programme
       </legend>
@@ -81,7 +81,7 @@ export function AffiliateEnrolmentField({
       </label>
 
       {on ? (
-        <div className="mt-4 space-y-4 border-t border-black/5 pt-4">
+        <div className="mt-4 space-y-4 border-t border-niki-edge pt-4">
           {actor === "admin" ? (
             <div>
               <label htmlFor="affiliateFundedBy" className="mb-1.5 block text-sm font-medium text-niki-ink/80">
@@ -142,7 +142,7 @@ export function AffiliateEnrolmentField({
             </p>
           </div>
 
-          <p className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-niki-ink/70 ring-1 ring-black/5">
+          <p className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-niki-ink/70 ring-1 ring-niki-edge">
             <Gift className="h-4 w-4 shrink-0 text-niki-orange" />
             <span>
               Affiliates earn <strong className="text-niki-ink">{resolved.rate}%</strong> of the item

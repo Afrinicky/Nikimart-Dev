@@ -49,7 +49,7 @@ export function Card({
   className?: string;
 }) {
   return (
-    <section className={cn("rounded-2xl bg-white p-5 ring-1 ring-black/5", className)}>
+    <section className={cn("rounded-2xl bg-white p-5 ring-1 ring-niki-edge", className)}>
       {title ? (
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -162,7 +162,7 @@ export function Pager({
   }
 
   const btn =
-    "rounded-full px-4 py-2 text-xs font-semibold ring-1 ring-black/5 bg-white text-niki-ink/70 hover:bg-niki-navy/5";
+    "rounded-full px-4 py-2 text-xs font-semibold ring-1 ring-niki-edge bg-white text-niki-ink/70 hover:bg-niki-navy/5";
   const dead = "rounded-full px-4 py-2 text-xs font-semibold text-niki-ink/25";
 
   return (

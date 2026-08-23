@@ -56,7 +56,7 @@ export default async function EditPageBuilder({ params }: { params: Params }) {
       </div>
 
       {/* Page meta */}
-      <form action={updatePageMeta.bind(null, id)} className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <form action={updatePageMeta.bind(null, id)} className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Page title" htmlFor="title">
             <input id="title" name="title" defaultValue={page.title} className={inputClass} />
@@ -77,7 +77,7 @@ export default async function EditPageBuilder({ params }: { params: Params }) {
         {sections.map((s, i) => (
           <div
             key={s.id}
-            className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 ring-1 ring-black/5 ${s.isVisible ? "" : "opacity-60"}`}
+            className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 ring-1 ring-niki-edge ${s.isVisible ? "" : "opacity-60"}`}
           >
             <div className="min-w-0">
               <p className="flex items-center gap-2 font-semibold text-niki-ink">
@@ -119,12 +119,12 @@ export default async function EditPageBuilder({ params }: { params: Params }) {
           </div>
         ))}
         {sections.length === 0 ? (
-          <p className="rounded-2xl bg-white p-6 text-sm text-niki-ink/50 ring-1 ring-black/5">No sections yet. Add one below.</p>
+          <p className="rounded-2xl bg-white p-6 text-sm text-niki-ink/50 ring-1 ring-niki-edge">No sections yet. Add one below.</p>
         ) : null}
       </div>
 
       {/* Add section */}
-      <form action={addSection} className="mt-6 flex flex-wrap items-end gap-3 rounded-2xl bg-niki-surface p-5 ring-1 ring-black/5">
+      <form action={addSection} className="mt-6 flex flex-wrap items-end gap-3 rounded-2xl bg-niki-surface p-5 ring-1 ring-niki-edge">
         <input type="hidden" name="pageId" value={id} />
         <div className="flex-1">
           <Field label="Add a section block" htmlFor="type">

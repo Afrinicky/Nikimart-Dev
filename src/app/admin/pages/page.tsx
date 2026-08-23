@@ -47,9 +47,9 @@ export default async function AdminPagesPage() {
         </div>
       ) : null}
 
-      <div className="mt-6 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">
+      <div className="mt-6 overflow-x-auto rounded-2xl bg-white ring-1 ring-niki-edge">
         <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/50">
+          <thead className="border-b border-niki-edge text-xs uppercase tracking-wide text-niki-ink/50">
             <tr>
               <th className="px-5 py-3 font-semibold">Title</th>
               <th className="px-5 py-3 font-semibold">URL</th>
@@ -58,7 +58,7 @@ export default async function AdminPagesPage() {
               <th className="px-5 py-3 text-right font-semibold">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-black/5">
+          <tbody className="divide-y divide-niki-edge">
             {pages.map((p) => {
               const url = p.slug === "home" ? "/" : `/pages/${p.slug}`;
               return (

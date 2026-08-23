@@ -28,13 +28,13 @@ export default async function AdminBannersPage() {
       </div>
 
       {banners.length === 0 ? (
-        <p className="mt-6 rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/50 ring-1 ring-black/5">
+        <p className="mt-6 rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/50 ring-1 ring-niki-edge">
           No banners yet. The homepage shows built-in default slides until you add your own.
         </p>
       ) : (
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {banners.map((b) => (
-            <div key={b.id} className="overflow-hidden rounded-2xl bg-white ring-1 ring-black/5">
+            <div key={b.id} className="overflow-hidden rounded-2xl bg-white ring-1 ring-niki-edge">
               <div
                 className="relative flex h-32 flex-col justify-center gap-1 p-4"
                 style={{ background: `linear-gradient(135deg, ${b.accentFrom}, ${b.accentTo})` }}

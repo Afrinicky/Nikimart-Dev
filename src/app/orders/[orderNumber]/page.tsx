@@ -44,7 +44,7 @@ export default async function OrderTrackingPage({ params }: { params: Params }) 
           </Link>
           <Link
             href={`/orders/${order.orderNumber}/receipt`}
-            className="flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 transition-colors hover:bg-white"
+            className="flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong transition-colors hover:bg-white"
           >
             <Receipt className="h-4 w-4 text-niki-orange" />
             View receipt
@@ -52,7 +52,7 @@ export default async function OrderTrackingPage({ params }: { params: Params }) 
         </div>
 
         <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_20rem]">
-          <div className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+          <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-display text-lg font-bold text-niki-ink">Tracking</h2>
               <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone(order.status)}`}>
@@ -73,9 +73,9 @@ export default async function OrderTrackingPage({ params }: { params: Params }) 
             </div>
           </div>
 
-          <aside className="h-fit rounded-2xl bg-white p-6 ring-1 ring-black/5">
+          <aside className="h-fit rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
             <h2 className="font-display text-lg font-bold text-niki-ink">Order</h2>
-            <div className="mt-4 divide-y divide-black/5">
+            <div className="mt-4 divide-y divide-niki-edge">
               {order.items.map((item) => (
                 <div key={item.id} className="flex items-center gap-3 py-2">
                   <span className="text-xl" aria-hidden>{item.product.emoji}</span>
@@ -87,7 +87,7 @@ export default async function OrderTrackingPage({ params }: { params: Params }) 
                 </div>
               ))}
             </div>
-            <div className="mt-4 flex justify-between border-t border-black/5 pt-4 font-display font-bold text-niki-ink">
+            <div className="mt-4 flex justify-between border-t border-niki-edge pt-4 font-display font-bold text-niki-ink">
               <span>Total</span>
               <span>{formatPrice(order.total)}</span>
             </div>

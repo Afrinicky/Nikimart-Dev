@@ -7,7 +7,7 @@ export function SearchBar({ className }: { className?: string }) {
       action="/products"
       method="GET"
       className={cn(
-        "flex w-full items-center gap-2 rounded-full bg-white px-4 py-2.5 shadow-sm ring-1 ring-black/5 focus-within:ring-2 focus-within:ring-niki-orange",
+        "flex w-full items-center gap-2 rounded-full bg-white px-4 py-2.5 shadow-sm ring-1 ring-niki-edge focus-within:ring-2 focus-within:ring-niki-orange",
         className,
       )}
     >

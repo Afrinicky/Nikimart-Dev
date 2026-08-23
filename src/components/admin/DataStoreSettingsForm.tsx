@@ -31,7 +31,7 @@ export function DataStoreSettingsForm({ settings }: { settings: Settings }) {
         </p>
       ) : null}
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Storefront</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
           Branding and availability of the bundle store at <code className="font-mono text-xs">/data-bundles</code>.
@@ -75,7 +75,7 @@ export function DataStoreSettingsForm({ settings }: { settings: Settings }) {
         </div>
       </section>
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">AFA registration</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
           Sold alongside bundles and submitted to the provider once paid.
@@ -98,7 +98,7 @@ export function DataStoreSettingsForm({ settings }: { settings: Settings }) {
         </div>
       </section>
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Pricing</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field
@@ -125,7 +125,7 @@ export function DataStoreSettingsForm({ settings }: { settings: Settings }) {
         </div>
       </section>
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Sub-agent programme</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
           Recruiting resellers who run their own storefront at{" "}

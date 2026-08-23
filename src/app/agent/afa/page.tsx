@@ -42,14 +42,14 @@ export default async function AgentAfaPage() {
       >
         <ActionLink
           href="/agent/store?tab=afa"
-          className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-black/5 hover:bg-niki-navy/5"
+          className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5"
         >
           Edit AFA price
         </ActionLink>
       </AgentPageHeading>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+        <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
           <p className="text-xs font-semibold uppercase tracking-wide text-niki-ink/45">
             Your AFA price
           </p>
@@ -58,7 +58,7 @@ export default async function AgentAfaPage() {
             NikiMart charges {formatMoney(store.afaPrice)}
           </p>
         </div>
-        <div className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+        <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
           <p className="text-xs font-semibold uppercase tracking-wide text-niki-ink/45">
             You earn per registration
           </p>
@@ -84,7 +84,7 @@ export default async function AgentAfaPage() {
           <TableScroll>
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead>
-                <tr className="border-b border-black/5 text-[11px] uppercase tracking-wide text-niki-ink/45">
+                <tr className="border-b border-niki-edge text-[11px] uppercase tracking-wide text-niki-ink/45">
                   <th className="py-2.5 pr-4 font-semibold">Customer</th>
                   <th className="py-2.5 pr-4 font-semibold">Phone</th>
                   <th className="py-2.5 pr-4 font-semibold">Town</th>
@@ -93,7 +93,7 @@ export default async function AgentAfaPage() {
                   <th className="py-2.5 font-semibold">Created</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-black/5">
+              <tbody className="divide-y divide-niki-edge">
                 {rows.map((r) => (
                   <tr key={r.id} className="transition-colors hover:bg-niki-surface/70">
                     <td className="py-3 pr-4 font-semibold text-niki-ink">{r.fullName}</td>

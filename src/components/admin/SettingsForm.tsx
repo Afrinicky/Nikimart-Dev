@@ -18,7 +18,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
       ) : null}
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Shipping</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
           Orders are collected at NikiMart pickup points and priced by CBM. Set the per-route ₵/CBM rates,
@@ -27,7 +27,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         </p>
       </section>
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Platform commission</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
           The percentage NikiMart earns on every sale. Sellers list for free and this cut is deducted from
@@ -40,7 +40,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         </div>
       </section>
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Affiliate programme</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
           Affiliates only earn on products enrolled in the programme. Sellers enrol their own products
@@ -61,7 +61,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         </div>
       </section>
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Staff notifications</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
           How sellers, freight agents, pickup operators, and admins are alerted about new orders and jobs.
@@ -78,7 +78,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         </div>
       </section>
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Global shipping</h2>
         <p className="mt-1 text-sm text-niki-ink/60">Estimated days for imported items to arrive in Ghana.</p>
         <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -97,7 +97,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         </div>
       </section>
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Contact & support</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field label="Support email" htmlFor="supportEmail">
@@ -122,7 +122,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         </div>
       </section>
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Social media</h2>
         <p className="mt-1 text-sm text-niki-ink/60">NikiMart&apos;s own handles — full URLs. Shown as icons in the footer. Leave blank to hide.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -147,7 +147,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         </div>
       </section>
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Footer & brand</h2>
         <div className="mt-4 space-y-4">
           <SingleImageField

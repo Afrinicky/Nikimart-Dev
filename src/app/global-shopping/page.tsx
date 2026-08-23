@@ -24,7 +24,7 @@ export default function GlobalShoppingPage() {
           {sourceRegions.map((region) => (
             <div
               key={region.id}
-              className="group relative overflow-hidden rounded-3xl bg-white ring-1 ring-black/5 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-niki-navy/10"
+              className="group relative overflow-hidden rounded-3xl bg-white ring-1 ring-niki-edge transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-niki-navy/10"
             >
               <div
                 className="flex items-center gap-3 p-5 text-white"

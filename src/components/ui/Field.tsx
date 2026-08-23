@@ -21,4 +21,4 @@ export function Field({
 }
 
 export const inputClass =
-  "w-full rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm text-niki-ink outline-none transition-colors placeholder:text-niki-ink/40 focus:border-niki-orange focus:ring-2 focus:ring-niki-orange/20";
+  "w-full rounded-xl border border-niki-edge-strong bg-white px-4 py-2.5 text-sm text-niki-ink outline-none transition-colors placeholder:text-niki-ink/40 focus:border-niki-orange focus:ring-2 focus:ring-niki-orange/20";

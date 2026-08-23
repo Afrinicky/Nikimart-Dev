@@ -66,7 +66,7 @@ export default async function SellerOrdersPage() {
         subtitle="Orders containing your products. Contact the buyer while the item is in transit."
         crumbs={[{ label: "Seller", href: "/seller" }, { label: "Orders" }]}
       >
-        <Link href="/seller" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-black/10 hover:bg-white">
+        <Link href="/seller" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
           <ArrowLeft className="h-4 w-4" />
           Dashboard
         </Link>
@@ -74,7 +74,7 @@ export default async function SellerOrdersPage() {
 
       <Container className="py-8">
         {orders.length === 0 ? (
-          <p className="rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/60 ring-1 ring-black/5">
+          <p className="rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/60 ring-1 ring-niki-edge">
             No orders yet. When a customer buys one of your products, it&apos;ll appear here.
           </p>
         ) : (
@@ -84,8 +84,8 @@ export default async function SellerOrdersPage() {
               const inCustody = order.status !== "delivered" && order.status !== "cancelled";
               const wa = waLink(order.user.phone);
               return (
-                <div key={order.id} className="rounded-2xl bg-white ring-1 ring-black/5">
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/5 p-5">
+                <div key={order.id} className="rounded-2xl bg-white ring-1 ring-niki-edge">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-niki-edge p-5">
                     <div>
                       <p className="font-display font-bold text-niki-ink">Order {order.orderNumber}</p>
                       <p className="mt-0.5 text-sm text-niki-ink/60">

@@ -37,7 +37,7 @@ export function CampusShowcase({
   const pickupCount = productMatches.filter((p) => p.pickupAvailable).length;
 
   return (
-    <section className="border-y border-black/5 bg-white py-10 sm:py-12">
+    <section className="border-y border-niki-edge bg-white py-10 sm:py-12">
       <Container>
         <SectionHeading
           title="Shop by Campus, Institution, or Community"

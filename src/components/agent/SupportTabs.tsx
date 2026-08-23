@@ -70,7 +70,7 @@ export function SupportTabs({
 
   return (
     <div className="space-y-5">
-      <div className="scrollbar-none -mx-1 flex gap-1 overflow-x-auto border-b border-black/5 px-1">
+      <div className="scrollbar-none -mx-1 flex gap-1 overflow-x-auto border-b border-niki-edge px-1">
         {TABS.map(({ value, label, icon: Icon }) => (
           <button
             key={value}
@@ -148,7 +148,7 @@ function CallbackForm({ defaultName, defaultPhone }: { defaultName: string; defa
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4 rounded-2xl bg-white p-5 ring-1 ring-black/5" noValidate>
+    <form onSubmit={submit} className="space-y-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge" noValidate>
       <p className="font-display font-bold text-niki-ink">Request a callback</p>
 
       {error ? (
@@ -285,7 +285,7 @@ function ContactPanel({
       {cards.map((c) => (
         <div
           key={c.title}
-          className="flex flex-col items-center rounded-2xl bg-white p-6 text-center ring-1 ring-black/5"
+          className="flex flex-col items-center rounded-2xl bg-white p-6 text-center ring-1 ring-niki-edge"
         >
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-niki-ghana/10 text-niki-ghana">
             <c.icon className="h-5 w-5" />
@@ -312,7 +312,7 @@ function FaqPanel() {
       {FAQ.map((f) => (
         <details
           key={f.q}
-          className="group rounded-2xl bg-white px-5 py-4 ring-1 ring-black/5 transition-shadow open:shadow-md"
+          className="group rounded-2xl bg-white px-5 py-4 ring-1 ring-niki-edge transition-shadow open:shadow-md"
         >
           <summary className="niki-focus flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-niki-ink">
             {f.q}
@@ -345,7 +345,7 @@ function TermsPanel({
   ];
 
   return (
-    <div className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+    <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
       <p className="font-display font-bold text-niki-ink">Agent terms</p>
       <ol className="mt-3 space-y-3">
         {terms.map((t, i) => (

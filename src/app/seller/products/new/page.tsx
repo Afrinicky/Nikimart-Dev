@@ -31,7 +31,7 @@ export default async function NewSellerProductPage() {
         Back to my products
       </Link>
       <h1 className="mt-3 font-display text-2xl font-bold text-niki-ink">New product</h1>
-      <div className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <div className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <ProductForm
           action={createSellerProduct}
           categories={categories}

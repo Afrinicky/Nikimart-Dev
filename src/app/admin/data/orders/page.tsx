@@ -59,7 +59,7 @@ export default async function AdminDataOrdersPage({
             name="q"
             defaultValue={query}
             placeholder="Reference or phone"
-            className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:border-niki-orange"
+            className="rounded-xl border border-niki-edge-strong bg-white px-4 py-2 text-sm outline-none focus:border-niki-orange"
           />
           <button type="submit" className="rounded-xl bg-niki-navy px-4 py-2 text-sm font-semibold text-white">
             Search
@@ -85,7 +85,7 @@ export default async function AdminDataOrdersPage({
           <code className="font-mono text-xs">nikimart-neon-data-bundles.sql</code> to create them.
         </p>
       ) : orders.length === 0 ? (
-        <p className="mt-6 rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/50 ring-1 ring-black/5">
+        <p className="mt-6 rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/50 ring-1 ring-niki-edge">
           No orders match this filter.
         </p>
       ) : (
@@ -94,7 +94,7 @@ export default async function AdminDataOrdersPage({
             const known = isDataOrderStatus(o.status) ? o.status : "processing";
             const margin = o.costPrice > 0 ? o.price - o.costPrice : null;
             return (
-              <div key={o.id} className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+              <div key={o.id} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-display font-bold text-niki-ink">
@@ -147,7 +147,7 @@ export default async function AdminDataOrdersPage({
                           <input type="hidden" name="id" value={o.id} />
                           <button
                             type="submit"
-                            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-niki-ink/70 ring-1 ring-black/10 hover:bg-niki-navy/5"
+                            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-niki-navy/5"
                           >
                             <RefreshCw className="h-3.5 w-3.5" />
                             Refresh
@@ -160,7 +160,7 @@ export default async function AdminDataOrdersPage({
                           <input type="hidden" name="id" value={o.id} />
                           <button
                             type="submit"
-                            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-niki-ink/70 ring-1 ring-black/10 hover:bg-niki-navy/5"
+                            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-niki-navy/5"
                           >
                             <Undo2 className="h-3.5 w-3.5" />
                             Mark refunded
@@ -179,7 +179,7 @@ export default async function AdminDataOrdersPage({
       {pages > 1 ? (
         <div className="mt-6 flex items-center justify-center gap-2">
           {page > 1 ? (
-            <Link href={href({ status, q: query, page: page - 1 })} className="rounded-full bg-white px-4 py-2 text-sm font-semibold ring-1 ring-black/5">
+            <Link href={href({ status, q: query, page: page - 1 })} className="rounded-full bg-white px-4 py-2 text-sm font-semibold ring-1 ring-niki-edge">
               Previous
             </Link>
           ) : null}
@@ -187,7 +187,7 @@ export default async function AdminDataOrdersPage({
             Page {page} of {pages}
           </span>
           {page < pages ? (
-            <Link href={href({ status, q: query, page: page + 1 })} className="rounded-full bg-white px-4 py-2 text-sm font-semibold ring-1 ring-black/5">
+            <Link href={href({ status, q: query, page: page + 1 })} className="rounded-full bg-white px-4 py-2 text-sm font-semibold ring-1 ring-niki-edge">
               Next
             </Link>
           ) : null}

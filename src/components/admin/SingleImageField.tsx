@@ -76,14 +76,14 @@ export function SingleImageField({
 
       {value ? (
         <div className="mb-3 flex items-center gap-3">
-          <div className={`overflow-hidden rounded-xl bg-niki-surface ring-1 ring-black/10 ${previewClass}`}>
+          <div className={`overflow-hidden rounded-xl bg-niki-surface ring-1 ring-niki-edge-strong ${previewClass}`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={value} alt="Preview" className="h-full w-full object-contain" />
           </div>
           <button
             type="button"
             onClick={() => setValue("")}
-            className="flex items-center gap-1.5 rounded-full bg-niki-surface px-3 py-1.5 text-xs font-semibold text-niki-ink/70 ring-1 ring-black/5 hover:text-niki-danger"
+            className="flex items-center gap-1.5 rounded-full bg-niki-surface px-3 py-1.5 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:text-niki-danger"
           >
             <Trash2 className="h-3.5 w-3.5" />
             Remove

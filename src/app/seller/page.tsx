@@ -112,7 +112,7 @@ export default async function SellerDashboardPage() {
           <>
             <h2 className="mt-8 font-display text-lg font-bold text-niki-ink">Incoming orders</h2>
             {recentOrders.length === 0 ? (
-              <p className="mt-4 rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-black/5">
+              <p className="mt-4 rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-niki-edge">
                 No orders yet. Your incoming orders will show up here.
               </p>
             ) : (
@@ -120,7 +120,7 @@ export default async function SellerDashboardPage() {
                 {recentOrders.map((item) => (
                   <div
                     key={item.orderId}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-5 ring-1 ring-black/5"
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-5 ring-1 ring-niki-edge"
                   >
                     <div>
                       <p className="font-semibold text-niki-ink">Order {item.order.orderNumber}</p>
@@ -138,13 +138,13 @@ export default async function SellerDashboardPage() {
 
             <h2 className="mt-8 font-display text-lg font-bold text-niki-ink">Your products</h2>
             {vendor.products.length === 0 ? (
-              <p className="mt-4 rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-black/5">
+              <p className="mt-4 rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-niki-edge">
                 No products listed yet.
               </p>
             ) : (
-              <div className="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-black/5">
+              <div className="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-niki-edge">
                 <table className="w-full min-w-[520px] text-left text-sm">
-                  <thead className="border-b border-black/5 text-xs uppercase tracking-wide text-niki-ink/50">
+                  <thead className="border-b border-niki-edge text-xs uppercase tracking-wide text-niki-ink/50">
                     <tr>
                       <th className="px-5 py-3 font-semibold">Product</th>
                       <th className="px-5 py-3 font-semibold">Price</th>
@@ -153,7 +153,7 @@ export default async function SellerDashboardPage() {
                       <th className="px-5 py-3 font-semibold sr-only">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-black/5">
+                  <tbody className="divide-y divide-niki-edge">
                     {vendor.products.map((p) => (
                       <tr key={p.id} className="transition-colors hover:bg-niki-surface">
                         <td className="px-5 py-3">
@@ -190,7 +190,7 @@ export default async function SellerDashboardPage() {
             <Link
               key={title}
               href={href}
-              className="group rounded-2xl bg-white p-5 ring-1 ring-black/5 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-niki-navy/5"
+              className="group rounded-2xl bg-white p-5 ring-1 ring-niki-edge transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-niki-navy/5"
             >
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-niki-navy text-niki-orange transition-colors group-hover:bg-niki-orange group-hover:text-white">
                 <Icon className="h-5 w-5" />

@@ -35,7 +35,7 @@ const WITHDRAWAL_TONES: Record<string, string> = {
 
 function Tile({ label, value, icon: Icon }: { label: string; value: string; icon: React.ElementType }) {
   return (
-    <div className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+    <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
       <div className="flex items-start gap-2 text-niki-ink/50">
         <Icon className="h-4 w-4" />
         <span className="text-[11px] font-semibold uppercase leading-tight tracking-wide sm:text-xs">{label}</span>
@@ -133,7 +133,7 @@ async function OverviewPanel({ agent }: { agent: AgentAccount }) {
           <TableScroll>
             <table className="w-full min-w-[700px] text-left text-sm">
               <thead>
-                <tr className="border-b border-black/5 text-[11px] uppercase tracking-wide text-niki-ink/45">
+                <tr className="border-b border-niki-edge text-[11px] uppercase tracking-wide text-niki-ink/45">
                   <th className="py-2.5 pr-4 font-semibold">Phone</th>
                   <th className="py-2.5 pr-4 font-semibold">Package</th>
                   <th className="py-2.5 pr-4 font-semibold">Price</th>
@@ -142,7 +142,7 @@ async function OverviewPanel({ agent }: { agent: AgentAccount }) {
                   <th className="py-2.5 font-semibold">Date</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-black/5">
+              <tbody className="divide-y divide-niki-edge">
                 {recent.rows.map((o) => (
                   <tr key={o.id} className="transition-colors hover:bg-niki-surface/70">
                     <td className="py-3 pr-4 font-mono text-xs text-niki-ink/70">
@@ -201,7 +201,7 @@ async function WithdrawalsPanel({ agentId }: { agentId: string }) {
         <TableScroll>
           <table className="w-full min-w-[700px] text-left text-sm">
             <thead>
-              <tr className="border-b border-black/5 text-[11px] uppercase tracking-wide text-niki-ink/45">
+              <tr className="border-b border-niki-edge text-[11px] uppercase tracking-wide text-niki-ink/45">
                 <th className="py-2.5 pr-4 font-semibold">Date</th>
                 <th className="py-2.5 pr-4 font-semibold">Amount</th>
                 <th className="py-2.5 pr-4 font-semibold">Fee</th>
@@ -211,7 +211,7 @@ async function WithdrawalsPanel({ agentId }: { agentId: string }) {
                 <th className="py-2.5 font-semibold">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-black/5">
+            <tbody className="divide-y divide-niki-edge">
               {rows.map((w) => (
                 <tr key={w.id} className="transition-colors hover:bg-niki-surface/70">
                   <td className="py-3 pr-4 whitespace-nowrap text-xs text-niki-ink/55">

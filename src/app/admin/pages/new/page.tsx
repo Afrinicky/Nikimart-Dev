@@ -15,7 +15,7 @@ export default function NewPagePage() {
       </Link>
       <h1 className="mt-3 font-display text-2xl font-bold text-niki-ink">New page</h1>
       <p className="mt-1 text-sm text-niki-ink/60">Create a blank page, then add section blocks to it.</p>
-      <div className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <div className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <PageForm />
       </div>
     </Container>

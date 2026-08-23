@@ -15,7 +15,7 @@ export function EmptyState({
   actionHref?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl bg-white px-6 py-16 text-center ring-1 ring-black/5">
+    <div className="flex flex-col items-center justify-center rounded-2xl bg-white px-6 py-16 text-center ring-1 ring-niki-edge">
       {icon ? (
         <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-niki-surface text-niki-orange">
           {icon}

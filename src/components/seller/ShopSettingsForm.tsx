@@ -34,7 +34,7 @@ export function ShopSettingsForm({ shop, hubs = [] }: { shop: Shop; hubs?: { id:
         <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
       ) : null}
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Shop profile</h2>
         <div className="mt-4 space-y-4">
           <Field label="Shop name" htmlFor="businessName" hint={state.fieldErrors?.businessName}>
@@ -46,7 +46,7 @@ export function ShopSettingsForm({ shop, hubs = [] }: { shop: Shop; hubs?: { id:
         </div>
       </section>
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Shop branding</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
           Add a logo and a cover banner. These appear on your shop page and in the preview when your shop is
@@ -63,7 +63,7 @@ export function ShopSettingsForm({ shop, hubs = [] }: { shop: Shop; hubs?: { id:
         </div>
       </section>
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Delivery options</h2>
         <p className="mt-1 text-sm text-niki-ink/60">How buyers can receive orders from your shop.</p>
         <div className="mt-4 space-y-3">
@@ -81,7 +81,7 @@ export function ShopSettingsForm({ shop, hubs = [] }: { shop: Shop; hubs?: { id:
       </section>
 
       {hubs.length > 0 ? (
-        <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+        <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
           <h2 className="font-display text-lg font-bold text-niki-ink">Origin / consolidation hub</h2>
           <p className="mt-1 text-sm text-niki-ink/60">
             The NikiMart hub nearest you, where your goods are gathered before shipping to buyers. This sets
@@ -102,7 +102,7 @@ export function ShopSettingsForm({ shop, hubs = [] }: { shop: Shop; hubs?: { id:
         </section>
       ) : null}
 
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Payout details</h2>
         <p className="mt-1 text-sm text-niki-ink/60">Where NikiMart sends your earnings. Required before you can request a payout.</p>
         <div className="mt-4 space-y-4">

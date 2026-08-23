@@ -59,11 +59,11 @@ function Tile({
     </>
   );
 
-  if (!href) return <div className="rounded-2xl bg-white p-5 ring-1 ring-black/5">{body}</div>;
+  if (!href) return <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">{body}</div>;
   return (
     <ActionLink
       href={href}
-      className="group niki-lift block rounded-2xl bg-white p-5 ring-1 ring-black/5 hover:shadow-lg"
+      className="group niki-lift block rounded-2xl bg-white p-5 ring-1 ring-niki-edge hover:shadow-lg"
     >
       {body}
     </ActionLink>
@@ -161,7 +161,7 @@ export default async function AgentDashboardPage() {
       {/* Share the store. The link is long, so it truncates and the copy
           button carries the full value — never let it push the card wider than
           the phone. */}
-      <div className="flex flex-col gap-3 overflow-hidden rounded-2xl bg-white p-5 ring-1 ring-black/5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 overflow-hidden rounded-2xl bg-white p-5 ring-1 ring-niki-edge sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="flex items-center gap-2 font-display font-bold text-niki-ink">
             <Link2 className="h-4 w-4 shrink-0 text-niki-orange" />
@@ -174,7 +174,7 @@ export default async function AgentDashboardPage() {
             value={storeLink}
             label="Copy link"
             hideValue
-            className="bg-niki-surface text-niki-ink/70 ring-1 ring-black/5 hover:bg-niki-navy/5"
+            className="bg-niki-surface text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5"
           />
           <ActionLink
             href="/agent/store?tab=link"
@@ -196,7 +196,7 @@ export default async function AgentDashboardPage() {
           </div>
           <ActionLink
             href="/agent/orders"
-            className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-black/5 hover:bg-niki-navy/5"
+            className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5"
           >
             <ListOrdered className="h-3.5 w-3.5" />
             Check delivery status

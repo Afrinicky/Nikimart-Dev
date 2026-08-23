@@ -51,7 +51,7 @@ export default async function AccountPage() {
     <>
       <PageHeader title={`Hi, ${user.name ?? "there"}`} crumbs={[{ label: "Account" }]}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="flex items-center gap-2 rounded-full bg-niki-surface px-4 py-2 text-sm font-medium text-niki-ink/70 ring-1 ring-black/5">
+          <span className="flex items-center gap-2 rounded-full bg-niki-surface px-4 py-2 text-sm font-medium text-niki-ink/70 ring-1 ring-niki-edge">
             <User className="h-4 w-4 text-niki-orange" />
             {ROLE_LABELS[user.role]}
           </span>
@@ -90,7 +90,7 @@ export default async function AccountPage() {
             </Link>
           </div>
         ) : program.enabled ? (
-          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl bg-white p-5 ring-1 ring-black/5">
+          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
             <Smartphone className="h-5 w-5 shrink-0 text-niki-orange" />
             <p className="flex-1 text-sm text-niki-ink/70">
               Resell data bundles under your own store name — nothing to pay up front.
@@ -113,7 +113,7 @@ export default async function AccountPage() {
 
         <h2 className="mt-8 font-display text-lg font-bold text-niki-ink">Recent orders</h2>
         {orders.length === 0 ? (
-          <div className="mt-4 rounded-2xl bg-white p-8 text-center ring-1 ring-black/5">
+          <div className="mt-4 rounded-2xl bg-white p-8 text-center ring-1 ring-niki-edge">
             <Package className="mx-auto h-8 w-8 text-niki-ink/30" />
             <p className="mt-3 text-sm text-niki-ink/60">You haven&apos;t placed any orders yet.</p>
             <Link
@@ -128,7 +128,7 @@ export default async function AccountPage() {
             {orders.map((order) => (
               <div
                 key={order.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-5 ring-1 ring-black/5"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-5 ring-1 ring-niki-edge"
               >
                 <div>
                   <p className="font-semibold text-niki-ink">Order {order.orderNumber}</p>
@@ -162,7 +162,7 @@ export default async function AccountPage() {
             <Link
               key={title}
               href={href}
-              className="group rounded-2xl bg-white p-5 ring-1 ring-black/5 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-niki-navy/5"
+              className="group rounded-2xl bg-white p-5 ring-1 ring-niki-edge transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-niki-navy/5"
             >
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-niki-navy text-niki-orange transition-colors group-hover:bg-niki-orange group-hover:text-white">
                 <Icon className="h-5 w-5" />

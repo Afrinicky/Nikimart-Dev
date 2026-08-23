@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ActionLink } from "@/components/ui/motion";
 import {
   GalleryHorizontalEnd,
   HelpCircle,
@@ -49,19 +49,19 @@ export function AdminNav() {
       {TABS.map(({ href, label, icon: Icon, exact }) => {
         const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
         return (
-          <Link
+          <ActionLink
             key={href}
             href={href}
             className={cn(
               "flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
               active
                 ? "bg-niki-navy text-white"
-                : "bg-white text-niki-ink/70 ring-1 ring-black/5 hover:bg-niki-navy/5",
+                : "bg-white text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5",
             )}
           >
             <Icon className="h-4 w-4" />
             {label}
-          </Link>
+          </ActionLink>
         );
       })}
     </nav>

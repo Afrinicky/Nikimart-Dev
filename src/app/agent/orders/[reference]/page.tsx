@@ -67,7 +67,7 @@ export default async function AgentOrderDetailPage({
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="Package details" icon={Package}>
-          <dl className="divide-y divide-black/5">
+          <dl className="divide-y divide-niki-edge">
             <Row label="Network" value={networkLabel(order.network)} />
             <Row label="Data size" value={bundleLabel(order.sizeGb)} />
             <Row label="Price charged" value={formatMoney(order.price)} />
@@ -101,7 +101,7 @@ export default async function AgentOrderDetailPage({
         </Card>
 
         <Card title="Customer & delivery" icon={Phone}>
-          <dl className="divide-y divide-black/5">
+          <dl className="divide-y divide-niki-edge">
             <Row
               label="Number topped up"
               value={<span className="font-mono">{order.recipientPhone}</span>}
@@ -117,7 +117,7 @@ export default async function AgentOrderDetailPage({
         </Card>
 
         <Card title="Payment & fulfilment" icon={CreditCard} className="lg:col-span-2">
-          <dl className="divide-y divide-black/5">
+          <dl className="divide-y divide-niki-edge">
             <Row label="Payment status" value={<PaymentPill status={order.paymentStatus} />} />
             <Row label="Order status" value={<StatusPill status={order.status} />} />
             {order.providerCode ? (
