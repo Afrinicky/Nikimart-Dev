@@ -42,8 +42,8 @@ export async function requestResetOtp(_prev: ResetState, fd: FormData): Promise<
   // Throttled per identifier and per source address; the response is unchanged
   // either way so this still never reveals whether an account exists.
   const ip = await clientIp();
-  const perIdentifier = rateLimit(`reset:id:${identifier.toLowerCase()}`, 3, 15 * 60 * 1000);
-  const perIp = rateLimit(`reset:ip:${ip}`, 10, 15 * 60 * 1000);
+  const perIdentifier = await rateLimit(`reset:id:${identifier.toLowerCase()}`, 3, 15 * 60 * 1000);
+  const perIp = await rateLimit(`reset:ip:${ip}`, 10, 15 * 60 * 1000);
   if (!perIdentifier.ok || !perIp.ok) {
     const wait = Math.max(perIdentifier.retryAfter, perIp.retryAfter);
     return { error: `Too many reset requests. Please try again in ${retryAfterLabel(wait)}.` };
@@ -108,7 +108,7 @@ export async function resetWithOtp(_prev: ResetState, fd: FormData): Promise<Res
 
   // Cap verification attempts per source too — the per-token counter alone
   // can be sidestepped by requesting new codes.
-  const verifyLimit = rateLimit(`reset-verify:ip:${await clientIp()}`, 20, 15 * 60 * 1000);
+  const verifyLimit = await rateLimit(`reset-verify:ip:${await clientIp()}`, 20, 15 * 60 * 1000);
   if (!verifyLimit.ok) {
     return { error: `Too many attempts. Please try again in ${retryAfterLabel(verifyLimit.retryAfter)}.` };
   }

@@ -58,7 +58,7 @@ export async function lookupOrders(rawQuery: string | undefined): Promise<Lookup
 
   const h = await headers();
   const ip = (h.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || "unknown";
-  const limit = rateLimit(`data-lookup:${ip}`, 20, 5 * 60_000);
+  const limit = await rateLimit(`data-lookup:${ip}`, 20, 5 * 60_000);
   if (!limit.ok) {
     return {
       state: "error",

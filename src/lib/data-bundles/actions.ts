@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { initializeTransaction, isPaymentConfigured, toPesewas } from "@/lib/payments";
 import { getDataStoreConfig } from "@/lib/settings";
+import { callbackOrigin } from "@/lib/site";
 import { findSellableBundle } from "@/lib/data-bundles/catalog";
 import {
   agentIsSelling,
@@ -29,14 +30,6 @@ import {
  * number is the whole identity — so every one of these is reachable by anyone
  * and is rate-limited and re-priced server-side accordingly.
  */
-
-/** Absolute origin of the current request, for Paystack callback URLs. */
-async function requestOrigin(): Promise<string> {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
 
 /** Best-effort client IP, for rate-limit buckets. */
 async function clientIp(): Promise<string> {
@@ -90,7 +83,7 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
 
   // One buyer shouldn't be able to spray orders — a burst of failed provider
   // calls costs real money upstream.
-  const limit = rateLimit(`bundle:${buyerPhone}:${await clientIp()}`, 8, 10 * 60_000);
+  const limit = await rateLimit(`bundle:${buyerPhone}:${await clientIp()}`, 8, 10 * 60_000);
   if (!limit.ok) {
     return {
       ok: false,
@@ -168,7 +161,7 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
           email: buyerEmail ?? `${buyerPhone}@data.nikimart.app`,
           amountPesewas: toPesewas(bundle.price),
           reference,
-          callbackUrl: `${await requestOrigin()}${agent ? `/store/${agent.slug}/verify` : "/data-bundles/verify"}`,
+          callbackUrl: `${callbackOrigin()}${agent ? `/store/${agent.slug}/verify` : "/data-bundles/verify"}`,
           metadata: {
             kind: "data-bundle",
             dataOrderId: order.id,
@@ -239,7 +232,7 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
     return { ok: false, error: "Enter a valid date of birth." };
   }
 
-  const limit = rateLimit(`afa:${phoneNumber}:${await clientIp()}`, 4, 30 * 60_000);
+  const limit = await rateLimit(`afa:${phoneNumber}:${await clientIp()}`, 4, 30 * 60_000);
   if (!limit.ok) {
     return {
       ok: false,
@@ -293,7 +286,7 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
           email: `${phoneNumber}@data.nikimart.app`,
           amountPesewas: toPesewas(price),
           reference,
-          callbackUrl: `${await requestOrigin()}${agent ? `/store/${agent.slug}/verify` : "/data-bundles/verify"}`,
+          callbackUrl: `${callbackOrigin()}${agent ? `/store/${agent.slug}/verify` : "/data-bundles/verify"}`,
           metadata: {
             kind: "afa-registration",
             afaId: row.id,

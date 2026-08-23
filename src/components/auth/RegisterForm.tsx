@@ -18,7 +18,7 @@ export function RegisterForm({
     <form action={formAction} className="mt-6 space-y-4" noValidate>
       {callbackUrl ? <input type="hidden" name="callbackUrl" value={callbackUrl} /> : null}
       {state.error ? (
-        <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
+        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
           {state.error}
         </p>
       ) : null}
@@ -28,6 +28,8 @@ export function RegisterForm({
           id="name"
           name="name"
           type="text"
+          defaultValue={state.values?.name ?? ""}
+          key={state.values?.name ?? ""}
           autoComplete="name"
           required
           placeholder="Ama Mensah"
@@ -39,6 +41,8 @@ export function RegisterForm({
           id="email"
           name="email"
           type="email"
+          defaultValue={state.values?.email ?? ""}
+          key={state.values?.email ?? ""}
           autoComplete="email"
           required
           placeholder="you@example.com"
@@ -50,6 +54,8 @@ export function RegisterForm({
           id="phone"
           name="phone"
           type="tel"
+          defaultValue={state.values?.phone ?? ""}
+          key={state.values?.phone ?? ""}
           autoComplete="tel"
           placeholder="024 000 0000"
           className={inputClass}

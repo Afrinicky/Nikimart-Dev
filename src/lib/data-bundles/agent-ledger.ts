@@ -25,22 +25,59 @@ export interface LedgerEntry {
   amount: number;
   narration: string;
   reference?: string | null;
+  /**
+   * Apply this debit only while the balance is at least `requireBalance`.
+   *
+   * Checking the balance in application code and then debiting is two steps,
+   * and two withdrawal requests that arrive together can both pass the check
+   * before either one writes — the balance goes negative and the agent is paid
+   * twice. Set this and the balance is tested and decremented in a single
+   * conditional UPDATE, so the second one finds the money gone.
+   */
+  requireBalance?: number;
+}
+
+/** Thrown by postLedgerEntry when `requireBalance` is no longer satisfied. */
+export class InsufficientBalanceError extends Error {
+  constructor() {
+    super("INSUFFICIENT_BALANCE");
+    this.name = "InsufficientBalanceError";
+  }
 }
 
 /**
  * Apply one entry. Returns the balance afterwards, or null when the agent has
  * gone away. `tx` lets a caller fold this into a larger transaction.
+ *
+ * Throws InsufficientBalanceError when `requireBalance` was set and the balance
+ * had already moved below it.
  */
 export async function postLedgerEntry(
   entry: LedgerEntry,
   tx: Pick<typeof prisma, "dataAgent" | "dataAgentLedger"> = prisma,
 ): Promise<number | null> {
   const amount = round2(entry.amount);
-  const agent = await tx.dataAgent.update({
-    where: { id: entry.agentId },
-    data: { balance: { increment: amount } },
-    select: { balance: true },
-  });
+
+  if (entry.requireBalance !== undefined) {
+    // One statement: the balance is both the guard and the thing being
+    // changed, so nothing can slip between reading it and spending it.
+    const claimed = await tx.dataAgent.updateMany({
+      where: { id: entry.agentId, balance: { gte: entry.requireBalance } },
+      data: { balance: { increment: amount } },
+    });
+    if (claimed.count === 0) throw new InsufficientBalanceError();
+  }
+
+  const agent = entry.requireBalance !== undefined
+    ? await tx.dataAgent.findUniqueOrThrow({
+        where: { id: entry.agentId },
+        select: { balance: true },
+      })
+    : await tx.dataAgent.update({
+        where: { id: entry.agentId },
+        data: { balance: { increment: amount } },
+        select: { balance: true },
+      });
   const balanceAfter = round2(agent.balance);
   await tx.dataAgentLedger.create({
     data: {

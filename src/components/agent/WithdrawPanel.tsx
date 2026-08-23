@@ -48,7 +48,7 @@ export function WithdrawPanel({
   // The fee comes out of the balance alongside the payout, so the most that can
   // actually be requested is the available amount less the fee. Same helper the
   // server validates with, so the form never offers a number it would reject.
-  const maxRequest = maxWithdrawal(available, 0, withdrawalFee);
+  const maxRequest = maxWithdrawal(available, withdrawalFee);
   const canWithdraw = maxRequest >= minWithdrawal;
 
   async function submit(e: React.FormEvent) {

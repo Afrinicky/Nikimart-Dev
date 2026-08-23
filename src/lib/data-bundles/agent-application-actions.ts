@@ -75,7 +75,7 @@ export async function checkStoreName(raw: string): Promise<SlugCheck> {
   // Unauthenticated and one query per call, so cap it. The allowance is
   // generous — a debounced field fires a handful of times per name — but it
   // stops the endpoint being used to walk the slug space.
-  const limit = rateLimit(`slug-check:${await clientIp()}`, 60, 5 * 60_000);
+  const limit = await rateLimit(`slug-check:${await clientIp()}`, 60, 5 * 60_000);
   if (!limit.ok) {
     return { state: "invalid", message: "Too many checks. Please wait a moment and try again." };
   }
@@ -139,7 +139,7 @@ export async function applyToBeAgent(
 
   // Applications are free to submit, so rate-limit them or the queue becomes
   // someone's plaything.
-  const limit = rateLimit(`agent-apply:${await clientIp()}`, 5, 60 * 60_000);
+  const limit = await rateLimit(`agent-apply:${await clientIp()}`, 5, 60 * 60_000);
   if (!limit.ok) {
     return { error: `Too many applications from here. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }
@@ -411,7 +411,7 @@ export async function completeAgentSetup(
   if (password !== confirm) return { error: "Both passwords must match." };
   if (storeName.length < 2) return { error: "Give your store a name." };
 
-  const limit = rateLimit(`agent-setup:${await clientIp()}`, 10, 15 * 60_000);
+  const limit = await rateLimit(`agent-setup:${await clientIp()}`, 10, 15 * 60_000);
   if (!limit.ok) {
     return { error: `Too many attempts. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }
@@ -443,21 +443,26 @@ export async function completeAgentSetup(
       });
 
       // An applicant may already have shopped on NikiMart, in which case
-      // approval reused their account. Setting a password here would silently
-      // reset the one they already sign in with — so only fill an empty one.
+      // approval reused their account.
+      //
+      // Nothing here has proved the applicant owns that email — they typed it
+      // on a public form. So an account that already has a password is left
+      // exactly as it is: not the password (that would reset the one its owner
+      // signs in with), and not the name or phone either (whoever redeemed
+      // this link would otherwise be rewriting a stranger's profile). Only an
+      // account this approval created — no password, nothing to overwrite —
+      // gets filled in from the application.
       const user = await tx.user.findUniqueOrThrow({
         where: { id: agent.userId },
         select: { passwordHash: true },
       });
       hadPassword = Boolean(user.passwordHash);
-      await tx.user.update({
-        where: { id: agent.userId },
-        data: {
-          ...(hadPassword ? {} : { passwordHash }),
-          name: application.fullName,
-          phone: application.phone,
-        },
-      });
+      if (!hadPassword) {
+        await tx.user.update({
+          where: { id: agent.userId },
+          data: { passwordHash, name: application.fullName, phone: application.phone },
+        });
+      }
       await tx.dataAgent.update({
         where: { id: application.agentId! },
         data: { storeName },

@@ -20,6 +20,13 @@ async function clientIp(): Promise<string> {
 export type AuthFormState = {
   error?: string;
   fieldErrors?: Record<string, string>;
+  /**
+   * What was typed, echoed back so a rejected attempt doesn't empty the form.
+   * Never the password: it goes back down the wire into the HTML, and the one
+   * field nobody should have to retype is also the one field that must not be
+   * sent back.
+   */
+  values?: { email?: string; name?: string; phone?: string };
 };
 
 const registerSchema = z.object({
@@ -63,6 +70,12 @@ export async function registerAction(
   _prev: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
+  const values = {
+    name: String(formData.get("name") ?? "").trim(),
+    email: String(formData.get("email") ?? "").trim(),
+    phone: String(formData.get("phone") ?? "").trim(),
+  };
+
   const parsed = registerSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
@@ -78,14 +91,17 @@ export async function registerAction(
       const key = issue.path[0];
       if (typeof key === "string" && !fieldErrors[key]) fieldErrors[key] = issue.message;
     }
-    return { error: "Please fix the highlighted fields.", fieldErrors };
+    return { error: "Please fix the highlighted fields.", fieldErrors, values };
   }
 
   // Cap sign-ups from one address so the register form can't be used to bulk
   // create accounts (or to probe which emails are already taken).
-  const signupLimit = rateLimit(`register:ip:${await clientIp()}`, 5, 60 * 60 * 1000);
+  const signupLimit = await rateLimit(`register:ip:${await clientIp()}`, 5, 60 * 60 * 1000);
   if (!signupLimit.ok) {
-    return { error: `Too many accounts created from here. Please try again in ${retryAfterLabel(signupLimit.retryAfter)}.` };
+    return {
+      error: `Too many accounts created from here. Please try again in ${retryAfterLabel(signupLimit.retryAfter)}.`,
+      values,
+    };
   }
 
   const email = parsed.data.email.toLowerCase();
@@ -94,6 +110,7 @@ export async function registerAction(
     return {
       error: "An account with that email already exists.",
       fieldErrors: { email: "Email already registered." },
+      values,
     };
   }
 
@@ -141,6 +158,9 @@ export async function loginAction(
   _prev: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
+  const typedEmail = String(formData.get("email") ?? "").trim();
+  const values = { email: typedEmail };
+
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -152,7 +172,7 @@ export async function loginAction(
       const key = issue.path[0];
       if (typeof key === "string" && !fieldErrors[key]) fieldErrors[key] = issue.message;
     }
-    return { error: "Please fix the highlighted fields.", fieldErrors };
+    return { error: "Please fix the highlighted fields.", fieldErrors, values };
   }
 
   const identifier = parsed.data.email.trim();
@@ -163,11 +183,11 @@ export async function loginAction(
   const ip = await clientIp();
   const accountKey = `login:id:${identifier.toLowerCase()}`;
   const ipKey = `login:ip:${ip}`;
-  const perAccount = rateLimit(accountKey, 8, 15 * 60 * 1000);
-  const perIp = rateLimit(ipKey, 30, 15 * 60 * 1000);
+  const perAccount = await rateLimit(accountKey, 8, 15 * 60 * 1000);
+  const perIp = await rateLimit(ipKey, 30, 15 * 60 * 1000);
   if (!perAccount.ok || !perIp.ok) {
     const wait = Math.max(perAccount.retryAfter, perIp.retryAfter);
-    return { error: `Too many sign-in attempts. Please try again in ${retryAfterLabel(wait)}.` };
+    return { error: `Too many sign-in attempts. Please try again in ${retryAfterLabel(wait)}.`, values };
   }
 
   const user = await findUserByIdentifier(identifier);
@@ -181,12 +201,12 @@ export async function loginAction(
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return { error: "Invalid email or password." };
+      return { error: "Invalid email or password.", values };
     }
     // signIn throws NEXT_REDIRECT on success — the attempt worked, so clear the
     // counters before re-throwing so navigation still happens.
-    clearRateLimit(accountKey);
-    clearRateLimit(ipKey);
+    await clearRateLimit(accountKey);
+    await clearRateLimit(ipKey);
     throw error;
   }
 

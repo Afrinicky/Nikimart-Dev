@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers, cookies } from "next/headers";
+import { cookies } from "next/headers";
 import { after } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { callbackOrigin } from "@/lib/site";
 import { requireUser } from "@/lib/session";
 import { getShippingRates, getCommissionRate, getAffiliateRate } from "@/lib/settings";
 import { REFERRAL_COOKIE } from "@/lib/affiliate";
@@ -43,14 +44,6 @@ class OutOfStockError extends Error {
 
 function orderNumber(): string {
   return `NM-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 900 + 100)}`;
-}
-
-/** Absolute origin of the current request, for building Paystack callback URLs. */
-async function requestOrigin(): Promise<string> {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
 }
 
 export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResult> {
@@ -264,7 +257,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
             email: user.email ?? `${user.id}@nikimart.app`,
             amountPesewas: toPesewas(total),
             reference: order.orderNumber,
-            callbackUrl: `${await requestOrigin()}/checkout/verify`,
+            callbackUrl: `${callbackOrigin()}/checkout/verify`,
             metadata: { orderId: order.id, userId: user.id },
           });
           return { ok: true, orderNumber: order.orderNumber, authorizationUrl };

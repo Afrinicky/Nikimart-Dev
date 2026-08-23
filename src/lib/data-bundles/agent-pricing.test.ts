@@ -51,13 +51,14 @@ test("the agent price sits under retail but never under provider cost", () => {
   assert.equal(agentPriceFromRetail(6, 50, 4.2), 4.2);
 });
 
-test("a withdrawal is capped by the balance, pending requests and the fee", () => {
-  assert.equal(maxWithdrawal(100, 0, 1), 99);
-  // 40 already committed to a request an admin hasn't sent yet.
-  assert.equal(maxWithdrawal(100, 40, 1), 59);
+test("a withdrawal is capped by the balance and the fee", () => {
+  assert.equal(maxWithdrawal(100, 1), 99);
+  // A request already made has already been debited, so what is left of the
+  // balance is withdrawable — it must not be held back a second time.
+  assert.equal(maxWithdrawal(49, 1), 48);
   // Nothing available never goes negative.
-  assert.equal(maxWithdrawal(0.5, 0, 1), 0);
-  assert.equal(maxWithdrawal(-30, 0, 1), 0);
+  assert.equal(maxWithdrawal(0.5, 1), 0);
+  assert.equal(maxWithdrawal(-30, 1), 0);
 });
 
 test("the setup fee shows as outstanding only while the balance is negative", () => {

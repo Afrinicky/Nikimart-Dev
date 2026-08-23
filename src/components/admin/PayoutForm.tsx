@@ -28,7 +28,7 @@ export function PayoutForm({
   return (
     <form action={formAction} className="space-y-5" noValidate>
       {state.error ? (
-        <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
+        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
       ) : null}
       <input type="hidden" name={hiddenName} value={hiddenValue} />
 

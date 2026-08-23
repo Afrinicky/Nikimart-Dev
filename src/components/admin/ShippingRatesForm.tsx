@@ -32,7 +32,7 @@ export function ShippingRatesForm({
   return (
     <form action={formAction} className="space-y-8">
       {state.error ? (
-        <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
+        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
       ) : null}
       {state.ok ? (
         <p className="rounded-xl bg-niki-success/10 px-4 py-3 text-sm font-medium text-niki-success">Shipping rates saved ✓</p>
