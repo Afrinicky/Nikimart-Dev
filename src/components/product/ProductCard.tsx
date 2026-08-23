@@ -48,11 +48,11 @@ export function ProductCard({
         </div>
 
         {discount ? (
-          <div className="absolute right-2 top-2 rounded-full bg-niki-danger px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+          <div className="absolute right-2 top-2 rounded-full bg-red-600 px-2 py-[3px] text-[10px] font-bold text-white shadow-[0_1px_3px_rgba(7,17,31,0.32)]">
             -{discount}%
           </div>
         ) : (
-          <div className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-niki-ink/50 shadow-sm">
+          <div className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white text-niki-ink/60 shadow-[0_1px_3px_rgba(7,17,31,0.32)]">
             <Heart className="h-3.5 w-3.5" />
           </div>
         )}

@@ -18,22 +18,37 @@ import {
 import { BADGE_LABELS, type BadgeKind } from "@/lib/types";
 import { cn } from "@/lib/cn";
 
+/**
+ * Badges are solid, never tinted.
+ *
+ * They used to be a 10%-opacity wash of their own colour with coloured text —
+ * which looks well-mannered on a white card and disappears completely the
+ * moment it sits on a product photo. Half of them ride on top of the image, so
+ * "In Stock" over a dark ribbed background or a busy kitchen shot was a faint
+ * smudge. Jumia and Alibaba both solve this the same way: a flat block of
+ * colour that carries its own contrast and owes nothing to what is behind it.
+ *
+ * Every pairing below clears 4.5:1, which is why some of the colours are a step
+ * darker than the brand swatch — white on #10b981 is 2.1:1 and unreadable at
+ * 10px. Orange keeps ink text rather than white for the same reason: white on
+ * NikiMart orange is 2.4:1, ink on it is 6.7:1.
+ */
 const BADGE_STYLES: Record<BadgeKind, string> = {
-  in_stock: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
-  preorder: "bg-niki-navy text-niki-gold ring-1 ring-niki-gold/40",
-  same_day_delivery: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
-  pickup_available: "bg-niki-surface text-niki-navy ring-1 ring-niki-navy/15",
-  campus_delivery: "bg-niki-orange/10 text-niki-orange ring-1 ring-niki-orange/30",
-  verified_seller: "bg-blue-50 text-blue-600 ring-1 ring-blue-200",
-  official: "bg-niki-navy text-niki-orange ring-1 ring-niki-orange/40",
-  deposit_required: "bg-amber-50 text-amber-700 ring-1 ring-amber-300",
-  imported_item: "bg-niki-navy-soft/10 text-niki-navy ring-1 ring-niki-navy/20",
-  local_shop: "bg-niki-surface text-niki-ink ring-1 ring-niki-ink/10",
-  service: "bg-teal-50 text-teal-700 ring-1 ring-teal-200",
-  limited_stock: "bg-niki-danger/10 text-niki-danger ring-1 ring-niki-danger/30",
-  flash_sale: "bg-niki-danger text-white ring-1 ring-niki-danger/40",
-  food_vendor: "bg-niki-orange/10 text-niki-orange ring-1 ring-niki-orange/30",
-  top_rated: "bg-niki-gold/15 text-amber-700 ring-1 ring-niki-gold/40",
+  in_stock: "bg-emerald-700 text-white",
+  preorder: "bg-niki-navy text-niki-gold",
+  same_day_delivery: "bg-emerald-700 text-white",
+  pickup_available: "bg-niki-navy text-white",
+  campus_delivery: "bg-niki-orange text-niki-navy",
+  verified_seller: "bg-blue-600 text-white",
+  official: "bg-niki-navy text-niki-orange",
+  deposit_required: "bg-amber-700 text-white",
+  imported_item: "bg-niki-navy-soft text-white",
+  local_shop: "bg-slate-700 text-white",
+  service: "bg-teal-700 text-white",
+  limited_stock: "bg-red-600 text-white",
+  flash_sale: "bg-red-600 text-white",
+  food_vendor: "bg-niki-orange text-niki-navy",
+  top_rated: "bg-niki-gold text-niki-navy",
 };
 
 const BADGE_ICONS: Partial<Record<BadgeKind, LucideIcon>> = {
@@ -67,8 +82,14 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full font-semibold whitespace-nowrap",
-        size === "sm" ? "px-2 py-0.5 text-[10px]" : "px-3 py-1 text-xs",
+        // The pale ring and the shadow are doing real work. A solid badge is
+        // legible against almost anything, but not against its own colour — a
+        // red discount tag on a red dress vanished completely. The hairline
+        // gives every badge an edge of its own; it disappears on white, where
+        // the badge already contrasts, and rescues it everywhere else.
+        "inline-flex items-center gap-1 rounded-full font-bold whitespace-nowrap",
+        "ring-1 ring-white/70 shadow-[0_1px_3px_rgba(7,17,31,0.32)]",
+        size === "sm" ? "px-2 py-[3px] text-[10px]" : "px-3 py-1 text-xs",
         BADGE_STYLES[kind],
         className,
       )}
