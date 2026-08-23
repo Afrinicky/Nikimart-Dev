@@ -43,6 +43,10 @@ model User {
   passwordResets  PasswordResetToken[]
   affiliate       Affiliate?
   dataAgent       DataAgent?
+  /**
+   * When this person accepted the terms at registration.
+   */
+  termsAcceptedAt DateTime?
 }
 
 // Single-use, time-limited password-reset tokens. Only the SHA-256 hash of the
@@ -166,8 +170,12 @@ model Vendor {
   ownerId String? @unique
   owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
-  products Product[]
-  payouts  Payout[]
+  products        Product[]
+  payouts         Payout[]
+  /**
+   * When the shop owner accepted the seller policy.
+   */
+  termsAcceptedAt DateTime?
 }
 
 // Seller settlement records. Created by admins in the Finance console to pay a
@@ -857,8 +865,12 @@ model DataAgentApplication {
    */
   agentId        String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  /**
+   * When the applicant accepted the agent policy.
+   */
+  termsAcceptedAt DateTime?
 
   @@index([status, createdAt])
   @@index([email])
@@ -885,4 +897,24 @@ model RateLimit {
   resetAt DateTime
 
   @@index([resetAt])
+}
+
+/**
+ * A published policy — terms, privacy, returns, the agent and seller policies.
+ * A row exists only once an admin has edited that policy; until then the page
+ * publishes the built-in text in lib/legal.ts. That way a fresh database has
+ * complete policies rather than empty ones, and editing is a save rather than
+ * a deploy — which matters for a document people must accept to register.
+ */
+model LegalPolicy {
+  slug  String @id
+  title String
+  intro String @default("")
+  /**
+   * The whole document; `## ` starts a section.
+   */
+  body  String
+
+  updatedAt DateTime @updatedAt
+  updatedBy String   @default("")
 }

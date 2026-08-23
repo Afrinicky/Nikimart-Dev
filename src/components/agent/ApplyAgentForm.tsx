@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { Check, Loader2, Send, X } from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/ui/motion";
+import { AcceptTerms } from "@/components/ui/AcceptTerms";
 import { normaliseSlugClient } from "@/lib/data-bundles/slug";
 import {
   applyToBeAgent,
@@ -188,6 +189,8 @@ export function ApplyAgentForm({ origin }: { origin: string }) {
       >
         <textarea id="note" name="note" rows={3} className={`${inputClass} resize-y`} />
       </Field>
+
+      <AcceptTerms audience="agent" error={state.termsError} />
 
       <SubmitButton
         pendingLabel="Sending…"

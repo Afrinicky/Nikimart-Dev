@@ -18,6 +18,7 @@ import {
   Users,
   Wallet,
   Gift,
+  Scale,
   Signal,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -38,6 +39,7 @@ const TABS = [
   { href: "/admin/pickup-points", label: "Pickup", icon: PackageCheck },
   { href: "/admin/shipping", label: "Shipping", icon: Truck },
   { href: "/admin/faqs", label: "FAQs", icon: HelpCircle },
+  { href: "/admin/legal", label: "Policies", icon: Scale },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
@@ -55,8 +57,8 @@ export function AdminNav() {
             className={cn(
               "flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
               active
-                ? "bg-niki-navy text-white"
-                : "bg-white text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5",
+                ? "niki-chip-active bg-niki-navy text-white"
+                : "niki-chip text-niki-ink/75 hover:text-niki-ink",
             )}
           >
             <Icon className="h-4 w-4" />

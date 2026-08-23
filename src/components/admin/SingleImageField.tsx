@@ -83,7 +83,7 @@ export function SingleImageField({
           <button
             type="button"
             onClick={() => setValue("")}
-            className="flex items-center gap-1.5 rounded-full bg-niki-surface px-3 py-1.5 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:text-niki-danger"
+            className="niki-chip flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-niki-ink/75 hover:text-niki-danger"
           >
             <Trash2 className="h-3.5 w-3.5" />
             Remove

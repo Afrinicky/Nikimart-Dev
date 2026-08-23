@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
+import { AcceptTerms } from "@/components/ui/AcceptTerms";
 import { registerVendor, type VendorRegisterState } from "@/lib/seller-actions";
 import { SELLER_TYPE_LABELS, type SellerType } from "@/lib/types";
 
@@ -193,10 +194,13 @@ export function VendorRegisterForm({
       </section>
 
       <div className="space-y-3">
+        <AcceptTerms audience="seller" error={state.fieldErrors?.acceptTerms} />
+
         <SubmitButton>Submit registration</SubmitButton>
         <p className="rounded-xl bg-niki-surface p-3 text-xs text-niki-ink/50">
-          By registering you agree to NikiMart&apos;s seller terms. Your shop starts as{" "}
-          <strong className="text-niki-ink/70">Pending verification</strong> — you can add products right away and go live once approved.
+          {/* The agreement is the checkbox above now, not a line of small print. */}
+          Your shop starts as <strong className="text-niki-ink/70">Pending verification</strong> — you
+          can add products right away and go live once approved.
         </p>
       </div>
     </form>

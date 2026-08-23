@@ -5,6 +5,7 @@ import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { signIn, signOut } from "@/lib/auth";
+import { termsAccepted, TERMS_REQUIRED_MESSAGE } from "@/lib/terms";
 import { prisma } from "@/lib/prisma";
 import { isRole, ROLE_HOME } from "@/lib/roles";
 import { findUserByIdentifier } from "@/lib/user-lookup";
@@ -76,13 +77,34 @@ export async function registerAction(
     phone: String(formData.get("phone") ?? "").trim(),
   };
 
+  // Consent is checked before anything else: nothing about this person should
+  // be written down until they have agreed to the terms it is kept under.
+  if (!termsAccepted(formData)) {
+    return {
+      error: TERMS_REQUIRED_MESSAGE,
+      fieldErrors: { acceptTerms: TERMS_REQUIRED_MESSAGE },
+      values,
+    };
+  }
+
+  // `formData.get` returns null for a field that isn't in the DOM, and a zod
+  // `.optional()` rejects null — it means "absent", not "empty". The pickup
+  // select is only rendered when there are pickup points to choose from, so on
+  // a site with none it was absent, arrived as null, and failed the schema:
+  // registration was impossible and the form said only "fix the highlighted
+  // fields", with nothing highlighted. Absent and empty both mean "not given".
+  const field = (name: string) => {
+    const raw = formData.get(name);
+    return typeof raw === "string" ? raw : undefined;
+  };
+
   const parsed = registerSchema.safeParse({
-    name: formData.get("name"),
-    email: formData.get("email"),
-    phone: formData.get("phone"),
-    password: formData.get("password"),
-    address: formData.get("address"),
-    preferredPickupId: formData.get("preferredPickupId"),
+    name: field("name"),
+    email: field("email"),
+    phone: field("phone"),
+    password: field("password"),
+    address: field("address"),
+    preferredPickupId: field("preferredPickupId"),
   });
 
   if (!parsed.success) {
@@ -133,6 +155,7 @@ export async function registerAction(
       phone: parsed.data.phone ?? null,
       passwordHash,
       role: "CUSTOMER",
+      termsAcceptedAt: new Date(),
       address: parsed.data.address ?? null,
       preferredPickupId,
     },

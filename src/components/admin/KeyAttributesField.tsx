@@ -48,7 +48,7 @@ export function KeyAttributesField({ initial = [] }: { initial?: KeyAttribute[] 
       <button
         type="button"
         onClick={() => setRows((prev) => [...prev, { label: "", value: "" }])}
-        className="mt-2 flex items-center gap-1.5 rounded-full bg-niki-surface px-3 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5"
+        className="niki-chip mt-2 flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold text-niki-ink/75 hover:text-niki-ink"
       >
         <Plus className="h-3.5 w-3.5" />
         Add attribute

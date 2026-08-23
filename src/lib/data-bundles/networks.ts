@@ -125,18 +125,30 @@ export const DATA_ORDER_STATUSES = [
 
 export type DataOrderStatus = (typeof DATA_ORDER_STATUSES)[number];
 
+/**
+ * One vocabulary, everywhere.
+ *
+ * "Paid" and "processing" both read as PROCESSING: the difference between
+ * money having landed and the bundle being dispatched is ours to manage, not
+ * something a customer can act on, and the admin sees payment state on its own
+ * pill anyway. What is left is the four words that actually mean something to
+ * whoever is waiting for their data — plus AWAITING PAYMENT, which is the one
+ * state they can do something about.
+ */
 export const DATA_STATUS_LABELS: Record<DataOrderStatus, string> = {
-  pending: "Awaiting payment",
-  paid: "Paid — queued",
-  processing: "Sending data",
-  completed: "Delivered",
-  failed: "Failed",
-  refunded: "Refunded",
+  pending: "AWAITING PAYMENT",
+  paid: "PROCESSING",
+  processing: "PROCESSING",
+  completed: "DELIVERED",
+  failed: "FAILED",
+  refunded: "REFUNDED",
 };
 
 export const DATA_STATUS_TONES: Record<DataOrderStatus, string> = {
   pending: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
-  paid: "bg-blue-50 text-blue-700 ring-1 ring-blue-200",
+  // Same words, so the same colour — two pills reading PROCESSING in different
+  // colours would look like a difference the customer is meant to understand.
+  paid: "bg-niki-trust/10 text-niki-trust ring-1 ring-niki-trust/30",
   processing: "bg-niki-trust/10 text-niki-trust ring-1 ring-niki-trust/30",
   completed: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
   failed: "bg-niki-danger/10 text-niki-danger ring-1 ring-niki-danger/30",

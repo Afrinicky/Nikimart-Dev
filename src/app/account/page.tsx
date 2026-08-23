@@ -51,7 +51,7 @@ export default async function AccountPage() {
     <>
       <PageHeader title={`Hi, ${user.name ?? "there"}`} crumbs={[{ label: "Account" }]}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="flex items-center gap-2 rounded-full bg-niki-surface px-4 py-2 text-sm font-medium text-niki-ink/70 ring-1 ring-niki-edge">
+          <span className="flex items-center gap-2 rounded-full bg-niki-surface px-4 py-2 text-sm font-medium text-niki-ink/70 ring-1 ring-niki-edge-strong">
             <User className="h-4 w-4 text-niki-orange" />
             {ROLE_LABELS[user.role]}
           </span>
