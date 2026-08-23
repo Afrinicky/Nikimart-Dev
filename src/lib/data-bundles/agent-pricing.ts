@@ -41,13 +41,18 @@ export function agentPriceFromRetail(
 }
 
 /**
- * How much of a withdrawal request an agent can actually make, given their
- * balance, anything already committed to a pending request, and the flat fee
- * that comes out alongside the payout.
+ * The most an agent may ask for right now.
+ *
+ * Only the balance and the fee come into it. A pending request has *already*
+ * been debited — requestWithdrawal posts the whole amount plus fee to the
+ * ledger the moment it is made, precisely so it can't be spent twice while an
+ * admin works through the queue — so subtracting it again here would hold back
+ * money the agent still has.
  */
-export function maxWithdrawal(balance: number, pending: number, fee: number): number {
-  return Math.max(0, round2(balance - pending - fee));
+export function maxWithdrawal(balance: number, fee: number): number {
+  return Math.max(0, round2(balance - fee));
 }
+
 
 /**
  * What is still outstanding on a setup fee.

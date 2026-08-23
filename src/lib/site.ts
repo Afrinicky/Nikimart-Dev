@@ -17,3 +17,28 @@ export function absoluteImageUrl(src: string | null | undefined): string | null 
   if (s.startsWith("/")) return `${siteUrl()}${s}`;
   return null;
 }
+
+/**
+ * The origin to hand a payment provider as a return address.
+ *
+ * Deliberately not derived from the request. `Host` and `X-Forwarded-Host` are
+ * whatever the caller sent: a request carrying `X-Forwarded-Host: evil.test`
+ * would otherwise have Paystack redirect the payer — mid-checkout, holding a
+ * live order reference — to somebody else's site. Only sources the deployment
+ * controls are trusted, in order of how specific they are:
+ *
+ *   1. NEXT_PUBLIC_SITE_URL — the canonical domain, set deliberately.
+ *   2. VERCEL_URL — this exact deployment, set by the platform, so preview
+ *      builds return to themselves instead of to production.
+ *   3. localhost — development, where there is no deployment to ask.
+ */
+export function callbackOrigin(): string {
+  const env = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (env) return env.replace(/\/+$/, "");
+
+  const vercel = process.env.VERCEL_URL?.trim();
+  if (vercel) return `https://${vercel.replace(/^https?:\/\//, "").replace(/\/+$/, "")}`;
+
+  const port = process.env.PORT?.trim() || "3000";
+  return `http://localhost:${port}`;
+}

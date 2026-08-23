@@ -1,20 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { after } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser, type SessionUser } from "@/lib/session";
 import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/settings";
+import { callbackOrigin } from "@/lib/site";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { initializeTransaction, isPaymentConfigured, toPesewas } from "@/lib/payments";
 import { newDataReference, settleDataOrder } from "@/lib/data-bundles/fulfillment";
 import { bundleLabel, networkLabel, NETWORKS } from "@/lib/data-bundles/networks";
 import { checkRecipient, parseGhPhone } from "@/lib/data-bundles/gh-phone";
-import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
+import { InsufficientBalanceError, postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import {
-  generateAgentCode,
   getAgentBundleRows,
   getAgentForUser,
   getAgentWallet,
@@ -26,11 +25,18 @@ import {
 import { maxWithdrawal, priceAtMarkup } from "@/lib/data-bundles/agent-pricing";
 
 /**
- * Everything an agent can do to their own account: open a store, rename it,
- * set their prices, and ask for their commission on MoMo.
+ * Everything an agent can do to their own account: rename their store, set
+ * their prices, and ask for their commission on MoMo.
  *
  * Every action re-reads the agent from the signed-in user rather than trusting
  * an id from the browser, so one agent can never touch another's store.
+ *
+ * Nothing here creates an agent. Accounts are minted only by an admin
+ * approving an application (see agent-application-actions.ts) — a store slug
+ * is a public URL under NikiMart's own domain, so NikiMart chooses who gets
+ * one. Every export of a "use server" module is a potential public endpoint,
+ * so a self-signup action left lying about here would be a way around that
+ * gate whether or not anything still called it.
  */
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
@@ -48,90 +54,6 @@ async function currentAgent(): Promise<CurrentAgent> {
     return { agent: null, user, error: "Your agent account is suspended. Please contact support." };
   }
   return { agent, user, error: null };
-}
-
-// ---------------------------------------------------------------------------
-// Enrolment
-// ---------------------------------------------------------------------------
-
-const joinSchema = z.object({
-  storeName: z.string().trim().min(2, "Give your store a name.").max(60),
-  slug: z.string().trim().min(3, "Choose a store link."),
-  supportPhone: z.string().min(9, "Enter the number your customers should call."),
-  storeTagline: z.string().trim().max(120).optional(),
-});
-
-export type JoinAgentInput = z.infer<typeof joinSchema>;
-export type JoinAgentResult = { ok: true; slug: string } | { ok: false; error: string };
-
-/**
- * Open a storefront for the signed-in user.
- *
- * The setup fee is charged here as a ledger debit, which is what puts the new
- * account on a negative balance — exactly as asked: the store is paid for out
- * of the commissions it goes on to earn, not up front.
- */
-export async function joinAgentProgram(input: JoinAgentInput): Promise<JoinAgentResult> {
-  const config = await getAgentProgramConfig();
-  if (!config.enabled) {
-    return { ok: false, error: "Agent signup is closed at the moment. Please check back soon." };
-  }
-
-  const user = await requireUser();
-
-  const existing = await getAgentForUser(user.id);
-  if (existing) return { ok: true, slug: existing.slug };
-
-  const parsed = joinSchema.safeParse(input);
-  if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Please check the form and try again." };
-  }
-  const data = parsed.data;
-
-  const slug = normaliseSlug(data.slug);
-  const problem = slugProblem(slug);
-  if (problem) return { ok: false, error: problem };
-
-  const parsedSupport = parseGhPhone(data.supportPhone);
-  if (!parsedSupport.ok) return { ok: false, error: parsedSupport.message };
-  const supportPhone = parsedSupport.local;
-
-  const taken = await prisma.dataAgent.findUnique({ where: { slug }, select: { id: true } });
-  if (taken) return { ok: false, error: `“${slug}” is already taken. Try another store link.` };
-
-  const code = await generateAgentCode(data.storeName);
-
-  try {
-    const agent = await prisma.dataAgent.create({
-      data: {
-        userId: user.id,
-        code,
-        slug,
-        storeName: data.storeName,
-        storeTagline: data.storeTagline?.trim() ?? "",
-        supportPhone,
-        supportWhatsapp: supportPhone,
-        whatsappGroup: config.whatsappGroup,
-        setupFee: config.setupFee,
-        balance: 0,
-      },
-    });
-
-    if (config.setupFee > 0) {
-      await postLedgerEntry({
-        agentId: agent.id,
-        type: "SETUP_FEE",
-        amount: -config.setupFee,
-        narration: "Storefront setup fee — clears automatically from your commissions",
-        reference: agent.code,
-      });
-    }
-
-    revalidatePath("/agent");
-    return { ok: true, slug };
-  } catch {
-    return { ok: false, error: "Could not open your store. Please try again." };
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -363,7 +285,7 @@ export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): 
   }
 
   const wallet = await getAgentWallet(agent);
-  const ceiling = maxWithdrawal(wallet.balance, wallet.pendingWithdrawals, config.withdrawalFee);
+  const ceiling = maxWithdrawal(wallet.balance, config.withdrawalFee);
   if (amount > ceiling) {
     return {
       ok: false,
@@ -375,28 +297,42 @@ export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): 
   }
   const total = round2(amount + config.withdrawalFee);
 
-  await prisma.$transaction(async (tx) => {
-    const row = await tx.dataAgentWithdrawal.create({
-      data: {
-        agentId: agent.id,
-        amount,
-        fee: config.withdrawalFee,
-        momoPhone,
-        momoName: data.momoName,
-        momoNetwork: data.momoNetwork,
-      },
+  // The check above is for the error message. The balance is re-tested inside
+  // the debit itself, because two requests submitted at the same moment would
+  // otherwise both read the same balance, both pass, and both be paid.
+  try {
+    await prisma.$transaction(async (tx) => {
+      const row = await tx.dataAgentWithdrawal.create({
+        data: {
+          agentId: agent.id,
+          amount,
+          fee: config.withdrawalFee,
+          momoPhone,
+          momoName: data.momoName,
+          momoNetwork: data.momoNetwork,
+        },
+      });
+      await postLedgerEntry(
+        {
+          agentId: agent.id,
+          type: "WITHDRAWAL",
+          amount: -total,
+          requireBalance: total,
+          narration: `Withdrawal to ${momoPhone} (${data.momoNetwork})${config.withdrawalFee > 0 ? ` — includes GH₵${config.withdrawalFee.toFixed(2)} fee` : ""}`,
+          reference: row.id,
+        },
+        tx,
+      );
     });
-    await postLedgerEntry(
-      {
-        agentId: agent.id,
-        type: "WITHDRAWAL",
-        amount: -total,
-        narration: `Withdrawal to ${momoPhone} (${data.momoNetwork})${config.withdrawalFee > 0 ? ` — includes GH₵${config.withdrawalFee.toFixed(2)} fee` : ""}`,
-        reference: row.id,
-      },
-      tx,
-    );
-  });
+  } catch (err) {
+    if (err instanceof InsufficientBalanceError) {
+      return {
+        ok: false,
+        error: "Your balance changed while that was going through. Check your wallet and try again.",
+      };
+    }
+    return { ok: false, error: "Could not request that withdrawal. Please try again." };
+  }
 
   revalidatePath("/agent/wallet");
   revalidatePath("/agent/store");
@@ -529,11 +465,6 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
   const row = rows.find((r) => r.network === data.network && r.sizeGb === data.sizeGb);
   if (!row) return { ok: false, error: "That bundle is not available right now." };
 
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  const origin = `${proto}://${host}`;
-
   const collectPayment = isPaymentConfigured();
   const email = data.email?.trim() || null;
 
@@ -574,7 +505,7 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
           email: email ?? `${recipientPhone}@data.nikimart.app`,
           amountPesewas: toPesewas(row.agentPrice),
           reference,
-          callbackUrl: `${origin}/agent/verify`,
+          callbackUrl: `${callbackOrigin()}/agent/verify`,
           metadata: {
             kind: "data-bundle",
             dataOrderId: order.id,
