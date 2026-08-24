@@ -105,8 +105,17 @@ export function AgentAccountTools({
     storeName: string;
     slug: string;
     storeTagline: string;
+    storeAbout: string;
     supportPhone: string;
     supportWhatsapp: string;
+    whatsappGroup: string;
+    storeOpen: boolean;
+    status: string;
+    afaEnabled: boolean;
+    afaPrice: number;
+    ownerName: string;
+    ownerPhone: string;
+    userId: string;
   };
 }) {
   const [editing, setEditing] = useState(false);
@@ -142,8 +151,9 @@ export function AgentAccountTools({
         <Notice state={delState.error || delState.ok ? delState : editState} />
 
         {editing ? (
-          <form action={save} className="animate-fade-up space-y-4">
+          <form action={save} className="animate-fade-up space-y-5">
             <input type="hidden" name="agentId" value={agentId} />
+
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Store name" htmlFor={`sn-${agentId}`}>
                 <input id={`sn-${agentId}`} name="storeName" defaultValue={initial.storeName} required className={inputClass} />
@@ -151,6 +161,17 @@ export function AgentAccountTools({
               <Field label="Store link" htmlFor={`sl-${agentId}`} hint={`${origin}/store/…`}>
                 <input id={`sl-${agentId}`} name="slug" defaultValue={initial.slug} required className={`${inputClass} font-mono`} />
               </Field>
+            </div>
+
+            <Field label="Tagline" htmlFor={`st-${agentId}`} hint="One line under the store name.">
+              <input id={`st-${agentId}`} name="storeTagline" defaultValue={initial.storeTagline} className={inputClass} />
+            </Field>
+
+            <Field label="About the store" htmlFor={`sa-${agentId}`} hint="Shown to their customers.">
+              <textarea id={`sa-${agentId}`} name="storeAbout" rows={3} defaultValue={initial.storeAbout} className={`${inputClass} resize-y`} />
+            </Field>
+
+            <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Support number" htmlFor={`sp-${agentId}`}>
                 <input id={`sp-${agentId}`} name="supportPhone" defaultValue={initial.supportPhone} inputMode="tel" placeholder="0241234567" className={inputClass} />
               </Field>
@@ -158,16 +179,66 @@ export function AgentAccountTools({
                 <input id={`sw-${agentId}`} name="supportWhatsapp" defaultValue={initial.supportWhatsapp} inputMode="tel" placeholder="0241234567" className={inputClass} />
               </Field>
             </div>
-            <Field label="Tagline" htmlFor={`st-${agentId}`}>
-              <input id={`st-${agentId}`} name="storeTagline" defaultValue={initial.storeTagline} className={inputClass} />
+
+            <Field label="WhatsApp group link" htmlFor={`wg-${agentId}`} hint="Optional. Must start with https://">
+              <input id={`wg-${agentId}`} name="whatsappGroup" defaultValue={initial.whatsappGroup} placeholder="https://chat.whatsapp.com/…" className={inputClass} />
             </Field>
-            <SubmitButton
-              pendingLabel="Saving…"
-              icon={<Save className="h-4 w-4" />}
-              className="rounded-xl bg-niki-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-niki-orange-light"
-            >
-              Save details
-            </SubmitButton>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Storefront" htmlFor={`so-${agentId}`} hint="Closed hides it from customers.">
+                <select id={`so-${agentId}`} name="storeOpen" defaultValue={initial.storeOpen ? "open" : "closed"} className={inputClass}>
+                  <option value="open">Open — taking orders</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </Field>
+              <Field label="Account status" htmlFor={`ss-${agentId}`} hint="Suspended stops new commission.">
+                <select id={`ss-${agentId}`} name="status" defaultValue={initial.status} className={inputClass}>
+                  <option value="active">Active</option>
+                  <option value="suspended">Suspended</option>
+                </select>
+              </Field>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="AFA registration" htmlFor={`ae-${agentId}`}>
+                <select id={`ae-${agentId}`} name="afaEnabled" defaultValue={initial.afaEnabled ? "on" : "off"} className={inputClass}>
+                  <option value="on">Offered on their store</option>
+                  <option value="off">Not offered</option>
+                </select>
+              </Field>
+              <Field label="Their AFA price (GH₵)" htmlFor={`ap-${agentId}`} hint="0 uses NikiMart's price.">
+                <input id={`ap-${agentId}`} name="afaPrice" type="number" min="0" step="0.01" defaultValue={initial.afaPrice} className={inputClass} />
+              </Field>
+            </div>
+
+            {/* The person, not the store. Email, role and password stay on
+                their user account, where every other account is edited. */}
+            <div className="grid gap-4 border-t border-niki-edge pt-4 sm:grid-cols-2">
+              <Field label="Owner's name" htmlFor={`on-${agentId}`}>
+                <input id={`on-${agentId}`} name="ownerName" defaultValue={initial.ownerName} className={inputClass} />
+              </Field>
+              <Field label="Owner's phone" htmlFor={`op-${agentId}`}>
+                <input id={`op-${agentId}`} name="ownerPhone" defaultValue={initial.ownerPhone} inputMode="tel" placeholder="0241234567" className={inputClass} />
+              </Field>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <SubmitButton
+                pendingLabel="Saving…"
+                icon={<Save className="h-4 w-4" />}
+                className="rounded-xl bg-niki-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-niki-orange-light"
+              >
+                Save details
+              </SubmitButton>
+              {initial.userId ? (
+                <a
+                  href={`/admin/users/${initial.userId}`}
+                  className="niki-focus text-sm font-semibold text-niki-ink/60 underline underline-offset-2 hover:text-niki-orange"
+                >
+                  Email, role &amp; password →
+                </a>
+              ) : null}
+            </div>
           </form>
         ) : null}
 

@@ -17,12 +17,15 @@ export function AgentSetupForm({
   token,
   fullName,
   email,
+  storeName,
   slug,
   origin,
 }: {
   token: string;
   fullName: string;
   email: string;
+  /** The name they asked for when they applied. Empty on older applications. */
+  storeName: string;
   slug: string;
   origin: string;
 }) {
@@ -74,7 +77,10 @@ export function AgentSetupForm({
           id="storeName"
           name="storeName"
           required
-          defaultValue={`${fullName.split(" ")[0]}'s Data`}
+          // What they asked to be called. Older applications did not keep the
+          // text, so those fall back to the slug they chose — still their
+          // words, unlike a name built out of their own first name.
+          defaultValue={storeName.trim() || slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
           className={inputClass}
         />
       </Field>

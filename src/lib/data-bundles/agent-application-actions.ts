@@ -54,6 +54,24 @@ const STORAGE_ERROR =
   "Couldn't submit — the agent tables aren't set up on this database yet. " +
   "Run the Neon catch-up SQL (nikimart-neon-agent-applications.sql), then try again.";
 
+/**
+ * What to call the store.
+ *
+ * The name the applicant typed, which is the whole point of asking for it.
+ * Applications made before that was kept have an empty string, so those fall
+ * back to title-casing the slug — "nickland" becomes "Nickland", which is what
+ * was asked for, rather than a name invented from the applicant.
+ */
+function storeNameFor(application: { storeName: string; desiredSlug: string }): string {
+  const typed = application.storeName.trim();
+  if (typed) return typed;
+  return application.desiredSlug
+    .split("-")
+    .filter(Boolean)
+    .map((word) => word[0].toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -198,6 +216,7 @@ export async function applyToBeAgent(
         fullName: data.fullName,
         phone,
         email,
+        storeName: data.storeName,
         desiredSlug,
         note: data.note ?? "",
         termsAcceptedAt: new Date(),
@@ -300,9 +319,7 @@ export async function approveApplication(
           userId: user.id,
           code,
           slug: application.desiredSlug,
-          storeName: application.fullName.split(" ")[0]
-            ? `${application.fullName.split(" ")[0]}'s Data`
-            : application.desiredSlug,
+          storeName: storeNameFor(application),
           supportPhone: application.phone,
           supportWhatsapp: application.phone,
           whatsappGroup: config.whatsappGroup,
@@ -542,6 +559,7 @@ export async function getSetupApplication(token: string) {
       select: {
         fullName: true,
         email: true,
+        storeName: true,
         desiredSlug: true,
         setupExpiresAt: true,
         agentId: true,

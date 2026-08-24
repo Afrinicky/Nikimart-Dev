@@ -21,23 +21,39 @@ export function absoluteImageUrl(src: string | null | undefined): string | null 
 /**
  * The origin to hand a payment provider as a return address.
  *
- * Deliberately not derived from the request. `Host` and `X-Forwarded-Host` are
- * whatever the caller sent: a request carrying `X-Forwarded-Host: evil.test`
- * would otherwise have Paystack redirect the payer — mid-checkout, holding a
- * live order reference — to somebody else's site. Only sources the deployment
- * controls are trusted, in order of how specific they are:
+ * Not derived from the request. `Host` and `X-Forwarded-Host` are whatever the
+ * caller sent, and a request carrying `X-Forwarded-Host: evil.test` would have
+ * Paystack redirect the payer — mid-checkout, holding a live order reference —
+ * to somebody else's site.
  *
- *   1. NEXT_PUBLIC_SITE_URL — the canonical domain, set deliberately.
- *   2. VERCEL_URL — this exact deployment, set by the platform, so preview
- *      builds return to themselves instead of to production.
- *   3. localhost — development, where there is no deployment to ask.
+ * And explicitly never VERCEL_URL. That is the per-deployment address
+ * (project-hash-team.vercel.app), which Vercel puts behind its own login wall.
+ * A buyer who had just paid was handed back to it and met "Log in to Vercel"
+ * instead of their receipt. It names a real deployment, so it looked like the
+ * safe choice; it is simply not a URL a customer can reach.
+ *
+ * What is left is the canonical domain, in order of how deliberately it was
+ * set:
+ *
+ *   1. NEXT_PUBLIC_SITE_URL — set by hand, wins over everything.
+ *   2. VERCEL_PROJECT_PRODUCTION_URL — the project's production domain, from
+ *      the platform. Stable, public, and the same on every deployment, so a
+ *      preview returns the payer somewhere they can actually load.
+ *   3. The built-in canonical domain, for anywhere neither is set.
+ *   4. localhost, in development, where there is no deployment to ask.
  */
 export function callbackOrigin(): string {
-  const env = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (env) return env.replace(/\/+$/, "");
+  const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (explicit) return explicit.replace(/\/+$/, "");
 
-  const vercel = process.env.VERCEL_URL?.trim();
-  if (vercel) return `https://${vercel.replace(/^https?:\/\//, "").replace(/\/+$/, "")}`;
+  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (production) {
+    return `https://${production.replace(/^https?:\/\//, "").replace(/\/+$/, "")}`;
+  }
+
+  // On the platform but with no domain configured: the canonical one from
+  // siteUrl() is still reachable, which the deployment URL is not.
+  if (process.env.VERCEL) return siteUrl();
 
   const port = process.env.PORT?.trim() || "3000";
   return `http://localhost:${port}`;
