@@ -4,6 +4,7 @@ import { Container } from "@/components/ui/Container";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { FacebookIcon, InstagramIcon, TiktokIcon, XIcon, YoutubeIcon } from "@/components/share/SocialIcons";
 import { getSettings } from "@/lib/settings";
+import { isExternalStoreLink } from "@/lib/data-bundles/store-link";
 
 const FOOTER_COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
@@ -106,7 +107,7 @@ export async function Footer() {
             <ul className="mt-3 space-y-2">
               {column.links.map((link) => (
                 <li key={link.href}>
-                  {/^https?:\/\//.test(link.href) ? (
+                  {isExternalStoreLink(link.href) ? (
                     <a
                       href={link.href}
                       target="_blank"

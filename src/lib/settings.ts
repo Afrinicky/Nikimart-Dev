@@ -3,6 +3,7 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { DELIVERY_DEFAULTS, type DeliveryConfig } from "@/lib/delivery";
 import type { ShippingRates } from "@/lib/shipping";
+import { normaliseDataBundlesUrl } from "@/lib/data-bundles/store-link";
 
 // Site-wide settings stored as key/value rows, merged with these defaults.
 export const SETTINGS_DEFAULTS = {
@@ -134,26 +135,6 @@ export const getSettings = cache(async (): Promise<Settings> => {
   return merged;
 });
 
-/**
- * Repair the "Buy Data Bundles" link.
- *
- * The route is /data-bundles, but the stored value has been seen as
- * /databundles — which renders a 404 straight from the sidebar, the footer and
- * the carousel at once. The setting is free text (it can point at an external
- * store), so rather than lock it down, fix the spellings that can only ever
- * have meant this site's own bundle page.
- */
-export function normaliseDataBundlesUrl(raw: string): string {
-  const value = raw.trim();
-  if (!value) return "";
-  if (/^https?:\/\//i.test(value)) return value; // an external store — leave it alone
-
-  const path = value.startsWith("/") ? value : `/${value}`;
-  // Compare on letters only, so /databundles, /data_bundles and /Data-Bundles
-  // all resolve to the real route.
-  const flattened = path.toLowerCase().replace(/[^a-z]/g, "");
-  return flattened === "databundles" ? "/data-bundles" : path;
-}
 
 /** Numeric delivery fee (GH₵). */
 export async function getDeliveryFee(): Promise<number> {
@@ -350,3 +331,5 @@ export async function getAgentProgramConfig(): Promise<AgentProgramConfig> {
     pitch: settings.agentPitch.trim(),
   };
 }
+
+export { normaliseDataBundlesUrl } from "@/lib/data-bundles/store-link";

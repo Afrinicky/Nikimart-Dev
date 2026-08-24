@@ -115,7 +115,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
           <Field
             label="“Buy Data Bundles” link"
             htmlFor="dataBundlesUrl"
-            hint="Defaults to NikiMart's own bundle store at /data-bundles. Manage it in the Data tab. Empty hides the shortcuts."
+            hint="Where the sidebar and footer shortcuts send customers. /data-bundles is this store; paste another store\u2019s address to send them there. Empty hides the shortcuts."
           >
             <input id="dataBundlesUrl" name="dataBundlesUrl" defaultValue={settings.dataBundlesUrl} className={inputClass} placeholder="/data-bundles" />
           </Field>
