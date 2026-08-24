@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { ICON_MAP } from "@/lib/icon-map";
+import { isExternalStoreLink } from "@/lib/data-bundles/store-link";
 import {
   BadgeCheck,
   ClipboardList,
@@ -171,7 +172,7 @@ export function SidebarNav({
           {dataBundlesUrl ? (
             // The bundle store now lives on NikiMart itself, so an in-app path
             // navigates in place; an external URL still opens in a new tab.
-            /^https?:\/\//.test(dataBundlesUrl) ? (
+            isExternalStoreLink(dataBundlesUrl) ? (
               <a
                 href={dataBundlesUrl}
                 target="_blank"

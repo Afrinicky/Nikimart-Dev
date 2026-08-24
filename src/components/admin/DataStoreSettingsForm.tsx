@@ -118,7 +118,7 @@ export function DataStoreSettingsForm({ settings }: { settings: Settings }) {
           <Field
             label="“Buy Data Bundles” link"
             htmlFor="dataBundlesUrl"
-            hint="Where the sidebar, footer and carousel shortcuts point. Keep /data-bundles for this store."
+            hint="Where the sidebar and footer shortcuts send customers. /data-bundles is this store; paste any other store\u2019s address to send them there instead \u2014 4ubundles.store/store/Nickland works, the https:// is added for you. The carousel has its own link, under Carousel."
           >
             <input id="dataBundlesUrl" name="dataBundlesUrl" defaultValue={settings.dataBundlesUrl} className={inputClass} />
           </Field>
