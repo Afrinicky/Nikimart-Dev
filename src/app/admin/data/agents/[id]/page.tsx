@@ -223,8 +223,17 @@ export default async function AdminAgentDetailPage({
               storeName: agent.storeName,
               slug: agent.slug,
               storeTagline: agent.storeTagline ?? "",
+              storeAbout: agent.storeAbout ?? "",
               supportPhone: agent.supportPhone ?? "",
               supportWhatsapp: agent.supportWhatsapp ?? "",
+              whatsappGroup: agent.whatsappGroup ?? "",
+              storeOpen: agent.storeOpen,
+              status: agent.status,
+              afaEnabled: agent.afaEnabled,
+              afaPrice: agent.afaPrice,
+              ownerName: agent.user?.name ?? "",
+              ownerPhone: agent.user?.phone ?? "",
+              userId: agent.userId,
             }}
           />
 

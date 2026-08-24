@@ -123,7 +123,11 @@ export default async function AdminAgentsPage({
                       </a>
                     </p>
                     <p className="mt-1 text-xs text-niki-ink/50">
-                      Wants{" "}
+                      Wants to trade as{" "}
+                      <span className="font-semibold text-niki-ink/80">
+                        {a.storeName || a.desiredSlug}
+                      </span>{" "}
+                      at{" "}
                       <span className="font-mono font-semibold text-niki-ink/70">
                         /store/{a.desiredSlug}
                       </span>

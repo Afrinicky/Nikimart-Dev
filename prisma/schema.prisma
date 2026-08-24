@@ -837,6 +837,10 @@ model DataAgentApplication {
   phone       String
   email       String
   /**
+   * The store name they typed, exactly as they typed it.
+   */
+  storeName   String @default("")
+  /**
    * The store link they asked for, already normalised.
    */
   desiredSlug String

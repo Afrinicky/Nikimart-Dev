@@ -76,6 +76,7 @@ export default async function AgentSetupPage({
                 token={(token ?? "").trim()}
                 fullName={application.fullName}
                 email={application.email}
+                storeName={application.storeName}
                 slug={application.desiredSlug}
                 origin={siteUrl()}
               />

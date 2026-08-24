@@ -9,6 +9,7 @@ import { requireAdmin } from "@/lib/session";
 import { notify, sendSms } from "@/lib/notifications";
 import { formatMoney } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
+import { getDataStoreConfig } from "@/lib/settings";
 import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { normaliseSlug, round2, slugProblem } from "@/lib/data-bundles/agents";
@@ -392,6 +393,14 @@ const editSchema = z.object({
   supportPhone: z.string().trim().optional(),
   supportWhatsapp: z.string().trim().optional(),
   storeTagline: z.string().trim().max(120).optional(),
+  storeAbout: z.string().trim().max(600).optional(),
+  whatsappGroup: z.string().trim().max(200).optional(),
+  storeOpen: z.enum(["open", "closed"]),
+  status: z.enum(["active", "suspended"]),
+  afaEnabled: z.enum(["on", "off"]),
+  afaPrice: z.string().trim().optional(),
+  ownerName: z.string().trim().max(80).optional(),
+  ownerPhone: z.string().trim().optional(),
 });
 
 /** Edit an agent's store details on their behalf. */
@@ -409,6 +418,14 @@ export async function updateAgentDetails(
     supportPhone: fd.get("supportPhone") ?? "",
     supportWhatsapp: fd.get("supportWhatsapp") ?? "",
     storeTagline: fd.get("storeTagline") ?? "",
+    storeAbout: fd.get("storeAbout") ?? "",
+    whatsappGroup: fd.get("whatsappGroup") ?? "",
+    storeOpen: fd.get("storeOpen") ?? "open",
+    status: fd.get("status") ?? "active",
+    afaEnabled: fd.get("afaEnabled") ?? "off",
+    afaPrice: fd.get("afaPrice") ?? "",
+    ownerName: fd.get("ownerName") ?? "",
+    ownerPhone: fd.get("ownerPhone") ?? "",
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
@@ -433,6 +450,27 @@ export async function updateAgentDetails(
     whatsapp = check.local;
   }
 
+  const group = data.whatsappGroup?.trim() ?? "";
+  if (group && !/^https?:\/\//i.test(group)) {
+    return { error: "The WhatsApp group link should start with https://" };
+  }
+
+  // An AFA price of zero means "not selling it"; anything else has to clear
+  // NikiMart's own price or the agent would be selling below cost.
+  const store = await getDataStoreConfig();
+  const afaPrice = round2(Number(data.afaPrice || 0));
+  if (!Number.isFinite(afaPrice) || afaPrice < 0) return { error: "Enter a valid AFA price." };
+  if (afaPrice > 0 && afaPrice < store.afaPrice) {
+    return { error: `The AFA price can't be below ${formatMoney(store.afaPrice)}.` };
+  }
+
+  let ownerPhone = "";
+  if (data.ownerPhone) {
+    const check = parseGhPhone(data.ownerPhone);
+    if (!check.ok) return { error: `Owner's number: ${check.message}` };
+    ownerPhone = check.local;
+  }
+
   try {
     const clash = await prisma.dataAgent.findFirst({
       where: { slug, NOT: { id: agentId } },
@@ -440,7 +478,7 @@ export async function updateAgentDetails(
     });
     if (clash) return { error: `“${slug}” is already taken by another store.` };
 
-    await prisma.dataAgent.update({
+    const agent = await prisma.dataAgent.update({
       where: { id: agentId },
       data: {
         storeName: data.storeName,
@@ -448,8 +486,27 @@ export async function updateAgentDetails(
         supportPhone: support,
         supportWhatsapp: whatsapp,
         storeTagline: data.storeTagline ?? "",
+        storeAbout: data.storeAbout ?? "",
+        whatsappGroup: group,
+        storeOpen: data.storeOpen === "open",
+        status: data.status,
+        afaEnabled: data.afaEnabled === "on",
+        afaPrice,
       },
+      select: { userId: true },
     });
+
+    // The person behind the store, edited here so an admin does not have to go
+    // hunting for them under Users for a phone number.
+    if (data.ownerName || ownerPhone) {
+      await prisma.user.update({
+        where: { id: agent.userId },
+        data: {
+          ...(data.ownerName ? { name: data.ownerName } : {}),
+          ...(ownerPhone ? { phone: ownerPhone } : {}),
+        },
+      });
+    }
   } catch {
     return { error: "Couldn't save those details. Please try again." };
   }
