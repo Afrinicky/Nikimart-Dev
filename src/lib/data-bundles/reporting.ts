@@ -103,7 +103,29 @@ export interface AdminDataOrder {
   providerStatus: string | null;
   providerMessage: string | null;
   providerOrderId: string | null;
+  // Where the sale came from and, when it was an agent, who.
+  source: string;
+  agentName: string | null;
+  agentCode: string | null;
+  agentCommission: number;
+  commissionStatus: string;
   createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * A human label for an order's origin: "NikiMart" for the house storefront, or
+ * the agent's store name (with their code) for an agent sale.
+ */
+export function orderSourceLabel(o: {
+  source: string;
+  agentName: string | null;
+  agentCode: string | null;
+}): string {
+  if (o.source === "WEB" || !o.agentName) return "NikiMart";
+  const where = o.source === "STOREFRONT" ? "Storefront" : "Dashboard";
+  const who = o.agentCode ? `${o.agentName} (${o.agentCode})` : o.agentName;
+  return `Agent · ${who} · ${where}`;
 }
 
 export interface OrderPage {
@@ -135,15 +157,21 @@ export async function getDataOrders(opts: {
   }
 
   try {
-    const [orders, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       prisma.dataOrder.findMany({
         where,
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * ORDERS_PER_PAGE,
         take: ORDERS_PER_PAGE,
+        include: { agent: { select: { storeName: true, code: true } } },
       }),
       prisma.dataOrder.count({ where }),
     ]);
+    const orders: AdminDataOrder[] = rows.map(({ agent, ...o }) => ({
+      ...o,
+      agentName: agent?.storeName ?? null,
+      agentCode: agent?.code ?? null,
+    }));
     return { orders, total, available: true };
   } catch {
     return { orders: [], total: 0, available: false };

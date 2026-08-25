@@ -1,21 +1,24 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { RefreshCw } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import {
   AgentPageHeading,
   Card,
   EmptyRow,
   Pager,
+  PaymentPill,
   SourcePill,
   StatusPill,
   TableScroll,
   formatWhen,
 } from "@/components/agent/AgentUi";
+import { OrderActions, type OrderView } from "@/components/data/OrderActions";
 import { requireUser } from "@/lib/session";
 import { formatMoney } from "@/lib/format";
 import { bundleLabel, networkLabel, DATA_ORDER_STATUSES } from "@/lib/data-bundles/networks";
 import { getAgentForUser, getAgentOrders } from "@/lib/data-bundles/agents";
+import { getDataStoreConfig } from "@/lib/settings";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Orders — Agent — NikiMart" };
@@ -44,19 +47,33 @@ export default async function AgentOrdersPage({
   const status = FILTERS.some((f) => f.value === params.status) ? params.status! : "all";
   const page = Math.max(1, Number(params.page) || 1);
 
-  const { rows, total } = await getAgentOrders(agent.id, {
-    take: PER_PAGE,
-    skip: (page - 1) * PER_PAGE,
-    status,
-  });
+  const [{ rows, total }, store] = await Promise.all([
+    getAgentOrders(agent.id, {
+      take: PER_PAGE,
+      skip: (page - 1) * PER_PAGE,
+      status,
+    }),
+    getDataStoreConfig(),
+  ]);
   const pageCount = Math.max(1, Math.ceil(total / PER_PAGE));
+
+  const sourceLabel = (source: string) =>
+    source === "STOREFRONT" ? "Storefront" : source === "AGENT" ? "Dashboard" : "Web";
 
   const hrefFor = (p: number) =>
     `/agent/orders?${new URLSearchParams({ status, page: String(p) }).toString()}`;
+  const exportHref = `/agent/orders/export?${new URLSearchParams({ status }).toString()}`;
 
   return (
     <div className="space-y-5">
       <AgentPageHeading title="Orders" subtitle="Every bundle sold through your store or dashboard.">
+        <a
+          href={exportHref}
+          className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Export
+        </a>
         <ActionLink
           href={hrefFor(page)}
           className="flex items-center gap-1.5 rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white"
@@ -94,18 +111,20 @@ export default async function AgentOrdersPage({
         ) : (
           <>
             <TableScroll>
-              <table className="w-full min-w-[820px] text-left text-sm">
+              <table className="w-full min-w-[980px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-niki-edge text-[11px] uppercase tracking-wide text-niki-ink/45">
-                    <th className="py-2.5 pr-4 font-semibold">Reference</th>
+                    <th className="py-2.5 pr-4 font-semibold">Order ID</th>
                     <th className="py-2.5 pr-4 font-semibold">Network</th>
                     <th className="py-2.5 pr-4 font-semibold">Size</th>
                     <th className="py-2.5 pr-4 font-semibold">Phone</th>
                     <th className="py-2.5 pr-4 font-semibold">Price</th>
                     <th className="py-2.5 pr-4 font-semibold">Commission</th>
+                    <th className="py-2.5 pr-4 font-semibold">Payment</th>
                     <th className="py-2.5 pr-4 font-semibold">Status</th>
                     <th className="py-2.5 pr-4 font-semibold">Source</th>
-                    <th className="py-2.5 font-semibold">Date</th>
+                    <th className="py-2.5 pr-4 font-semibold">Date</th>
+                    <th className="py-2.5 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-niki-edge">
@@ -155,13 +174,38 @@ export default async function AgentOrdersPage({
                         )}
                       </td>
                       <td className="py-3 pr-4">
+                        <PaymentPill status={o.paymentStatus} />
+                      </td>
+                      <td className="py-3 pr-4">
                         <StatusPill status={o.status} />
                       </td>
                       <td className="py-3 pr-4">
                         <SourcePill source={o.source} />
                       </td>
-                      <td className="py-3 whitespace-nowrap text-xs text-niki-ink/55">
+                      <td className="py-3 pr-4 whitespace-nowrap text-xs text-niki-ink/55">
                         {formatWhen(o.createdAt)}
+                      </td>
+                      <td className="py-3">
+                        <OrderActions
+                          order={
+                            {
+                              id: o.id,
+                              reference: o.reference,
+                              network: o.network,
+                              sizeGb: o.sizeGb,
+                              recipientPhone: o.recipientPhone,
+                              price: o.price,
+                              status: o.status,
+                              paymentStatus: o.paymentStatus,
+                              sourceLabel: sourceLabel(o.source),
+                              commission: o.agentCommission,
+                              commissionStatus: o.commissionStatus,
+                              createdAt: o.createdAt.toISOString(),
+                              updatedAt: o.updatedAt?.toISOString() ?? null,
+                            } satisfies OrderView
+                          }
+                          whatsapp={store.whatsapp || undefined}
+                        />
                       </td>
                     </tr>
                   ))}
