@@ -32,7 +32,7 @@ export function PickupPointForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Name" htmlFor="name">
-          <input id="name" name="name" defaultValue={p?.name} required className={inputClass} placeholder="NikiMart Pickup — Legon" />
+          <input id="name" name="name" defaultValue={p?.name} required className={inputClass} placeholder="Nickimart Pickup — Legon" />
         </Field>
         <Field label="Code" htmlFor="code" hint={state.fieldErrors?.code ?? "Short unique code, e.g. UG-LEGON"}>
           <input id="code" name="code" defaultValue={p?.code} required className={inputClass} />

@@ -6,7 +6,7 @@ import { VendorForm } from "@/components/admin/VendorForm";
 import { prisma } from "@/lib/prisma";
 import { createVendor } from "@/lib/admin-actions";
 
-export const metadata: Metadata = { title: "New shop — Admin — NikiMart" };
+export const metadata: Metadata = { title: "New shop — Admin — Nickimart" };
 
 export default async function NewVendorPage() {
   const [owners, hubPoints] = await Promise.all([

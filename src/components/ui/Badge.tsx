@@ -31,7 +31,7 @@ import { cn } from "@/lib/cn";
  * Every pairing below clears 4.5:1, which is why some of the colours are a step
  * darker than the brand swatch — white on #10b981 is 2.1:1 and unreadable at
  * 10px. Orange keeps ink text rather than white for the same reason: white on
- * NikiMart orange is 2.4:1, ink on it is 6.7:1.
+ * Nickimart orange is 2.4:1, ink on it is 6.7:1.
  */
 const BADGE_STYLES: Record<BadgeKind, string> = {
   in_stock: "bg-emerald-700 text-white",

@@ -64,7 +64,7 @@ export async function markOrderPaid(
           orderId: order.id,
           trackingNumber: `NMF-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 900 + 100)}`,
           status: "created", // awaiting the seller's "prepared" confirmation
-          origin: "NikiMart Warehouse",
+          origin: "Nickimart Warehouse",
           destination,
           eta: new Date(Date.now() + 1000 * 60 * 60 * 48),
           freightAgentId: freightAgent?.id ?? null,

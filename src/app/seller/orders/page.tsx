@@ -11,7 +11,7 @@ import { ORDER_STATUS_LABELS, SHIPMENT_STATUS_LABELS, statusTone } from "@/lib/o
 import { ConfirmStageButton } from "@/components/order/ConfirmStageButton";
 import { nextStageForRole, confirmActionLabel, type DeliveryMethod, type ShipmentTimestamps } from "@/lib/tracking";
 
-export const metadata: Metadata = { title: "Orders — Seller — NikiMart" };
+export const metadata: Metadata = { title: "Orders — Seller — Nickimart" };
 
 /** Ghana-friendly WhatsApp deep link (digits only, local 0 → 233). */
 function waLink(phone?: string | null): string | null {

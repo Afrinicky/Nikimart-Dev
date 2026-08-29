@@ -54,7 +54,7 @@ export async function getFinanceBreakdown(metric: FinanceMetric): Promise<Breakd
         .filter((r) => r.amount > 0);
       return {
         title: "Commission earned",
-        description: "Gross platform commission collected per order, before any affiliate commission NikiMart funds.",
+        description: "Gross platform commission collected per order, before any affiliate commission Nickimart funds.",
         total: money(rows.reduce((s, r) => s + r.amount, 0)),
         columns: ["Order", "Customer", "Commission"],
         rows,
@@ -80,7 +80,7 @@ export async function getFinanceBreakdown(metric: FinanceMetric): Promise<Breakd
         .filter((r) => r.amount !== 0);
       return {
         title: "Platform earnings",
-        description: "Commission kept per order, after the affiliate commission NikiMart funds on products it enrolled itself.",
+        description: "Commission kept per order, after the affiliate commission Nickimart funds on products it enrolled itself.",
         total: money(rows.reduce((s, r) => s + r.amount, 0)),
         columns: ["Order", "Customer", "Net earnings"],
         rows,
@@ -105,7 +105,7 @@ export async function getFinanceBreakdown(metric: FinanceMetric): Promise<Breakd
       const rows = items.map((i) => ({
         id: i.id,
         primary: `${i.product.name} · ${i.order.orderNumber}`,
-        secondary: `${i.affiliateCommissionRate}% · funded by ${i.affiliateFundedBy === "platform" ? "NikiMart" : "the seller"} · ${i.order.affiliate?.name ?? "—"}`,
+        secondary: `${i.affiliateCommissionRate}% · funded by ${i.affiliateFundedBy === "platform" ? "Nickimart" : "the seller"} · ${i.order.affiliate?.name ?? "—"}`,
         amount: money(i.affiliateCommission),
         href: `/admin/orders/${i.order.id}`,
       }));
@@ -200,12 +200,12 @@ export interface FinanceOverview {
   affiliatePaid: number;
   /** Affiliate commission accrued on all referred sales, whoever funds it. */
   affiliateAccrued: number;
-  /** The slice of that which NikiMart funds (products the admin enrolled). */
+  /** The slice of that which Nickimart funds (products the admin enrolled). */
   affiliateFundedByPlatform: number;
   /** The slice sellers fund (products they enrolled themselves). */
   affiliateFundedBySellers: number;
   /**
-   * Platform earnings = commission − affiliate commission NikiMart funds.
+   * Platform earnings = commission − affiliate commission Nickimart funds.
    * Delivery is pass-through to freight, so it isn't counted as earnings.
    */
   platformEarnings: number;

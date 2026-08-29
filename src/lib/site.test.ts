@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { callbackOrigin } from "./site.ts";
+import { callbackOrigin, siteUrl } from "./site.ts";
 
 /**
  * Where Paystack sends the payer back.
@@ -30,8 +30,8 @@ test("an explicitly configured domain wins", () => {
   withEnv({ NEXT_PUBLIC_SITE_URL: "https://www.4ubundles.store" }, () => {
     assert.equal(callbackOrigin(), "https://www.4ubundles.store");
   });
-  withEnv({ NEXT_PUBLIC_SITE_URL: "https://nikimart.gh/" }, () => {
-    assert.equal(callbackOrigin(), "https://nikimart.gh");
+  withEnv({ NEXT_PUBLIC_SITE_URL: "https://nickimart.example/" }, () => {
+    assert.equal(callbackOrigin(), "https://nickimart.example");
   });
 });
 
@@ -69,4 +69,41 @@ test("the return address is never taken from a request header", () => {
   // Belt and braces: the function takes no arguments, so there is nothing a
   // request could inject even if a caller wanted to pass one.
   assert.equal(callbackOrigin.length, 0);
+});
+
+/**
+ * The canonical site URL, which is what link previews and OG cards are built
+ * from. It has to track the same domain the payer is returned to — a rebrand
+ * that moves one and not the other ships WhatsApp previews pointing at the old
+ * name.
+ */
+
+test("the canonical URL follows the configured domain", () => {
+  withEnv({ NEXT_PUBLIC_SITE_URL: "https://nickimart.example/" }, () => {
+    assert.equal(siteUrl(), "https://nickimart.example");
+  });
+});
+
+test("otherwise the canonical URL follows the production domain", () => {
+  withEnv({ VERCEL: "1", VERCEL_PROJECT_PRODUCTION_URL: "shop.example" }, () => {
+    assert.equal(siteUrl(), "https://shop.example");
+  });
+  // Already carrying a scheme, or a trailing slash — both are tolerated.
+  withEnv({ VERCEL: "1", VERCEL_PROJECT_PRODUCTION_URL: "https://shop.example/" }, () => {
+    assert.equal(siteUrl(), "https://shop.example");
+  });
+});
+
+test("the canonical URL is never the per-deployment address", () => {
+  withEnv({ VERCEL: "1", VERCEL_URL: "proj-o5mr2m65p-team.vercel.app" }, () => {
+    assert.ok(!siteUrl().includes("o5mr2m65p"), "deployment URL leaked into siteUrl()");
+  });
+});
+
+test("canonical URL and payment return address agree", () => {
+  // Two functions, one domain. If these ever diverge, a buyer is returned to a
+  // different site than the one whose link they followed in.
+  withEnv({ VERCEL: "1", VERCEL_PROJECT_PRODUCTION_URL: "shop.example" }, () => {
+    assert.equal(siteUrl(), callbackOrigin());
+  });
 });

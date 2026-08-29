@@ -1,7 +1,7 @@
-# NikiMart
+# Nickimart
 
-NikiMart is an online shopping mall connecting buyers to local shops, preorder
-sellers, campus vendors, food vendors, service providers, and official NikiMart
+Nickimart is an online shopping mall connecting buyers to local shops, preorder
+sellers, campus vendors, food vendors, service providers, and official Nickimart
 products across Ghana.
 
 Built with **Next.js 16** (App Router), **Tailwind CSS v4**, **Prisma**, and
@@ -195,7 +195,7 @@ never on the whole catalogue — and every enrolment records who pays for it.
   set. Their rate is honoured in full, clamped only so a sale can never cost
   them money. Un-enrolling removes the product from every affiliate's catalogue
   immediately; commission already earned is untouched.
-- **An admin enrols a product** from the admin product page. NikiMart funds the
+- **An admin enrols a product** from the admin product page. Nickimart funds the
   commission out of its own cut, and the rate is **capped at half the platform
   commission charged on that item** — the house always keeps at least half of
   what it earns. The cap is enforced in `src/lib/affiliate-commission.ts` and
@@ -220,13 +220,13 @@ can still be cancelled.
 
 ## Data bundles
 
-NikiMart sells internet data bundles alongside the mall, on its own storefront at
+Nickimart sells internet data bundles alongside the mall, on its own storefront at
 **`/data-bundles`** — MTN, Telecel, AirtelTigo iShare and AirtelTigo BigTime.
 Buyers no longer leave the site for an external agent storefront.
 
 It is deliberately its own world. Bundles are not `Product` rows, bundle orders
 are not `Order` rows, and nothing about them touches the cart, shipping, pickup
-points, or seller settlements. What they *do* share is NikiMart's infrastructure:
+points, or seller settlements. What they *do* share is Nickimart's infrastructure:
 the same Paystack account collects the money and the same Arkesel sender texts
 the buyer.
 

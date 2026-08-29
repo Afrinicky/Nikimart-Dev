@@ -5,7 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { CategoryForm } from "@/components/admin/CategoryForm";
 import { createCategory } from "@/lib/admin-actions";
 
-export const metadata: Metadata = { title: "New category — Admin — NikiMart" };
+export const metadata: Metadata = { title: "New category — Admin — Nickimart" };
 
 export default function NewCategoryPage() {
   return (

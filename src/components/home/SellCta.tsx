@@ -21,7 +21,7 @@ export function SellCta() {
             <span className="leading-tight">
               <span className="block text-sm font-bold text-white">Got something to sell?</span>
               <span className="hidden text-xs text-white/60 sm:block">
-                Open your shop on NikiMart — it&apos;s free to start.
+                Open your shop on Nickimart — it&apos;s free to start.
               </span>
             </span>
           </span>

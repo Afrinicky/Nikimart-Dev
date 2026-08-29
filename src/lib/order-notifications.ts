@@ -75,12 +75,12 @@ export async function notifyOrderConfirmed(orderId: string): Promise<void> {
     });
     if (!order) return;
     const first = order.user.name?.split(" ")[0] ?? "there";
-    const sms = `Hi ${first}, your NikiMart order ${order.orderNumber} is confirmed. Total ${money(order.total)}. Track it in your account.`;
+    const sms = `Hi ${first}, your Nickimart order ${order.orderNumber} is confirmed. Total ${money(order.total)}. Track it in your account.`;
     await notify(order.user, {
       sms,
       emailSubject: `Order ${order.orderNumber} confirmed`,
       emailHtml: emailShell(
-        `Your order <strong>${order.orderNumber}</strong> is confirmed and being prepared.<br/>Total: <strong>${money(order.total)}</strong>.<br/><br/>You can track its progress any time from your NikiMart account.`,
+        `Your order <strong>${order.orderNumber}</strong> is confirmed and being prepared.<br/>Total: <strong>${money(order.total)}</strong>.<br/><br/>You can track its progress any time from your Nickimart account.`,
         "Order confirmed 🎉",
       ),
     });
@@ -104,8 +104,8 @@ export async function notifyStaffNewOrder(orderId: string): Promise<void> {
     const sellers = await sellerRecipients(orderId);
     const admins = await adminRecipients();
 
-    const sellerMsg = `NikiMart: new order ${order.orderNumber} — you have item(s) to prepare. Confirm when ready in your seller dashboard.`;
-    const adminMsg = `NikiMart: new order ${order.orderNumber} placed (${money(order.total)}).`;
+    const sellerMsg = `Nickimart: new order ${order.orderNumber} — you have item(s) to prepare. Confirm when ready in your seller dashboard.`;
+    const adminMsg = `Nickimart: new order ${order.orderNumber} placed (${money(order.total)}).`;
 
     await Promise.allSettled([
       ...sellers.map((r) =>
@@ -160,7 +160,7 @@ export async function notifyNextResponsible(orderId: string, actingRole: Role): 
     const channel = await getStaffNotifyChannel();
     const recipients = await recipientsForRole(order, role, orderId);
     const label = stageLabel(nextStage, method);
-    const msg = `NikiMart: order ${order.orderNumber} needs your action — ${label}.`;
+    const msg = `Nickimart: order ${order.orderNumber} needs your action — ${label}.`;
     await Promise.allSettled(
       recipients.map((r) =>
         notify(r, { sms: msg, emailSubject: `Action needed: ${order.orderNumber}`, emailHtml: emailShell(`Order <strong>${order.orderNumber}</strong> is ready for you: <strong>${label}</strong>.`, "You have a job") }, channel),
@@ -179,7 +179,7 @@ export async function notifyShipmentUpdate(orderId: string, statusLabel: string)
       select: { orderNumber: true, user: { select: { name: true, phone: true, email: true } } },
     });
     if (!order) return;
-    const sms = `NikiMart: your order ${order.orderNumber} is now "${statusLabel}". Track it in your account.`;
+    const sms = `Nickimart: your order ${order.orderNumber} is now "${statusLabel}". Track it in your account.`;
     await notify(order.user, {
       sms,
       emailSubject: `Order ${order.orderNumber}: ${statusLabel}`,

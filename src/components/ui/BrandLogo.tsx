@@ -34,7 +34,7 @@ export function BrandLogo({
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={resolved}
-      alt="NikiMart"
+      alt="Nickimart"
       onError={() => setFailed(true)}
       className={`rounded-xl object-contain ${className}`}
     />

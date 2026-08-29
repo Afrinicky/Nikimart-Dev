@@ -10,7 +10,7 @@ import { mapProduct } from "@/lib/catalog";
 import { updateSellerProduct } from "@/lib/seller-actions";
 import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
 
-export const metadata: Metadata = { title: "Edit product — Seller — NikiMart" };
+export const metadata: Metadata = { title: "Edit product — Seller — Nickimart" };
 
 type Params = Promise<{ id: string }>;
 

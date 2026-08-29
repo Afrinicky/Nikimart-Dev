@@ -8,7 +8,7 @@ import { getAllLocations } from "@/lib/locations";
 import { deleteLocation } from "@/lib/location-actions";
 import { prisma } from "@/lib/prisma";
 
-export const metadata: Metadata = { title: "Locations — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Locations — Admin — Nickimart" };
 
 export default async function AdminLocationsPage() {
   const locations = await getAllLocations();

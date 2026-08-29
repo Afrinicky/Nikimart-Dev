@@ -23,7 +23,7 @@ import {
   retryDataOrder,
 } from "@/lib/data-bundles/admin-actions";
 
-export const metadata: Metadata = { title: "Bundle Orders — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Bundle Orders — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 function href(params: { status?: string; q?: string; page?: number }): string {
@@ -150,7 +150,7 @@ export default async function AdminDataOrdersPage({
                           }
                           title={label}
                         >
-                          {o.source === "WEB" || !o.agentName ? "NikiMart" : o.agentName}
+                          {o.source === "WEB" || !o.agentName ? "Nickimart" : o.agentName}
                         </span>
                       </td>
                       <td className="py-3 pr-4 text-niki-ink/70">{networkLabel(o.network)}</td>

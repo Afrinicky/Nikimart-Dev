@@ -23,9 +23,9 @@ import { getActiveBundles } from "@/lib/data-bundles/catalog";
 import { NETWORK_INFO, bundleLabel } from "@/lib/data-bundles/networks";
 
 export const metadata: Metadata = {
-  title: "Become a Data Agent — NikiMart",
+  title: "Become a Data Agent — Nickimart",
   description:
-    "Open your own data bundle storefront under NikiMart. Set your own prices, sell to your customers, and earn on every bundle.",
+    "Open your own data bundle storefront under Nickimart. Set your own prices, sell to your customers, and earn on every bundle.",
 };
 
 export const dynamic = "force-dynamic";
@@ -73,7 +73,7 @@ export default async function BecomeAnAgentPage() {
   return (
     <>
       <PageHeader
-        title="Become a NikiMart data agent"
+        title="Become a Nickimart data agent"
         subtitle={program.pitch}
         crumbs={[{ label: "Data bundles", href: "/data-bundles" }, { label: "Become an agent" }]}
         tone="dark"
@@ -159,12 +159,12 @@ export default async function BecomeAnAgentPage() {
                 {
                   icon: Wallet,
                   title: "No stock, no float",
-                  body: "You never fund an account. Your customer pays through Paystack when they buy, and NikiMart buys the bundle from that payment.",
+                  body: "You never fund an account. Your customer pays through Paystack when they buy, and Nickimart buys the bundle from that payment.",
                 },
                 {
                   icon: TrendingUp,
                   title: "You keep the difference",
-                  body: "NikiMart charges you an agent price; you charge your customer whatever you set. The gap is credited to your balance once the bundle is delivered.",
+                  body: "Nickimart charges you an agent price; you charge your customer whatever you set. The gap is credited to your balance once the bundle is delivered.",
                 },
                 {
                   icon: BadgeCheck,

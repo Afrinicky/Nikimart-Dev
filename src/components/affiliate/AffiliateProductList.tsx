@@ -54,7 +54,7 @@ export function AffiliateProductList({
         <PackageSearch className="mx-auto h-8 w-8 text-niki-ink/30" />
         <p className="mt-3 font-semibold text-niki-ink">No products in the programme yet</p>
         <p className="mx-auto mt-1 max-w-md text-sm text-niki-ink/60">
-          Sellers choose which of their products to offer to affiliates, and NikiMart enrols some
+          Sellers choose which of their products to offer to affiliates, and Nickimart enrols some
           itself. Check back shortly — this list updates the moment a product is enrolled.
         </p>
       </div>
@@ -138,7 +138,7 @@ export function AffiliateProductList({
               </button>
               <ShareMenu
                 path={refPath(p.slug, code)}
-                title={`${p.name} on NikiMart`}
+                title={`${p.name} on Nickimart`}
                 label="Share"
                 size="sm"
               />

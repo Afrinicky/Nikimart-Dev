@@ -37,14 +37,14 @@ export interface PromotableProduct {
   rate: number;
   /** Cash earned on a single unit at the current price. */
   earnPerSale: number;
-  /** "seller" (the shop funds it) or "platform" (NikiMart funds it). */
+  /** "seller" (the shop funds it) or "platform" (Nickimart funds it). */
   fundedBy: string;
 }
 
 /**
  * Every product currently enrolled in the affiliate programme, with the
  * commission an affiliate earns on each. Enrolment is per product — a seller
- * opts in at their own expense, or an admin opts in at NikiMart's — so this is
+ * opts in at their own expense, or an admin opts in at Nickimart's — so this is
  * the definitive list of what an affiliate can share.
  */
 export async function getPromotableProducts(): Promise<PromotableProduct[]> {

@@ -17,7 +17,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const agent = await getAgentBySlug(slug);
-  if (!agent) return { title: "Store not found — NikiMart" };
+  if (!agent) return { title: "Store not found — Nickimart" };
   return {
     title: `${agent.storeName} — Buy Data Bundles`,
     description:
@@ -27,7 +27,7 @@ export async function generateMetadata({
 }
 
 /**
- * An agent's public storefront: the same pay-as-you-go flow as NikiMart's own
+ * An agent's public storefront: the same pay-as-you-go flow as Nickimart's own
  * page, priced from this agent's ladder and credited to them. No cart and no
  * account — one bundle, one payment.
  */

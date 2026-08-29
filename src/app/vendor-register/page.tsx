@@ -9,7 +9,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
-  title: "Register your shop — NikiMart",
+  title: "Register your shop — Nickimart",
 };
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export default async function VendorRegisterPage() {
     return (
       <>
         <PageHeader
-          title="Start selling on NikiMart"
+          title="Start selling on Nickimart"
           subtitle="Open your shop, reach buyers across Ghana, and get paid straight to your MoMo or bank."
           crumbs={[{ label: "Sell", href: "/sell" }, { label: "Register" }]}
         />

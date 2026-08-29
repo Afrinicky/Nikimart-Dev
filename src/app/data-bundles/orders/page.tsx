@@ -5,7 +5,7 @@ import { ActionLink } from "@/components/ui/motion";
 import { OrderTracker } from "@/components/data/OrderTracker";
 import { lookupOrders } from "@/lib/data-bundles/lookup";
 
-export const metadata: Metadata = { title: "Track a Data Order — NikiMart" };
+export const metadata: Metadata = { title: "Track a Data Order — Nickimart" };
 export const dynamic = "force-dynamic";
 
 export default async function DataOrdersPage({

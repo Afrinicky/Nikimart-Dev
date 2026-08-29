@@ -14,7 +14,7 @@ export function AffiliateCommissionForm({ id, current, defaultRate }: { id: stri
         <input name="commissionRate" type="number" min="0" max="100" step="0.1" defaultValue={current ?? ""} placeholder={`Default ${defaultRate}`} className={`${inputClass} w-40`} />
         <span className="mt-1 block max-w-sm text-xs text-niki-ink/50">
           Used only for enrolled products that set no rate of their own. A product&apos;s own rate —
-          and the cap on NikiMart-funded enrolments — always wins, so this can&apos;t make a seller
+          and the cap on Nickimart-funded enrolments — always wins, so this can&apos;t make a seller
           pay more than they agreed to.
         </span>
       </label>

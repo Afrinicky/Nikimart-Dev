@@ -5,7 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { LocationForm } from "@/components/admin/LocationForm";
 import { createLocation } from "@/lib/location-actions";
 
-export const metadata: Metadata = { title: "New location — Admin — NikiMart" };
+export const metadata: Metadata = { title: "New location — Admin — Nickimart" };
 
 export default function NewLocationPage() {
   return (

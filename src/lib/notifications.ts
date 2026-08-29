@@ -20,7 +20,7 @@ function arkeselKey(): string | undefined {
   return k && k.trim() ? k.trim() : undefined;
 }
 function arkeselSender(): string {
-  return (process.env.ARKESEL_SENDER_ID || "NikiMart").trim().slice(0, 11);
+  return (process.env.ARKESEL_SENDER_ID || "Nickimart").trim().slice(0, 11);
 }
 export function isSmsConfigured(): boolean {
   return Boolean(arkeselKey());
@@ -31,7 +31,7 @@ function resendKey(): string | undefined {
   return k && k.trim() ? k.trim() : undefined;
 }
 function resendFrom(): string {
-  return (process.env.RESEND_FROM || "NikiMart <onboarding@resend.dev>").trim();
+  return (process.env.RESEND_FROM || "Nickimart <onboarding@resend.dev>").trim();
 }
 export function isEmailConfigured(): boolean {
   return Boolean(resendKey());
@@ -182,7 +182,7 @@ export async function notify(
   }
   if (to.email && channel !== "sms") {
     tasks.push(
-      sendEmail(to.email, opts.emailSubject ?? "NikiMart", opts.emailHtml ?? emailShell(opts.sms)).then(
+      sendEmail(to.email, opts.emailSubject ?? "Nickimart", opts.emailHtml ?? emailShell(opts.sms)).then(
         (ok) => (result.email = ok),
       ),
     );
@@ -192,12 +192,12 @@ export async function notify(
 }
 
 /** Minimal branded email wrapper around a plain message. */
-export function emailShell(body: string, heading = "NikiMart"): string {
+export function emailShell(body: string, heading = "Nickimart"): string {
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px">
-    <div style="font-size:20px;font-weight:700;color:#0e1f36">Niki<span style="color:#ff7a1a">Mart</span></div>
+    <div style="font-size:20px;font-weight:700;color:#0e1f36">Nick<span style="color:#ff7a1a">imart</span></div>
     <h1 style="font-size:18px;color:#111827;margin:16px 0 8px">${heading}</h1>
     <p style="font-size:14px;color:#374151;line-height:1.6">${body}</p>
     <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
-    <p style="font-size:12px;color:#9ca3af">NikiMart — Shop smart. Sell faster. Deliver closer.</p>
+    <p style="font-size:12px;color:#9ca3af">Nickimart — Shop smart. Sell faster. Deliver closer.</p>
   </div>`;
 }

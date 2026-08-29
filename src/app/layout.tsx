@@ -28,18 +28,18 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 const SITE_DESCRIPTION =
-  "NikiMart connects buyers to trusted local shops, preorder sellers, campus vendors, service providers, and official NikiMart products across Ghana.";
+  "Nickimart connects buyers to trusted local shops, preorder sellers, campus vendors, service providers, and official Nickimart products across Ghana.";
 
 export const metadata: Metadata = {
   // Makes relative OG/canonical URLs absolute — required for link previews
   // (WhatsApp, Facebook, X, etc.) to resolve images and links correctly.
   metadataBase: new URL(siteUrl()),
-  title: "NikiMart — Shop smart. Sell faster. Deliver closer.",
+  title: "Nickimart — Shop smart. Sell faster. Deliver closer.",
   description: SITE_DESCRIPTION,
   openGraph: {
-    siteName: "NikiMart",
+    siteName: "Nickimart",
     type: "website",
-    title: "NikiMart — Shop smart. Sell faster. Deliver closer.",
+    title: "Nickimart — Shop smart. Sell faster. Deliver closer.",
     description: SITE_DESCRIPTION,
   },
   twitter: { card: "summary_large_image" },

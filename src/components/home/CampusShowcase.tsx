@@ -110,7 +110,7 @@ export function CampusShowcase({
           </div>
         ) : (
           <p className="mt-8 text-sm text-niki-ink/50">
-            No vendors found for this location yet. Check back soon as NikiMart grows in your area.
+            No vendors found for this location yet. Check back soon as Nickimart grows in your area.
           </p>
         )}
       </Container>

@@ -8,7 +8,7 @@ import { BusyButton } from "@/components/ui/motion";
 
 /**
  * Reference-or-phone search box for the bundle order tracker. `basePath` points
- * it at whichever tracker it's embedded in — NikiMart's own, or an agent's.
+ * it at whichever tracker it's embedded in — Nickimart's own, or an agent's.
  */
 export function DataOrderLookup({
   defaultValue = "",

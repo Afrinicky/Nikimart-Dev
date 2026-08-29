@@ -24,7 +24,7 @@ import {
 } from "@/lib/data-bundles/agents";
 import { cn } from "@/lib/cn";
 
-export const metadata: Metadata = { title: "Store — Agent — NikiMart" };
+export const metadata: Metadata = { title: "Store — Agent — Nickimart" };
 export const dynamic = "force-dynamic";
 
 const WITHDRAWAL_TONES: Record<string, string> = {

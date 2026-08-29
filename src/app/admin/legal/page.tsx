@@ -4,7 +4,7 @@ import { Container } from "@/components/ui/Container";
 import { PolicyEditor } from "@/components/admin/PolicyEditor";
 import { getAllPolicies, getPolicyDraft, POLICY_SLUGS, toBody, POLICY_DEFAULTS } from "@/lib/legal";
 
-export const metadata: Metadata = { title: "Policies — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Policies — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 /**

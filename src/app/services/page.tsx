@@ -5,7 +5,7 @@ import { ProductGrid } from "@/components/product/ProductGrid";
 import { getServiceProducts, getVendorNameMap } from "@/lib/catalog";
 
 export const metadata: Metadata = {
-  title: "Services — NikiMart",
+  title: "Services — Nickimart",
 };
 
 export default async function ServicesPage() {

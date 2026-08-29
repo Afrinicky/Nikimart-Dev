@@ -121,7 +121,7 @@ export function CheckoutClient({
             <h2 className="font-display text-lg font-bold text-niki-ink">Choose a pickup point</h2>
           </div>
           <p className="mt-1 text-sm text-niki-ink/60">
-            Collect your order at any NikiMart station. The shipping fee depends on the distance from the
+            Collect your order at any Nickimart station. The shipping fee depends on the distance from the
             seller and the size (CBM) of your items.
           </p>
 

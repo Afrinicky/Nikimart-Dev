@@ -15,18 +15,18 @@ export const SETTINGS_DEFAULTS = {
   deliveryBasis: "weight",
   // cm³ per volumetric kg when using size basis (courier standard ~5000).
   volumetricDivisor: "5000",
-  supportEmail: "support@nikimart.gh",
+  supportEmail: "support@nickimart.gh",
   supportPhone: "030 000 0000",
   businessHours: "Mon–Sat, 8am–7pm",
   liveChatStatus: "Coming soon",
   footerTagline: "Shop smart. Sell faster. Deliver closer.",
-  footerNote: "Buy local. Preorder global. Shop NikiMart.",
+  footerNote: "Buy local. Preorder global. Shop Nickimart.",
   restrictionsText:
-    "NikiMart restricts dangerous, illegal, and age-restricted products including weapons, alcohol, nicotine, drugs, gambling, adult content, counterfeit goods, and prescription medicine.",
-  copyrightName: "NikiMart",
+    "Nickimart restricts dangerous, illegal, and age-restricted products including weapons, alcohol, nicotine, drugs, gambling, adult content, counterfeit goods, and prescription medicine.",
+  copyrightName: "Nickimart",
   // Brand logo (http(s) URL or a data: URL). Empty → bundled /logo.png.
   logoUrl: "",
-  // Where "Buy Data Bundles" points. Defaults to NikiMart's own bundle
+  // Where "Buy Data Bundles" points. Defaults to Nickimart's own bundle
   // storefront; set an external URL to hand the traffic elsewhere, or empty to
   // hide the shortcuts entirely.
   dataBundlesUrl: "/data-bundles",
@@ -35,7 +35,7 @@ export const SETTINGS_DEFAULTS = {
   // leaving the admin console reachable.
   dataBundlesEnabled: "1",
   // Storefront branding, shown on /data-bundles.
-  dataStoreName: "NikiMart Data",
+  dataStoreName: "Nickimart Data",
   dataStoreTagline: "MTN, Telecel & AirtelTigo bundles — delivered in seconds.",
   // Support contact for bundle buyers. Empty hides the button.
   dataSupportWhatsapp: "",
@@ -72,7 +72,7 @@ export const SETTINGS_DEFAULTS = {
   agentPitch:
     "Resell MTN, Telecel and AirtelTigo bundles under your own store name. You set the prices, we deliver the data.",
   // Platform commission (percent) taken on every sale. Sellers register free
-  // and NikiMart earns this cut per item; overridable per category.
+  // and Nickimart earns this cut per item; overridable per category.
   commissionRate: "10",
   // Default affiliate commission (percent of the item price) used when neither
   // the product nor its category sets its own rate.
@@ -85,7 +85,7 @@ export const SETTINGS_DEFAULTS = {
   // How staff (sellers, freight, pickup, admins) are alerted about orders and
   // jobs: "sms" | "email" | "both". Buyers are always alerted on both channels.
   staffNotifyChannel: "both",
-  // NikiMart's own social media handles (full URLs). Empty = hidden.
+  // Nickimart's own social media handles (full URLs). Empty = hidden.
   socialFacebook: "",
   socialInstagram: "",
   socialTwitter: "",
@@ -285,7 +285,7 @@ export async function getDataStoreConfig(): Promise<DataStoreConfig> {
     // Anything other than an explicit "0"/"off" keeps the store open, so a
     // half-written value never silently takes the storefront down.
     enabled: !["0", "off", "false", "no"].includes(settings.dataBundlesEnabled.trim().toLowerCase()),
-    name: settings.dataStoreName.trim() || "NikiMart Data",
+    name: settings.dataStoreName.trim() || "Nickimart Data",
     tagline: settings.dataStoreTagline.trim(),
     whatsapp: settings.dataSupportWhatsapp.trim(),
     afaEnabled: !["0", "off", "false", "no"].includes(settings.dataAfaEnabled.trim().toLowerCase()),

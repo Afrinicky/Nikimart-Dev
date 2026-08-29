@@ -84,7 +84,7 @@ export function ShopSettingsForm({ shop, hubs = [] }: { shop: Shop; hubs?: { id:
         <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
           <h2 className="font-display text-lg font-bold text-niki-ink">Origin / consolidation hub</h2>
           <p className="mt-1 text-sm text-niki-ink/60">
-            The NikiMart hub nearest you, where your goods are gathered before shipping to buyers. This sets
+            The Nickimart hub nearest you, where your goods are gathered before shipping to buyers. This sets
             the shipping fees buyers pay on your products.
           </p>
           <div className="mt-4">
@@ -104,7 +104,7 @@ export function ShopSettingsForm({ shop, hubs = [] }: { shop: Shop; hubs?: { id:
 
       <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Payout details</h2>
-        <p className="mt-1 text-sm text-niki-ink/60">Where NikiMart sends your earnings. Required before you can request a payout.</p>
+        <p className="mt-1 text-sm text-niki-ink/60">Where Nickimart sends your earnings. Required before you can request a payout.</p>
         <div className="mt-4 space-y-4">
           <Field label="Preferred method" htmlFor="payoutMethod">
             <select id="payoutMethod" name="payoutMethod" defaultValue={shop.payoutMethod} className={inputClass}>

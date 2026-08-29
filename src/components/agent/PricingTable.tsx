@@ -24,7 +24,7 @@ export interface PricingRow {
 }
 
 /**
- * Package Pricing: what NikiMart charges the agent, what they charge, and the
+ * Package Pricing: what Nickimart charges the agent, what they charge, and the
  * profit between the two — editable one row at a time, or all at once with a
  * markup.
  *
@@ -93,7 +93,7 @@ export function PricingTable({ rows }: { rows: PricingRow[] }) {
   if (rows.length === 0) {
     return (
       <p className="rounded-2xl bg-niki-surface px-4 py-10 text-center text-sm text-niki-ink/55">
-        NikiMart hasn&apos;t published agent prices for any bundle yet. Once it does, your ladder
+        Nickimart hasn&apos;t published agent prices for any bundle yet. Once it does, your ladder
         appears here.
       </p>
     );

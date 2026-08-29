@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { sourceRegions } from "@/lib/global-data";
 
 export const metadata: Metadata = {
-  title: "Global Shopping — NikiMart",
+  title: "Global Shopping — Nickimart",
 };
 
 export default function GlobalShoppingPage() {

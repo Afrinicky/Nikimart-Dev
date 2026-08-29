@@ -5,7 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export const metadata: Metadata = {
-  title: "Buyer Protection — NikiMart",
+  title: "Buyer Protection — Nickimart",
 };
 
 const GUARANTEES = [
@@ -21,7 +21,7 @@ export default function BuyerProtectionPage() {
   return (
     <>
       <PageHeader
-        title="NikiMart Buyer Protection"
+        title="Nickimart Buyer Protection"
         subtitle="Shop local and global with confidence — every order is backed by protections that keep you safe."
         crumbs={[{ label: "Buyer protection" }]}
         tone="dark"

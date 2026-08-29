@@ -14,7 +14,7 @@ export const SELLER_TYPE_LABELS: Record<SellerType, string> = {
   food_vendor: "Food Vendor",
   service_provider: "Service Provider",
   wholesale_supplier: "Wholesale Supplier",
-  official_partner: "NikiMart Official Partner",
+  official_partner: "Nickimart Official Partner",
 };
 
 export type VerificationStatus = "pending" | "verified" | "rejected";
@@ -52,7 +52,7 @@ export const BADGE_LABELS: Record<BadgeKind, string> = {
   pickup_available: "Pickup Available",
   campus_delivery: "Campus Delivery",
   verified_seller: "Verified Seller",
-  official: "NikiMart Official",
+  official: "Nickimart Official",
   deposit_required: "Deposit Required",
   imported_item: "Imported Item",
   local_shop: "Local Shop",

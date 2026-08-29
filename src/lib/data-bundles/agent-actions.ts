@@ -33,7 +33,7 @@ import { maxWithdrawal, priceAtMarkup } from "@/lib/data-bundles/agent-pricing";
  *
  * Nothing here creates an agent. Accounts are minted only by an admin
  * approving an application (see agent-application-actions.ts) — a store slug
- * is a public URL under NikiMart's own domain, so NikiMart chooses who gets
+ * is a public URL under Nickimart's own domain, so Nickimart chooses who gets
  * one. Every export of a "use server" module is a potential public endpoint,
  * so a self-signup action left lying about here would be a way around that
  * gate whether or not anything still called it.
@@ -148,7 +148,7 @@ const priceSchema = z.object({
 
 /**
  * Set what this agent charges for one bundle. The floor is the agent price —
- * selling below cost would mean NikiMart funding the agent's discount.
+ * selling below cost would mean Nickimart funding the agent's discount.
  */
 export async function setAgentPrice(input: z.infer<typeof priceSchema>): Promise<ActionResult> {
   const { agent, error } = await currentAgent();
@@ -393,7 +393,7 @@ const afaPriceSchema = z.object({
 
 /**
  * Set what the agent charges for an AFA registration. As with bundles, the
- * floor is NikiMart's own price — anything above it is their commission.
+ * floor is Nickimart's own price — anything above it is their commission.
  */
 export async function setAgentAfaPrice(input: z.infer<typeof afaPriceSchema>): Promise<ActionResult> {
   const { agent, error } = await currentAgent();

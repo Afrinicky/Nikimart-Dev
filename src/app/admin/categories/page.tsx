@@ -7,7 +7,7 @@ import { ExportButton } from "@/components/admin/ExportButton";
 import { prisma } from "@/lib/prisma";
 import { deleteCategory } from "@/lib/admin-actions";
 
-export const metadata: Metadata = { title: "Categories — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Categories — Admin — Nickimart" };
 
 export default async function AdminCategoriesPage() {
   const categories = await prisma.category.findMany({

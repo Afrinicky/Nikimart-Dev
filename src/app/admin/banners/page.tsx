@@ -6,7 +6,7 @@ import { DeleteButton } from "@/components/admin/DeleteButton";
 import { getAllBanners } from "@/lib/banners";
 import { deleteBanner } from "@/lib/banner-actions";
 
-export const metadata: Metadata = { title: "Carousel Banners — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Carousel Banners — Admin — Nickimart" };
 
 export default async function AdminBannersPage() {
   const banners = await getAllBanners();

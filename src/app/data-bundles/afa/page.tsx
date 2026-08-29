@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { AfaForm } from "@/components/data/AfaForm";
 import { getDataStoreConfig } from "@/lib/settings";
 
-export const metadata: Metadata = { title: "AFA Registration — NikiMart Data" };
+export const metadata: Metadata = { title: "AFA Registration — Nickimart Data" };
 export const dynamic = "force-dynamic";
 
 export default async function AfaPage() {

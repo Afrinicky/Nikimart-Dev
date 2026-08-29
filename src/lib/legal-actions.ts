@@ -68,7 +68,7 @@ export async function savePolicy(_prev: PolicyState, fd: FormData): Promise<Poli
   return { ok: true, message: `${data.title} saved and published.` };
 }
 
-/** Throw the edits away and go back to the text NikiMart ships with. */
+/** Throw the edits away and go back to the text Nickimart ships with. */
 export async function resetPolicy(_prev: PolicyState, fd: FormData): Promise<PolicyState> {
   await requireAdmin();
   const slug = String(fd.get("slug") ?? "").trim();

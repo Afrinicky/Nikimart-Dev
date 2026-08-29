@@ -14,14 +14,14 @@ import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { getAgentProgramConfig } from "@/lib/settings";
 
 export const metadata: Metadata = {
-  title: "My Account — NikiMart",
+  title: "My Account — Nickimart",
 };
 
 const LINKS = [
   { icon: ClipboardList, title: "My orders", desc: "Track and manage your orders.", href: "/orders" },
   { icon: Heart, title: "Saved items", desc: "Products you've saved for later.", href: "/products" },
   { icon: MapPin, title: "Addresses & pickup", desc: "Manage delivery and pickup details.", href: "/pickup-points" },
-  { icon: Store, title: "Sell on NikiMart", desc: "Start or manage your shop.", href: "/sell" },
+  { icon: Store, title: "Sell on Nickimart", desc: "Start or manage your shop.", href: "/sell" },
   { icon: Settings, title: "Settings", desc: "Update your profile and preferences.", href: "/account" },
 ];
 

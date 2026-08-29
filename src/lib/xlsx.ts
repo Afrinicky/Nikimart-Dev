@@ -311,7 +311,7 @@ export function workbookResponse(sheets: Sheet[], filename: string): Response {
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="nikimart-${filename}-${stamp}.xlsx"`,
+      "Content-Disposition": `attachment; filename="nickimart-${filename}-${stamp}.xlsx"`,
       "Content-Length": String(buffer.length),
       "Cache-Control": "no-store",
     },

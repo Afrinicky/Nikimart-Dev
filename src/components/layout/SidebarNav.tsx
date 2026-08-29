@@ -49,7 +49,7 @@ const SECTIONS: { title: string; items: Item[] }[] = [
     title: "Earn",
     items: [
       { href: "/become-an-agent", label: "Become a Data Agent", icon: Smartphone },
-      { href: "/start-selling", label: "Sell on NikiMart", icon: Store },
+      { href: "/start-selling", label: "Sell on Nickimart", icon: Store },
     ],
   },
   {
@@ -130,7 +130,7 @@ export function SidebarNav({
           <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
             <BrandLogo className="h-9 w-9" src={logoSrc} />
             <span className="font-display text-lg font-bold text-white">
-              Niki<span className="text-niki-orange">Mart</span>
+              Nick<span className="text-niki-orange">imart</span>
             </span>
           </Link>
           <button
@@ -170,7 +170,7 @@ export function SidebarNav({
           </Link>
 
           {dataBundlesUrl ? (
-            // The bundle store now lives on NikiMart itself, so an in-app path
+            // The bundle store now lives on Nickimart itself, so an in-app path
             // navigates in place; an external URL still opens in a new tab.
             isExternalStoreLink(dataBundlesUrl) ? (
               <a

@@ -8,7 +8,7 @@ import { requireDashboard } from "@/lib/session";
 import { getFinanceBreakdown, FINANCE_METRICS, type FinanceMetric } from "@/lib/finance";
 import { formatPrice } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Finance breakdown — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Finance breakdown — Admin — Nickimart" };
 
 export default async function FinanceBreakdownPage({ params }: { params: Promise<{ metric: string }> }) {
   await requireDashboard("/admin");

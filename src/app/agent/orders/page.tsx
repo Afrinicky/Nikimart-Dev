@@ -21,7 +21,7 @@ import { getAgentForUser, getAgentOrders } from "@/lib/data-bundles/agents";
 import { getDataStoreConfig } from "@/lib/settings";
 import { cn } from "@/lib/cn";
 
-export const metadata: Metadata = { title: "Orders — Agent — NikiMart" };
+export const metadata: Metadata = { title: "Orders — Agent — Nickimart" };
 export const dynamic = "force-dynamic";
 
 const PER_PAGE = 10;

@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/session";
 import { getAgentProgramConfig } from "@/lib/settings";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 
-export const metadata: Metadata = { title: "Support — Agent — NikiMart" };
+export const metadata: Metadata = { title: "Support — Agent — Nickimart" };
 export const dynamic = "force-dynamic";
 
 export default async function AgentSupportPage() {

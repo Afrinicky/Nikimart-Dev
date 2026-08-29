@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { createProduct } from "@/lib/admin-actions";
 import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
 
-export const metadata: Metadata = { title: "New product — Admin — NikiMart" };
+export const metadata: Metadata = { title: "New product — Admin — Nickimart" };
 
 export default async function NewProductPage() {
   const [categories, vendors, defaultCommissionRate, defaultAffiliateRate] = await Promise.all([

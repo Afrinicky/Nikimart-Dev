@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/format";
 import { deleteSellerProduct } from "@/lib/seller-actions";
 
-export const metadata: Metadata = { title: "My Products — Seller — NikiMart" };
+export const metadata: Metadata = { title: "My Products — Seller — Nickimart" };
 
 export default async function SellerProductsPage() {
   const user = await requireDashboard("/seller");
@@ -77,7 +77,7 @@ export default async function SellerProductsPage() {
                   <td className="px-5 py-3">
                     {p.affiliateEnabled ? (
                       <span className="rounded-full bg-niki-success/10 px-2.5 py-1 text-xs font-semibold text-niki-success">
-                        {p.affiliateEnrolledBy === "admin" ? "NikiMart pays" : `You pay${p.affiliateCommissionRate ? ` ${p.affiliateCommissionRate}%` : ""}`}
+                        {p.affiliateEnrolledBy === "admin" ? "Nickimart pays" : `You pay${p.affiliateCommissionRate ? ` ${p.affiliateCommissionRate}%` : ""}`}
                       </span>
                     ) : (
                       <span className="text-xs text-niki-ink/40">Not enrolled</span>

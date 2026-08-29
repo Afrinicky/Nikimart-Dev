@@ -10,7 +10,7 @@ import { formatWhen } from "@/components/agent/AgentUi";
 import { prisma } from "@/lib/prisma";
 import { cn } from "@/lib/cn";
 
-export const metadata: Metadata = { title: "Agents — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Agents — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 /** The agent roster: who's selling, what they've sold, and what they're owed. */
@@ -44,7 +44,7 @@ export default async function AdminAgentsPage({
         <div>
           <h1 className="font-display text-2xl font-bold text-niki-ink">Agents</h1>
           <p className="mt-1 text-sm text-niki-ink/60">
-            Everyone reselling NikiMart bundles under their own storefront.
+            Everyone reselling Nickimart bundles under their own storefront.
           </p>
         </div>
         <ActionLink
@@ -155,7 +155,7 @@ export default async function AdminAgentsPage({
 
       {removed ? (
         <p className="animate-fade-up mt-6 rounded-xl bg-niki-success/10 px-4 py-3 text-sm font-medium text-niki-success ring-1 ring-niki-success/30">
-          Storefront removed. The person keeps their NikiMart account.
+          Storefront removed. The person keeps their Nickimart account.
         </p>
       ) : null}
 

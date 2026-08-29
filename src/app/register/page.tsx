@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { isRole, ROLE_HOME } from "@/lib/roles";
 
 export const metadata: Metadata = {
-  title: "Create account — NikiMart",
+  title: "Create account — Nickimart",
 };
 
 export default async function RegisterPage({
@@ -32,11 +32,11 @@ export default async function RegisterPage({
         <div className="flex items-center gap-2">
           <BrandLogo className="h-9 w-9" />
           <span className="font-display text-xl font-bold text-niki-ink">
-            Niki<span className="text-niki-orange">Mart</span>
+            Nick<span className="text-niki-orange">imart</span>
           </span>
         </div>
         <h1 className="mt-6 font-display text-2xl font-bold text-niki-ink">Create your account</h1>
-        <p className="mt-1 text-sm text-niki-ink/60">Shop, preorder, and track orders on NikiMart.</p>
+        <p className="mt-1 text-sm text-niki-ink/60">Shop, preorder, and track orders on Nickimart.</p>
 
         <RegisterForm pickupPoints={pickupPoints} callbackUrl={cb} />
 

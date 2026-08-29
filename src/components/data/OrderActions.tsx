@@ -26,7 +26,7 @@ export interface OrderView {
   price: number;
   status: string;
   paymentStatus: string;
-  /** Human label for where the order came from (e.g. "NikiMart", "Agent · Ama"). */
+  /** Human label for where the order came from (e.g. "Nickimart", "Agent · Ama"). */
   sourceLabel: string;
   commission?: number | null;
   commissionStatus?: string | null;

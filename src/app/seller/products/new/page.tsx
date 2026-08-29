@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { createSellerProduct } from "@/lib/seller-actions";
 import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
 
-export const metadata: Metadata = { title: "New product — Seller — NikiMart" };
+export const metadata: Metadata = { title: "New product — Seller — Nickimart" };
 
 export default async function NewSellerProductPage() {
   const user = await requireDashboard("/seller");

@@ -10,7 +10,7 @@ import { formatWhen } from "@/components/agent/AgentUi";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { cn } from "@/lib/cn";
 
-export const metadata: Metadata = { title: "Settings — Agent — NikiMart" };
+export const metadata: Metadata = { title: "Settings — Agent — Nickimart" };
 export const dynamic = "force-dynamic";
 
 function ReadOnly({
@@ -48,7 +48,7 @@ export default async function AgentSettingsPage() {
 
       <Card
         title="Account details"
-        description="Your NikiMart profile, as your agent account sees it."
+        description="Your Nickimart profile, as your agent account sees it."
         icon={UserRound}
       >
         <div className="grid gap-5 lg:grid-cols-2">
@@ -90,7 +90,7 @@ export default async function AgentSettingsPage() {
         </div>
 
         <p className="mt-5 text-xs text-niki-ink/50">
-          Name, email and phone are your NikiMart account details —{" "}
+          Name, email and phone are your Nickimart account details —{" "}
           <ActionLink href="/account" className="font-semibold text-niki-orange hover:underline">
             update them in your account
           </ActionLink>
@@ -107,7 +107,7 @@ export default async function AgentSettingsPage() {
 
       <Card title="Security" description="Change the password you sign in with." icon={KeyRound}>
         <p className="text-sm text-niki-ink/65">
-          Your agent account uses the same sign-in as the rest of NikiMart, so passwords are changed
+          Your agent account uses the same sign-in as the rest of Nickimart, so passwords are changed
           in one place.
         </p>
         <ActionLink

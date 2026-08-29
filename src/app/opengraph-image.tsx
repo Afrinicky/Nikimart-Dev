@@ -5,7 +5,7 @@ import { OG_SIZE, OG_CONTENT_TYPE, renderOgJpeg, ogResponse } from "@/lib/og";
 export const runtime = "nodejs";
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
-export const alt = "NikiMart — Shop smart. Sell faster. Deliver closer.";
+export const alt = "Nickimart — Shop smart. Sell faster. Deliver closer.";
 
 export default async function OgImage() {
   const jpeg = await renderOgJpeg(
@@ -22,8 +22,8 @@ export default async function OgImage() {
       }}
     >
       <div style={{ display: "flex", alignItems: "center", fontSize: 88, fontWeight: 800 }}>
-        <span>Niki</span>
-        <span style={{ color: "#FF8A00" }}>Mart</span>
+        <span>Nick</span>
+        <span style={{ color: "#FF8A00" }}>imart</span>
       </div>
       <div style={{ fontSize: 46, fontWeight: 700, marginTop: 28, maxWidth: 960 }}>
         Shop smart. Sell faster. Deliver closer.

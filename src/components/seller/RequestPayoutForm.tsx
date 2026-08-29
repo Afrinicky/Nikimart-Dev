@@ -22,7 +22,7 @@ export function RequestPayoutForm({ available, hasPayoutDetails }: { available: 
   if (state.ok) {
     return (
       <p className="rounded-xl bg-niki-success/10 p-4 text-sm font-medium text-niki-success">
-        Payout request submitted. NikiMart will process it and mark it paid once sent.
+        Payout request submitted. Nickimart will process it and mark it paid once sent.
       </p>
     );
   }

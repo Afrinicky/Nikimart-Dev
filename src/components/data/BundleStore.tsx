@@ -30,7 +30,7 @@ export interface NetworkGroup {
  *
  * `storeSlug` routes the sale through an agent's storefront: the server prices
  * it from that agent's ladder and credits them the difference. Omitted on
- * NikiMart's own /data-bundles page.
+ * Nickimart's own /data-bundles page.
  */
 export function BundleStore({
   groups,

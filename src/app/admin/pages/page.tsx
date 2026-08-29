@@ -6,7 +6,7 @@ import { DeleteButton } from "@/components/admin/DeleteButton";
 import { listPages } from "@/lib/pages";
 import { deletePage, ensureDefaultPages } from "@/lib/page-actions";
 
-export const metadata: Metadata = { title: "Pages — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Pages — Admin — Nickimart" };
 
 export default async function AdminPagesPage() {
   const pages = await listPages();

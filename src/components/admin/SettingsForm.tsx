@@ -21,7 +21,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
       <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Shipping</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
-          Orders are collected at NikiMart pickup points and priced by CBM. Set the per-route ₵/CBM rates,
+          Orders are collected at Nickimart pickup points and priced by CBM. Set the per-route ₵/CBM rates,
           international rates, and the arrival hub in the{" "}
           <Link href="/admin/shipping" className="font-semibold text-niki-orange hover:underline">Shipping</Link> tab.
         </p>
@@ -30,7 +30,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
       <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Platform commission</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
-          The percentage NikiMart earns on every sale. Sellers list for free and this cut is deducted from
+          The percentage Nickimart earns on every sale. Sellers list for free and this cut is deducted from
           each item automatically. Override it per category in Categories.
         </p>
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
@@ -44,7 +44,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         <h2 className="font-display text-lg font-bold text-niki-ink">Affiliate programme</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
           Affiliates only earn on products enrolled in the programme. Sellers enrol their own products
-          at their own expense; you can enrol any product at NikiMart&apos;s expense from the product
+          at their own expense; you can enrol any product at Nickimart&apos;s expense from the product
           page, capped at half the platform commission on that item. Set the per-category default in{" "}
           <Link href="/admin/categories" className="font-semibold text-niki-orange hover:underline">Categories</Link>.
         </p>
@@ -124,7 +124,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
 
       <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Social media</h2>
-        <p className="mt-1 text-sm text-niki-ink/60">NikiMart&apos;s own handles — full URLs. Shown as icons in the footer. Leave blank to hide.</p>
+        <p className="mt-1 text-sm text-niki-ink/60">Nickimart&apos;s own handles — full URLs. Shown as icons in the footer. Leave blank to hide.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field label="Facebook URL" htmlFor="socialFacebook">
             <input id="socialFacebook" name="socialFacebook" type="url" defaultValue={settings.socialFacebook} placeholder="https://facebook.com/…" className={inputClass} />

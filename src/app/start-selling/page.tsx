@@ -6,7 +6,7 @@ import { ActionLink } from "@/components/ui/motion";
 import { formatMoney } from "@/lib/format";
 import { getAffiliatePitch, getAgentProgramConfig } from "@/lib/settings";
 
-export const metadata: Metadata = { title: "Start earning — NikiMart" };
+export const metadata: Metadata = { title: "Start earning — Nickimart" };
 export const dynamic = "force-dynamic";
 
 /** One of the ways to earn. Whole card is the link, with a pressed state. */
@@ -49,7 +49,7 @@ export default async function StartSellingPage() {
   return (
     <>
       <PageHeader
-        title="Start earning on NikiMart"
+        title="Start earning on Nickimart"
         subtitle={`${ways === 3 ? "Three" : "Two"} ways to make money — pick what suits you.`}
         crumbs={[{ label: "Start earning" }]}
       />

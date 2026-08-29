@@ -81,8 +81,8 @@ export async function setAgentStatus(fd: FormData): Promise<void> {
       await sendSms(
         agent.supportPhone,
         status === "active"
-          ? `NikiMart: your agent account (${agent.storeName}) is active again. Your store is back online.`
-          : `NikiMart: your agent account (${agent.storeName}) has been suspended. Please contact support.`,
+          ? `Nickimart: your agent account (${agent.storeName}) is active again. Your store is back online.`
+          : `Nickimart: your agent account (${agent.storeName}) has been suspended. Please contact support.`,
       );
     }
   } catch {
@@ -169,7 +169,7 @@ export async function processWithdrawal(fd: FormData): Promise<void> {
     if (row) {
       await sendSms(
         row.momoPhone,
-        `NikiMart: ${formatMoney(row.amount)} has been sent to ${row.momoPhone}. Thank you for selling with us.`,
+        `Nickimart: ${formatMoney(row.amount)} has been sent to ${row.momoPhone}. Thank you for selling with us.`,
       );
     }
   } catch {
@@ -216,7 +216,7 @@ export async function rejectWithdrawal(fd: FormData): Promise<void> {
     revalidateAgents(row.agentId);
     await sendSms(
       row.momoPhone,
-      `NikiMart: your withdrawal of ${formatMoney(row.amount)} could not be processed. The amount is back on your balance.`,
+      `Nickimart: your withdrawal of ${formatMoney(row.amount)} could not be processed. The amount is back on your balance.`,
     );
   } catch {
     // Not migrated — nothing to reverse.
@@ -373,12 +373,12 @@ export async function reissueSetupLink(fd: FormData): Promise<AgentAdminState> {
   }
 
   await Promise.allSettled([
-    sendSms(agent.user?.phone, `NikiMart: set your agent password here — ${setupUrl}`),
+    sendSms(agent.user?.phone, `Nickimart: set your agent password here — ${setupUrl}`),
     notify(
       { email: agent.user?.email ?? null, phone: null },
       {
-        sms: `Set your NikiMart agent password: ${setupUrl}`,
-        emailSubject: "Set your NikiMart agent password",
+        sms: `Set your Nickimart agent password: ${setupUrl}`,
+        emailSubject: "Set your Nickimart agent password",
       },
     ),
   ]);
@@ -456,7 +456,7 @@ export async function updateAgentDetails(
   }
 
   // An AFA price of zero means "not selling it"; anything else has to clear
-  // NikiMart's own price or the agent would be selling below cost.
+  // Nickimart's own price or the agent would be selling below cost.
   const store = await getDataStoreConfig();
   const afaPrice = round2(Number(data.afaPrice || 0));
   if (!Number.isFinite(afaPrice) || afaPrice < 0) return { error: "Enter a valid AFA price." };
@@ -519,7 +519,7 @@ export async function updateAgentDetails(
 /**
  * Close an agent's storefront for good.
  *
- * The person keeps their NikiMart account — being an agent is something a user
+ * The person keeps their Nickimart account — being an agent is something a user
  * has, not something they are, so this removes the storefront and leaves them
  * a customer. Their prices, ledger and withdrawal history go with it; orders
  * they sold stay, unattributed, because those are the customers' records too.

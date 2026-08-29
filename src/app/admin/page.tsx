@@ -8,7 +8,7 @@ import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
 import { ROLE_LABELS, ROLES, type Role } from "@/lib/roles";
 
 export const metadata: Metadata = {
-  title: "Admin Dashboard — NikiMart",
+  title: "Admin Dashboard — Nickimart",
 };
 
 export default async function AdminDashboardPage() {

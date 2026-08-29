@@ -20,11 +20,11 @@ const FAQ = [
   },
   {
     q: "How do I set my prices?",
-    a: "Store → Pricing. Each row shows what NikiMart charges you and what you charge; the difference is what you earn. Use “Price all” to apply one markup across the whole ladder in a single go.",
+    a: "Store → Pricing. Each row shows what Nickimart charges you and what you charge; the difference is what you earn. Use “Price all” to apply one markup across the whole ladder in a single go.",
   },
   {
     q: "Do I need to stock my account?",
-    a: "No. Your customers pay through Paystack at the moment they buy, and NikiMart buys the bundle from that payment. There is nothing to fund and nothing to run out of.",
+    a: "No. Your customers pay through Paystack at the moment they buy, and Nickimart buys the bundle from that payment. There is nothing to fund and nothing to run out of.",
   },
   {
     q: "How long do withdrawals take?",
@@ -32,7 +32,7 @@ const FAQ = [
   },
   {
     q: "A customer's data hasn't arrived. What do I do?",
-    a: "Check the order under Orders — the status there is live. If it says failed, NikiMart support is already on it and the customer will be credited or refunded. Anything else, request a callback below.",
+    a: "Check the order under Orders — the status there is live. If it says failed, Nickimart support is already on it and the customer will be credited or refunded. Anything else, request a callback below.",
   },
 ];
 
@@ -336,12 +336,12 @@ function TermsPanel({
 }) {
   const terms = [
     `Opening a storefront costs GH₵${setupFee.toFixed(2)}, charged as a debit against your balance. It is settled out of the commission you earn — there is nothing to pay separately.`,
-    "You set your own retail prices, and they must be at or above the agent price NikiMart charges you. Your commission is the difference.",
+    "You set your own retail prices, and they must be at or above the agent price Nickimart charges you. Your commission is the difference.",
     "Commission is credited only once a bundle has been delivered. Orders that fail earn nothing and cost you nothing.",
     `Withdrawals are paid to MoMo. The minimum is GH₵${minWithdrawal.toFixed(2)}${withdrawalFee > 0 ? `, and a flat GH₵${withdrawalFee.toFixed(2)} fee is deducted with each payout` : ""}.`,
     "Data is credited to the exact number entered at checkout. Bundles sent to a wrong number cannot be reversed — check every number before paying.",
-    "Accounts used for fraud, chargebacks, or misrepresenting NikiMart may be suspended. A suspended account keeps its balance and history but stops selling and stops earning.",
-    "NikiMart may change agent prices with notice. Your own prices are never changed for you, but a price below your new cost stops selling until you raise it.",
+    "Accounts used for fraud, chargebacks, or misrepresenting Nickimart may be suspended. A suspended account keeps its balance and history but stops selling and stops earning.",
+    "Nickimart may change agent prices with notice. Your own prices are never changed for you, but a price below your new cost stops selling until you raise it.",
   ];
 
   return (

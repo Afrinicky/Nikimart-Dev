@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { pickupPoints } from "@/lib/global-data";
 
 export const metadata: Metadata = {
-  title: "Pickup Points — NikiMart",
+  title: "Pickup Points — Nickimart",
 };
 
 export default function PickupPointsPage() {
@@ -13,7 +13,7 @@ export default function PickupPointsPage() {
     <>
       <PageHeader
         title="Pickup Points"
-        subtitle="Collect your orders securely from a trusted NikiMart pickup point near you, using a one-time OTP."
+        subtitle="Collect your orders securely from a trusted Nickimart pickup point near you, using a one-time OTP."
         crumbs={[{ label: "Pickup points" }]}
       />
 

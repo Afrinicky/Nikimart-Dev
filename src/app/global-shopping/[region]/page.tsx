@@ -15,7 +15,7 @@ type Params = Promise<{ region: string }>;
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { region } = await params;
   const country = countryByRegion(region);
-  return { title: country ? `Shop from ${country.name} — NikiMart` : "Global Shopping — NikiMart" };
+  return { title: country ? `Shop from ${country.name} — Nickimart` : "Global Shopping — Nickimart" };
 }
 
 export default async function GlobalRegionPage({ params }: { params: Params }) {

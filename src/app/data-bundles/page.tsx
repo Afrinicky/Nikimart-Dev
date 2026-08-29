@@ -10,7 +10,7 @@ import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/settings";
 import { formatPrice } from "@/lib/format";
 
 export const metadata: Metadata = {
-  title: "Buy Data Bundles — NikiMart",
+  title: "Buy Data Bundles — Nickimart",
   description:
     "MTN, Telecel and AirtelTigo data bundles at agent prices. Pay with Mobile Money and the data lands in seconds.",
 };

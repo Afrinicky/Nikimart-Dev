@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 
 export const metadata: Metadata = {
-  title: "Help Centre — NikiMart",
+  title: "Help Centre — Nickimart",
 };
 
 const DEFAULT_FAQS = [
@@ -24,12 +24,12 @@ const DEFAULT_FAQS = [
   {
     question: "How do I pay?",
     answer:
-      "NikiMart supports local payments including Mobile Money and card. Secure checkout is being rolled out — you'll choose your payment method at checkout.",
+      "Nickimart supports local payments including Mobile Money and card. Secure checkout is being rolled out — you'll choose your payment method at checkout.",
   },
   {
     question: "How do I become a seller?",
     answer:
-      "Head to “Sell on NikiMart”, register your shop, complete quick verification, and start listing products, preorders, or services.",
+      "Head to “Sell on Nickimart”, register your shop, complete quick verification, and start listing products, preorders, or services.",
   },
 ];
 
@@ -54,7 +54,7 @@ export default async function HelpPage() {
     <>
       <PageHeader
         title="Help Centre"
-        subtitle="Answers to common questions, and ways to reach the NikiMart team."
+        subtitle="Answers to common questions, and ways to reach the Nickimart team."
         crumbs={[{ label: "Help" }]}
       />
 

@@ -33,7 +33,7 @@ function looksLikeHost(value: string): boolean {
  *
  *  - An address typed without a scheme — which is how people write them, and
  *    how 4ubundles.store was typed — used to be read as a path and saved as
- *    "/www.4ubundles.store/store/Nickland": a page on NikiMart that does not
+ *    "/www.4ubundles.store/store/Nickland": a page on Nickimart that does not
  *    exist. Every shortcut 404'd, with nothing to say why. It gets https://.
  *  - "/databundles" and its spellings become the real route, /data-bundles.
  *    That one spelling took out the sidebar, footer and carousel at once.
@@ -59,7 +59,7 @@ export function normaliseDataBundlesUrl(raw: string): string {
   return flattened === "databundles" ? OWN_BUNDLE_PATH : path;
 }
 
-/** True when the link leaves NikiMart, and so needs target/rel on the anchor. */
+/** True when the link leaves Nickimart, and so needs target/rel on the anchor. */
 export function isExternalStoreLink(url: string): boolean {
   return /^https?:\/\//i.test(url);
 }

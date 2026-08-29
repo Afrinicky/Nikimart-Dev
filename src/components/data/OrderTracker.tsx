@@ -12,7 +12,7 @@ import {
 } from "@/lib/data-bundles/networks";
 
 /**
- * "Where's my data?" — the whole tracker, shared by NikiMart's own page and
+ * "Where's my data?" — the whole tracker, shared by Nickimart's own page and
  * every agent storefront. Only `basePath` differs between them, so the buyer
  * experience is identical wherever they bought.
  */

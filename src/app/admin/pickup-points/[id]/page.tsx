@@ -7,7 +7,7 @@ import { PickupPointForm } from "@/components/admin/PickupPointForm";
 import { prisma } from "@/lib/prisma";
 import { updatePickupPoint } from "@/lib/pickup-actions";
 
-export const metadata: Metadata = { title: "Edit pickup point — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Edit pickup point — Admin — Nickimart" };
 
 type Params = Promise<{ id: string }>;
 

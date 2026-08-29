@@ -10,7 +10,7 @@ import {
 /**
  * The affiliate programme's money rules, pinned down.
  *
- * The half-of-platform-commission cap on NikiMart-funded enrolments is a hard
+ * The half-of-platform-commission cap on Nickimart-funded enrolments is a hard
  * business constraint, and the seller-funded path deliberately has no such cap
  * (a seller may offer whatever they like out of their own margin). Both are
  * easy to erode by accident, hence these.
@@ -55,7 +55,7 @@ test("a seller's own rate is honoured in full, even above the platform's cut", (
   assert.deepEqual(result, { rate: 20, fundedBy: "seller", requestedRate: 20, capped: false });
 });
 
-test("a NikiMart-funded enrolment is capped at half the platform commission", () => {
+test("a Nickimart-funded enrolment is capped at half the platform commission", () => {
   const result = resolveAffiliateRate({
     ...base,
     affiliateEnabled: true,
@@ -65,7 +65,7 @@ test("a NikiMart-funded enrolment is capped at half the platform commission", ()
   assert.deepEqual(result, { rate: 5, fundedBy: "platform", requestedRate: 20, capped: true });
 });
 
-test("a NikiMart-funded enrolment under the cap is left alone", () => {
+test("a Nickimart-funded enrolment under the cap is left alone", () => {
   const result = resolveAffiliateRate({
     ...base,
     affiliateEnabled: true,
@@ -100,7 +100,7 @@ test("a blank product rate inherits the category rate, then the default", () => 
   assert.equal(fromDefault.rate, 5);
 });
 
-test("an inherited rate is still capped for NikiMart-funded enrolments", () => {
+test("an inherited rate is still capped for Nickimart-funded enrolments", () => {
   const result = resolveAffiliateRate({
     ...base,
     categoryAffiliateRate: 8,

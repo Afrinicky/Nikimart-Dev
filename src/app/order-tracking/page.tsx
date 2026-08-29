@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { OrderLookup } from "@/components/global/OrderLookup";
 
 export const metadata: Metadata = {
-  title: "Track an Order — NikiMart",
+  title: "Track an Order — Nickimart",
 };
 
 export default function OrderTrackingPage() {

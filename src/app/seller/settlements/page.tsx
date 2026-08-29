@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { getSellerVendor, getSellerEarnings } from "@/lib/seller";
 import { formatPrice } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Earnings & Payouts — Seller — NikiMart" };
+export const metadata: Metadata = { title: "Earnings & Payouts — Seller — Nickimart" };
 
 export default async function SellerSettlementsPage() {
   const user = await requireDashboard("/seller");
@@ -65,7 +65,7 @@ export default async function SellerSettlementsPage() {
 
         <div className="mt-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
           <h2 className="font-display font-bold text-niki-ink">Request a payout</h2>
-          <p className="mt-1 mb-3 text-sm text-niki-ink/60">Request any amount up to your available balance. NikiMart pays it to your saved details.</p>
+          <p className="mt-1 mb-3 text-sm text-niki-ink/60">Request any amount up to your available balance. Nickimart pays it to your saved details.</p>
           <RequestPayoutForm available={earnings.available} hasPayoutDetails={Boolean(vendor.payoutMethod)} />
         </div>
 
@@ -82,12 +82,12 @@ export default async function SellerSettlementsPage() {
             <span className="font-semibold text-niki-ink">How settlements work:</span> when a buyer pays, your
             share (sale price minus commission) is held <span className="font-medium">in escrow</span>. Once the
             order is <span className="font-medium">delivered</span>, it clears and becomes available for payout.
-            NikiMart&apos;s commission is deducted automatically per item.
+            Nickimart&apos;s commission is deducted automatically per item.
           </p>
           <p className="mt-2">
             <span className="font-semibold text-niki-ink">Affiliate commission</span> is only deducted on
             products you enrolled in the affiliate programme yourself, at the rate you set when listing
-            them. Products NikiMart enrols cost you nothing — the platform funds those out of its own
+            them. Products Nickimart enrols cost you nothing — the platform funds those out of its own
             commission. Change or withdraw an enrolment any time on the product.
           </p>
         </div>
@@ -95,7 +95,7 @@ export default async function SellerSettlementsPage() {
         <h2 className="mt-8 font-display text-lg font-bold text-niki-ink">Payout history</h2>
         {payouts.length === 0 ? (
           <p className="mt-4 rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-niki-edge">
-            No payouts yet. When NikiMart settles your cleared earnings, they&apos;ll appear here.
+            No payouts yet. When Nickimart settles your cleared earnings, they&apos;ll appear here.
           </p>
         ) : (
           <div className="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-niki-edge">

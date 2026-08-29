@@ -206,7 +206,7 @@ export function AgentAccountTools({
                   <option value="off">Not offered</option>
                 </select>
               </Field>
-              <Field label="Their AFA price (GH₵)" htmlFor={`ap-${agentId}`} hint="0 uses NikiMart's price.">
+              <Field label="Their AFA price (GH₵)" htmlFor={`ap-${agentId}`} hint="0 uses Nickimart's price.">
                 <input id={`ap-${agentId}`} name="afaPrice" type="number" min="0" step="0.01" defaultValue={initial.afaPrice} className={inputClass} />
               </Field>
             </div>
@@ -250,7 +250,7 @@ export function AgentAccountTools({
             </p>
             <p className="mt-1 text-sm text-niki-ink/65">
               Their store link stops working and their prices, ledger and withdrawal history go with
-              it. Orders they sold stay in the records. They keep their NikiMart account and can
+              it. Orders they sold stay in the records. They keep their Nickimart account and can
               still shop — being an agent is something an account has, not what it is.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">

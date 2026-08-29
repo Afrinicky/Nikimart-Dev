@@ -25,7 +25,7 @@ import { listAgents } from "@/lib/data-bundles/agents";
 import { sweepDataOrders } from "@/lib/data-bundles/admin-actions";
 import { prisma } from "@/lib/prisma";
 
-export const metadata: Metadata = { title: "Data Bundles — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Data Bundles — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 function Stat({

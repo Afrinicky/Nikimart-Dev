@@ -15,7 +15,7 @@ import {
   updatePageMeta,
 } from "@/lib/page-actions";
 
-export const metadata: Metadata = { title: "Edit page — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Edit page — Admin — Nickimart" };
 
 type Params = Promise<{ id: string }>;
 

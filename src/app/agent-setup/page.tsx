@@ -9,7 +9,7 @@ import { getAgentProgramConfig } from "@/lib/settings";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Set up your agent account — NikiMart" };
+export const metadata: Metadata = { title: "Set up your agent account — Nickimart" };
 export const dynamic = "force-dynamic";
 
 /**

@@ -10,7 +10,7 @@ import { getCommissionRate } from "@/lib/settings";
 import { markPayoutPaid, markAffiliatePayoutPaid } from "@/lib/finance-actions";
 import { formatPrice } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Finance — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Finance — Admin — Nickimart" };
 
 export default async function AdminFinancePage() {
   await requireDashboard("/admin");
@@ -100,12 +100,12 @@ export default async function AdminFinancePage() {
                 <span className="font-semibold text-niki-ink">{formatPrice(overview.affiliateFundedBySellers)}</span>
               </li>
               <li className="flex justify-between text-niki-ink/70">
-                <span>NikiMart (platform enrolments)</span>
+                <span>Nickimart (platform enrolments)</span>
                 <span className="font-semibold text-niki-ink">{formatPrice(overview.affiliateFundedByPlatform)}</span>
               </li>
             </ul>
             <p className="mt-2 text-xs text-niki-ink/50">
-              NikiMart-funded enrolments are capped at half the platform commission on the item.
+              Nickimart-funded enrolments are capped at half the platform commission on the item.
             </p>
           </div>
         </div>

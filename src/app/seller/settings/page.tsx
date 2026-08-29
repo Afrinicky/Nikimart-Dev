@@ -8,7 +8,7 @@ import { requireDashboard } from "@/lib/session";
 import { getSellerVendor } from "@/lib/seller";
 import { prisma } from "@/lib/prisma";
 
-export const metadata: Metadata = { title: "Shop Settings — Seller — NikiMart" };
+export const metadata: Metadata = { title: "Shop Settings — Seller — Nickimart" };
 
 export default async function SellerSettingsPage() {
   const user = await requireDashboard("/seller");

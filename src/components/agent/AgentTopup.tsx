@@ -48,7 +48,7 @@ export function AgentTopup({ bundles }: { bundles: TopupBundle[] }) {
       <div className="animate-fade-up rounded-2xl bg-white p-8 text-center ring-1 ring-niki-edge">
         <p className="font-display font-bold text-niki-ink">No bundles available yet</p>
         <p className="mt-2 text-sm text-niki-ink/60">
-          NikiMart hasn&apos;t published agent prices for any bundle. Check back shortly, or ask
+          Nickimart hasn&apos;t published agent prices for any bundle. Check back shortly, or ask
           support.
         </p>
       </div>

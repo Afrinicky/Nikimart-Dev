@@ -103,7 +103,7 @@ export function PaymentPill({ status }: { status: string }) {
   );
 }
 
-/** Where an order came from: the agent's store, their dashboard, or NikiMart. */
+/** Where an order came from: the agent's store, their dashboard, or Nickimart. */
 export function SourcePill({ source }: { source: string }) {
   const label =
     source === "STOREFRONT" ? "Storefront" : source === "AGENT" ? "Dashboard" : "Web";

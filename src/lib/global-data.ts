@@ -1,4 +1,4 @@
-// Data + helpers for NikiMart's global-shopping / buy-for-me / freight / pickup
+// Data + helpers for Nickimart's global-shopping / buy-for-me / freight / pickup
 // features. Mock data for now; replaced with Prisma-backed data in a later phase.
 
 export interface SourceRegion {
@@ -113,7 +113,7 @@ export const LANDED_COST_LABELS: { key: keyof Omit<LandedCost, "total">; label: 
   { key: "internationalFreight", label: "International freight" },
   { key: "customs", label: "Customs estimate" },
   { key: "pickupFee", label: "Ghana pickup fee" },
-  { key: "serviceFee", label: "NikiMart service fee" },
+  { key: "serviceFee", label: "Nickimart service fee" },
 ];
 
 export type OrderStatus =

@@ -6,11 +6,11 @@ import { OrderTracker } from "@/components/data/OrderTracker";
 import { lookupOrders } from "@/lib/data-bundles/lookup";
 import { getAgentBySlug } from "@/lib/data-bundles/agents";
 
-export const metadata: Metadata = { title: "Track an order — NikiMart" };
+export const metadata: Metadata = { title: "Track an order — Nickimart" };
 export const dynamic = "force-dynamic";
 
 /**
- * The tracker on an agent's storefront. Same lookup as NikiMart's own — a
+ * The tracker on an agent's storefront. Same lookup as Nickimart's own — a
  * reference or the phone number that paid — so a customer who lost the tab can
  * still find their bundle without an account.
  */

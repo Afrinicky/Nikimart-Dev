@@ -7,7 +7,7 @@ import { AfaForm } from "@/components/data/AfaForm";
 import { getDataStoreConfig } from "@/lib/settings";
 import { getAgentBySlug } from "@/lib/data-bundles/agents";
 
-export const metadata: Metadata = { title: "AFA Registration — NikiMart" };
+export const metadata: Metadata = { title: "AFA Registration — Nickimart" };
 export const dynamic = "force-dynamic";
 
 /** AFA registration on an agent's storefront, at that agent's price. */

@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveSupportRequest } from "@/lib/data-bundles/agent-admin-actions";
 import { cn } from "@/lib/cn";
 
-export const metadata: Metadata = { title: "Agent Support — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Agent Support — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 /** Callback requests raised from the agent Support screen. */

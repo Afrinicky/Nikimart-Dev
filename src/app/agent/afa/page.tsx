@@ -10,7 +10,7 @@ import { formatMoney } from "@/lib/format";
 import { getDataStoreConfig } from "@/lib/settings";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 
-export const metadata: Metadata = { title: "AFA — Agent — NikiMart" };
+export const metadata: Metadata = { title: "AFA — Agent — Nickimart" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -55,7 +55,7 @@ export default async function AgentAfaPage() {
           </p>
           <p className="mt-1 font-figures text-2xl font-bold text-niki-ink">{formatMoney(price)}</p>
           <p className="mt-0.5 text-xs text-niki-ink/50">
-            NikiMart charges {formatMoney(store.afaPrice)}
+            Nickimart charges {formatMoney(store.afaPrice)}
           </p>
         </div>
         <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">

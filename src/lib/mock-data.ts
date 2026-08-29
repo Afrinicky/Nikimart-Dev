@@ -39,7 +39,7 @@ export const categories: Category[] = [
   { id: "cat-baby-kids", name: "Baby & Kids", slug: "baby-kids", icon: "baby", description: "Everything for babies and children", productCount: 96 },
   { id: "cat-services", name: "Services", slug: "services", icon: "concierge-bell", description: "Trusted local service providers", productCount: 88 },
   { id: "cat-preorder", name: "Preorder Deals", slug: "preorder-deals", icon: "package-2", description: "Imported and upcoming products", productCount: 64 },
-  { id: "cat-official", name: "NikiMart Official Store", slug: "nikimart-official-store", icon: "badge-check", description: "Verified NikiMart branded products", productCount: 41 },
+  { id: "cat-official", name: "Nickimart Official Store", slug: "nikimart-official-store", icon: "badge-check", description: "Verified Nickimart branded products", productCount: 41 },
 ];
 
 const fmtVendorAccent = (from: string, to: string) => ({ accentFrom: from, accentTo: to });
@@ -67,9 +67,9 @@ export const vendors: Vendor[] = [
   {
     id: "vendor-nikimart-official",
     slug: "nikimart-official-store",
-    businessName: "NikiMart Official Store",
+    businessName: "Nickimart Official Store",
     sellerTypes: ["official_partner"],
-    description: "Verified NikiMart branded gear, merch, and trusted bulk-sourced essentials.",
+    description: "Verified Nickimart branded gear, merch, and trusted bulk-sourced essentials.",
     initials: "NM",
     ...fmtVendorAccent("#07111F", "#FF8A00"),
     locationIds: ["any"],
@@ -218,7 +218,7 @@ export const products: Product[] = [
   {
     id: "prod-earbuds", slug: "wireless-earbuds-pro", name: "NikiSound Wireless Earbuds Pro",
     categoryId: "cat-phone-accessories", vendorId: "vendor-nikimart-official",
-    description: "Official NikiMart wireless earbuds with active noise cancellation and 30-hour battery life.",
+    description: "Official Nickimart wireless earbuds with active noise cancellation and 30-hour battery life.",
     price: 249, oldPrice: 349, stockQuantity: 40, productType: "in_stock",
     badges: ["in_stock", "official", "flash_sale", "top_rated"],
     locationIds: ["any"], campusDeliveryAvailable: true, pickupAvailable: true, sameDayDeliveryAvailable: true,
@@ -318,7 +318,7 @@ export const products: Product[] = [
   {
     id: "prod-blender", slug: "compact-electric-blender", name: "Compact Electric Blender",
     categoryId: "cat-electronics", vendorId: "vendor-nikimart-official",
-    description: "Official NikiMart compact blender, perfect for smoothies and small hostel kitchens.",
+    description: "Official Nickimart compact blender, perfect for smoothies and small hostel kitchens.",
     price: 195, stockQuantity: 33, productType: "in_stock",
     badges: ["in_stock", "official"], locationIds: ["any"],
     campusDeliveryAvailable: true, pickupAvailable: true, sameDayDeliveryAvailable: true,
@@ -376,9 +376,9 @@ export const products: Product[] = [
     gradientFrom: "#ffc107", gradientTo: "#10b981", emoji: "🧸",
   },
   {
-    id: "prod-hoodie", slug: "nikimart-campus-hoodie", name: "NikiMart Campus Hoodie",
+    id: "prod-hoodie", slug: "nikimart-campus-hoodie", name: "Nickimart Campus Hoodie",
     categoryId: "cat-official", vendorId: "vendor-nikimart-official",
-    description: "Official NikiMart branded hoodie — soft fleece, unisex fit, available in 4 colours.",
+    description: "Official Nickimart branded hoodie — soft fleece, unisex fit, available in 4 colours.",
     price: 165, stockQuantity: 55, productType: "in_stock",
     badges: ["in_stock", "official", "top_rated"], locationIds: ["any"],
     campusDeliveryAvailable: true, pickupAvailable: true, sameDayDeliveryAvailable: true,
@@ -386,9 +386,9 @@ export const products: Product[] = [
     gradientFrom: "#07111f", gradientTo: "#ff8a00", emoji: "👕",
   },
   {
-    id: "prod-totewatch", slug: "nikimart-classic-watch", name: "NikiMart Classic Watch",
+    id: "prod-totewatch", slug: "nikimart-classic-watch", name: "Nickimart Classic Watch",
     categoryId: "cat-official", vendorId: "vendor-nikimart-official",
-    description: "Minimalist official NikiMart watch with leather strap and 1-year warranty.",
+    description: "Minimalist official Nickimart watch with leather strap and 1-year warranty.",
     price: 320, oldPrice: 399, stockQuantity: 20, productType: "in_stock",
     badges: ["in_stock", "official", "flash_sale"], locationIds: ["any"],
     campusDeliveryAvailable: true, pickupAvailable: true, sameDayDeliveryAvailable: true,

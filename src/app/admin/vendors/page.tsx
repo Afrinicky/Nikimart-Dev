@@ -8,7 +8,7 @@ import { FilterChip } from "@/components/admin/FilterChip";
 import { prisma } from "@/lib/prisma";
 import { deleteVendor, setVendorVerification } from "@/lib/admin-actions";
 
-export const metadata: Metadata = { title: "Shops — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Shops — Admin — Nickimart" };
 
 const STATUS_TONE: Record<string, string> = {
   verified: "bg-niki-success/10 text-niki-success",

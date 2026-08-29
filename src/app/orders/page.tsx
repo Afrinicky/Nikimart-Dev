@@ -15,7 +15,7 @@ import {
 } from "@/lib/order-status";
 
 export const metadata: Metadata = {
-  title: "My Orders — NikiMart",
+  title: "My Orders — Nickimart",
 };
 
 export default async function OrdersPage({

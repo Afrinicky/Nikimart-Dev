@@ -1,5 +1,5 @@
 /**
- * Platform commission maths. NikiMart takes a percentage of each sale (like
+ * Platform commission maths. Nickimart takes a percentage of each sale (like
  * Jumia). The rate resolves per item as: category override → platform default.
  * The resolved rate is snapshotted onto the order item at sale time, so payouts
  * stay accurate even if rates change afterwards.
@@ -21,7 +21,7 @@ export function sellerAffiliateCost(line: CommissionLine): number {
   return line.affiliateFundedBy === "seller" ? (line.affiliateCommission ?? 0) : 0;
 }
 
-/** The part of a line's affiliate commission NikiMart pays for. */
+/** The part of a line's affiliate commission Nickimart pays for. */
 export function platformAffiliateCost(line: CommissionLine): number {
   return line.affiliateFundedBy === "platform" ? (line.affiliateCommission ?? 0) : 0;
 }

@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { isPaymentConfigured } from "@/lib/payments";
 
 export const metadata: Metadata = {
-  title: "Checkout — NikiMart",
+  title: "Checkout — Nickimart",
 };
 
 export default async function CheckoutPage() {

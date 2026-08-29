@@ -11,7 +11,7 @@ import { ConfirmStageButton } from "@/components/order/ConfirmStageButton";
 import { confirmActionLabel, nextStageForRole, type DeliveryMethod, type ShipmentTimestamps } from "@/lib/tracking";
 
 export const metadata: Metadata = {
-  title: "Freight Dashboard — NikiMart",
+  title: "Freight Dashboard — Nickimart",
 };
 
 export default async function FreightDashboardPage() {

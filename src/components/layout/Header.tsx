@@ -30,7 +30,7 @@ export async function Header() {
               zooms the whole page out to fit, and every fixed element then
               renders at a fraction of the width. */}
           <span className="font-display text-lg font-bold tracking-tight text-white sm:text-xl">
-            Niki<span className="text-niki-orange">Mart</span>
+            Nick<span className="text-niki-orange">imart</span>
           </span>
         </Link>
 
@@ -82,7 +82,7 @@ export async function Header() {
               className="ml-1 hidden shrink-0 items-center gap-1.5 rounded-full bg-niki-orange px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-niki-orange-light sm:flex"
             >
               <Store className="h-4 w-4" />
-              Sell on NikiMart
+              Sell on Nickimart
             </Link>
           )}
         </div>

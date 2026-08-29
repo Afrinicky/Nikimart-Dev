@@ -15,7 +15,7 @@ import {
 } from "@/lib/data-bundles/agents";
 import { cn } from "@/lib/cn";
 
-export const metadata: Metadata = { title: "Wallet — Agent — NikiMart" };
+export const metadata: Metadata = { title: "Wallet — Agent — Nickimart" };
 export const dynamic = "force-dynamic";
 
 const TYPE_LABELS: Record<string, string> = {

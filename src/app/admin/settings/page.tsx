@@ -5,7 +5,7 @@ import { ActionLink } from "@/components/ui/motion";
 import { SettingsForm } from "@/components/admin/SettingsForm";
 import { getSettings } from "@/lib/settings";
 
-export const metadata: Metadata = { title: "Settings — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Settings — Admin — Nickimart" };
 
 export default async function AdminSettingsPage() {
   const settings = await getSettings();

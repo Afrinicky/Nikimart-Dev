@@ -7,7 +7,7 @@ import { LocationForm } from "@/components/admin/LocationForm";
 import { prisma } from "@/lib/prisma";
 import { updateLocation } from "@/lib/location-actions";
 
-export const metadata: Metadata = { title: "Edit location — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Edit location — Admin — Nickimart" };
 
 type Params = Promise<{ id: string }>;
 

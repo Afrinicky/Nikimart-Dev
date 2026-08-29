@@ -20,7 +20,7 @@ import {
   getAgentWallet,
 } from "@/lib/data-bundles/agents";
 
-export const metadata: Metadata = { title: "Agent Dashboard — NikiMart" };
+export const metadata: Metadata = { title: "Agent Dashboard — Nickimart" };
 export const dynamic = "force-dynamic";
 
 function Tile({

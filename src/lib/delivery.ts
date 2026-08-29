@@ -1,4 +1,4 @@
-// NikiMart delivery-fee engine — a Jumia-style calculation that prices door
+// Nickimart delivery-fee engine — a Jumia-style calculation that prices door
 // delivery from the billable weight of the cart and a destination zone
 // multiplier, while pickup-station collection is a flat (usually cheaper) fee.
 //

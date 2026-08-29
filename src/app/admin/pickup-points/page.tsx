@@ -7,7 +7,7 @@ import { ExportButton } from "@/components/admin/ExportButton";
 import { prisma } from "@/lib/prisma";
 import { deletePickupPoint } from "@/lib/pickup-actions";
 
-export const metadata: Metadata = { title: "Pickup Points — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Pickup Points — Admin — Nickimart" };
 
 export default async function AdminPickupPointsPage() {
   const points = await prisma.pickupPoint.findMany({

@@ -11,7 +11,7 @@ import Link from "next/link";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = {
-  title: "All Products — NikiMart",
+  title: "All Products — Nickimart",
 };
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
@@ -89,7 +89,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
           <EmptyState
             icon={<SearchX className="h-6 w-6" />}
             title="No products found"
-            message="Try a different category or search term. New products are added to NikiMart every day."
+            message="Try a different category or search term. New products are added to Nickimart every day."
             actionLabel="Browse all products"
             actionHref="/products"
           />

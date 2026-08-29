@@ -8,7 +8,7 @@ import { formatMoney } from "@/lib/format";
 import { processWithdrawal, rejectWithdrawal } from "@/lib/data-bundles/agent-admin-actions";
 import { cn } from "@/lib/cn";
 
-export const metadata: Metadata = { title: "Withdrawals — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Withdrawals — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 const TONES: Record<string, string> = {

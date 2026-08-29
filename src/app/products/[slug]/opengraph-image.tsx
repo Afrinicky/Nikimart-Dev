@@ -8,9 +8,9 @@ import { absoluteImageUrl } from "@/lib/site";
 export const runtime = "nodejs";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/jpeg";
-export const alt = "NikiMart product";
+export const alt = "Nickimart product";
 
-// NikiMart navy — fills the letterbox bars around non-landscape photos.
+// Nickimart navy — fills the letterbox bars around non-landscape photos.
 const BG = { r: 14, g: 31, b: 54, alpha: 1 };
 
 /** Load the product image bytes from a data: URL or an http(s) URL. */

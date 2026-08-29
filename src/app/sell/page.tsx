@@ -12,7 +12,7 @@ import {
 import { Container } from "@/components/ui/Container";
 
 export const metadata: Metadata = {
-  title: "Sell on NikiMart",
+  title: "Sell on Nickimart",
 };
 
 const BENEFITS = [
@@ -39,10 +39,10 @@ export default function SellPage() {
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-niki-gold ring-1 ring-white/15">
               <Store className="h-3.5 w-3.5" />
-              Become a NikiMart seller
+              Become a Nickimart seller
             </span>
             <h1 className="mt-5 font-display text-3xl font-bold leading-tight text-white sm:text-4xl lg:text-5xl">
-              Grow your business on NikiMart
+              Grow your business on Nickimart
             </h1>
             <p className="mt-4 text-base text-white/70">
               Reach thousands of shoppers across campuses and communities in Ghana. List products,
@@ -82,7 +82,7 @@ export default function SellPage() {
       </section>
 
       <Container className="py-14">
-        <h2 className="font-display text-2xl font-bold text-niki-ink">Why sell on NikiMart?</h2>
+        <h2 className="font-display text-2xl font-bold text-niki-ink">Why sell on Nickimart?</h2>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {BENEFITS.map(({ icon: Icon, title, desc }) => (
             <div key={title} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">

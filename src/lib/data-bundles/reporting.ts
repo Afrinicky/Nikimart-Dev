@@ -114,7 +114,7 @@ export interface AdminDataOrder {
 }
 
 /**
- * A human label for an order's origin: "NikiMart" for the house storefront, or
+ * A human label for an order's origin: "Nickimart" for the house storefront, or
  * the agent's store name (with their code) for an agent sale.
  */
 export function orderSourceLabel(o: {
@@ -122,7 +122,7 @@ export function orderSourceLabel(o: {
   agentName: string | null;
   agentCode: string | null;
 }): string {
-  if (o.source === "WEB" || !o.agentName) return "NikiMart";
+  if (o.source === "WEB" || !o.agentName) return "Nickimart";
   const where = o.source === "STOREFRONT" ? "Storefront" : "Dashboard";
   const who = o.agentCode ? `${o.agentName} (${o.agentCode})` : o.agentName;
   return `Agent · ${who} · ${where}`;

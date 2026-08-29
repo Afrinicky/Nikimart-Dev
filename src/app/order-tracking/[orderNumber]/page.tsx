@@ -17,7 +17,7 @@ type Params = Promise<{ orderNumber: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { orderNumber } = await params;
-  return { title: `Order ${decodeURIComponent(orderNumber)} — NikiMart` };
+  return { title: `Order ${decodeURIComponent(orderNumber)} — Nickimart` };
 }
 
 export default async function OrderTrackingDetailPage({ params }: { params: Params }) {

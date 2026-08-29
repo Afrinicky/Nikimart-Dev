@@ -12,7 +12,7 @@ import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
 
 export const metadata: Metadata = {
-  title: "Seller Dashboard — NikiMart",
+  title: "Seller Dashboard — Nickimart",
 };
 
 const ACTIONS = [

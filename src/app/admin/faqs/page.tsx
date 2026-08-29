@@ -6,7 +6,7 @@ import { DeleteButton } from "@/components/admin/DeleteButton";
 import { prisma } from "@/lib/prisma";
 import { deleteFaq } from "@/lib/settings-actions";
 
-export const metadata: Metadata = { title: "FAQs — Admin — NikiMart" };
+export const metadata: Metadata = { title: "FAQs — Admin — Nickimart" };
 
 export default async function AdminFaqsPage() {
   const faqs = await prisma.faq.findMany({ orderBy: { order: "asc" } });

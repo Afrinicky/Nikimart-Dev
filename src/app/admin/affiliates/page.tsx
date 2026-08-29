@@ -9,7 +9,7 @@ import { getAffiliateOverview, getAllAffiliatesWithStats } from "@/lib/affiliate
 import { getAffiliateRate } from "@/lib/settings";
 import { formatPrice } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Affiliates — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Affiliates — Admin — Nickimart" };
 
 export default async function AdminAffiliatesPage() {
   await requireDashboard("/admin");
@@ -22,7 +22,7 @@ export default async function AdminAffiliatesPage() {
           <h1 className="font-display text-2xl font-bold text-niki-ink">Affiliates</h1>
           <p className="mt-1 text-sm text-niki-ink/60">
             Affiliates earn on products enrolled in the programme — sellers enrol theirs at their own
-            expense, and you can enrol any product at NikiMart&apos;s (capped at half the platform
+            expense, and you can enrol any product at Nickimart&apos;s (capped at half the platform
             commission). Default rate {rate}%, overridable per category and per product.
           </p>
         </div>

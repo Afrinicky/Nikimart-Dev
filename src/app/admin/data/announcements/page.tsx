@@ -10,7 +10,7 @@ import {
 } from "@/lib/data-bundles/agent-admin-actions";
 import { cn } from "@/lib/cn";
 
-export const metadata: Metadata = { title: "Announcements — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Announcements — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 const TONES: Record<string, string> = {

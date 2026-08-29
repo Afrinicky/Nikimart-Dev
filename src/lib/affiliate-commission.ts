@@ -8,7 +8,7 @@
  *     net earnings. Whatever rate they agreed to is honoured (clamped only so
  *     the seller can never end up owing money on a sale).
  *
- *   • NikiMart enrols the product — the platform funds the commission out of
+ *   • Nickimart enrols the product — the platform funds the commission out of
  *     its own cut. That's capped at half of the platform commission on the
  *     item, so the house always keeps at least half of what it earns.
  *

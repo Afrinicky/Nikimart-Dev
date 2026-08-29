@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { AffiliateForm } from "@/components/admin/AffiliateForm";
 import { requireDashboard } from "@/lib/session";
 
-export const metadata: Metadata = { title: "Add affiliate — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Add affiliate — Admin — Nickimart" };
 
 export default async function NewAffiliatePage() {
   await requireDashboard("/admin");

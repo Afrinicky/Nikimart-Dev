@@ -10,7 +10,7 @@ import { requireAdmin } from "@/lib/session";
 import { deleteUser } from "@/lib/admin-actions";
 import { ROLES, ROLE_LABELS, isRole } from "@/lib/roles";
 
-export const metadata: Metadata = { title: "Users — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Users — Admin — Nickimart" };
 
 export default async function AdminUsersPage({
   searchParams,

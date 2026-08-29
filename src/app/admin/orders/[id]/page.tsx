@@ -11,7 +11,7 @@ import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, SHIPMENT_STATUS_LABELS, statusTone } from "@/lib/order-status";
 import { normalizeGhPhone } from "@/lib/phone";
 
-export const metadata: Metadata = { title: "Order — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Order — Admin — Nickimart" };
 
 export default async function AdminOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireDashboard("/admin");

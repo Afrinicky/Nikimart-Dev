@@ -23,7 +23,7 @@ import { generateAgentCode, slugProblem } from "@/lib/data-bundles/agents";
  * The shape is deliberate: an applicant gives their name, contact, email and
  * the store name they want, and nothing exists until an admin approves it. A
  * store slug is a public URL and the agent's identity to their own customers,
- * so it gets a human look before it is minted, and NikiMart chooses who resells
+ * so it gets a human look before it is minted, and Nickimart chooses who resells
  * under its name.
  *
  * No password is collected on the form. Approval provisions the account and
@@ -241,7 +241,7 @@ export async function applyToBeAgent(
     await Promise.allSettled(
       admins.map((a) =>
         notify(a, {
-          sms: `NikiMart: ${data.fullName} has applied to become a data agent (store “${desiredSlug}”). Review it in Admin → Data → Agents.`,
+          sms: `Nickimart: ${data.fullName} has applied to become a data agent (store “${desiredSlug}”). Review it in Admin → Data → Agents.`,
           emailSubject: "New data agent application",
         }),
       ),
@@ -303,7 +303,7 @@ export async function approveApplication(
 
   try {
     const agentId = await prisma.$transaction(async (tx) => {
-      // An applicant may already shop on NikiMart — reuse that account rather
+      // An applicant may already shop on Nickimart — reuse that account rather
       // than stranding them with two.
       const user =
         (await tx.user.findUnique({ where: { email } })) ??
@@ -367,13 +367,13 @@ export async function approveApplication(
   const sent = await Promise.allSettled([
     sendSms(
       application.phone,
-      `NikiMart: your agent application is approved. Set your password and open your store: ${setupUrl}`,
+      `Nickimart: your agent application is approved. Set your password and open your store: ${setupUrl}`,
     ),
     notify(
       { email: application.email, phone: null },
       {
-        sms: `Your NikiMart agent account is approved. Set your password: ${setupUrl}`,
-        emailSubject: "Your NikiMart agent account is approved",
+        sms: `Your Nickimart agent account is approved. Set your password: ${setupUrl}`,
+        emailSubject: "Your Nickimart agent account is approved",
         emailHtml:
           `<p>Welcome aboard.</p>` +
           `<p>Your store link is <strong>${siteUrl()}/store/${application.desiredSlug}</strong><br>` +
@@ -434,7 +434,7 @@ export async function rejectApplication(
     if (application) {
       await sendSms(
         application.phone,
-        `NikiMart: thanks for applying to become a data agent. We can't approve it at this time${reason ? ` — ${reason}` : ""}.`,
+        `Nickimart: thanks for applying to become a data agent. We can't approve it at this time${reason ? ` — ${reason}` : ""}.`,
       ).catch(() => {});
     }
   } catch {
@@ -503,7 +503,7 @@ export async function completeAgentSetup(
         select: { userId: true },
       });
 
-      // An applicant may already have shopped on NikiMart, in which case
+      // An applicant may already have shopped on Nickimart, in which case
       // approval reused their account.
       //
       // Nothing here has proved the applicant owns that email — they typed it
@@ -545,7 +545,7 @@ export async function completeAgentSetup(
   return {
     ok: true,
     message: hadPassword
-      ? "Your store is live. Sign in with your existing NikiMart password."
+      ? "Your store is live. Sign in with your existing Nickimart password."
       : "Your store is live. Sign in to start selling.",
   };
 }

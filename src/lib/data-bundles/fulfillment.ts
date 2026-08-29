@@ -271,14 +271,14 @@ export async function notifyDataOrderDispatched(orderId: string): Promise<void> 
   const size = bundleLabel(o.sizeGb);
   const net = networkLabel(o.network);
   const buyerText =
-    `NikiMart Data: ${size} ${net} for ${o.recipientPhone} is on its way. ` +
+    `Nickimart Data: ${size} ${net} for ${o.recipientPhone} is on its way. ` +
     `Ref ${o.reference}. Track it at ${siteUrl()}/data-bundles/orders`;
   await notify({ phone: o.buyerPhone, email: o.buyerEmail }, {
     sms: buyerText,
     emailSubject: `Your ${size} ${net} bundle — ${o.reference}`,
   });
   if (o.recipientPhone !== o.buyerPhone) {
-    await sendSms(o.recipientPhone, `NikiMart Data: ${size} ${net} is being credited to this number. Ref ${o.reference}.`);
+    await sendSms(o.recipientPhone, `Nickimart Data: ${size} ${net} is being credited to this number. Ref ${o.reference}.`);
   }
 }
 
@@ -288,7 +288,7 @@ export async function notifyDataOrderCompleted(orderId: string): Promise<void> {
   const size = bundleLabel(o.sizeGb);
   const net = networkLabel(o.network);
   await notify({ phone: o.buyerPhone, email: o.buyerEmail }, {
-    sms: `NikiMart Data: ${size} ${net} has been delivered to ${o.recipientPhone}. Ref ${o.reference}. Thank you!`,
+    sms: `Nickimart Data: ${size} ${net} has been delivered to ${o.recipientPhone}. Ref ${o.reference}. Thank you!`,
     emailSubject: `Delivered — ${size} ${net} (${o.reference})`,
   });
 }
@@ -300,7 +300,7 @@ export async function notifyDataOrderFailed(orderId: string): Promise<void> {
   const net = networkLabel(o.network);
   await notify({ phone: o.buyerPhone, email: o.buyerEmail }, {
     sms:
-      `NikiMart Data: we could not deliver ${size} ${net} to ${o.recipientPhone} (ref ${o.reference}). ` +
+      `Nickimart Data: we could not deliver ${size} ${net} to ${o.recipientPhone} (ref ${o.reference}). ` +
       `Our team is on it — you will be credited or refunded ${formatPrice(o.price)}.`,
     emailSubject: `Action needed — ${o.reference}`,
   });
@@ -388,7 +388,7 @@ export async function dispatchAfaRegistration(id: string): Promise<DispatchResul
   });
   await sendSms(
     row.phoneNumber,
-    `NikiMart Data: your AFA registration (ref ${row.reference}) has been submitted. We'll text you once it's approved.`,
+    `Nickimart Data: your AFA registration (ref ${row.reference}) has been submitted. We'll text you once it's approved.`,
   );
   return { ok: true, message: res.message };
 }
