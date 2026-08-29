@@ -24,7 +24,7 @@ export async function Header() {
         <SidebarNav accountHref={accountHref} accountLabel={accountLabel} isAuthed={Boolean(session?.user)} categories={sidebarCategories} logoSrc={settings.logoUrl} dataBundlesUrl={settings.dataBundlesUrl} />
 
         <Link href="/" className="flex shrink-0 items-center gap-2">
-          <BrandLogo className="h-9 w-9" src={settings.logoUrl} />
+          <BrandLogo className="h-8 w-auto" src={settings.logoUrl} />
           {/* A step smaller on the narrowest phones. At 320px the header row
               was 1.6px wider than the screen, which is all it takes: the phone
               zooms the whole page out to fit, and every fixed element then

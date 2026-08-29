@@ -1,42 +1,37 @@
 "use client";
 
 import { useState } from "react";
+import { BrandMark } from "./BrandMark";
 
 /**
- * Brand logo badge. Renders the uploaded logo from /public/logo.png when it is
- * present, and gracefully falls back to the original gradient "N" mark if the
- * file is missing or fails to load — so the header/footer never break while the
- * artwork is being added. Drop the logo at `public/logo.png` (or .svg and set
- * `src`) and it appears everywhere automatically.
+ * The brand mark as the site actually shows it.
+ *
+ * By default this is {@link BrandMark}, drawn inline: no request, nothing to
+ * fail, and it takes its colour from whatever it sits on. An admin who has set
+ * a custom logo in Settings gets that image instead — and if the URL is broken
+ * or the host is down, it falls back to the built-in mark rather than leaving a
+ * hole in the header on every page of the site.
  */
 export function BrandLogo({
-  className = "h-9 w-9",
+  className = "h-8 w-auto",
   src,
 }: {
   className?: string;
-  /** Logo URL (admin-configurable). Empty/undefined → bundled /logo.png. */
+  /** Logo URL (admin-configurable). Empty/undefined → the built-in mark. */
   src?: string;
 }) {
   const [failed, setFailed] = useState(false);
-  const resolved = src && src.trim() ? src : "/logo.png";
+  const custom = src?.trim();
 
-  if (failed) {
-    return (
-      <span
-        className={`flex items-center justify-center rounded-xl bg-gradient-to-br from-niki-orange to-niki-gold font-display text-lg font-bold text-niki-navy ${className}`}
-      >
-        N
-      </span>
-    );
-  }
+  if (!custom || failed) return <BrandMark className={className} />;
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={resolved}
+      src={custom}
       alt="Nickimart"
       onError={() => setFailed(true)}
-      className={`rounded-xl object-contain ${className}`}
+      className={`object-contain ${className}`}
     />
   );
 }

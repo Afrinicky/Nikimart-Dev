@@ -128,7 +128,7 @@ export function SidebarNav({
       >
         <div className="flex items-center justify-between bg-niki-navy px-5 py-4">
           <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-            <BrandLogo className="h-9 w-9" src={logoSrc} />
+            <BrandLogo className="h-8 w-auto" src={logoSrc} />
             <span className="font-display text-lg font-bold text-white">
               Nick<span className="text-niki-orange">imart</span>
             </span>

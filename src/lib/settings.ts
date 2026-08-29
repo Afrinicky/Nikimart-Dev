@@ -24,7 +24,7 @@ export const SETTINGS_DEFAULTS = {
   restrictionsText:
     "Nickimart restricts dangerous, illegal, and age-restricted products including weapons, alcohol, nicotine, drugs, gambling, adult content, counterfeit goods, and prescription medicine.",
   copyrightName: "Nickimart",
-  // Brand logo (http(s) URL or a data: URL). Empty → bundled /logo.png.
+  // Brand logo (http(s) URL or a data: URL). Empty → the built-in mark.
   logoUrl: "",
   // Where "Buy Data Bundles" points. Defaults to Nickimart's own bundle
   // storefront; set an external URL to hand the traffic elsewhere, or empty to

@@ -154,8 +154,8 @@ export function SettingsForm({ settings }: { settings: Settings }) {
             name="logoUrl"
             label="Brand logo"
             initial={settings.logoUrl}
-            hint="Shown in the header, footer, and menus. Leave empty to use the bundled logo. A square PNG works best."
-            previewClass="h-16 w-16"
+            hint="Shown in the header, footer, and menus. Leave empty to use the built-in Nickimart mark. A transparent PNG or SVG works best — it sits on both light and dark backgrounds."
+            previewClass="h-16 w-auto"
           />
           <Field label="Footer tagline" htmlFor="footerTagline">
             <input id="footerTagline" name="footerTagline" defaultValue={settings.footerTagline} className={inputClass} />
