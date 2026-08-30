@@ -18,7 +18,7 @@ import { formatPrice } from "@/lib/format";
 import { getDataStats } from "@/lib/data-bundles/reporting";
 import { getProviderBalance, isDataProviderConfigured, providerBase } from "@/lib/data-bundles/provider";
 import { isPaymentConfigured } from "@/lib/payments";
-import { isSmsConfigured } from "@/lib/notifications";
+import { emailStatus, isSmsConfigured } from "@/lib/notifications";
 import { getDataStoreConfig } from "@/lib/settings";
 import { getAllBundles } from "@/lib/data-bundles/catalog";
 import { listAgents } from "@/lib/data-bundles/agents";
@@ -108,6 +108,16 @@ export default async function AdminDataOverviewPage() {
       detail: isSmsConfigured()
         ? "Buyers get a text when their bundle lands."
         : "Set ARKESEL_API_KEY to text buyers their receipts.",
+    },
+    {
+      // Green only when a customer would actually receive it: a key alone still
+      // reaches nobody on Resend's sandbox sender. Settings has the full story
+      // and a test send.
+      ok: emailStatus().deliverable,
+      label: "Resend email",
+      detail: emailStatus().deliverable
+        ? `Buyers are emailed their receipts from ${emailStatus().from}.`
+        : `${emailStatus().detail} Check it under Admin → Settings.`,
     },
     {
       // Derived from AUTH_SECRET, which the app can't run without — so this is
