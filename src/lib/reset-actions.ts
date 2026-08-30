@@ -62,7 +62,7 @@ export async function requestResetOtp(_prev: ResetState, fd: FormData): Promise<
         sms: `Your Nickimart password reset code is ${code}. It expires in 10 minutes. Never share it.`,
         emailSubject: "Your Nickimart reset code",
         emailHtml: emailShell(
-          `Use this code to reset your password (valid 10 minutes):<br/><br/><div style="font-size:28px;font-weight:700;letter-spacing:6px;color:#0e1f36">${code}</div><br/>If you didn't request this, you can ignore this email.`,
+          `Use this code to reset your password (valid 10 minutes):<br/><br/><div style="font-size:28px;font-weight:700;letter-spacing:6px;color:#1f1f1f">${code}</div><br/>If you didn't request this, you can ignore this email.`,
           "Password reset code",
         ),
       });
