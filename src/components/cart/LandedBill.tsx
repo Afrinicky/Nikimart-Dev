@@ -1,7 +1,7 @@
 "use client";
 
 import { Info } from "lucide-react";
-import { BILL_ROWS, type AbroadCostBreakdown, type PaymentPlan } from "@/lib/abroad-costs";
+import { billRows, type AbroadCostBreakdown, type PaymentPlan } from "@/lib/abroad-costs";
 import { formatPrice } from "@/lib/format";
 
 /**
@@ -29,7 +29,7 @@ export function LandedBill({
   plan: PaymentPlan;
   loading?: boolean;
 }) {
-  const rows = BILL_ROWS.filter(({ key }) => (bill[key] as number) > 0);
+  const rows = billRows(bill.allInFreight).filter(({ key }) => (bill[key] as number) > 0);
   const deferring = plan === "goods_only" && bill.deferrable > 0;
 
   return (

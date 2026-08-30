@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { GraduationCap, Heart, MapPin, Plane, Star, Truck } from "lucide-react";
 import type { Product } from "@/lib/types";
-import { isAbroad } from "@/lib/countries";
+import { isAbroadType } from "@/lib/abroad";
+import { productBadges } from "@/lib/product-badges";
 import { discountPercent, formatPrice } from "@/lib/format";
 import { getProductImage } from "@/lib/mock-data";
 import { ProductImagePlaceholder } from "./ProductImagePlaceholder";
@@ -18,7 +19,11 @@ export function ProductCard({
   flashSale?: boolean;
 }) {
   const discount = discountPercent(product.price, product.oldPrice);
-  const primaryBadges = product.badges.slice(0, 2);
+  // Derived, not just typed: a seller who marked the listing as shipped from
+  // abroad shouldn't also have to type a badge for it. See lib/product-badges.
+  const badges = productBadges(product);
+  const primaryBadges = badges.slice(0, 2);
+  const abroad = badges[0] === "shipped_from_abroad";
   // Stock urgency bar — fuller bar = more available; low stock reads as urgent.
   const itemsLeft = Math.max(1, product.stockQuantity || 0);
   const stockPct = Math.min(100, Math.max(10, Math.round((itemsLeft / 20) * 100)));
@@ -65,10 +70,10 @@ export function ProductCard({
           </span>
         ) : null}
 
-        {isAbroad(product.originCountry) ? (
+        {abroad ? (
           <span className="inline-flex w-fit items-center gap-1 rounded-full bg-niki-trust/10 px-2 py-0.5 text-[10px] font-semibold text-niki-trust">
             <Plane className="h-3 w-3" />
-            Shipped from abroad
+            {isAbroadType(product.productType) ? "Ships from abroad · order anytime" : "Shipped from abroad"}
           </span>
         ) : null}
 

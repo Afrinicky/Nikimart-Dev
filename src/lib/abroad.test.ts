@@ -30,6 +30,7 @@ const FULL: AbroadTerms = {
   minimumOrders: 10,
   freightMode: "sea",
   arrivalPointId: "ap-tema",
+  freightBasis: "itemised",
   supplierFreight: 40,
   intlFreight: 0,
   freightIncluded: false,
@@ -84,6 +85,9 @@ test("a legacy preorder record still parses", () => {
   assert.equal(terms.supplierFreight, 0);
   assert.equal(terms.intlFreight, 0);
   assert.equal(terms.arrivalPointId, "");
+  // A record written before all-in quotes existed is itemised, which is what
+  // it was: a price with no combined forwarder invoice behind it.
+  assert.equal(terms.freightBasis, "itemised");
   // No listing-level Ghana tax rate means "use the platform rate".
   assert.equal(terms.ghanaTaxRate, -1);
   assert.equal("closingDate" in terms, false);

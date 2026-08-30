@@ -49,19 +49,23 @@ export default async function HowItWorksPage() {
             Covered by Nickimart Buyer Protection at every step
           </p>
           <h2 className="mt-3 font-display text-2xl font-bold text-white">Ready to shop the world?</h2>
+          {/* "Paste a product link" was the retired Buy-for-Me service, and it
+              is now a seller's job rather than a buyer's: the seller copies the
+              supplier listing into their own product. So the second button
+              points at that instead of at a dead flow. */}
           <div className="mt-5 flex flex-wrap justify-center gap-3">
             <Link
               href="/shipped-from-abroad"
               className="flex items-center gap-2 rounded-full bg-niki-orange px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
             >
-              Start global shopping
+              Shop items from abroad
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href="/buy-for-me"
+              href="/products"
               className="flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-white ring-1 ring-white/30 transition-colors hover:bg-white/10"
             >
-              Paste a product link
+              Browse everything
             </Link>
           </div>
         </div>

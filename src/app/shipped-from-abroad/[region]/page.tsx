@@ -6,8 +6,13 @@ import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { getAbroadProductsByCountry, getProductsByCountry, getVendorNameMap } from "@/lib/catalog";
-import { countryByRegion, estimatedArrival } from "@/lib/countries";
+import {
+  getAbroadOriginCounts,
+  getAbroadProductsByCountry,
+  getProductsByCountry,
+  getVendorNameMap,
+} from "@/lib/catalog";
+import { countryByRegion, estimatedArrival, FOREIGN_COUNTRIES } from "@/lib/countries";
 import { getLeadDays } from "@/lib/settings";
 
 type Params = Promise<{ region: string }>;
@@ -22,53 +27,75 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
+/**
+ * One origin's listings.
+ *
+ * The origin switcher along the top is built from the catalogue's own counts,
+ * so a reader who lands on an empty origin can see at a glance which ones have
+ * anything — better than a dead end and a "check back soon".
+ */
 export default async function AbroadRegionPage({ params }: { params: Params }) {
   const { region } = await params;
   const country = countryByRegion(region);
   if (!country) notFound();
 
-  const [products, vendorNames, leadDays] = await Promise.all([
+  const local = country.code === "GH";
+  const [products, vendorNames, leadDays, counts] = await Promise.all([
     // Ghana's page is the local catalogue; every other origin lists only what
     // is actually shipped from there.
-    country.code === "GH"
-      ? getProductsByCountry("GH")
-      : getAbroadProductsByCountry(country.code),
+    local ? getProductsByCountry("GH") : getAbroadProductsByCountry(country.code),
     getVendorNameMap(),
-    country.code === "GH" ? Promise.resolve(0) : getLeadDays(country.code),
+    local ? Promise.resolve(0) : getLeadDays(country.code),
+    getAbroadOriginCounts(),
   ]);
   const arrival = estimatedArrival(leadDays);
+  const others = FOREIGN_COUNTRIES.map((c) => ({ ...c, count: counts[c.code] ?? 0 })).filter(
+    (c) => c.count > 0,
+  );
 
   return (
     <>
       <PageHeader
         title={`${country.flag} Shipped from ${country.name}`}
         subtitle={
-          country.code === "GH"
+          local
             ? "Local shops and vendors near you."
-            : `Sourced from suppliers in ${country.name} — estimated arrival in ~${leadDays} days. Freight, duty and taxes are itemised at checkout.`
+            : `Sourced on order — estimated arrival around ${arrival.toLocaleDateString("en-GH", { day: "numeric", month: "long" })}. Freight, duty and taxes are itemised at checkout.`
         }
         crumbs={[{ label: "Shipped from Abroad", href: "/shipped-from-abroad" }, { label: country.name }]}
         tone="dark"
       />
 
       <Container className="py-8">
-        <Link href="/shipped-from-abroad" className="flex items-center gap-1 text-sm text-niki-ink/60 hover:text-niki-ink">
+        <Link
+          href="/shipped-from-abroad"
+          className="flex w-fit items-center gap-1 text-sm text-niki-ink/60 hover:text-niki-ink"
+        >
           <ArrowLeft className="h-4 w-4" />
-          All regions
+          All origins
         </Link>
 
-        {country.code !== "GH" ? (
-          <div className="mt-4 flex items-center gap-3 rounded-2xl bg-niki-trust/10 p-4 text-sm ring-1 ring-niki-trust/20">
-            <Plane className="h-5 w-5 shrink-0 text-niki-trust" />
-            <p className="text-niki-ink/70">
-              These are sourced once you order, and{" "}
-              <span className="font-semibold text-niki-trust">shipped from abroad</span>. Ordering never
-              closes. Estimated arrival around{" "}
-              <span className="font-semibold text-niki-ink">
-                {arrival.toLocaleDateString("en-GH", { day: "numeric", month: "long", year: "numeric" })}
-              </span>
-              . They also appear in the general catalogue.
-            </p>
+        {others.length > 1 ? (
+          <div className="scrollbar-none -mx-1 mt-4 flex gap-2 overflow-x-auto px-1">
+            {others.map((c) => {
+              const active = c.code === country.code;
+              return (
+                <Link
+                  key={c.code}
+                  href={`/shipped-from-abroad/${c.regionId}`}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                    active
+                      ? "niki-chip-active bg-niki-black text-white"
+                      : "niki-chip text-niki-ink/75 hover:text-niki-ink"
+                  }`}
+                >
+                  <span aria-hidden>{c.flag}</span>
+                  {c.name}
+                  <span className={active ? "text-white/55" : "text-niki-ink/40"}>{c.count}</span>
+                </Link>
+              );
+            })}
           </div>
         ) : null}
 
@@ -79,9 +106,13 @@ export default async function AbroadRegionPage({ params }: { params: Params }) {
             <EmptyState
               icon={<Plane className="h-6 w-6" />}
               title={`Nothing from ${country.name} yet`}
-              message={`Sellers shipping from ${country.name} will appear here. Check back soon.`}
-              actionLabel="Browse all products"
-              actionHref="/products"
+              message={
+                others.length > 0
+                  ? "Try another origin above, or browse everything shipped from abroad."
+                  : `Sellers shipping from ${country.name} will appear here. Check back soon.`
+              }
+              actionLabel="All items shipped from abroad"
+              actionHref="/shipped-from-abroad"
             />
           )}
         </div>

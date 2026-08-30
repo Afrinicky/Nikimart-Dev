@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { HelpCircle, MapPin, Phone, Truck } from "lucide-react";
+import { HelpCircle, MapPin, Phone, Plane, Truck } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { getSettings } from "@/lib/settings";
 import { isExternalStoreLink } from "@/lib/data-bundles/store-link";
@@ -30,6 +30,7 @@ export async function TopBar() {
   // button, and the same call to action twice within 40px of itself reads as a
   // mistake rather than emphasis.
   const links = [
+    { label: "Shipped from Abroad", href: "/shipped-from-abroad", icon: Plane },
     { label: "Track order", href: "/order-tracking", icon: Truck },
     { label: "Pickup points", href: "/pickup-points", icon: MapPin },
     ...(bundlesHref ? [{ label: "Buy data", href: bundlesHref, icon: null }] : []),

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ClipboardList, HelpCircle, Store, User } from "lucide-react";
+import { ClipboardList, HelpCircle, Plane, Store, User } from "lucide-react";
 import { SearchBar } from "./SearchBar";
 import { LocationSelector } from "./LocationSelector";
 import { SidebarNav } from "./SidebarNav";
@@ -63,6 +63,17 @@ export async function Header() {
 
         <div className="flex flex-1 items-center justify-end gap-1 sm:gap-2 lg:flex-none">
           <LocationSelector className="hidden md:flex" />
+
+          {/* The one storefront section that isn't reachable by browsing: an
+              imported listing looks like any other product in the catalogue,
+              so without a way in, the whole section is invisible. */}
+          <Link
+            href="/shipped-from-abroad"
+            className="hidden items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm font-medium text-niki-ink/80 transition-colors hover:bg-niki-ink/[0.07] hover:text-niki-ink lg:flex"
+          >
+            <Plane className="h-5 w-5" />
+            <span className="hidden whitespace-nowrap xl:inline">From Abroad</span>
+          </Link>
 
           <Link
             href="/help"

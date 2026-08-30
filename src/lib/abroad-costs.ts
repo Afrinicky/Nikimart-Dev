@@ -13,6 +13,12 @@
  *   - `freightIncluded` means the seller's price already contains legs 1 and 2.
  *     Sellers who copy an Alibaba listing that quotes delivered-to-Accra prices
  *     are in this case, and charging them again would double-bill the buyer.
+ *   - `freightBasis: "all_in"` means the forwarder quoted one number for
+ *     everything between their warehouse abroad and the Ghana arrival point —
+ *     carriage, duty, clearing, taxes on landing. That is how most Ghana-bound
+ *     consolidators sell, so the bill shows their figure as one row and adds
+ *     nothing to it. Splitting it into invented components and then assessing
+ *     duty on those components would charge a buyer twice for the same thing.
  *   - The buyer may pay the whole bill now, or pay for the goods now and settle
  *     the freight when it lands. What is deferrable is exactly the part whose
  *     price can still move: leg 2, the duty and taxes assessed on landing, and
@@ -76,6 +82,13 @@ export interface AbroadCostBreakdown {
   goodsOnlyNow: number;
   /** True when the seller's price already covers legs 1 and 2. */
   freightIncluded: boolean;
+  /**
+   * True when leg 2 is one combined figure that already contains the duty,
+   * clearing and Ghana tax. The bill labels that row differently — calling it
+   * plain "freight" beside a zeroed duty line invites the question "so who
+   * paid the duty?".
+   */
+  allInFreight: boolean;
   /** True when the chosen route has no rate configured yet. */
   unpricedRoute: boolean;
 }
@@ -100,29 +113,46 @@ export function priceAbroadLine(input: AbroadCostInput): AbroadCostBreakdown {
   const goods = round(input.unitPrice * qty);
   const originTax = round((goods * Math.max(0, terms.originTaxRate)) / 100);
 
+  const allIn = terms.freightBasis === "all_in";
+
   // Legs 1 and 2. When the seller says the price already includes them, they
   // are zero here — not because they weren't paid, but because the buyer has
   // already paid them inside the price.
   const supplierFreight = terms.freightIncluded ? 0 : round(terms.supplierFreight * qty);
-  const quotedLeg2 = terms.intlFreight > 0
-    ? round(terms.intlFreight * qty)
-    : internationalFreight(input.rate, input.cbm, input.weightKg, qty);
+  // On the all-in basis the seller's figure IS leg 2, whatever the rate table
+  // says: the forwarder quoted it, and a rate table guess would contradict a
+  // real invoice. On the itemised basis a non-zero figure is an override.
+  const quotedLeg2 =
+    allIn || terms.intlFreight > 0
+      ? round(terms.intlFreight * qty)
+      : internationalFreight(input.rate, input.cbm, input.weightKg, qty);
   const leg2 = terms.freightIncluded ? 0 : quotedLeg2;
 
-  // A route the admin has not priced, on a listing that expects to be charged
-  // for it. Worth saying out loud rather than quoting zero freight.
-  const unpricedRoute = !terms.freightIncluded && terms.intlFreight <= 0 && input.rate === null;
+  // Freight into Ghana that nothing has priced, on a listing that expects to be
+  // charged for it. Two ways to get here, and both quote zero freight on a
+  // consignment somebody still has to pay to move:
+  //   - itemised, with no seller override and no rate configured for the route;
+  //   - all-in, where the seller chose to supply their forwarder's combined
+  //     figure and then left it empty.
+  // Saying so lets checkout refuse the order rather than sell it at a loss.
+  const unpricedRoute =
+    !terms.freightIncluded &&
+    (allIn ? terms.intlFreight <= 0 : terms.intlFreight <= 0 && input.rate === null);
 
   // CIF: what customs values the consignment at. Uses the seller's own leg-2
   // figure when the price includes it, because the goods still crossed a border
   // and duty is owed on the freight either way.
   const cif = goods + (terms.freightIncluded ? 0 : supplierFreight + leg2);
 
-  const importDuty = terms.dutyIncluded ? 0 : round((cif * Math.max(0, input.dutyPercent)) / 100);
-  const clearingFee = terms.dutyIncluded ? 0 : round(input.clearingFee);
+  // An all-in quote already contains the duty, the clearing and the taxes
+  // assessed on landing. Charging them again on top of it is the single way
+  // this engine could most easily overcharge somebody, so it does not.
+  const settledAtBorder = allIn || terms.dutyIncluded;
+  const importDuty = settledAtBorder ? 0 : round((cif * Math.max(0, input.dutyPercent)) / 100);
+  const clearingFee = settledAtBorder ? 0 : round(input.clearingFee);
 
   const ghanaRate = terms.ghanaTaxRate >= 0 ? terms.ghanaTaxRate : Math.max(0, input.defaultGhanaTaxRate);
-  const ghanaTax = round(((cif + importDuty) * ghanaRate) / 100);
+  const ghanaTax = allIn ? 0 : round(((cif + importDuty) * ghanaRate) / 100);
 
   const domesticFreight = round(input.domesticFreight);
 
@@ -148,6 +178,7 @@ export function priceAbroadLine(input: AbroadCostInput): AbroadCostBreakdown {
     deferrable,
     goodsOnlyNow: round(total - deferrable),
     freightIncluded: terms.freightIncluded,
+    allInFreight: allIn,
     unpricedRoute,
   };
 }
@@ -167,6 +198,7 @@ export function emptyBreakdown(goods = 0, domesticFreight = 0): AbroadCostBreakd
     deferrable: 0,
     goodsOnlyNow: round(goods + domesticFreight),
     freightIncluded: false,
+    allInFreight: false,
     unpricedRoute: false,
   };
 }
@@ -187,6 +219,7 @@ export function sumBreakdowns(lines: AbroadCostBreakdown[]): AbroadCostBreakdown
       deferrable: round(acc.deferrable + l.deferrable),
       goodsOnlyNow: round(acc.goodsOnlyNow + l.goodsOnlyNow),
       freightIncluded: acc.freightIncluded || l.freightIncluded,
+      allInFreight: acc.allInFreight || l.allInFreight,
       unpricedRoute: acc.unpricedRoute || l.unpricedRoute,
     }),
     emptyBreakdown(),
@@ -203,35 +236,54 @@ export function balanceAfter(bill: AbroadCostBreakdown, plan: PaymentPlan): numb
   return plan === "goods_only" ? bill.deferrable : 0;
 }
 
-/** The rows of a bill, in the order a buyer should read them. */
-export const BILL_ROWS: {
+export interface BillRow {
   key: keyof AbroadCostBreakdown;
   label: string;
   hint: string;
   /** True when this row can be left until the goods land. */
   deferrable: boolean;
-}[] = [
-  { key: "goods", label: "Item price", hint: "What the seller charges for the goods.", deferrable: false },
-  { key: "originTax", label: "Tax at source", hint: "Sales tax or VAT in the country of purchase.", deferrable: false },
-  {
-    key: "supplierFreight",
-    label: "Freight leg 1 — supplier to forwarder",
-    hint: "Moving the goods to the freight forwarder abroad.",
-    deferrable: false,
-  },
-  {
-    key: "internationalFreight",
-    label: "Freight leg 2 — forwarder to Ghana",
-    hint: "Air or sea carriage to the Ghana arrival point.",
-    deferrable: true,
-  },
-  { key: "importDuty", label: "Import duty", hint: "Ghana customs duty on the landed value.", deferrable: true },
-  { key: "clearingFee", label: "Clearing & handling", hint: "Charges at the arrival point.", deferrable: true },
-  { key: "ghanaTax", label: "Ghana VAT & levies", hint: "Assessed on the landed value plus duty.", deferrable: true },
-  {
-    key: "domesticFreight",
-    label: "Freight leg 3 — arrival point to your pickup",
-    hint: "Moving it inside Ghana to the point you chose.",
-    deferrable: true,
-  },
-];
+}
+
+/**
+ * The rows of a bill, in the order a buyer should read them.
+ *
+ * Leg 2 is described by whichever basis produced it. An all-in forwarder quote
+ * that already swallowed the duty and the clearing must not be captioned
+ * "carriage" beside a duty row that isn't there — a buyer reading that would
+ * reasonably ask who paid the customs bill, and the honest answer is "this
+ * line did".
+ */
+export function billRows(allIn = false): BillRow[] {
+  return [
+    { key: "goods", label: "Item price", hint: "What the seller charges for the goods.", deferrable: false },
+    { key: "originTax", label: "Tax at source", hint: "Sales tax or VAT in the country of purchase.", deferrable: false },
+    {
+      key: "supplierFreight",
+      label: "Freight leg 1 — supplier to forwarder",
+      hint: "Moving the goods to the freight forwarder abroad.",
+      deferrable: false,
+    },
+    allIn
+      ? {
+          key: "internationalFreight",
+          label: "Freight to Ghana — all-in",
+          hint: "One combined forwarder charge: carriage, import duty and clearing to the Ghana arrival point.",
+          deferrable: true,
+        }
+      : {
+          key: "internationalFreight",
+          label: "Freight leg 2 — forwarder to Ghana",
+          hint: "Air or sea carriage to the Ghana arrival point.",
+          deferrable: true,
+        },
+    { key: "importDuty", label: "Import duty", hint: "Ghana customs duty on the landed value.", deferrable: true },
+    { key: "clearingFee", label: "Clearing & handling", hint: "Charges at the arrival point.", deferrable: true },
+    { key: "ghanaTax", label: "Ghana VAT & levies", hint: "Assessed on the landed value plus duty.", deferrable: true },
+    {
+      key: "domesticFreight",
+      label: "Freight leg 3 — arrival point to your pickup",
+      hint: "Moving it inside Ghana to the point you chose.",
+      deferrable: true,
+    },
+  ];
+}

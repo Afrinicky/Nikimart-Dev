@@ -24,6 +24,7 @@ const TERMS: AbroadTerms = {
   originCountry: "CN",
   freightMode: "sea",
   arrivalPointId: "ap-tema",
+  freightBasis: "itemised",
   supplierFreight: 50,
   originTaxRate: 10,
   ghanaTaxRate: 20,
@@ -118,10 +119,63 @@ test("the goods-only plan defers exactly what is assessed at the border", () => 
   assert.equal(balanceAfter(bill, "goods_only"), bill.deferrable);
 });
 
+test("an all-in forwarder quote is charged once and nothing is added to it", () => {
+  // Most Ghana-bound consolidators quote one number covering carriage, duty
+  // and clearing from their warehouse abroad to the arrival point. Splitting
+  // that into invented components and then assessing duty and VAT on them
+  // would charge the buyer for the same customs bill twice.
+  const bill = price({ ...TERMS, freightBasis: "all_in", intlFreight: 420 });
+  assert.equal(bill.internationalFreight, 420);
+  assert.equal(bill.importDuty, 0);
+  assert.equal(bill.clearingFee, 0);
+  assert.equal(bill.ghanaTax, 0);
+  assert.equal(bill.allInFreight, true);
+  // Leg 1 and the tax at source are outside the quote and still charged, and
+  // so is leg 3 — the forwarder's figure stops at the arrival point.
+  assert.equal(bill.supplierFreight, 50);
+  assert.equal(bill.originTax, 100);
+  assert.equal(bill.domesticFreight, 60);
+  assert.equal(bill.total, 1000 + 100 + 50 + 420 + 60);
+});
+
+test("an all-in quote ignores the rate table rather than competing with it", () => {
+  // The seller has a real invoice; a rate-table guess would contradict it.
+  const bill = price({ ...TERMS, freightBasis: "all_in", intlFreight: 420 }, { rate: RATE });
+  assert.equal(bill.internationalFreight, 420);
+  // And with no rate configured at all it is still quotable, because the
+  // number never came from the table.
+  const noRate = price({ ...TERMS, freightBasis: "all_in", intlFreight: 420 }, { rate: null });
+  assert.equal(noRate.internationalFreight, 420);
+  assert.equal(noRate.unpricedRoute, false);
+});
+
+test("an all-in quote still defers with the goods-only plan", () => {
+  const bill = price({ ...TERMS, freightBasis: "all_in", intlFreight: 420 });
+  // The combined charge and leg 3: everything at or past the border.
+  assert.equal(bill.deferrable, 480);
+  assert.equal(bill.goodsOnlyNow, 1150);
+});
+
+test("a freight-included price beats the all-in basis", () => {
+  // The seller said the buyer has already paid for freight inside the price.
+  // Charging the combined quote on top would double-bill them.
+  const bill = price({ ...TERMS, freightBasis: "all_in", intlFreight: 420, freightIncluded: true });
+  assert.equal(bill.internationalFreight, 0);
+  assert.equal(bill.supplierFreight, 0);
+});
+
 test("a seller's own leg-2 figure overrides the rate table", () => {
   const bill = price({ ...TERMS, intlFreight: 250 });
   assert.equal(bill.internationalFreight, 250);
   assert.equal(bill.unpricedRoute, false);
+});
+
+test("an all-in listing with no figure is unpriced, not free", () => {
+  // Choosing the all-in basis and then leaving the box empty would otherwise
+  // ship the consignment with zero freight, at the platform's expense.
+  const bill = price({ ...TERMS, freightBasis: "all_in", intlFreight: 0 });
+  assert.equal(bill.internationalFreight, 0);
+  assert.equal(bill.unpricedRoute, true);
 });
 
 test("an unpriced route is flagged rather than quoted free", () => {

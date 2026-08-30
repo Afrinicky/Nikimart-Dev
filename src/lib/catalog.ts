@@ -238,6 +238,29 @@ export async function getAbroadProductsByCountry(code: string): Promise<Product[
   const wanted = code.toUpperCase();
   return (await getAbroadProducts()).filter((p) => (p.originCountry ?? "GH").toUpperCase() === wanted);
 }
+
+/**
+ * How many shipped-from-abroad listings each origin actually has.
+ *
+ * The hub used to show a fixed row of country cards whether or not anything was
+ * behind them, so "Shop from China" could lead to an empty page — the worst
+ * possible answer to a click, because it reads as a broken site rather than an
+ * empty shelf. Counting first means an origin is only offered when there is
+ * something there, and the count is on the card so nobody clicks blind.
+ *
+ * Listings whose seller never set a country of purchase resolve to GH and are
+ * counted under it; they still appear in the hub's full grid, so they are not
+ * lost — only absent from the origin shortcuts, which is honest, since nobody
+ * said where they come from.
+ */
+export async function getAbroadOriginCounts(): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  for (const p of await getAbroadProducts()) {
+    const code = (p.originCountry ?? "GH").toUpperCase();
+    counts[code] = (counts[code] ?? 0) + 1;
+  }
+  return counts;
+}
 export async function getServiceProducts(): Promise<Product[]> {
   return (await getProducts()).filter((p) => p.productType === "service");
 }
