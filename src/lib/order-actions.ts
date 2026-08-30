@@ -7,13 +7,14 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { callbackOrigin } from "@/lib/site";
 import { requireUser } from "@/lib/session";
-import { getShippingRates, getCommissionRate, getAffiliateRate } from "@/lib/settings";
+import { getCommissionRate, getAffiliateRate } from "@/lib/settings";
 import { REFERRAL_COOKIE } from "@/lib/affiliate";
-import { quoteShipping, itemCbm, type ShippingLine } from "@/lib/shipping";
+import { itemCbm } from "@/lib/shipping";
 import { resolveCommissionRate } from "@/lib/commission";
 import { affiliateLineCommission, resolveAffiliateRate } from "@/lib/affiliate-commission";
 import { releaseStockForOrder, tracksStock } from "@/lib/stock";
-import { parsePreorderTerms } from "@/lib/preorder";
+import { amountDueNow, balanceAfter, type PaymentPlan } from "@/lib/abroad-costs";
+import { priceCart } from "@/lib/abroad-pricing";
 import { isPaymentConfigured, initializeTransaction, toPesewas } from "@/lib/payments";
 import { notifyOrderConfirmed, notifyStaffNewOrder } from "@/lib/order-notifications";
 
@@ -28,10 +29,15 @@ const payloadSchema = z.object({
     .min(1, "Your cart is empty."),
   // Every order is collected at a Nickimart pickup point (no home delivery).
   pickupPointId: z.string().trim().min(1, "Please choose a pickup point."),
-  // Whether the buyer ticked the preorder acknowledgement at checkout. Checked
-  // against the cart below: a claim from the browser is exactly the kind of
-  // claim that must not be taken on trust.
-  acceptedPreorderTerms: z.boolean().optional(),
+  // Whether the buyer ticked the shipped-from-abroad acknowledgement at
+  // checkout. Checked against the cart below: a claim from the browser is
+  // exactly the kind of claim that must not be taken on trust.
+  acceptedAbroadTerms: z.boolean().optional(),
+  // "full" settles the whole landed bill now. "goods_only" pays for the goods,
+  // the tax at source and leg 1, leaving the freight into Ghana, the duty, the
+  // Ghana tax and the domestic leg to be settled on arrival — at whatever those
+  // cost then, which is the trade the buyer is shown before they choose it.
+  paymentPlan: z.enum(["full", "goods_only"]).optional(),
 });
 
 export type PlaceOrderInput = z.infer<typeof payloadSchema>;
@@ -92,18 +98,41 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   });
   const productById = new Map(products.map((p) => [p.id, p]));
 
-  // A preorder is money handed over for something that does not exist yet, on
-  // terms that vary per listing. Checkout shows those terms and asks the buyer
-  // to accept them; this is where that acceptance is actually required, because
-  // the tick arrived from a browser and the order is being created here.
-  // Only listings that *have* terms count — a preorder nobody wrote terms for
-  // shows no panel, so there is nothing the buyer could have accepted.
-  const needsPreorderConsent = products.some(
-    (p) => p.productType === "preorder" && parsePreorderTerms(p.preorderInfo) !== null,
+  // The landed bill, recomputed here from the database. Never trust a price,
+  // a CBM, a freight leg or a tax rate that arrived from a browser: the whole
+  // point of an eight-row bill is that a buyer can read it, and the only way
+  // that stays true is if the number they are charged is derived here.
+  const pricing = await priceCart(
+    data.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+    pickupPoint.id,
   );
-  if (needsPreorderConsent && !data.acceptedPreorderTerms) {
-    return { ok: false, error: "Please read and accept the preorder terms before paying." };
+
+  // An imported item is money handed over for something that is still in
+  // another country, on terms that vary per listing. Checkout shows those terms
+  // and asks the buyer to accept them; this is where that acceptance is
+  // actually required, because the tick arrived from a browser and the order is
+  // being created here. Only listings that *have* terms count — one nobody
+  // wrote terms for shows no panel, so there is nothing to have accepted.
+  const needsAbroadConsent = pricing.lines.some((l) => l.abroad);
+  if (needsAbroadConsent && !data.acceptedAbroadTerms) {
+    return { ok: false, error: "Please read and accept the shipped-from-abroad terms before paying." };
   }
+
+  // A route the admin has not priced would quote zero international freight and
+  // bill the platform for the difference. Refuse rather than under-charge.
+  if (pricing.unpricedRoute) {
+    return {
+      ok: false,
+      error:
+        "Freight into Ghana isn't priced for one of these items yet. Please try again shortly or contact support.",
+    };
+  }
+
+  // The goods-only plan is only on offer when the platform allows it and every
+  // imported line does. Asking for it otherwise is a claim from the browser
+  // that has to lose.
+  const plan: PaymentPlan =
+    data.paymentPlan === "goods_only" && pricing.partialPaymentAvailable ? "goods_only" : "full";
 
   // Platform commission snapshot: category override, else the global default.
   const defaultCommission = await getCommissionRate();
@@ -138,6 +167,10 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
             platformCommissionRate: commissionRate,
           })
         : { rate: 0, fundedBy: "" as const };
+      // The priced line from the landed-cost engine. Matched by product id; a
+      // line the engine dropped (an archived product, say) is filtered out
+      // below rather than ordered at a price nobody computed.
+      const priced = pricing.lines.find((l) => l.productId === i.productId);
       return {
         productId: i.productId,
         name: p.name,
@@ -147,13 +180,15 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         unitPrice: p.price,
         cbm: itemCbm(p),
         originHubId: p.vendor?.originPickupId ?? null,
-        originCountry: p.vendor?.originCountry ?? "GH",
+        originCountry: priced?.originCountry ?? p.vendor?.originCountry ?? "GH",
         commissionRate,
         affiliateCommissionRate: affiliate.rate,
         affiliateCommission: affiliateLineCommission(p.price, i.quantity, affiliate.rate),
         affiliateFundedBy: affiliate.fundedBy,
+        priced,
       };
-    });
+    })
+    .filter((i) => i.priced !== undefined);
 
   if (lineItems.length === 0) {
     return { ok: false, error: "None of the items in your cart are available." };
@@ -172,18 +207,21 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     };
   }
 
-  const subtotal = lineItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
-
-  // Shipping fee — recomputed server-side with the CBM route engine.
-  const rates = await getShippingRates();
-  const shippingLines: ShippingLine[] = lineItems.map((i) => ({
-    cbm: i.cbm,
-    quantity: i.quantity,
-    originHubId: i.originHubId,
-    originCountry: i.originCountry,
-  }));
-  const deliveryFee = quoteShipping(shippingLines, pickupPoint.id, rates);
-  const total = subtotal + deliveryFee;
+  // The bill, straight off the engine. `subtotal` stays the goods alone and
+  // `deliveryFee` stays the domestic leg, so every existing report, payout and
+  // export keeps meaning what it meant; the international legs, duty and taxes
+  // are the new columns beside them.
+  const bill = pricing.bill;
+  const subtotal = bill.goods;
+  const deliveryFee = bill.domesticFreight;
+  const total = bill.total;
+  // What is collected today, and what is left for arrival. Under the full plan
+  // the freight is locked: a rate rise afterwards is the platform's, not the
+  // buyer's. Under goods_only it is not, which is exactly what the buyer chose.
+  const dueNow = amountDueNow(bill, plan);
+  const balanceDue = balanceAfter(bill, plan);
+  const freightLocked = plan === "full";
+  const hasAbroadItems = pricing.hasAbroad;
 
   // The order's affiliate commission is the sum of its enrolled lines.
   const affiliateId = activeReferrer?.id ?? null;
@@ -194,8 +232,15 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   // point, if one exists.
   const freightAgent = await prisma.user.findFirst({ where: { role: "FREIGHT" }, select: { id: true } });
 
-  // The shipment moves goods from the seller's origin hub to the pickup point.
+  // The shipment moves goods from the seller's origin hub to the pickup point —
+  // or, for an imported consignment, from wherever abroad it starts, through the
+  // Ghana arrival point named on the listing.
   const destination = `${pickupPoint.name} — ${pickupPoint.locationName}`;
+  const abroadLine = pricing.lines.find((l) => l.abroad);
+  const arrivalPointId = abroadLine?.arrivalPoint?.id ?? null;
+  const origin = abroadLine
+    ? abroadLine.terms?.sourceLocation || `Supplier — ${abroadLine.originCountry}`
+    : "Nickimart Warehouse";
 
   // When Paystack is configured we collect payment before fulfilling: the order
   // starts as "pending" and is marked "paid" only after Paystack confirms it
@@ -203,6 +248,22 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   // flow so local dev and preview deploys still work end-to-end.
   const collectPayment = isPaymentConfigured();
   const initialStatus = collectPayment ? "pending" : "paid";
+
+  // How long until it lands. Two days is right for a parcel crossing Accra and
+  // absurd for one crossing an ocean, so an imported consignment takes the
+  // transit time its route is configured with, plus the supplier's own lead
+  // time, and the buyer sees a date they can plan around.
+  const etaDays = abroadLine
+    ? Math.max(
+        3,
+        (abroadLine.terms?.processingDays ?? 0) +
+          (abroadLine.arrivalPoint?.rates.find(
+            (r) =>
+              (r.originCountry === abroadLine.originCountry || r.originCountry === "*") &&
+              (r.mode === abroadLine.terms?.freightMode || r.mode === "*"),
+          )?.transitDays ?? 21),
+      )
+    : 2;
 
   // Create with a few retries in case the generated order number collides.
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -235,6 +296,19 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
             userId: user.id,
             affiliateId,
             affiliateCommission,
+            // The landed bill, snapshotted. Rates move; what somebody was
+            // quoted and charged must not move with them.
+            hasAbroadItems,
+            originTax: bill.originTax,
+            supplierFreight: bill.supplierFreight,
+            internationalFreight: bill.internationalFreight,
+            importDuty: bill.importDuty,
+            clearingFee: bill.clearingFee,
+            ghanaTax: bill.ghanaTax,
+            paymentPlan: plan,
+            amountPaid: collectPayment ? 0 : dueNow,
+            balanceDue,
+            freightLocked,
             items: {
               create: lineItems.map((i) => ({
                 productId: i.productId,
@@ -244,6 +318,16 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
                 affiliateCommissionRate: i.affiliateCommissionRate,
                 affiliateCommission: i.affiliateCommission,
                 affiliateFundedBy: i.affiliateFundedBy,
+                originTax: i.priced!.bill.originTax,
+                supplierFreight: i.priced!.bill.supplierFreight,
+                internationalFreight: i.priced!.bill.internationalFreight,
+                importDuty: i.priced!.bill.importDuty,
+                clearingFee: i.priced!.bill.clearingFee,
+                ghanaTax: i.priced!.bill.ghanaTax,
+                domesticFreight: i.priced!.bill.domesticFreight,
+                freightMode: i.priced!.terms?.freightMode ?? "",
+                freightIncluded: i.priced!.bill.freightIncluded,
+                arrivalPointId: i.priced!.arrivalPoint?.id ?? null,
               })),
             },
             // Fulfilment only starts once the order is paid. The simulated flow
@@ -257,9 +341,10 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
                   create: {
                     trackingNumber: `NMF-${Date.now().toString(36).toUpperCase()}`,
                     status: "created", // awaiting the seller's "prepared" confirmation
-                    origin: "Nickimart Warehouse",
+                    origin,
                     destination,
-                    eta: new Date(Date.now() + 1000 * 60 * 60 * 48),
+                    arrivalPointId,
+                    eta: new Date(Date.now() + 1000 * 60 * 60 * 24 * etaDays),
                     freightAgentId: freightAgent?.id ?? null,
                   },
                 },
@@ -274,7 +359,9 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         try {
           const { authorizationUrl } = await initializeTransaction({
             email: user.email ?? `${user.id}@nikimart.app`,
-            amountPesewas: toPesewas(total),
+            // Only what is due today. Under the goods-only plan the freight,
+            // duty and Ghana tax are collected when the item lands.
+            amountPesewas: toPesewas(dueNow),
             reference: order.orderNumber,
             callbackUrl: `${callbackOrigin()}/checkout/verify`,
             metadata: { orderId: order.id, userId: user.id },

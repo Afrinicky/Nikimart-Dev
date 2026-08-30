@@ -1,36 +1,13 @@
-import type { Metadata } from "next";
-import { Container } from "@/components/ui/Container";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { ProductGrid } from "@/components/product/ProductGrid";
-import { getPreorderProducts, getVendorNameMap } from "@/lib/catalog";
+import { permanentRedirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Preorder Deals — Nickimart",
-};
-
-export default async function PreordersPage() {
-  const [preorderProducts, vendorNames] = await Promise.all([
-    getPreorderProducts(),
-    getVendorNameMap(),
-  ]);
-  return (
-    <>
-      <PageHeader
-        title="Preorder Deals"
-        subtitle="Reserve imported and upcoming products from trusted sellers with a deposit."
-        crumbs={[{ label: "Preorders" }]}
-      />
-
-      <Container className="py-8">
-        <div className="mb-6 rounded-2xl bg-niki-gold/10 p-4 text-sm leading-relaxed text-amber-900 ring-1 ring-niki-gold/30">
-          <strong className="font-semibold">How preorders work:</strong> These items are imported
-          on order. You pay a deposit to reserve your item, then settle the balance on arrival before
-          delivery or pickup. Always review the estimated arrival date, deposit requirement, balance
-          rule, and refund policy on each product before ordering.
-        </div>
-
-        <ProductGrid products={preorderProducts} vendorNames={vendorNames} />
-      </Container>
-    </>
-  );
+/**
+ * Preorder Deals is now Shipped from Abroad.
+ *
+ * A preorder was a window that closed; this is dropshipping that never does.
+ * The listings are the same rows in the same table (see lib/abroad on the two
+ * spellings of the product type), so the old address redirects rather than
+ * 404ing on links that are already out in the world.
+ */
+export default function PreordersPage() {
+  permanentRedirect("/shipped-from-abroad");
 }

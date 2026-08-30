@@ -7,7 +7,8 @@ import { ProductForm } from "@/components/admin/ProductForm";
 import { prisma } from "@/lib/prisma";
 import { mapProduct } from "@/lib/catalog";
 import { updateProduct } from "@/lib/admin-actions";
-import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
+import { getAbroadConfig, getAffiliateRate, getCommissionRate } from "@/lib/settings";
+import { getActiveArrivalPoints } from "@/lib/arrival-points-data";
 
 export const metadata: Metadata = { title: "Edit product — Admin — Nickimart" };
 
@@ -15,7 +16,8 @@ type Params = Promise<{ id: string }>;
 
 export default async function EditProductPage({ params }: { params: Params }) {
   const { id } = await params;
-  const [row, categories, vendors, defaultCommissionRate, defaultAffiliateRate] = await Promise.all([
+  const [row, categories, vendors, defaultCommissionRate, defaultAffiliateRate, arrivalPoints, abroadConfig] =
+    await Promise.all([
     prisma.product.findUnique({ where: { id }, include: { images: { orderBy: { order: "asc" } } } }),
     prisma.category.findMany({
       orderBy: { name: "asc" },
@@ -24,6 +26,11 @@ export default async function EditProductPage({ params }: { params: Params }) {
     prisma.vendor.findMany({ orderBy: { businessName: "asc" }, select: { id: true, businessName: true } }),
     getCommissionRate(),
     getAffiliateRate(),
+    // A shipped-from-abroad listing has to land somewhere, and the point the
+    // seller picks sets the freight rate, the duty and where the domestic leg
+    // starts. Only active points are offered.
+    getActiveArrivalPoints(),
+    getAbroadConfig(),
   ]);
   if (!row) notFound();
 
@@ -46,6 +53,10 @@ export default async function EditProductPage({ params }: { params: Params }) {
           submitLabel="Save changes"
           defaultCommissionRate={defaultCommissionRate}
           defaultAffiliateRate={defaultAffiliateRate}
+          arrivalPoints={arrivalPoints}
+          defaultGhanaTaxRate={abroadConfig.ghanaTaxRate}
+          defaultDutyPercent={abroadConfig.defaultDutyPercent}
+          partialPaymentEnabled={abroadConfig.partialPaymentEnabled}
         />
       </div>
     </Container>

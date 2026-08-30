@@ -9,7 +9,9 @@ export type SellerType =
 
 export const SELLER_TYPE_LABELS: Record<SellerType, string> = {
   local_shop: "Local Shop",
-  preorder_seller: "Preorder Seller",
+  // The value is unchanged so existing shops keep their type; only the name
+  // the world sees moved on from "preorder".
+  preorder_seller: "Shipped-from-Abroad Seller",
   campus_vendor: "Campus Vendor",
   food_vendor: "Food Vendor",
   service_provider: "Service Provider",
@@ -19,18 +21,30 @@ export const SELLER_TYPE_LABELS: Record<SellerType, string> = {
 
 export type VerificationStatus = "pending" | "verified" | "rejected";
 
-export type ProductType = "in_stock" | "preorder" | "service" | "food";
+/**
+ * `preorder` is the legacy spelling of `shipped_from_abroad` and still sits on
+ * every listing created before the rename. Read both; write the new one. See
+ * lib/abroad for the helpers that reconcile them.
+ */
+export type ProductType = "in_stock" | "shipped_from_abroad" | "preorder" | "service" | "food";
 
-export type PreorderStatus =
+/**
+ * Where a shipped-from-abroad listing's consignment has got to.
+ *
+ * There is no "closed" any more: ordering never shuts, which is the whole
+ * difference between this and the preorder system it replaces. What a buyer
+ * tracks now is the journey, not a window.
+ */
+export type AbroadStatus =
   | "open"
-  | "closing_soon"
-  | "closed"
+  | "sourcing"
+  | "in_transit"
   | "arrived"
   | "cancelled";
 
 export type BadgeKind =
   | "in_stock"
-  | "preorder"
+  | "shipped_from_abroad"
   | "same_day_delivery"
   | "pickup_available"
   | "campus_delivery"
@@ -47,7 +61,7 @@ export type BadgeKind =
 
 export const BADGE_LABELS: Record<BadgeKind, string> = {
   in_stock: "In Stock",
-  preorder: "Preorder",
+  shipped_from_abroad: "Shipped from Abroad",
   same_day_delivery: "Same-Day Delivery",
   pickup_available: "Pickup Available",
   campus_delivery: "Campus Delivery",
@@ -120,17 +134,37 @@ export interface Vendor {
   whatsapp?: string;
 }
 
-export interface PreorderInfo {
-  estimatedArrival: string;
-  closingDate: string;
-  depositRequired: boolean;
-  depositType: "percentage" | "fixed_amount";
-  depositValue: number;
-  balanceInstruction: string;
-  refundPolicy: string;
-  sourceLocation: string;
-  preorderStatus: PreorderStatus;
+/**
+ * The stored terms of a shipped-from-abroad listing, as the storefront reads
+ * them off the JSON column. Loose on purpose: a legacy preorder record has only
+ * a handful of these, and `parseAbroadTerms` in lib/abroad is what narrows
+ * either shape into the strict `AbroadTerms` the forms and pricing work on.
+ */
+export interface AbroadInfo {
+  estimatedArrival?: string;
+  depositRequired?: boolean;
+  depositType?: "percentage" | "fixed_amount";
+  depositValue?: number;
+  balanceInstruction?: string;
+  refundPolicy?: string;
+  sourceLocation?: string;
+  sourceUrl?: string;
+  supplierName?: string;
+  originCountry?: string;
+  freightMode?: string;
+  arrivalPointId?: string;
+  supplierFreight?: number;
+  intlFreight?: number;
+  freightIncluded?: boolean;
+  originTaxRate?: number;
+  ghanaTaxRate?: number;
+  dutyIncluded?: boolean;
+  allowFreightOnArrival?: boolean;
+  processingDays?: number;
+  abroadStatus?: AbroadStatus;
   minimumOrders?: number;
+  /** Legacy preorder field. Read only; nothing writes it any more. */
+  closingDate?: string;
 }
 
 export interface ServiceInfo {
@@ -183,8 +217,21 @@ export interface Product {
   image?: string;
   /** Gallery image URLs (http(s) or data: URLs). First is the primary. */
   images?: string[];
-  /** Origin country code inherited from the vendor (GH = local). */
+  /**
+   * Origin country code. The listing's own when it sets one — a seller in Accra
+   * dropshipping from Guangzhou has a GH shop and a CN product — otherwise
+   * inherited from the vendor. GH = local.
+   */
   originCountry?: string;
+  /** The supplier listing this was copied from (Alibaba, 1688, Amazon…). */
+  sourceUrl?: string;
+  supplierName?: string;
+  /** air | sea | road | express, for the abroad → Ghana leg. */
+  freightMode?: string;
+  /** The Ghana arrival point this listing lands at. */
+  arrivalPointId?: string | null;
+  /** True when the listed price already covers freight into Ghana. */
+  freightIncluded?: boolean;
   /** Key attributes / spec table rows. */
   attributes?: KeyAttribute[];
   /** Offered to affiliate marketers? */
@@ -195,7 +242,11 @@ export interface Product {
   affiliateCommissionRate?: number | null;
   /** Archived products stay in reports but leave the storefront. */
   isArchived?: boolean;
-  preorderInfo?: PreorderInfo;
+  /**
+   * Shipped-from-abroad terms. The property keeps its old name because the
+   * database column does; see lib/abroad.
+   */
+  preorderInfo?: AbroadInfo;
   serviceInfo?: ServiceInfo;
 }
 

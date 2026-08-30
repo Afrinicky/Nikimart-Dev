@@ -98,7 +98,7 @@ export const POLICY_DEFAULTS: Record<string, PolicyDefault> = {
       { heading: "Eligibility", body: "Items may be returned if they arrive damaged, defective, or not as described, within the return window shown at checkout." },
       { heading: "Refunds", body: "Approved refunds are issued to your original payment method or Mobile Money wallet after the returned item is received and inspected." },
       { heading: "Data bundles", body: "A bundle that fails to deliver is refunded in full. A bundle delivered to the number you entered is not refundable, since the data cannot be recovered." },
-      { heading: "Preorder deposits", body: "Preorder deposits are refundable if the order is cancelled before the seller's stated closing date." },
+      { heading: "Shipped-from-abroad deposits", body: "Where a seller takes a deposit on an item shipped from abroad, it is refundable under the refund terms stated on that listing, which you accept at checkout." },
     ],
   },
   "seller-policy": {
@@ -123,13 +123,20 @@ export const POLICY_DEFAULTS: Record<string, PolicyDefault> = {
       { heading: "No stock, no float", body: "You never fund an account in advance. Your customer pays at checkout and Nickimart buys the bundle from that payment." },
     ],
   },
+  // The slug is unchanged so existing links and any edited copy in the database
+  // survive; the document itself now describes the shipped-from-abroad system
+  // that replaced preorders.
   "preorder-policy": {
-    title: "Preorder Policy",
-    intro: "How preorders, deposits, and balances work on Nickimart.",
+    title: "Shipped from Abroad Policy",
+    intro: "How ordering, freight, duty, and balances work on items shipped from abroad.",
     sections: [
-      { heading: "Deposits", body: "Preorders require a deposit to reserve your item. The deposit amount is shown on each preorder product." },
-      { heading: "Balance & arrival", body: "You settle the remaining balance on arrival, before delivery or pickup. Estimated arrival times are shown per product and may vary." },
-      { heading: "Cancellations", body: "You may cancel and receive a full deposit refund before the seller's stated closing date." },
+      { heading: "What you are ordering", body: "The seller sources the item from a supplier abroad once you order it. Nothing closes — you can order at any time — and the estimated arrival is shown on each listing." },
+      { heading: "The three freight legs", body: "Your item travels from the supplier to a freight forwarder abroad, from there to a Ghana arrival point by air or sea, and finally from that point to your pickup station. Each leg is priced separately at checkout." },
+      { heading: "Duty and taxes", body: "Sales tax charged in the country of purchase, Ghana import duty on the landed value, and Ghana VAT and levies are all itemised in your bill before you pay. Where a seller's price already includes freight into Ghana, that is stated on the listing and not charged again." },
+      { heading: "Paying now or on arrival", body: "Where the seller allows it, you may pay for the goods, the tax at source and the first freight leg today, and settle the freight into Ghana, duty, Ghana tax and local delivery when the item lands. Those are quoted at today's rates but charged at the rates in force on arrival, so they may change. Paying in full locks them." },
+      { heading: "Deposits", body: "Some listings take a deposit rather than the full item price at checkout. The amount and how the balance is paid are shown on the listing and again at checkout." },
+      { heading: "Arrival and collection", body: "You are alerted when your order is placed with the supplier, when it lands in Ghana, and when it is ready to collect. Any balance falls due on arrival, before collection." },
+      { heading: "Cancellations and refunds", body: "Each seller states their own refund terms on the listing, including what happens if the item is late or never arrives. Read them before ordering — they are shown again at checkout and you accept them there." },
     ],
   },
   "delivery-policy": {

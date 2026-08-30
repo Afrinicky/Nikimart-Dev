@@ -1,7 +1,7 @@
 import type {
   Category,
   Location,
-  PreorderInfo,
+  AbroadInfo,
   Product,
   ServiceInfo,
   Vendor,
@@ -180,16 +180,24 @@ export const vendors: Vendor[] = [
   },
 ];
 
-const preorder = (overrides: Partial<PreorderInfo>): PreorderInfo => ({
+// Demo shipped-from-abroad terms. No closing date: ordering stays open, which
+// is the difference between this and the preorder system it replaces.
+const abroad = (overrides: Partial<AbroadInfo>): AbroadInfo => ({
   estimatedArrival: "3-4 weeks",
-  closingDate: "2026-07-10",
   depositRequired: true,
   depositType: "percentage",
   depositValue: 30,
-  balanceInstruction: "Pay the remaining balance on arrival before delivery or pickup.",
-  refundPolicy: "Full deposit refund if the order is cancelled before the closing date.",
+  balanceInstruction: "Pay the remaining balance on arrival before collection.",
+  refundPolicy: "Full deposit refund if the item does not arrive within 10 weeks.",
   sourceLocation: "Dubai, UAE",
-  preorderStatus: "open",
+  originCountry: "AE",
+  freightMode: "air",
+  supplierFreight: 40,
+  freightIncluded: false,
+  originTaxRate: 5,
+  allowFreightOnArrival: true,
+  processingDays: 5,
+  abroadStatus: "open",
   ...overrides,
 });
 
@@ -406,72 +414,72 @@ export const products: Product[] = [
     gradientFrom: "#1f1f1f", gradientTo: "#10b981", emoji: "🔑",
   },
 
-  // Preorder products
+  // Shipped-from-abroad products
   {
     id: "prod-iphone15promax", slug: "iphone-15-pro-max-preorder", name: "iPhone 15 Pro Max 256GB (Preorder)",
     categoryId: "cat-phones", vendorId: "vendor-importedstyles",
     description: "Brand new iPhone 15 Pro Max, factory sealed, imported on order from Dubai.",
-    price: 9800, stockQuantity: 0, productType: "preorder",
-    badges: ["preorder", "deposit_required", "imported_item"], locationIds: ["accra", "kumasi"],
+    price: 9800, stockQuantity: 0, productType: "shipped_from_abroad",
+    badges: ["shipped_from_abroad", "deposit_required", "imported_item"], locationIds: ["accra", "kumasi"],
     campusDeliveryAvailable: false, pickupAvailable: true, sameDayDeliveryAvailable: false,
     isOfficial: false, isFeatured: true, rating: 4.9, reviewCount: 22,
     gradientFrom: "#131313", gradientTo: "#2e2e2e", emoji: "📱",
-    preorderInfo: preorder({ estimatedArrival: "4-5 weeks", depositValue: 40, sourceLocation: "Dubai, UAE", preorderStatus: "open" }),
+    preorderInfo: abroad({ estimatedArrival: "4-5 weeks", depositValue: 40, sourceLocation: "Dubai, UAE", abroadStatus: "open" }),
   },
   {
     id: "prod-ps5", slug: "playstation-5-slim-preorder", name: "PlayStation 5 Slim (Preorder)",
     categoryId: "cat-electronics", vendorId: "vendor-importedstyles",
     description: "Next-gen PlayStation 5 Slim console, imported on preorder with 1 controller included.",
-    price: 6200, stockQuantity: 0, productType: "preorder",
-    badges: ["preorder", "deposit_required", "imported_item", "limited_stock"], locationIds: ["accra", "knust"],
+    price: 6200, stockQuantity: 0, productType: "shipped_from_abroad",
+    badges: ["shipped_from_abroad", "deposit_required", "imported_item", "limited_stock"], locationIds: ["accra", "knust"],
     campusDeliveryAvailable: false, pickupAvailable: true, sameDayDeliveryAvailable: false,
     isOfficial: false, isFeatured: true, rating: 4.8, reviewCount: 16,
     gradientFrom: "#2e2e2e", gradientTo: "#131313", emoji: "🎮",
-    preorderInfo: preorder({ estimatedArrival: "5-6 weeks", depositValue: 50, minimumOrders: 5, preorderStatus: "closing_soon" }),
+    preorderInfo: abroad({ estimatedArrival: "5-6 weeks", depositValue: 50, minimumOrders: 5, abroadStatus: "sourcing" }),
   },
   {
     id: "prod-airjordans", slug: "imported-air-sneakers-preorder", name: "Imported Air Sneakers (Preorder)",
     categoryId: "cat-shoes-bags", vendorId: "vendor-importedstyles",
     description: "Trending imported sneakers, preorder now and receive in 3-4 weeks.",
-    price: 950, stockQuantity: 0, productType: "preorder",
-    badges: ["preorder", "deposit_required", "imported_item"], locationIds: ["kumasi", "accra"],
+    price: 950, stockQuantity: 0, productType: "shipped_from_abroad",
+    badges: ["shipped_from_abroad", "deposit_required", "imported_item"], locationIds: ["kumasi", "accra"],
     campusDeliveryAvailable: false, pickupAvailable: true, sameDayDeliveryAvailable: false,
     isOfficial: false, isFeatured: false, rating: 4.6, reviewCount: 12,
     gradientFrom: "#ff6a00", gradientTo: "#131313", emoji: "👟",
-    preorderInfo: preorder({ depositValue: 30, preorderStatus: "open" }),
+    preorderInfo: abroad({ depositValue: 30, abroadStatus: "open" }),
   },
   {
     id: "prod-designerbag", slug: "designer-handbag-preorder", name: "Designer Handbag (Preorder)",
     categoryId: "cat-shoes-bags", vendorId: "vendor-importedstyles",
     description: "Premium designer-inspired handbag, imported to order from trusted overseas suppliers.",
-    price: 680, stockQuantity: 0, productType: "preorder",
-    badges: ["preorder", "deposit_required", "imported_item"], locationIds: ["accra"],
+    price: 680, stockQuantity: 0, productType: "shipped_from_abroad",
+    badges: ["shipped_from_abroad", "deposit_required", "imported_item"], locationIds: ["accra"],
     campusDeliveryAvailable: false, pickupAvailable: false, sameDayDeliveryAvailable: false,
     isOfficial: false, isFeatured: false, rating: 4.5, reviewCount: 9,
     gradientFrom: "#ef4444", gradientTo: "#ffb020", emoji: "👜",
-    preorderInfo: preorder({ depositValue: 35, preorderStatus: "open" }),
+    preorderInfo: abroad({ depositValue: 35, abroadStatus: "open" }),
   },
   {
     id: "prod-smartwatch", slug: "smartwatch-series-preorder", name: "Smartwatch Series X (Preorder)",
     categoryId: "cat-phone-accessories", vendorId: "vendor-importedstyles",
     description: "Latest generation smartwatch with health tracking, imported on preorder.",
-    price: 1450, stockQuantity: 0, productType: "preorder",
-    badges: ["preorder", "deposit_required", "imported_item"], locationIds: ["accra", "kumasi", "knust"],
+    price: 1450, stockQuantity: 0, productType: "shipped_from_abroad",
+    badges: ["shipped_from_abroad", "deposit_required", "imported_item"], locationIds: ["accra", "kumasi", "knust"],
     campusDeliveryAvailable: false, pickupAvailable: true, sameDayDeliveryAvailable: false,
     isOfficial: false, isFeatured: true, rating: 4.7, reviewCount: 14,
     gradientFrom: "#1f1f1f", gradientTo: "#ffb020", emoji: "⌚",
-    preorderInfo: preorder({ depositValue: 30, preorderStatus: "open" }),
+    preorderInfo: abroad({ depositValue: 30, abroadStatus: "open" }),
   },
   {
     id: "prod-gamingchair", slug: "ergonomic-gaming-chair-preorder", name: "Ergonomic Gaming Chair (Preorder)",
     categoryId: "cat-electronics", vendorId: "vendor-importedstyles",
     description: "Comfortable ergonomic gaming chair, preorder now ahead of next shipment.",
-    price: 1850, stockQuantity: 0, productType: "preorder",
-    badges: ["preorder", "deposit_required", "imported_item"], locationIds: ["accra"],
+    price: 1850, stockQuantity: 0, productType: "shipped_from_abroad",
+    badges: ["shipped_from_abroad", "deposit_required", "imported_item"], locationIds: ["accra"],
     campusDeliveryAvailable: false, pickupAvailable: true, sameDayDeliveryAvailable: false,
     isOfficial: false, isFeatured: false, rating: 4.4, reviewCount: 7,
     gradientFrom: "#2e2e2e", gradientTo: "#10b981", emoji: "🪑",
-    preorderInfo: preorder({ estimatedArrival: "6-7 weeks", depositValue: 40, preorderStatus: "open" }),
+    preorderInfo: abroad({ estimatedArrival: "6-7 weeks", depositValue: 40, abroadStatus: "open" }),
   },
 
   // Service listings
@@ -586,7 +594,7 @@ export const products: Product[] = [
 ];
 
 export const flashSaleProducts = products.filter((p) => p.badges.includes("flash_sale"));
-export const preorderProducts = products.filter((p) => p.productType === "preorder");
+export const abroadProducts = products.filter((p) => p.productType === "shipped_from_abroad");
 export const serviceProducts = products.filter((p) => p.productType === "service");
 export const foodProducts = products.filter((p) => p.productType === "food");
 export const officialProducts = products.filter((p) => p.isOfficial);

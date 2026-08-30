@@ -11,11 +11,20 @@ import { toPesewas } from "@/lib/payments";
  * the reference alone, so a partial capture — or a transaction initialised for
  * a different amount — would have settled the order in full. A tolerance of one
  * pesewa absorbs rounding between our total and the gateway's integer amount.
+ *
+ * What has to be covered is what was charged, not the order total. A buyer on
+ * the goods-only plan deliberately pays less than the total today, with the
+ * freight and duty due when the item lands; measuring their capture against the
+ * full landed cost would reject every one of those payments as short.
  */
 export async function paymentCoversOrder(orderNumber: string, amountPesewas: number): Promise<boolean> {
-  const order = await prisma.order.findUnique({ where: { orderNumber }, select: { total: true } });
+  const order = await prisma.order.findUnique({
+    where: { orderNumber },
+    select: { total: true, balanceDue: true },
+  });
   if (!order) return false;
-  return amountPesewas + 1 >= toPesewas(order.total);
+  const chargedNow = Math.max(0, order.total - order.balanceDue);
+  return amountPesewas + 1 >= toPesewas(chargedNow);
 }
 
 /**
@@ -47,8 +56,24 @@ export async function markOrderPaid(
   // We won the transition — ensure a shipment exists to drive tracking.
   const order = await prisma.order.findUnique({
     where: { orderNumber },
-    include: { shipment: true, pickupPoint: true },
+    include: {
+      shipment: true,
+      pickupPoint: true,
+      items: { select: { arrivalPointId: true } },
+    },
   });
+
+  // Record what was actually collected. Under the goods-only plan that is the
+  // total less the balance left for arrival, so the order carries a true "paid
+  // so far" rather than implying the whole landed cost was settled.
+  if (order) {
+    await prisma.order
+      .update({
+        where: { id: order.id },
+        data: { amountPaid: Math.max(0, order.total - order.balanceDue) },
+      })
+      .catch(() => {});
+  }
   if (order && !order.shipment) {
     const freightAgent =
       order.deliveryMethod === "delivery"
@@ -58,15 +83,21 @@ export async function markOrderPaid(
       order.deliveryMethod === "pickup"
         ? (order.pickupPoint?.name ?? "Pickup point")
         : (order.address ?? "Customer address");
+    // An imported consignment starts abroad and clears through a Ghana arrival
+    // point, and two days is not a believable ETA for it. Both come off the
+    // order's own items, which were snapshotted when it was placed.
+    const arrivalPointId = order.items.find((i) => i.arrivalPointId)?.arrivalPointId ?? null;
+    const etaDays = order.hasAbroadItems ? 28 : 2;
     await prisma.shipment
       .create({
         data: {
           orderId: order.id,
           trackingNumber: `NMF-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 900 + 100)}`,
           status: "created", // awaiting the seller's "prepared" confirmation
-          origin: "Nickimart Warehouse",
+          origin: order.hasAbroadItems ? "Supplier (abroad)" : "Nickimart Warehouse",
           destination,
-          eta: new Date(Date.now() + 1000 * 60 * 60 * 48),
+          arrivalPointId,
+          eta: new Date(Date.now() + 1000 * 60 * 60 * 24 * etaDays),
           freightAgentId: freightAgent?.id ?? null,
         },
       })

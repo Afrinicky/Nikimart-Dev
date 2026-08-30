@@ -51,7 +51,7 @@ export default async function HowItWorksPage() {
           <h2 className="mt-3 font-display text-2xl font-bold text-white">Ready to shop the world?</h2>
           <div className="mt-5 flex flex-wrap justify-center gap-3">
             <Link
-              href="/global-shopping"
+              href="/shipped-from-abroad"
               className="flex items-center gap-2 rounded-full bg-niki-orange px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
             >
               Start global shopping

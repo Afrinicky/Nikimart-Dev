@@ -37,7 +37,7 @@ const montserrat = Montserrat({
 });
 
 const SITE_DESCRIPTION =
-  "Nickimart connects buyers to trusted local shops, preorder sellers, campus vendors, service providers, and official Nickimart products across Ghana.";
+  "Nickimart connects buyers to trusted local shops, sellers sourcing from abroad, campus vendors, service providers, and official Nickimart products across Ghana.";
 
 export const metadata: Metadata = {
   // Makes relative OG/canonical URLs absolute — required for link previews

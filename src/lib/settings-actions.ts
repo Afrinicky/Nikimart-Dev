@@ -21,6 +21,7 @@ function revalidateChrome() {
   // Public pages whose copy is settings-driven.
   revalidatePath("/how-it-works");
   revalidatePath("/pickup-points");
+  revalidatePath("/shipped-from-abroad");
   revalidatePath("/admin/settings");
 }
 
@@ -46,6 +47,10 @@ export async function updateSettings(_prev: SettingsState, fd: FormData): Promis
     ["commissionRate", "Commission rate"],
     ["affiliateRate", "Affiliate commission"],
     ["affiliateMaxRate", "Affiliate headline rate"],
+    // Both go straight into every imported order's bill, so a typo here is a
+    // mis-charge on real money rather than a cosmetic slip.
+    ["ghanaImportTaxRate", "Ghana VAT & levies"],
+    ["defaultImportDutyPercent", "Fallback import duty"],
   ] as const) {
     const v = str(fd, key);
     if (v && !(Number(v) >= 0 && Number(v) <= 100)) {

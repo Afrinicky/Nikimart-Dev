@@ -25,6 +25,7 @@ import {
   getVendors,
   getVendorNameMap,
 } from "@/lib/catalog";
+import { isAbroadType } from "@/lib/abroad";
 import type { Product, Vendor } from "@/lib/types";
 import type { RenderSection } from "@/lib/pages";
 import type { SectionConfig } from "@/lib/page-blocks";
@@ -56,7 +57,10 @@ function productCollection(all: Product[], collection?: string): Product[] {
     case "flash_sale":
       return all.filter((p) => p.badges.includes("flash_sale"));
     case "preorder":
-      return all.filter((p) => p.productType === "preorder");
+      // The block value is still "preorder" so saved pages keep working; what
+      // it selects is everything shipped from abroad, under either spelling of
+      // the product type. See lib/abroad.
+      return all.filter((p) => isAbroadType(p.productType));
     case "service":
       return all.filter((p) => p.productType === "service");
     case "food":
@@ -64,7 +68,7 @@ function productCollection(all: Product[], collection?: string): Product[] {
     case "official":
       return all.filter((p) => p.isOfficial);
     case "budget":
-      return all.filter((p) => p.price <= 100 && p.productType !== "preorder");
+      return all.filter((p) => p.price <= 100 && !isAbroadType(p.productType));
     case "recently_viewed":
       return all.filter((p) => p.isFeatured).slice(0, 8);
     default:

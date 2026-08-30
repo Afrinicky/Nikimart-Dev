@@ -2,10 +2,10 @@ import "server-only";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import type {
+  AbroadInfo,
   BadgeKind,
   Category,
   KeyAttribute,
-  PreorderInfo,
   Product,
   ProductType,
   SellerType,
@@ -13,6 +13,7 @@ import type {
   Vendor,
   VerificationStatus,
 } from "@/lib/types";
+import { ABROAD_TYPES, isAbroadType } from "@/lib/abroad";
 import type {
   Product as PrismaProduct,
   Vendor as PrismaVendor,
@@ -107,13 +108,21 @@ export function mapProduct(
     cbm: p.cbm,
     image: gallery[0] ?? p.image ?? undefined,
     images: gallery.length ? gallery : p.image ? [p.image] : [],
-    originCountry: p.vendor?.originCountry ?? "GH",
+    // The listing's own origin wins over the shop's. A seller in Accra
+    // dropshipping from Guangzhou has a GH vendor and a CN product; reading the
+    // vendor alone showed every such listing as local.
+    originCountry: p.originCountry || p.vendor?.originCountry || "GH",
+    sourceUrl: p.sourceUrl || undefined,
+    supplierName: p.supplierName || undefined,
+    freightMode: p.freightMode || undefined,
+    arrivalPointId: p.arrivalPointId ?? null,
+    freightIncluded: p.freightIncluded,
     attributes: parseJSON<KeyAttribute[]>(p.attributes, []),
     affiliateEnabled: p.affiliateEnabled,
     affiliateEnrolledBy: p.affiliateEnrolledBy,
     affiliateCommissionRate: p.affiliateCommissionRate ?? null,
     isArchived: p.isArchived,
-    preorderInfo: p.preorderInfo ? parseJSON<PreorderInfo | undefined>(p.preorderInfo, undefined) : undefined,
+    preorderInfo: p.preorderInfo ? parseJSON<AbroadInfo | undefined>(p.preorderInfo, undefined) : undefined,
     serviceInfo: p.serviceInfo ? parseJSON<ServiceInfo | undefined>(p.serviceInfo, undefined) : undefined,
   };
 }
@@ -214,8 +223,20 @@ export async function getFeaturedProducts(): Promise<Product[]> {
 export async function getFlashSaleProducts(): Promise<Product[]> {
   return (await getProducts()).filter((p) => p.badges.includes("flash_sale"));
 }
-export async function getPreorderProducts(): Promise<Product[]> {
-  return (await getProducts()).filter((p) => p.productType === "preorder");
+/**
+ * Everything shipped from abroad, under either spelling of the type.
+ *
+ * Listings created before the rename still carry `productType: "preorder"`, and
+ * migrations here are additive by rule, so the reconciliation lives in code.
+ */
+export async function getAbroadProducts(): Promise<Product[]> {
+  return (await getProducts()).filter((p) => isAbroadType(p.productType));
+}
+
+/** Imported listings from one origin country ("CN", "AE"…). */
+export async function getAbroadProductsByCountry(code: string): Promise<Product[]> {
+  const wanted = code.toUpperCase();
+  return (await getAbroadProducts()).filter((p) => (p.originCountry ?? "GH").toUpperCase() === wanted);
 }
 export async function getServiceProducts(): Promise<Product[]> {
   return (await getProducts()).filter((p) => p.productType === "service");
@@ -260,7 +281,12 @@ export async function filterProducts(filters: ProductFilters): Promise<Product[]
     result = result.filter((p) => p.badges.includes(filters.badge as BadgeKind));
   }
   if (filters.type) {
-    result = result.filter((p) => p.productType === filters.type);
+    // "shipped_from_abroad" has to match its legacy spelling too, or a filter
+    // silently hides every listing made before the rename.
+    const wanted = isAbroadType(filters.type)
+      ? (ABROAD_TYPES as readonly string[])
+      : [filters.type];
+    result = result.filter((p) => wanted.includes(p.productType));
   }
   if (typeof filters.maxPrice === "number") {
     result = result.filter((p) => p.price <= filters.maxPrice!);

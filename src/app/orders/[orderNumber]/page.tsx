@@ -5,11 +5,12 @@ import { ArrowLeft, MapPin, Package, Receipt, Truck } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { TrackingTimeline } from "@/components/order/TrackingTimeline";
+import { OrderBill } from "@/components/order/OrderBill";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
-import type { ShipmentTimestamps } from "@/lib/tracking";
+import type { ShipmentRoute, ShipmentTimestamps } from "@/lib/tracking";
 
 export const metadata: Metadata = { title: "Track Order — Nickimart" };
 
@@ -31,7 +32,11 @@ export default async function OrderTrackingPage({ params }: { params: Params }) 
     transitAt: order.shipment?.transitAt ?? null,
     outForDeliveryAt: order.shipment?.outForDeliveryAt ?? null,
     deliveredAt: order.shipment?.deliveredAt ?? null,
+    forwarderReceivedAt: order.shipment?.forwarderReceivedAt ?? null,
+    arrivedGhanaAt: order.shipment?.arrivedGhanaAt ?? null,
   };
+  // An imported order's timeline has two extra steps; a domestic one's does not.
+  const route: ShipmentRoute = order.hasAbroadItems ? "abroad" : "domestic";
 
   return (
     <>
@@ -69,7 +74,7 @@ export default async function OrderTrackingPage({ params }: { params: Params }) 
             </div>
 
             <div className="mt-6">
-              <TrackingTimeline timestamps={timestamps} method={method} />
+              <TrackingTimeline timestamps={timestamps} method={method} route={route} />
             </div>
           </div>
 
@@ -87,10 +92,7 @@ export default async function OrderTrackingPage({ params }: { params: Params }) 
                 </div>
               ))}
             </div>
-            <div className="mt-4 flex justify-between border-t border-niki-edge pt-4 font-figures font-bold text-niki-ink">
-              <span>Total</span>
-              <span>{formatPrice(order.total)}</span>
-            </div>
+            <OrderBill order={order} className="mt-4 border-t border-niki-edge pt-4" />
             <p className="mt-3 flex items-center gap-1.5 text-xs text-niki-ink/50">
               <Package className="h-3.5 w-3.5" />
               Placed {order.createdAt.toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" })}

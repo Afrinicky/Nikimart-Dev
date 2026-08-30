@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { formatPrice } from "@/lib/format";
+import { OrderBill } from "@/components/order/OrderBill";
 import { ORDER_STATUS_LABELS } from "@/lib/order-status";
 
 export const metadata: Metadata = { title: "Receipt — Nickimart" };
@@ -124,21 +125,10 @@ export default async function ReceiptPage({ params }: { params: Params }) {
           </tbody>
         </table>
 
-        {/* Totals */}
-        <div className="mt-4 ml-auto max-w-xs space-y-1.5 text-sm">
-          <div className="flex justify-between text-niki-ink/70">
-            <span>Subtotal</span>
-            <span className="font-medium text-niki-ink">{formatPrice(order.subtotal)}</span>
-          </div>
-          <div className="flex justify-between text-niki-ink/70">
-            <span>{method === "pickup" ? "Pickup" : "Delivery"}</span>
-            <span className="font-medium text-niki-ink">{order.deliveryFee === 0 ? "Free" : formatPrice(order.deliveryFee)}</span>
-          </div>
-          <div className="flex justify-between border-t border-niki-edge-strong pt-2 text-base font-bold text-niki-ink">
-            <span>Total</span>
-            <span className="font-figures">{formatPrice(order.total)}</span>
-          </div>
-        </div>
+        {/* Totals. An imported order itemises every leg and tax it was charged
+            for — a receipt that reads "subtotal + delivery" on a bill with duty
+            and two freight legs in it is not a record of anything. */}
+        <OrderBill order={order} className="mt-4 ml-auto max-w-sm" />
 
         <div className="mt-8 border-t border-niki-edge-strong pt-5 text-center text-xs text-niki-ink/50">
           <p>Thank you for shopping with Nickimart. This receipt was generated on {new Date().toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" })}.</p>

@@ -61,7 +61,7 @@ export const DEFAULT_BANNERS: BannerSlide[] = [
     subtitle: "Buy from trusted sellers abroad — we handle freight, customs, and delivery.",
     eventWindow: "",
     ctaLabel: "Global shopping",
-    ctaHref: "/global-shopping",
+    ctaHref: "/shipped-from-abroad",
     image: null,
     accentFrom: "#2e2e2e",
     accentTo: "#131313",

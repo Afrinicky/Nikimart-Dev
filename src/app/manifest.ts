@@ -19,7 +19,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Nickimart — Shop smart. Sell faster. Deliver closer.",
     short_name: "Nickimart",
     description:
-      "Buy from trusted local shops, campus vendors, preorder sellers and service providers across Ghana.",
+      "Buy from trusted local shops, campus vendors, importers and service providers across Ghana.",
     start_url: "/",
     display: "standalone",
     background_color: "#eeeef0",
