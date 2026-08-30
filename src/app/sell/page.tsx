@@ -86,7 +86,7 @@ export default function SellPage() {
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {BENEFITS.map(({ icon: Icon, title, desc }) => (
             <div key={title} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-niki-navy text-niki-orange">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-niki-black text-niki-orange">
                 <Icon className="h-5 w-5" />
               </span>
               <h3 className="mt-4 font-semibold text-niki-ink">{title}</h3>
@@ -105,7 +105,7 @@ export default function SellPage() {
           ))}
         </div>
 
-        <div className="mt-12 flex flex-col items-center gap-4 rounded-3xl bg-niki-navy p-10 text-center">
+        <div className="mt-12 flex flex-col items-center gap-4 rounded-3xl bg-niki-black p-10 text-center">
           <h2 className="font-display text-2xl font-bold text-white">Ready to start selling?</h2>
           <p className="max-w-md text-sm text-white/70">
             It only takes a few minutes to register your shop and list your first product.

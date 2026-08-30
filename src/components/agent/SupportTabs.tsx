@@ -296,7 +296,7 @@ function ContactPanel({
             href={c.href}
             target={c.href.startsWith("http") ? "_blank" : undefined}
             rel="noopener noreferrer"
-            className="niki-press mt-4 w-full rounded-xl bg-niki-surface px-4 py-2.5 text-sm font-semibold text-niki-ink/75 hover:bg-niki-navy/5"
+            className="niki-press mt-4 w-full rounded-xl bg-niki-surface px-4 py-2.5 text-sm font-semibold text-niki-ink/75 hover:bg-niki-black/5"
           >
             {c.cta}
           </a>

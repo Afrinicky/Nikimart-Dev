@@ -56,7 +56,7 @@ export default async function SellerSettingsPage() {
             hubs={hubs}
           />
         ) : (
-          <div className="rounded-2xl bg-niki-navy p-6 text-sm text-white/80">
+          <div className="rounded-2xl bg-niki-black p-6 text-sm text-white/80">
             You don&apos;t have a shop yet.{" "}
             <Link href="/vendor-register" className="font-semibold text-niki-orange hover:underline">
               Register a shop

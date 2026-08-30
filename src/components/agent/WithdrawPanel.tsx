@@ -187,7 +187,7 @@ export function WithdrawPanel({
               type="button"
               onClick={() => setOpen(false)}
               disabled={pending}
-              className="niki-press niki-focus rounded-xl bg-niki-surface px-5 py-3 text-sm font-bold text-niki-ink/70 hover:bg-niki-navy/5 disabled:opacity-60"
+              className="niki-press niki-focus rounded-xl bg-niki-surface px-5 py-3 text-sm font-bold text-niki-ink/70 hover:bg-niki-black/5 disabled:opacity-60"
             >
               Cancel
             </button>

@@ -83,7 +83,7 @@ export default async function AdminDashboardPage() {
                 <Link
                   key={order.id}
                   href={`/admin/orders/${order.id}`}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 ring-1 ring-niki-edge transition-colors hover:bg-niki-navy/5"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 ring-1 ring-niki-edge transition-colors hover:bg-niki-black/5"
                 >
                   <div>
                     <p className="font-semibold text-niki-ink">{order.orderNumber}</p>
@@ -127,7 +127,7 @@ export default async function AdminDashboardPage() {
                 </thead>
                 <tbody className="divide-y divide-niki-edge">
                   {recentUsers.map((u) => (
-                    <tr key={u.id} className="transition-colors hover:bg-niki-navy/5">
+                    <tr key={u.id} className="transition-colors hover:bg-niki-black/5">
                       <td className="px-5 py-3 font-medium text-niki-ink">
                         <Link href={`/admin/users/${u.id}`} className="hover:text-niki-orange">
                           {u.name ?? "—"}
@@ -137,7 +137,7 @@ export default async function AdminDashboardPage() {
                       <td className="px-5 py-3">
                         <Link
                           href={`/admin/users?role=${u.role}`}
-                          className="rounded-full bg-niki-surface px-2.5 py-1 text-xs font-semibold text-niki-ink/70 transition-colors hover:bg-niki-navy hover:text-white"
+                          className="rounded-full bg-niki-surface px-2.5 py-1 text-xs font-semibold text-niki-ink/70 transition-colors hover:bg-niki-black hover:text-white"
                         >
                           {ROLE_LABELS[(u.role as Role)] ?? u.role}
                         </Link>

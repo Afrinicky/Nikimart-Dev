@@ -29,7 +29,7 @@ export function ProductSection({
   if (products.length === 0) return null;
 
   return (
-    <section className={tone === "dark" ? "bg-niki-navy py-10 sm:py-12" : "py-10 sm:py-12"}>
+    <section className={tone === "dark" ? "bg-niki-black py-10 sm:py-12" : "py-10 sm:py-12"}>
       <Container>
         <div className={tone === "dark" ? "[&_h2]:text-white [&_p]:text-white/60" : ""}>
           <SectionHeading

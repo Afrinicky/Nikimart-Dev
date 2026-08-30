@@ -112,7 +112,7 @@ export default async function AgentSettingsPage() {
         </p>
         <ActionLink
           href="/forgot-password"
-          className="niki-press mt-4 inline-flex items-center gap-2 rounded-xl bg-niki-navy px-5 py-3 text-sm font-bold text-white"
+          className="niki-press mt-4 inline-flex items-center gap-2 rounded-xl bg-niki-black px-5 py-3 text-sm font-bold text-white"
         >
           <KeyRound className="h-4 w-4" />
           Change password

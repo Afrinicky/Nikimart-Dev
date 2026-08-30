@@ -42,7 +42,7 @@ export default function HowItWorksPage() {
           ))}
         </ol>
 
-        <div className="mt-10 rounded-3xl bg-niki-navy p-8 text-center">
+        <div className="mt-10 rounded-3xl bg-niki-black p-8 text-center">
           <p className="flex items-center justify-center gap-2 text-sm font-semibold text-niki-gold">
             <CheckCircle2 className="h-4 w-4" />
             Covered by Nickimart Buyer Protection at every step

@@ -62,7 +62,7 @@ export default async function HelpPage() {
         <div className="grid gap-4 sm:grid-cols-3">
           {contacts.map(({ icon: Icon, title, desc, value }) => (
             <div key={title} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-niki-navy text-niki-orange">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-niki-black text-niki-orange">
                 <Icon className="h-5 w-5" />
               </span>
               <h3 className="mt-4 font-semibold text-niki-ink">{title}</h3>

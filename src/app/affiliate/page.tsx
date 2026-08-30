@@ -28,7 +28,7 @@ export default async function AffiliatePage() {
       <>
         <PageHeader title="Become a Nickimart affiliate" subtitle="Earn commission for every sale you refer — no shop or stock needed." crumbs={[{ label: "Affiliate" }]} />
         <Container className="max-w-xl py-8">
-          <div className="rounded-2xl bg-niki-navy p-6 text-white">
+          <div className="rounded-2xl bg-niki-black p-6 text-white">
             <div className="flex items-center gap-2 text-niki-orange"><Gift className="h-5 w-5" /><span className="font-display font-bold">Refer &amp; earn</span></div>
             <p className="mt-2 text-sm text-white/70">
               <strong className="text-white">{pitch}</strong> Commission is set per product, so browse
@@ -57,7 +57,7 @@ export default async function AffiliatePage() {
       <>
         <PageHeader title="Become an affiliate" subtitle="Earn commission for every sale you refer to Nickimart." crumbs={[{ label: "Affiliate" }]} />
         <Container className="max-w-xl py-8">
-          <div className="rounded-2xl bg-niki-navy p-6 text-white">
+          <div className="rounded-2xl bg-niki-black p-6 text-white">
             <div className="flex items-center gap-2 text-niki-orange"><Gift className="h-5 w-5" /><span className="font-display font-bold">Refer &amp; earn</span></div>
             <p className="mt-2 text-sm text-white/70">
               <strong className="text-white">{pitch}</strong> You get a personal code, a catalogue of
@@ -98,7 +98,7 @@ export default async function AffiliatePage() {
           </div>
         ) : null}
         {/* Store-wide referral link */}
-        <div className="rounded-3xl bg-niki-navy p-6 text-white sm:p-8">
+        <div className="rounded-3xl bg-niki-black p-6 text-white sm:p-8">
           <div className="flex items-center gap-2 text-white/70"><BadgeCheck className="h-5 w-5 text-niki-orange" /><span className="text-sm font-medium">Your store-wide referral link</span></div>
           <p className="mt-2 break-all font-mono text-sm text-white/90">{refPath}</p>
           <div className="mt-4">

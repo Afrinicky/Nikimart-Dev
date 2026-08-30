@@ -140,7 +140,7 @@ export default async function DataBundlesPage() {
             <div className="flex shrink-0 gap-2">
               <Link
                 href="/data-bundles/orders"
-                className="rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white"
+                className="rounded-full bg-niki-black px-5 py-2.5 text-sm font-semibold text-white"
               >
                 Track order
               </Link>

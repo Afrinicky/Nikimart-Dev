@@ -61,8 +61,8 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
             className={cn(
               "shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
               !category
-                ? "bg-niki-navy text-white"
-                : "bg-white text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5",
+                ? "bg-niki-black text-white"
+                : "bg-white text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-black/5",
             )}
           >
             All
@@ -75,7 +75,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
                 "shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
                 category === c.slug
                   ? "bg-niki-orange text-white"
-                  : "bg-white text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5",
+                  : "bg-white text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-black/5",
               )}
             >
               {c.name}

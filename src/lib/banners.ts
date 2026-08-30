@@ -15,6 +15,12 @@ export interface BannerSlide {
 }
 
 // Fallback slides shown when the DB has no banners yet (or isn't migrated).
+//
+// Admins pick their own colours per slide; these are only the out-of-the-box
+// set, so they are the brand's — orange into black, with one dark slide for
+// contrast between them. They used to be a different hue each (orange, green,
+// red, blue), which meant the first thing a visitor saw was four unrelated
+// colours in sequence, none of them the mark's.
 export const DEFAULT_BANNERS: BannerSlide[] = [
   {
     id: "default-1",
@@ -24,8 +30,8 @@ export const DEFAULT_BANNERS: BannerSlide[] = [
     ctaLabel: "Shop now",
     ctaHref: "/products",
     image: null,
-    accentFrom: "#ff7a1a",
-    accentTo: "#0e1f36",
+    accentFrom: "#ff6a00",
+    accentTo: "#131313",
   },
   {
     id: "default-2",
@@ -35,8 +41,8 @@ export const DEFAULT_BANNERS: BannerSlide[] = [
     ctaLabel: "Buy data",
     ctaHref: "/data-bundles",
     image: null,
-    accentFrom: "#1f7a4d",
-    accentTo: "#0e1f36",
+    accentFrom: "#1f1f1f",
+    accentTo: "#131313",
   },
   {
     id: "default-3",
@@ -46,8 +52,8 @@ export const DEFAULT_BANNERS: BannerSlide[] = [
     ctaLabel: "See deals",
     ctaHref: "/products?badge=flash_sale",
     image: null,
-    accentFrom: "#ef4444",
-    accentTo: "#7a1030",
+    accentFrom: "#ff8a3d",
+    accentTo: "#7a2e00",
   },
   {
     id: "default-4",
@@ -57,8 +63,8 @@ export const DEFAULT_BANNERS: BannerSlide[] = [
     ctaLabel: "Global shopping",
     ctaHref: "/global-shopping",
     image: null,
-    accentFrom: "#0ea5e9",
-    accentTo: "#0e1f36",
+    accentFrom: "#2e2e2e",
+    accentTo: "#131313",
   },
 ];
 

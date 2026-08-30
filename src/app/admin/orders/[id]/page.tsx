@@ -130,10 +130,10 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
                   </a>
                 ) : null}
                 {order.user.phone ? (
-                  <a href={`tel:${order.user.phone}`} className="flex items-center gap-1.5 rounded-full bg-niki-navy/5 px-3 py-1.5 text-xs font-semibold text-niki-ink/70"><Phone className="h-3.5 w-3.5" /> Call</a>
+                  <a href={`tel:${order.user.phone}`} className="flex items-center gap-1.5 rounded-full bg-niki-black/5 px-3 py-1.5 text-xs font-semibold text-niki-ink/70"><Phone className="h-3.5 w-3.5" /> Call</a>
                 ) : null}
                 {order.user.email ? (
-                  <a href={`mailto:${order.user.email}`} className="flex items-center gap-1.5 rounded-full bg-niki-navy/5 px-3 py-1.5 text-xs font-semibold text-niki-ink/70"><Mail className="h-3.5 w-3.5" /> Email</a>
+                  <a href={`mailto:${order.user.email}`} className="flex items-center gap-1.5 rounded-full bg-niki-black/5 px-3 py-1.5 text-xs font-semibold text-niki-ink/70"><Mail className="h-3.5 w-3.5" /> Email</a>
                 ) : null}
               </div>
             </div>

@@ -59,11 +59,11 @@ export async function Footer() {
       : c,
   );
   return (
-    <footer className="bg-niki-navy pb-16 text-white/70 sm:pb-0">
+    <footer className="bg-niki-black pb-16 text-white/70 sm:pb-0">
       <Container className="grid grid-cols-2 gap-8 py-12 sm:grid-cols-4 lg:grid-cols-5">
         <div className="col-span-2 sm:col-span-4 lg:col-span-1">
           <div className="flex items-center gap-2">
-            <BrandLogo className="h-8 w-auto" src={settings.logoUrl} />
+            <BrandLogo className="h-8 w-auto text-niki-orange" src={settings.logoUrl} />
             <span className="font-display text-xl font-bold tracking-tight text-white">
               Nick<span className="text-niki-orange">imart</span>
             </span>

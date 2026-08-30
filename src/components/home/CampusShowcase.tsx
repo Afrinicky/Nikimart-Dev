@@ -55,7 +55,7 @@ export function CampusShowcase({
                 "shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
                 location.id === selectedLocationId
                   ? "bg-niki-orange text-white shadow-sm"
-                  : "bg-niki-surface text-niki-ink/70 hover:bg-niki-navy/5",
+                  : "bg-niki-surface text-niki-ink/70 hover:bg-niki-black/5",
               )}
             >
               {location.name}
@@ -77,7 +77,7 @@ export function CampusShowcase({
             {sameDayCount} same-day delivery picks
           </span>
           <span className="flex items-center gap-1.5">
-            <MapPin className="h-4 w-4 text-niki-navy" />
+            <MapPin className="h-4 w-4 text-niki-black" />
             {pickupCount} pickup-ready picks
           </span>
         </div>

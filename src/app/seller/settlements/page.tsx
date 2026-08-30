@@ -21,7 +21,7 @@ export default async function SellerSettlementsPage() {
       <>
         <PageHeader title="Earnings & Payouts" crumbs={[{ label: "Seller", href: "/seller" }, { label: "Earnings" }]} />
         <Container className="py-8">
-          <div className="rounded-2xl bg-niki-navy p-6 text-sm text-white/80">
+          <div className="rounded-2xl bg-niki-black p-6 text-sm text-white/80">
             Register your shop first to start earning.{" "}
             <Link href="/vendor-register" className="font-semibold text-niki-orange hover:underline">
               Register a shop
@@ -52,7 +52,7 @@ export default async function SellerSettlementsPage() {
 
       <Container className="py-8">
         {/* Headline balance */}
-        <div className="rounded-3xl bg-niki-navy p-6 text-white sm:p-8">
+        <div className="rounded-3xl bg-niki-black p-6 text-white sm:p-8">
           <div className="flex items-center gap-2 text-white/70">
             <Wallet className="h-5 w-5 text-niki-orange" />
             <span className="text-sm font-medium">Available for payout</span>

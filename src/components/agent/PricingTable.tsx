@@ -124,8 +124,8 @@ export function PricingTable({ rows }: { rows: PricingRow[] }) {
               className={cn(
                 "niki-press niki-focus shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold",
                 filter === n
-                  ? "bg-niki-navy text-white"
-                  : "bg-white text-niki-ink/60 ring-1 ring-niki-edge hover:bg-niki-navy/5",
+                  ? "bg-niki-black text-white"
+                  : "bg-white text-niki-ink/60 ring-1 ring-niki-edge hover:bg-niki-black/5",
               )}
             >
               {n === "ALL" ? "All networks" : NETWORK_INFO[n as Network].short}
@@ -150,7 +150,7 @@ export function PricingTable({ rows }: { rows: PricingRow[] }) {
             onClick={bulk}
             busy={busyKey === "bulk"}
             pendingLabel="Applying…"
-            className="rounded-full bg-niki-navy px-4 py-2 text-xs font-bold text-white"
+            className="rounded-full bg-niki-black px-4 py-2 text-xs font-bold text-white"
           >
             Price all
           </BusyButton>

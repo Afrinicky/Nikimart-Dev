@@ -22,7 +22,7 @@ export default function PickupPointsPage() {
           {pickupPoints.map((p) => (
             <div key={p.id} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
               <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-niki-navy text-niki-orange">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-niki-black text-niki-orange">
                   <MapPin className="h-5 w-5" />
                 </span>
                 <div>

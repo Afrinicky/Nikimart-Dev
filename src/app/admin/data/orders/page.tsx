@@ -36,7 +36,7 @@ function href(params: { status?: string; q?: string; page?: number }): string {
 }
 
 const iconAction =
-  "niki-press inline-flex h-8 w-8 items-center justify-center rounded-full text-niki-ink/60 ring-1 ring-niki-edge-strong hover:bg-niki-navy/5";
+  "niki-press inline-flex h-8 w-8 items-center justify-center rounded-full text-niki-ink/60 ring-1 ring-niki-edge-strong hover:bg-niki-black/5";
 
 export default async function AdminDataOrdersPage({
   searchParams,
@@ -69,7 +69,7 @@ export default async function AdminDataOrdersPage({
           {available && orders.length > 0 ? (
             <a
               href={exportHref}
-              className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-niki-navy/5"
+              className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-niki-black/5"
             >
               <Download className="h-4 w-4" />
               Export
@@ -85,7 +85,7 @@ export default async function AdminDataOrdersPage({
             />
             <button
               type="submit"
-              className="rounded-xl bg-niki-navy px-4 py-2 text-sm font-semibold text-white"
+              className="rounded-xl bg-niki-black px-4 py-2 text-sm font-semibold text-white"
             >
               Search
             </button>
@@ -145,7 +145,7 @@ export default async function AdminDataOrdersPage({
                         <span
                           className={
                             o.source === "WEB" || !o.agentName
-                              ? "inline-flex whitespace-nowrap rounded-full bg-niki-navy/5 px-2.5 py-1 font-semibold text-niki-ink/70"
+                              ? "inline-flex whitespace-nowrap rounded-full bg-niki-black/5 px-2.5 py-1 font-semibold text-niki-ink/70"
                               : "inline-flex whitespace-nowrap rounded-full bg-niki-orange/10 px-2.5 py-1 font-semibold text-niki-orange"
                           }
                           title={label}

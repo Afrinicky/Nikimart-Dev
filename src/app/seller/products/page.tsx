@@ -43,7 +43,7 @@ export default async function SellerProductsPage() {
       </div>
 
       {!vendor ? (
-        <div className="mt-6 rounded-2xl bg-niki-navy p-6 text-sm text-white/80">
+        <div className="mt-6 rounded-2xl bg-niki-black p-6 text-sm text-white/80">
           You don&apos;t have a shop yet. Register your business to start listing products.
         </div>
       ) : (
@@ -87,7 +87,7 @@ export default async function SellerProductsPage() {
                     <div className="flex items-center justify-end gap-1">
                       <Link
                         href={`/seller/products/${p.id}`}
-                        className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-niki-ink/70 transition-colors hover:bg-niki-navy/5"
+                        className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-niki-ink/70 transition-colors hover:bg-niki-black/5"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                         Edit

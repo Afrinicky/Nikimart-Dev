@@ -47,7 +47,7 @@ export function AddToCartButton({
           setGoing(true);
           router.push("/checkout");
         }}
-        className="rounded-full bg-niki-navy px-6 py-3 text-sm font-semibold text-white hover:bg-niki-navy-light"
+        className="rounded-full bg-niki-black px-6 py-3 text-sm font-semibold text-white hover:bg-niki-black-soft"
       >
         Buy now
       </BusyButton>

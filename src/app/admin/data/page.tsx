@@ -153,7 +153,7 @@ export default async function AdminDataOverviewPage() {
           <form action={sweepDataOrders}>
             <button
               type="submit"
-              className="flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge transition-colors hover:bg-niki-navy/5"
+              className="flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge transition-colors hover:bg-niki-black/5"
             >
               <RefreshCw className="h-4 w-4" />
               Run checks now
@@ -231,7 +231,7 @@ export default async function AdminDataOverviewPage() {
       {openSupport > 0 ? (
         <Link
           href="/admin/data/support"
-          className="mt-4 flex items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-medium text-niki-ink ring-1 ring-niki-edge hover:bg-niki-navy/5"
+          className="mt-4 flex items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-medium text-niki-ink ring-1 ring-niki-edge hover:bg-niki-black/5"
         >
           <Clock3 className="h-5 w-5 shrink-0 text-niki-orange" />
           {openSupport} agent {openSupport === 1 ? "is" : "are"} waiting on a callback.
@@ -241,7 +241,7 @@ export default async function AdminDataOverviewPage() {
       {stats.afaPending > 0 ? (
         <Link
           href="/admin/data/afa"
-          className="mt-4 flex items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-medium text-niki-ink ring-1 ring-niki-edge hover:bg-niki-navy/5"
+          className="mt-4 flex items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-medium text-niki-ink ring-1 ring-niki-edge hover:bg-niki-black/5"
         >
           <Clock3 className="h-5 w-5 shrink-0 text-niki-orange" />
           {stats.afaPending} AFA {stats.afaPending === 1 ? "registration is" : "registrations are"} awaiting approval.
@@ -259,7 +259,7 @@ export default async function AdminDataOverviewPage() {
           </div>
           <Link
             href="/admin/data/agents"
-            className="rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white"
+            className="rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white"
           >
             Manage agents
           </Link>

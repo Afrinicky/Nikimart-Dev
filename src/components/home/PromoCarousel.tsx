@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { BrandMark } from "@/components/ui/BrandMark";
 import type { BannerSlide } from "@/lib/banners";
 
 /**
@@ -76,7 +77,10 @@ export function PromoCarousel({ slides }: { slides: BannerSlide[] }) {
           const slideStyle = { background: `linear-gradient(135deg, ${s.accentFrom}, ${s.accentTo})` };
           const inner = (
             <>
-            <div className="relative z-10 flex max-w-[62%] flex-col justify-center gap-2 p-5 sm:p-7 lg:max-w-[56%]">
+            {/* lg:pl-16 clears the previous-slide arrow, which is positioned inside
+                the slide and was overlapping the headline and cutting the first
+                word off the subtitle at desktop widths. */}
+            <div className="relative z-10 flex max-w-[62%] flex-col justify-center gap-2 p-5 sm:p-7 lg:max-w-[56%] lg:pl-16">
               {s.eventWindow ? (
                 <span className="w-fit rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white sm:text-xs">
                   {s.eventWindow}
@@ -90,7 +94,7 @@ export function PromoCarousel({ slides }: { slides: BannerSlide[] }) {
                   {s.subtitle}
                 </p>
               ) : null}
-              <span className="mt-1 flex w-fit items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-niki-navy transition-transform group-hover:translate-x-0.5 sm:text-sm">
+              <span className="mt-1 flex w-fit items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-niki-black transition-transform group-hover:translate-x-0.5 sm:text-sm">
                 {s.ctaLabel}
                 <ArrowRight className="h-4 w-4" />
               </span>
@@ -102,7 +106,13 @@ export function PromoCarousel({ slides }: { slides: BannerSlide[] }) {
                 alt=""
                 className="absolute right-0 top-0 h-full w-[44%] object-cover object-center"
               />
-            ) : null}
+            ) : (
+              /* A slide with no artwork is otherwise a flat coloured slab with
+                 text in the corner, which is the emptiest thing on the page.
+                 The mark, oversized and barely there, gives the right-hand half
+                 something to be until an admin uploads a real image. */
+              <BrandMark className="pointer-events-none absolute right-4 top-1/2 hidden h-[72%] w-auto max-w-[38%] -translate-y-1/2 text-white/[0.09] sm:block" />
+            )}
             </>
           );
           return isExternal ? (
@@ -146,7 +156,7 @@ export function PromoCarousel({ slides }: { slides: BannerSlide[] }) {
             type="button"
             aria-label="Previous slide"
             onClick={() => goTo(active - 1)}
-            className="absolute left-2 top-[calc(50%-1rem)] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-niki-ink shadow-[0_2px_6px_rgba(7,17,31,0.35)] ring-1 ring-niki-edge-strong transition-colors hover:bg-white lg:flex"
+            className="absolute left-2 top-[calc(50%-1rem)] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-niki-ink shadow-[0_2px_8px_rgba(19,19,19,0.3)] ring-1 ring-niki-edge-strong transition-colors hover:bg-white lg:flex"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
@@ -154,7 +164,7 @@ export function PromoCarousel({ slides }: { slides: BannerSlide[] }) {
             type="button"
             aria-label="Next slide"
             onClick={() => goTo(active + 1)}
-            className="absolute right-2 top-[calc(50%-1rem)] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-niki-ink shadow-[0_2px_6px_rgba(7,17,31,0.35)] ring-1 ring-niki-edge-strong transition-colors hover:bg-white lg:flex"
+            className="absolute right-2 top-[calc(50%-1rem)] hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-niki-ink shadow-[0_2px_8px_rgba(19,19,19,0.3)] ring-1 ring-niki-edge-strong transition-colors hover:bg-white lg:flex"
           >
             <ChevronRight className="h-5 w-5" />
           </button>

@@ -26,7 +26,7 @@ export default function AdminDataLayout({ children }: { children: React.ReactNod
             </div>
             <Link
               href="/data-bundles"
-              className="flex items-center gap-1.5 rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white"
+              className="flex items-center gap-1.5 rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white"
             >
               <ExternalLink className="h-3.5 w-3.5" />
               View storefront

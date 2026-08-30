@@ -96,7 +96,7 @@ export function SingleImageField({
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={busy}
-          className="flex items-center gap-2 rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-navy-light disabled:opacity-60"
+          className="flex items-center gap-2 rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-black-soft disabled:opacity-60"
         >
           <Upload className="h-3.5 w-3.5" />
           {busy ? "Processing…" : "Upload from device"}

@@ -109,7 +109,7 @@ function Shell({
 }) {
   useDialog(true, onClose);
   return (
-    <div className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center bg-niki-navy/70 backdrop-blur-sm sm:items-center">
+    <div className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center bg-niki-black/70 backdrop-blur-sm sm:items-center">
       <button type="button" aria-label="Close" className="absolute inset-0" onClick={onClose} />
       <div
         role="dialog"
@@ -172,7 +172,7 @@ function OrderDetailsModal({ order, onClose }: { order: OrderView; onClose: () =
         <button
           type="button"
           onClick={onClose}
-          className="rounded-full bg-niki-navy px-5 py-2 text-sm font-semibold text-white"
+          className="rounded-full bg-niki-black px-5 py-2 text-sm font-semibold text-white"
         >
           Close
         </button>

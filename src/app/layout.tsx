@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
+import { Geist, Geist_Mono, Montserrat } from "next/font/google";
 import "./globals.css";
 import { LocationProvider } from "@/components/providers/LocationProvider";
 import { CartProvider } from "@/components/providers/CartProvider";
@@ -21,10 +21,18 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
+/**
+ * The display face: headings, the wordmark, section titles.
+ *
+ * Montserrat, because it is the face the logo's own wordmark is drawn in — a
+ * geometric grotesque with a circular "o" and a wide, even rhythm. The site
+ * previously set headings in Space Grotesk, which is a distinctive technical
+ * face and read as a developer tool rather than a marketplace beside the mark.
+ */
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["600", "700", "800"],
 });
 
 const SITE_DESCRIPTION =
@@ -60,7 +68,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${montserrat.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-niki-surface text-niki-ink">
         <ReferralCapture />

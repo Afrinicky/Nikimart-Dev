@@ -104,7 +104,7 @@ export function SidebarNav({
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Open categories menu"
-        className="flex items-center justify-center gap-1.5 rounded-xl p-2 text-white/90 transition-colors hover:bg-white/10"
+        className="flex items-center justify-center gap-1.5 rounded-xl p-2 text-niki-ink transition-colors hover:bg-niki-ink/5"
       >
         <Menu className="h-6 w-6" />
         <span className="hidden text-sm font-semibold lg:inline">Categories</span>
@@ -126,9 +126,9 @@ export function SidebarNav({
         }`}
         aria-hidden={!open}
       >
-        <div className="flex items-center justify-between bg-niki-navy px-5 py-4">
+        <div className="flex items-center justify-between bg-niki-black px-5 py-4">
           <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-            <BrandLogo className="h-8 w-auto" src={logoSrc} />
+            <BrandLogo className="h-8 w-auto text-niki-orange" src={logoSrc} />
             <span className="font-display text-lg font-bold text-white">
               Nick<span className="text-niki-orange">imart</span>
             </span>
@@ -177,7 +177,7 @@ export function SidebarNav({
                 href={dataBundlesUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mb-3 flex items-center gap-3 rounded-xl bg-niki-navy px-4 py-3 text-sm font-semibold text-white"
+                className="mb-3 flex items-center gap-3 rounded-xl bg-niki-black px-4 py-3 text-sm font-semibold text-white"
               >
                 <Smartphone className="h-5 w-5 text-niki-gold" />
                 Buy Data Bundles
@@ -185,7 +185,7 @@ export function SidebarNav({
             ) : (
               <Link
                 href={dataBundlesUrl}
-                className="mb-3 flex items-center gap-3 rounded-xl bg-niki-navy px-4 py-3 text-sm font-semibold text-white"
+                className="mb-3 flex items-center gap-3 rounded-xl bg-niki-black px-4 py-3 text-sm font-semibold text-white"
               >
                 <Smartphone className="h-5 w-5 text-niki-gold" />
                 Buy Data Bundles
@@ -205,7 +205,7 @@ export function SidebarNav({
                     <li key={c.slug}>
                       <Link
                         href={`/categories/${c.slug}`}
-                        className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm text-niki-ink/80 transition-colors hover:bg-niki-navy/5"
+                        className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm text-niki-ink/80 transition-colors hover:bg-niki-black/5"
                       >
                         <Icon className="h-5 w-5 text-niki-ink/40" />
                         {c.name}
@@ -227,7 +227,7 @@ export function SidebarNav({
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm text-niki-ink/80 transition-colors hover:bg-niki-navy/5"
+                      className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm text-niki-ink/80 transition-colors hover:bg-niki-black/5"
                     >
                       <item.icon className="h-5 w-5 text-niki-ink/40" />
                       {item.label}

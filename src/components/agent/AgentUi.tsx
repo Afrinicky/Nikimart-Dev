@@ -108,7 +108,7 @@ export function SourcePill({ source }: { source: string }) {
   const label =
     source === "STOREFRONT" ? "Storefront" : source === "AGENT" ? "Dashboard" : "Web";
   return (
-    <span className="inline-flex whitespace-nowrap rounded-full bg-niki-navy/5 px-2.5 py-1 text-[11px] font-semibold text-niki-ink/60">
+    <span className="inline-flex whitespace-nowrap rounded-full bg-niki-black/5 px-2.5 py-1 text-[11px] font-semibold text-niki-ink/60">
       {label}
     </span>
   );

@@ -61,7 +61,7 @@ export default async function AccountPage() {
 
       <Container className="py-8">
         {isStaff ? (
-          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl bg-niki-navy p-5">
+          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl bg-niki-black p-5">
             <p className="flex-1 text-sm text-white/80">
               You have a <span className="font-semibold text-white">{ROLE_LABELS[user.role]}</span>{" "}
               dashboard with tools for your role.
@@ -76,7 +76,7 @@ export default async function AccountPage() {
         ) : null}
 
         {agent ? (
-          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl bg-niki-navy p-5">
+          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl bg-niki-black p-5">
             <Smartphone className="h-5 w-5 shrink-0 text-niki-gold" />
             <p className="flex-1 text-sm text-white/80">
               You resell data as{" "}
@@ -97,7 +97,7 @@ export default async function AccountPage() {
             </p>
             <Link
               href="/become-an-agent"
-              className="niki-press rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white"
+              className="niki-press rounded-full bg-niki-black px-5 py-2.5 text-sm font-semibold text-white"
             >
               Become an agent
             </Link>
@@ -162,9 +162,9 @@ export default async function AccountPage() {
             <Link
               key={title}
               href={href}
-              className="group rounded-2xl bg-white p-5 ring-1 ring-niki-edge transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-niki-navy/5"
+              className="group rounded-2xl bg-white p-5 ring-1 ring-niki-edge transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-niki-black/5"
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-niki-navy text-niki-orange transition-colors group-hover:bg-niki-orange group-hover:text-white">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-niki-black text-niki-orange transition-colors group-hover:bg-niki-orange group-hover:text-white">
                 <Icon className="h-5 w-5" />
               </span>
               <h3 className="mt-4 font-semibold text-niki-ink">{title}</h3>

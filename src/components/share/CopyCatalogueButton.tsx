@@ -31,7 +31,7 @@ export function CopyCatalogueButton({
   const base =
     tone === "dark"
       ? "bg-white/10 text-white hover:bg-white/20"
-      : "bg-niki-navy/5 text-niki-ink hover:bg-niki-navy/10";
+      : "bg-niki-black/5 text-niki-ink hover:bg-niki-black/10";
 
   return (
     <button

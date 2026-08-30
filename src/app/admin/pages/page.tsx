@@ -29,7 +29,7 @@ export default async function AdminPagesPage() {
       </div>
 
       {!hasHome ? (
-        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl bg-niki-navy p-5">
+        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl bg-niki-black p-5">
           <p className="flex-1 text-sm text-white/80">
             The homepage is currently rendered from built-in defaults. Create editable copies of the
             <span className="font-semibold text-white"> Home</span> and
@@ -83,7 +83,7 @@ export default async function AdminPagesPage() {
                     <div className="flex items-center justify-end gap-1">
                       <Link
                         href={`/admin/pages/${p.id}`}
-                        className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-niki-ink/70 transition-colors hover:bg-niki-navy/5"
+                        className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-niki-ink/70 transition-colors hover:bg-niki-black/5"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                         Edit

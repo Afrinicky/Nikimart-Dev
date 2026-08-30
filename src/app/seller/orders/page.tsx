@@ -31,7 +31,7 @@ export default async function SellerOrdersPage() {
       <>
         <PageHeader title="Orders" crumbs={[{ label: "Seller", href: "/seller" }, { label: "Orders" }]} />
         <Container className="py-8">
-          <div className="rounded-2xl bg-niki-navy p-6 text-sm text-white/80">
+          <div className="rounded-2xl bg-niki-black p-6 text-sm text-white/80">
             Register your shop first to receive orders.{" "}
             <Link href="/vendor-register" className="font-semibold text-niki-orange hover:underline">Register a shop</Link>
           </div>
@@ -153,12 +153,12 @@ export default async function SellerOrdersPage() {
                             </a>
                           ) : null}
                           {order.user.phone ? (
-                            <a href={`tel:${order.user.phone}`} className="flex items-center gap-1.5 rounded-full bg-niki-navy/5 px-3 py-1.5 text-xs font-semibold text-niki-ink/70">
+                            <a href={`tel:${order.user.phone}`} className="flex items-center gap-1.5 rounded-full bg-niki-black/5 px-3 py-1.5 text-xs font-semibold text-niki-ink/70">
                               <Phone className="h-3.5 w-3.5" /> Call
                             </a>
                           ) : null}
                           {order.user.email ? (
-                            <a href={`mailto:${order.user.email}`} className="flex items-center gap-1.5 rounded-full bg-niki-navy/5 px-3 py-1.5 text-xs font-semibold text-niki-ink/70">
+                            <a href={`mailto:${order.user.email}`} className="flex items-center gap-1.5 rounded-full bg-niki-black/5 px-3 py-1.5 text-xs font-semibold text-niki-ink/70">
                               <Mail className="h-3.5 w-3.5" /> Email
                             </a>
                           ) : null}

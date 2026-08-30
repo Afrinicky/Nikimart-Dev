@@ -24,7 +24,7 @@ export function ProductCard({
   const stockPct = Math.min(100, Math.max(10, Math.round((itemsLeft / 20) * 100)));
 
   return (
-    <div className="group niki-press niki-lift relative flex h-full flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-niki-edge hover:shadow-xl hover:shadow-niki-navy/10">
+    <div className="group niki-press niki-lift relative flex h-full flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-niki-edge hover:shadow-xl hover:shadow-niki-black/10">
       <Link
         href={`/products/${product.slug}`}
         className="absolute inset-0 z-0"
@@ -48,11 +48,11 @@ export function ProductCard({
         </div>
 
         {discount ? (
-          <div className="absolute right-2 top-2 rounded-full bg-red-600 px-2 py-[3px] text-[10px] font-bold text-white shadow-[0_1px_3px_rgba(7,17,31,0.32)]">
+          <div className="absolute right-2 top-2 rounded-full bg-red-600 px-2 py-[3px] text-[10px] font-bold text-white shadow-[0_1px_3px_rgba(19,19,19,0.32)]">
             -{discount}%
           </div>
         ) : (
-          <div className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white text-niki-ink/60 shadow-[0_1px_3px_rgba(7,17,31,0.32)]">
+          <div className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white text-niki-ink/60 shadow-[0_1px_3px_rgba(19,19,19,0.32)]">
             <Heart className="h-3.5 w-3.5" />
           </div>
         )}

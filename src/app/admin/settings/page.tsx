@@ -26,7 +26,7 @@ export default async function AdminSettingsPage() {
         href="/admin/legal"
         className="niki-lift mt-6 flex items-center gap-3 rounded-2xl bg-white p-5 ring-1 ring-niki-edge-strong hover:ring-niki-orange/40"
       >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-niki-navy text-niki-orange">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-niki-black text-niki-orange">
           <Scale className="h-5 w-5" />
         </span>
         <span className="min-w-0">

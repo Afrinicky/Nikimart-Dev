@@ -22,7 +22,7 @@ export default async function AdminLegalPage() {
   return (
     <Container className="max-w-3xl py-8">
       <div className="flex items-start gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-niki-navy text-niki-orange">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-niki-black text-niki-orange">
           <Scale className="h-5 w-5" />
         </span>
         <div>

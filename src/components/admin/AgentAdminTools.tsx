@@ -74,7 +74,7 @@ export function BalanceAdjuster({ agentId }: { agentId: string }) {
 
       <SubmitButton
         pendingLabel="Posting…"
-        className="w-full rounded-xl bg-niki-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-niki-navy-soft"
+        className="w-full rounded-xl bg-niki-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-niki-black-mute"
       >
         Post adjustment
       </SubmitButton>

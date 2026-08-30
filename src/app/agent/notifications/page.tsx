@@ -28,7 +28,7 @@ export default async function AgentNotificationsPage() {
       <AgentPageHeading title="Notifications" subtitle="Latest announcements and updates.">
         <ActionLink
           href="/agent/notifications"
-          className="rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white"
+          className="rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white"
         >
           Refresh
         </ActionLink>

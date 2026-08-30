@@ -60,7 +60,7 @@ export default async function AdminPickupPointsPage() {
                 </td>
                 <td className="px-5 py-3">
                   <div className="flex items-center justify-end gap-1">
-                    <Link href={`/admin/pickup-points/${p.id}`} className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-niki-ink/70 hover:bg-niki-navy/5">
+                    <Link href={`/admin/pickup-points/${p.id}`} className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-niki-ink/70 hover:bg-niki-black/5">
                       <Pencil className="h-3.5 w-3.5" />
                       Edit
                     </Link>

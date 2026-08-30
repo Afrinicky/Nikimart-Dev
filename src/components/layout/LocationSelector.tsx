@@ -10,16 +10,15 @@ export function LocationSelector({ className }: { className?: string }) {
   return (
     <label
       className={cn(
-        "flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-sm text-white transition-colors hover:bg-white/15",
+        "flex items-center gap-1.5 rounded-full bg-niki-ink/[0.04] px-3 py-1.5 text-sm text-niki-ink ring-1 ring-niki-edge transition-colors hover:bg-niki-ink/[0.07]",
         className,
       )}
     >
       <MapPin className="h-4 w-4 shrink-0 text-niki-orange" />
-      <span className="hidden whitespace-nowrap text-white/60 sm:inline">Shopping in</span>
       <select
         value={selectedLocationId}
         onChange={(e) => setSelectedLocationId(e.target.value)}
-        className="max-w-[9rem] cursor-pointer bg-transparent text-sm font-semibold text-white outline-none [&>option]:text-niki-ink sm:max-w-[12rem]"
+        className="max-w-[7.5rem] cursor-pointer bg-transparent text-sm font-semibold text-niki-ink outline-none xl:max-w-[10rem]"
         aria-label="Choose your campus, institution, or community"
       >
         {locations.map((location) => (

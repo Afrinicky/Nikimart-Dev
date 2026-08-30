@@ -49,7 +49,7 @@ export default async function AdminAgentsPage({
         </div>
         <ActionLink
           href="/admin/data/withdrawals"
-          className="rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white"
+          className="rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white"
         >
           Withdrawal queue
         </ActionLink>
