@@ -2,6 +2,7 @@ import { Hero } from "@/components/home/Hero";
 import { SellCta } from "@/components/home/SellCta";
 import { FlashSaleSection } from "@/components/home/FlashSaleSection";
 import { AllProductsSection } from "@/components/home/AllProductsSection";
+import { TrustStrip } from "@/components/home/TrustStrip";
 import { getProducts, getVendorNameMap } from "@/lib/catalog";
 
 // The homepage is intentionally rendered directly in code (not from the page
@@ -21,6 +22,10 @@ export default async function Home() {
         viewAllHref="/products?badge=flash_sale"
       />
       <AllProductsSection products={products} vendorNames={vendorNames} />
+      {/* Sits on the homepage rather than the shared layout: the root layout also
+          wraps the admin and seller consoles, and a shopper-facing trust band
+          has no business above an orders table. */}
+      <TrustStrip />
     </>
   );
 }

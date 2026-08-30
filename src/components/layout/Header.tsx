@@ -13,7 +13,7 @@ import { isRole, ROLE_HOME, ROLE_LABELS } from "@/lib/roles";
 
 /** Icon-over-label header actions all share this. */
 const ACTION =
-  "flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-niki-ink/70 transition-colors hover:bg-niki-ink/5 hover:text-niki-ink sm:px-2.5";
+  "flex flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-niki-ink/80 transition-colors hover:bg-niki-ink/[0.07] hover:text-niki-ink sm:px-2.5";
 
 /**
  * The site header.
@@ -66,7 +66,7 @@ export async function Header() {
 
           <Link
             href="/help"
-            className="hidden items-center gap-1 rounded-full px-2.5 py-1.5 text-sm text-niki-ink/70 transition-colors hover:bg-niki-ink/5 hover:text-niki-ink lg:flex"
+            className="hidden items-center gap-1 rounded-full px-2.5 py-1.5 text-sm font-medium text-niki-ink/80 transition-colors hover:bg-niki-ink/[0.07] hover:text-niki-ink lg:flex"
           >
             <HelpCircle className="h-5 w-5" />
             <span className="hidden xl:inline">Help</span>

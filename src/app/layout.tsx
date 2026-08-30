@@ -6,6 +6,7 @@ import { CartProvider } from "@/components/providers/CartProvider";
 import { ReferralCapture } from "@/components/providers/ReferralCapture";
 import { getLocations } from "@/lib/locations";
 import { siteUrl } from "@/lib/site";
+import { TopBar } from "@/components/layout/TopBar";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
@@ -77,6 +78,7 @@ export default async function RootLayout({
         <RouteProgress />
         <LocationProvider locations={locations}>
           <CartProvider>
+            <TopBar />
             <Header />
             <main className="flex-1">{children}</main>
             <Footer />

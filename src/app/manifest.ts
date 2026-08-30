@@ -22,7 +22,7 @@ export default function manifest(): MetadataRoute.Manifest {
       "Buy from trusted local shops, campus vendors, preorder sellers and service providers across Ghana.",
     start_url: "/",
     display: "standalone",
-    background_color: "#f1f1f2",
+    background_color: "#eeeef0",
     theme_color: "#ff6a00",
     icons: [
       { src: "/icon.svg", sizes: "any", type: "image/svg+xml" },

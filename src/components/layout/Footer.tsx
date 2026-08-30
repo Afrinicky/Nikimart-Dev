@@ -59,7 +59,7 @@ export async function Footer() {
       : c,
   );
   return (
-    <footer className="bg-niki-black pb-16 text-white/70 sm:pb-0">
+    <footer className="bg-niki-black pb-16 text-white/75 sm:pb-0">
       <Container className="grid grid-cols-2 gap-8 py-12 sm:grid-cols-4 lg:grid-cols-5">
         <div className="col-span-2 sm:col-span-4 lg:col-span-1">
           <div className="flex items-center gap-2">
@@ -69,8 +69,8 @@ export async function Footer() {
             </span>
           </div>
           <p className="mt-3 text-sm">{settings.footerTagline}</p>
-          <p className="mt-3 text-xs text-white/40">{settings.footerNote}</p>
-          <p className="mt-3 text-xs text-white/50">
+          <p className="mt-3 text-xs text-white/55">{settings.footerNote}</p>
+          <p className="mt-3 text-xs text-white/60">
             {settings.supportEmail} · {settings.supportPhone}
           </p>
           {(() => {
@@ -132,7 +132,7 @@ export async function Footer() {
       </Container>
 
       <div className="border-t border-white/10">
-        <Container className="flex flex-col gap-3 py-5 text-xs text-white/40 sm:flex-row sm:items-center sm:justify-between">
+        <Container className="flex flex-col gap-3 py-5 text-xs text-white/55 sm:flex-row sm:items-center sm:justify-between">
           <p>
             &copy; {new Date().getFullYear()} {settings.copyrightName}. All rights reserved.
           </p>
