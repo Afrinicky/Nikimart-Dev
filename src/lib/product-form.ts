@@ -145,6 +145,11 @@ export function buildProductData(fd: FormData, options: BuildProductOptions = {}
     oldPrice: num(fd, "oldPrice") ?? null,
     stockQuantity: num(fd, "stockQuantity") ?? 0,
     productType: str(fd, "productType") || "in_stock",
+    // The preorder arrangement the buyer is shown before paying. The field is
+    // always submitted — blank when the product is not a preorder — so
+    // switching a product away from preorder clears stale terms rather than
+    // leaving them behind a type that no longer displays them.
+    preorderInfo: optStr(fd, "preorderTerms") ?? null,
     categoryId: str(fd, "categoryId"),
     vendorId: forceVendorId ?? str(fd, "vendorId"),
     emoji: optStr(fd, "emoji") ?? "🛍️",

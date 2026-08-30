@@ -9,6 +9,8 @@ import { useCart } from "@/components/providers/CartProvider";
 import { formatPrice } from "@/lib/format";
 import { placeOrder } from "@/lib/order-actions";
 import { quoteCartShipping, type CartShippingQuote } from "@/lib/shipping-actions";
+import { preorderTermsForCart, type CartPreorderItem } from "@/lib/preorder-actions";
+import { PreorderTermsPanel } from "@/components/cart/PreorderTermsPanel";
 
 export function CheckoutClient({
   defaultPickupId = "",
@@ -27,6 +29,11 @@ export function CheckoutClient({
   const [pickupPointId, setPickupPointId] = useState(defaultPickupId);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // Preorder terms for whatever is in the cart, and whether they were accepted.
+  // The cart holds only ids and prices, so the page has to ask what is a
+  // preorder and what was promised about it.
+  const [preorders, setPreorders] = useState<CartPreorderItem[]>([]);
+  const [acceptedPreorder, setAcceptedPreorder] = useState(false);
 
   // A stable key so the quote refetches only when the actual cart contents change.
   const itemsKey = useMemo(
@@ -60,6 +67,28 @@ export function CheckoutClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemsKey, ready]);
 
+  useEffect(() => {
+    // Same shape as the shipping effect above: an empty cart renders the
+    // empty-cart state long before the panel, so there is nothing to clear.
+    if (!ready || items.length === 0) return;
+    let cancelled = false;
+    preorderTermsForCart(items.map((i) => i.productId))
+      .then((rows) => {
+        if (cancelled) return;
+        setPreorders(rows);
+        // Changing the cart invalidates an acceptance: it was given for a
+        // different set of terms than the one now on screen.
+        setAcceptedPreorder(false);
+      })
+      .catch(() => {
+        if (!cancelled) setPreorders([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsKey, ready]);
+
   const loadingQuote = quotedFor !== itemsKey;
   const points = quote?.points ?? [];
   const selected = points.find((p) => p.id === pickupPointId);
@@ -88,10 +117,15 @@ export function CheckoutClient({
       setError("Please choose a pickup point.");
       return;
     }
+    if (preorders.length > 0 && !acceptedPreorder) {
+      setError("Please read and accept the preorder terms before paying.");
+      return;
+    }
     setPending(true);
     const res = await placeOrder({
       items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
       pickupPointId,
+      acceptedPreorderTerms: acceptedPreorder,
     });
     if (res.ok) {
       if (res.authorizationUrl) {
@@ -175,6 +209,12 @@ export function CheckoutClient({
           </div>
         </div>
 
+        <PreorderTermsPanel
+          items={preorders}
+          accepted={acceptedPreorder}
+          onAcceptedChange={setAcceptedPreorder}
+        />
+
         <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
           <h2 className="font-display text-lg font-bold text-niki-ink">Payment</h2>
           {paymentEnabled ? (
@@ -230,7 +270,9 @@ export function CheckoutClient({
         <button
           type="button"
           onClick={submit}
-          disabled={pending || loadingQuote || !pickupPointId}
+          disabled={
+            pending || loadingQuote || !pickupPointId || (preorders.length > 0 && !acceptedPreorder)
+          }
           className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-niki-orange px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending ? "Placing order…" : `Place order · ${formatPrice(total)}`}

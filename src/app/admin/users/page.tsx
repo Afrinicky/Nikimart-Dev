@@ -15,25 +15,35 @@ export const metadata: Metadata = { title: "Users — Admin — Nickimart" };
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ role?: string }>;
+  searchParams: Promise<{ role?: string; membership?: string }>;
 }) {
   const me = await requireAdmin();
-  const { role } = await searchParams;
+  const { role, membership } = await searchParams;
   // The overview's role tiles link here with ?role=, so the count you click is
   // the list you land on.
   const roleFilter = role && isRole(role) ? role : null;
+  // Data agents are not a role. Any signed-in account may hold an agent
+  // storefront alongside whatever else it is — see the note on DASHBOARD_ACCESS
+  // in lib/roles — which is why they show as Customer here and why the
+  // programme is filtered by membership instead.
+  const agentsOnly = membership === "agent";
 
-  const [users, roleCounts] = await Promise.all([
+  const [users, roleCounts, agentCount] = await Promise.all([
     prisma.user.findMany({
-      where: roleFilter ? { role: roleFilter } : undefined,
+      where: {
+        ...(roleFilter ? { role: roleFilter } : {}),
+        ...(agentsOnly ? { dataAgent: { isNot: null } } : {}),
+      },
       orderBy: { createdAt: "desc" },
       include: {
         vendor: { select: { id: true } },
         affiliate: { select: { id: true } },
+        dataAgent: { select: { id: true, code: true, status: true } },
         _count: { select: { orders: true } },
       },
     }),
     prisma.user.groupBy({ by: ["role"], _count: { _all: true } }),
+    prisma.dataAgent.count(),
   ]);
   const countByRole = new Map(roleCounts.map((r) => [r.role, r._count._all]));
   const total = roleCounts.reduce((s, r) => s + r._count._all, 0);
@@ -61,15 +71,25 @@ export default async function AdminUsersPage({
 
       {/* Role filter — mirrors the overview tiles. */}
       <div className="mt-5 flex flex-wrap gap-1.5">
-        <FilterChip href="/admin/users" label={`All (${total})`} active={!roleFilter} />
+        <FilterChip
+          href="/admin/users"
+          label={`All (${total})`}
+          active={!roleFilter && !agentsOnly}
+        />
         {ROLES.map((r) => (
           <FilterChip
             key={r}
             href={`/admin/users?role=${r}`}
             label={`${ROLE_LABELS[r]} (${countByRole.get(r) ?? 0})`}
-            active={roleFilter === r}
+            active={roleFilter === r && !agentsOnly}
           />
         ))}
+        {/* Not a role — a programme somebody joins on top of one. */}
+        <FilterChip
+          href="/admin/users?membership=agent"
+          label={`Data Agent (${agentCount})`}
+          active={agentsOnly}
+        />
       </div>
 
       <div className="mt-5 overflow-x-auto rounded-2xl bg-white ring-1 ring-niki-edge">
@@ -95,7 +115,9 @@ export default async function AdminUsersPage({
                       ? "Owns a shop — reassign or delete the shop first"
                       : u.affiliate
                         ? "Has an affiliate account — remove it first"
-                        : null;
+                        : u.dataAgent
+                          ? "Runs a data agent storefront — deleting would erase its wallet and history"
+                          : null;
               return (
                 <tr key={u.id}>
                   <td className="px-5 py-3 font-medium text-niki-ink">
@@ -104,9 +126,27 @@ export default async function AdminUsersPage({
                   </td>
                   <td className="px-5 py-3 text-niki-ink/70">{u.email}</td>
                   <td className="px-5 py-3">
-                    <span className="rounded-full bg-niki-surface px-2.5 py-1 text-xs font-semibold text-niki-ink/70">
-                      {isRole(u.role) ? ROLE_LABELS[u.role] : u.role}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="rounded-full bg-niki-surface px-2.5 py-1 text-xs font-semibold text-niki-ink/70">
+                        {isRole(u.role) ? ROLE_LABELS[u.role] : u.role}
+                      </span>
+                      {/* An agent account is a membership, not a role, so it
+                          sits beside the role rather than replacing it. */}
+                      {u.dataAgent ? (
+                        <Link
+                          href={`/admin/data/agents/${u.dataAgent.id}`}
+                          title={`Data agent ${u.dataAgent.code}`}
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+                            u.dataAgent.status === "active"
+                              ? "bg-niki-orange/10 text-niki-orange hover:bg-niki-orange/20"
+                              : "bg-niki-danger/10 text-niki-danger hover:bg-niki-danger/20"
+                          }`}
+                        >
+                          Agent {u.dataAgent.code}
+                          {u.dataAgent.status === "active" ? "" : " · suspended"}
+                        </Link>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-1">
