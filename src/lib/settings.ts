@@ -24,6 +24,14 @@ export const SETTINGS_DEFAULTS = {
   restrictionsText:
     "Nickimart restricts dangerous, illegal, and age-restricted products including weapons, alcohol, nicotine, drugs, gambling, adult content, counterfeit goods, and prescription medicine.",
   copyrightName: "Nickimart",
+  // The note under the public pickup-points list. Empty hides it.
+  pickupPointsNote:
+    "More pickup points are being added across Ghana. Home delivery is also available in many areas at checkout.",
+  // The public "How it works" page. The steps are a JSON array of
+  // { title, body }; an empty or unparseable value falls back to the built-in
+  // set (see lib/how-it-works), so the page can never render blank.
+  howItWorksIntro: "Shop the world and pick up in Ghana — here's the journey from cart to collection.",
+  howItWorksSteps: "",
   // Brand logo (http(s) URL or a data: URL). Empty → the built-in mark.
   logoUrl: "",
   // Where "Buy Data Bundles" points. Defaults to Nickimart's own bundle

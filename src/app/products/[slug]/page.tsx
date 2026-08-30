@@ -32,6 +32,7 @@ import { discountPercent, formatPrice } from "@/lib/format";
 import { countryByCode, estimatedArrival, isAbroad } from "@/lib/countries";
 import { getLeadDays } from "@/lib/settings";
 import { waChatLink } from "@/lib/whatsapp";
+import { describeDeposit, hasAnyTerms, toPreorderTerms } from "@/lib/preorder";
 
 type Params = Promise<{ slug: string }>;
 
@@ -58,6 +59,9 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
   const { slug } = await params;
   const product = await getProductBySlug(slug);
   if (!product) notFound();
+
+  // Only terms the seller actually wrote; null keeps the panel off entirely.
+  const preorderTerms = product.preorderInfo ? toPreorderTerms(product.preorderInfo) : null;
 
   const [vendor, categories, related, vendorNames] = await Promise.all([
     getVendorById(product.vendorId),
@@ -208,22 +212,36 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
               </div>
             ) : null}
 
-            {product.preorderInfo ? (
-              <div className="mt-5 rounded-2xl bg-niki-gold/10 p-4 text-sm ring-1 ring-niki-gold/30">
-                <p className="flex items-center gap-2 font-semibold text-amber-900">
-                  <CalendarClock className="h-4 w-4" />
-                  Preorder item — please review before ordering
+            {preorderTerms && hasAnyTerms(preorderTerms) ? (
+              <div className="mt-5 rounded-2xl bg-niki-orange/[0.07] p-4 text-sm ring-1 ring-niki-orange/30">
+                <p className="flex items-center gap-2 font-semibold text-niki-ink">
+                  <CalendarClock className="h-4 w-4 text-niki-orange" />
+                  Preorder — please review before ordering
                 </p>
-                <ul className="mt-3 space-y-1.5 text-amber-900/80">
-                  <li>Estimated arrival: {product.preorderInfo.estimatedArrival}</li>
-                  <li>
-                    Deposit required: {product.preorderInfo.depositValue}
-                    {product.preorderInfo.depositType === "percentage" ? "%" : " GH₵"}
-                  </li>
-                  <li>{product.preorderInfo.balanceInstruction}</li>
-                  <li>{product.preorderInfo.refundPolicy}</li>
-                  <li>Sourced from: {product.preorderInfo.sourceLocation}</li>
+                {/* Only terms the seller actually wrote. A labelled blank reads
+                    as a promise nobody made. */}
+                <ul className="mt-3 space-y-1.5 text-niki-ink/75">
+                  {preorderTerms.estimatedArrival ? (
+                    <li>Estimated arrival: {preorderTerms.estimatedArrival}</li>
+                  ) : null}
+                  {preorderTerms.closingDate ? (
+                    <li>Preorder closes: {preorderTerms.closingDate}</li>
+                  ) : null}
+                  <li>{describeDeposit(preorderTerms)}</li>
+                  {preorderTerms.depositRequired && preorderTerms.balanceInstruction ? (
+                    <li>{preorderTerms.balanceInstruction}</li>
+                  ) : null}
+                  {preorderTerms.refundPolicy ? <li>{preorderTerms.refundPolicy}</li> : null}
+                  {preorderTerms.sourceLocation ? (
+                    <li>Sourced from: {preorderTerms.sourceLocation}</li>
+                  ) : null}
+                  {preorderTerms.minimumOrders > 0 ? (
+                    <li>Ships once {preorderTerms.minimumOrders} buyers have ordered</li>
+                  ) : null}
                 </ul>
+                <p className="mt-3 text-xs text-niki-ink/60">
+                  You&apos;ll be asked to accept these terms at checkout.
+                </p>
               </div>
             ) : null}
 

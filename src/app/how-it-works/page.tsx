@@ -3,40 +3,41 @@ import type { Metadata } from "next";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { getSettings } from "@/lib/settings";
+import { parseHowItWorksSteps } from "@/lib/how-it-works";
 
 export const metadata: Metadata = {
   title: "How Nickimart Works",
 };
 
-const STEPS = [
-  { title: "Search or paste a product link", body: "Browse Nickimart, or paste a link from Amazon, eBay, Alibaba, AliExpress, or a Dubai store into Buy-for-Me." },
-  { title: "Get a full landed-cost estimate", body: "See the product price plus foreign delivery, international freight, customs, pickup, and our service fee — no surprises." },
-  { title: "Pay securely in Ghana", body: "Pay in Ghana Cedis with Mobile Money, card, or bank transfer. Your funds are held safely until your order is on track." },
-  { title: "Item ships to our foreign warehouse", body: "The seller ships your item to our partner warehouse abroad, where we consolidate and prepare it for freight." },
-  { title: "Freight partner clears it", body: "We ship your item to Ghana and our freight partner handles customs clearance." },
-  { title: "Collect at a pickup point", body: "Your item arrives at your chosen pickup point. Collect it securely with a one-time OTP." },
-];
+/**
+ * The steps and the intro line come from Settings — they describe this
+ * business's own fulfilment process, which changes without the code changing.
+ * Both fall back to the built-in copy, so the page is never blank.
+ */
+export default async function HowItWorksPage() {
+  const settings = await getSettings();
+  const steps = parseHowItWorksSteps(settings.howItWorksSteps);
 
-export default function HowItWorksPage() {
   return (
     <>
       <PageHeader
         title="How Nickimart Works"
-        subtitle="Shop the world and pick up in Ghana — here's the journey from cart to collection."
+        subtitle={settings.howItWorksIntro}
         crumbs={[{ label: "How it works" }]}
         tone="dark"
       />
 
       <Container className="py-10">
         <ol className="relative space-y-6 border-l-2 border-dashed border-niki-orange/30 pl-6">
-          {STEPS.map((step, i) => (
+          {steps.map((step, i) => (
             <li key={step.title} className="relative">
               <span className="absolute -left-[35px] flex h-7 w-7 items-center justify-center rounded-full bg-niki-orange font-display text-xs font-bold text-white ring-4 ring-niki-surface">
                 {i + 1}
               </span>
               <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
                 <h3 className="font-semibold text-niki-ink">{step.title}</h3>
-                <p className="mt-1.5 text-sm text-niki-ink/60">{step.body}</p>
+                {step.body ? <p className="mt-1.5 text-sm text-niki-ink/65">{step.body}</p> : null}
               </div>
             </li>
           ))}

@@ -5,6 +5,8 @@ import { useActionState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { SingleImageField } from "@/components/admin/SingleImageField";
+import { HowItWorksField } from "@/components/admin/HowItWorksField";
+import { parseHowItWorksSteps } from "@/lib/how-it-works";
 import { updateSettings, type SettingsState } from "@/lib/settings-actions";
 import type { Settings } from "@/lib/settings";
 
@@ -169,6 +171,39 @@ export function SettingsForm({ settings }: { settings: Settings }) {
           <Field label="Restrictions notice" htmlFor="restrictionsText" hint="Shown at the bottom of the footer">
             <textarea id="restrictionsText" name="restrictionsText" rows={3} defaultValue={settings.restrictionsText} className={inputClass} />
           </Field>
+        </div>
+      </section>
+
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
+        <h2 className="font-display text-lg font-bold text-niki-ink">Public pages</h2>
+        <p className="mt-1 text-sm text-niki-ink/60">
+          Copy on the pages that explain how you operate. Pickup points themselves are managed
+          under Admin → Pickup points; only the note beneath the list lives here.
+        </p>
+        <div className="mt-4 space-y-4">
+          <Field
+            label="Pickup points note"
+            htmlFor="pickupPointsNote"
+            hint="Shown under the list on /pickup-points. Leave blank to hide it."
+          >
+            <textarea
+              id="pickupPointsNote"
+              name="pickupPointsNote"
+              rows={2}
+              defaultValue={settings.pickupPointsNote}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="How it works — intro" htmlFor="howItWorksIntro">
+            <textarea
+              id="howItWorksIntro"
+              name="howItWorksIntro"
+              rows={2}
+              defaultValue={settings.howItWorksIntro}
+              className={inputClass}
+            />
+          </Field>
+          <HowItWorksField initial={parseHowItWorksSteps(settings.howItWorksSteps)} />
         </div>
       </section>
 

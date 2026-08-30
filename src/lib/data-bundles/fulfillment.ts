@@ -1,6 +1,7 @@
 import "server-only";
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { DATA_REFERENCE_PREFIX, AFA_REFERENCE_PREFIX } from "@/lib/data-bundles/reference";
 import { toPesewas } from "@/lib/payments";
 import { sendSms, notify } from "@/lib/notifications";
 import { siteUrl } from "@/lib/site";
@@ -41,16 +42,15 @@ import {
  * order the admin can retry rather than a lost sale.
  */
 
-/** The prefix that tells the shared Paystack webhook a reference is ours. */
-export const DATA_REFERENCE_PREFIX = "ND-";
-export const AFA_REFERENCE_PREFIX = "NA-";
-
-export function isDataReference(reference: string): boolean {
-  return reference.startsWith(DATA_REFERENCE_PREFIX);
-}
-export function isAfaReference(reference: string): boolean {
-  return reference.startsWith(AFA_REFERENCE_PREFIX);
-}
+// Re-exported so existing callers keep importing them from here. They are
+// defined in lib/data-bundles/reference, which is pure — this module is
+// server-only, and the public order tracker needs the same prefixes.
+export {
+  DATA_REFERENCE_PREFIX,
+  AFA_REFERENCE_PREFIX,
+  isDataReference,
+  isAfaReference,
+} from "@/lib/data-bundles/reference";
 
 export function newDataReference(): string {
   return `${DATA_REFERENCE_PREFIX}${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 900 + 100)}`;

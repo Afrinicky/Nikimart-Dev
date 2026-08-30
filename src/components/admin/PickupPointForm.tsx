@@ -16,7 +16,14 @@ export function PickupPointForm({
   submitLabel,
 }: {
   action: Action;
-  point?: { name: string; code: string; locationName: string; address: string; isActive: boolean };
+  point?: {
+    name: string;
+    code: string;
+    locationName: string;
+    address: string;
+    openingHours: string;
+    isActive: boolean;
+  };
   operators: { id: string; name: string | null; email: string | null }[];
   currentOperatorId?: string | null;
   submitLabel: string;
@@ -45,6 +52,20 @@ export function PickupPointForm({
 
       <Field label="Address" htmlFor="address">
         <textarea id="address" name="address" defaultValue={p?.address} required rows={2} className={inputClass} />
+      </Field>
+
+      <Field
+        label="Collection hours"
+        htmlFor="openingHours"
+        hint="Shown on the public pickup-points page. Leave blank to use the site-wide business hours from Settings."
+      >
+        <input
+          id="openingHours"
+          name="openingHours"
+          defaultValue={p?.openingHours}
+          className={inputClass}
+          placeholder="Mon–Sat, 8am–6pm"
+        />
       </Field>
 
       <Field label="Operator (pickup account)" htmlFor="operatorId">

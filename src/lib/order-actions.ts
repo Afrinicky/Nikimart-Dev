@@ -13,6 +13,7 @@ import { quoteShipping, itemCbm, type ShippingLine } from "@/lib/shipping";
 import { resolveCommissionRate } from "@/lib/commission";
 import { affiliateLineCommission, resolveAffiliateRate } from "@/lib/affiliate-commission";
 import { releaseStockForOrder, tracksStock } from "@/lib/stock";
+import { parsePreorderTerms } from "@/lib/preorder";
 import { isPaymentConfigured, initializeTransaction, toPesewas } from "@/lib/payments";
 import { notifyOrderConfirmed, notifyStaffNewOrder } from "@/lib/order-notifications";
 
@@ -27,6 +28,10 @@ const payloadSchema = z.object({
     .min(1, "Your cart is empty."),
   // Every order is collected at a Nickimart pickup point (no home delivery).
   pickupPointId: z.string().trim().min(1, "Please choose a pickup point."),
+  // Whether the buyer ticked the preorder acknowledgement at checkout. Checked
+  // against the cart below: a claim from the browser is exactly the kind of
+  // claim that must not be taken on trust.
+  acceptedPreorderTerms: z.boolean().optional(),
 });
 
 export type PlaceOrderInput = z.infer<typeof payloadSchema>;
@@ -76,6 +81,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       widthCm: true,
       heightCm: true,
       productType: true,
+      preorderInfo: true,
       stockQuantity: true,
       affiliateEnabled: true,
       affiliateEnrolledBy: true,
@@ -85,6 +91,19 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     },
   });
   const productById = new Map(products.map((p) => [p.id, p]));
+
+  // A preorder is money handed over for something that does not exist yet, on
+  // terms that vary per listing. Checkout shows those terms and asks the buyer
+  // to accept them; this is where that acceptance is actually required, because
+  // the tick arrived from a browser and the order is being created here.
+  // Only listings that *have* terms count — a preorder nobody wrote terms for
+  // shows no panel, so there is nothing the buyer could have accepted.
+  const needsPreorderConsent = products.some(
+    (p) => p.productType === "preorder" && parsePreorderTerms(p.preorderInfo) !== null,
+  );
+  if (needsPreorderConsent && !data.acceptedPreorderTerms) {
+    return { ok: false, error: "Please read and accept the preorder terms before paying." };
+  }
 
   // Platform commission snapshot: category override, else the global default.
   const defaultCommission = await getCommissionRate();

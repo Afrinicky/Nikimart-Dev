@@ -18,6 +18,9 @@ function revalidateChrome() {
   revalidatePath("/", "layout");
   revalidatePath("/help");
   revalidatePath("/checkout");
+  // Public pages whose copy is settings-driven.
+  revalidatePath("/how-it-works");
+  revalidatePath("/pickup-points");
   revalidatePath("/admin/settings");
 }
 

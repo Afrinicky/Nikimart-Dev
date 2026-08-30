@@ -5,6 +5,8 @@ import { useActionState, useState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { ProductImagesField } from "@/components/admin/ProductImagesField";
+import { PreorderTermsField } from "@/components/admin/PreorderTermsField";
+import { toPreorderTerms } from "@/lib/preorder";
 import { KeyAttributesField } from "@/components/admin/KeyAttributesField";
 import { AffiliateEnrolmentField } from "@/components/admin/AffiliateEnrolmentField";
 import type { CrudState } from "@/lib/admin-actions";
@@ -58,6 +60,9 @@ export function ProductForm({
   const [state, formAction] = useActionState<CrudState, FormData>(action, {});
   const p = product;
   const [categoryId, setCategoryId] = useState(p?.categoryId ?? "");
+  // Drives the preorder terms section below: terms are meaningless for a
+  // product that is already on a shelf.
+  const [productType, setProductType] = useState<string>(p?.productType ?? "in_stock");
   const selectedCategory = categories.find((c) => c.id === categoryId);
 
   return (
@@ -155,7 +160,13 @@ export function ProductForm({
           </Field>
         )}
         <Field label="Product type" htmlFor="productType">
-          <select id="productType" name="productType" defaultValue={p?.productType ?? "in_stock"} className={inputClass}>
+          <select
+            id="productType"
+            name="productType"
+            value={productType}
+            onChange={(e) => setProductType(e.target.value)}
+            className={inputClass}
+          >
             {PRODUCT_TYPES.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
@@ -166,6 +177,11 @@ export function ProductForm({
       </div>
 
       <ProductImagesField initial={p?.images} />
+
+      <PreorderTermsField
+        initial={p?.preorderInfo ? toPreorderTerms(p.preorderInfo) : null}
+        visible={productType === "preorder"}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Emoji" htmlFor="emoji" hint="Fallback icon when there's no image">
