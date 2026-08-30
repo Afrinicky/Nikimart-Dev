@@ -14,7 +14,7 @@ export interface SellerEarnings {
   commission: number;
   /**
    * Affiliate commission the seller funded on their own enrolled products.
-   * Products NikiMart enrolled cost the seller nothing.
+   * Products Nickimart enrolled cost the seller nothing.
    */
   affiliateCost: number;
   /** Net earned lifetime (gross − commission − affiliateCost), excluding cancelled. */

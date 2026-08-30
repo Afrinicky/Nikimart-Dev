@@ -18,14 +18,14 @@ import { formatPrice } from "@/lib/format";
 import { getDataStats } from "@/lib/data-bundles/reporting";
 import { getProviderBalance, isDataProviderConfigured, providerBase } from "@/lib/data-bundles/provider";
 import { isPaymentConfigured } from "@/lib/payments";
-import { isSmsConfigured } from "@/lib/notifications";
+import { emailStatus, isSmsConfigured } from "@/lib/notifications";
 import { getDataStoreConfig } from "@/lib/settings";
 import { getAllBundles } from "@/lib/data-bundles/catalog";
 import { listAgents } from "@/lib/data-bundles/agents";
 import { sweepDataOrders } from "@/lib/data-bundles/admin-actions";
 import { prisma } from "@/lib/prisma";
 
-export const metadata: Metadata = { title: "Data Bundles — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Data Bundles — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 function Stat({
@@ -110,6 +110,16 @@ export default async function AdminDataOverviewPage() {
         : "Set ARKESEL_API_KEY to text buyers their receipts.",
     },
     {
+      // Green only when a customer would actually receive it: a key alone still
+      // reaches nobody on Resend's sandbox sender. Settings has the full story
+      // and a test send.
+      ok: emailStatus().deliverable,
+      label: "Resend email",
+      detail: emailStatus().deliverable
+        ? `Buyers are emailed their receipts from ${emailStatus().from}.`
+        : `${emailStatus().detail} Check it under Admin → Settings.`,
+    },
+    {
       // Derived from AUTH_SECRET, which the app can't run without — so this is
       // green on any working deployment and needs no setup.
       ok: Boolean((process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET)?.trim()),
@@ -143,7 +153,7 @@ export default async function AdminDataOverviewPage() {
           <form action={sweepDataOrders}>
             <button
               type="submit"
-              className="flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge transition-colors hover:bg-niki-navy/5"
+              className="flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge transition-colors hover:bg-niki-black/5"
             >
               <RefreshCw className="h-4 w-4" />
               Run checks now
@@ -221,7 +231,7 @@ export default async function AdminDataOverviewPage() {
       {openSupport > 0 ? (
         <Link
           href="/admin/data/support"
-          className="mt-4 flex items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-medium text-niki-ink ring-1 ring-niki-edge hover:bg-niki-navy/5"
+          className="mt-4 flex items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-medium text-niki-ink ring-1 ring-niki-edge hover:bg-niki-black/5"
         >
           <Clock3 className="h-5 w-5 shrink-0 text-niki-orange" />
           {openSupport} agent {openSupport === 1 ? "is" : "are"} waiting on a callback.
@@ -231,7 +241,7 @@ export default async function AdminDataOverviewPage() {
       {stats.afaPending > 0 ? (
         <Link
           href="/admin/data/afa"
-          className="mt-4 flex items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-medium text-niki-ink ring-1 ring-niki-edge hover:bg-niki-navy/5"
+          className="mt-4 flex items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-medium text-niki-ink ring-1 ring-niki-edge hover:bg-niki-black/5"
         >
           <Clock3 className="h-5 w-5 shrink-0 text-niki-orange" />
           {stats.afaPending} AFA {stats.afaPending === 1 ? "registration is" : "registrations are"} awaiting approval.
@@ -249,7 +259,7 @@ export default async function AdminDataOverviewPage() {
           </div>
           <Link
             href="/admin/data/agents"
-            className="rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white"
+            className="rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white"
           >
             Manage agents
           </Link>

@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * Paystack redirects an agent storefront's buyer here after payment. Identical
  * settlement to /data-bundles/verify — verified by reference against Paystack,
  * never by trusting the redirect — it just lands them back on the store they
- * bought from rather than on NikiMart's own page.
+ * bought from rather than on Nickimart's own page.
  */
 export default async function VerifyStorePaymentPage({
   params,

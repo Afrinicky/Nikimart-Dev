@@ -25,7 +25,7 @@ const payloadSchema = z.object({
       }),
     )
     .min(1, "Your cart is empty."),
-  // Every order is collected at a NikiMart pickup point (no home delivery).
+  // Every order is collected at a Nickimart pickup point (no home delivery).
   pickupPointId: z.string().trim().min(1, "Please choose a pickup point."),
 });
 
@@ -238,7 +238,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
                   create: {
                     trackingNumber: `NMF-${Date.now().toString(36).toUpperCase()}`,
                     status: "created", // awaiting the seller's "prepared" confirmation
-                    origin: "NikiMart Warehouse",
+                    origin: "Nickimart Warehouse",
                     destination,
                     eta: new Date(Date.now() + 1000 * 60 * 60 * 48),
                     freightAgentId: freightAgent?.id ?? null,

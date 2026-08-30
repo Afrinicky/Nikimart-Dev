@@ -5,7 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { UserForm } from "@/components/admin/UserForm";
 import { createUser } from "@/lib/admin-actions";
 
-export const metadata: Metadata = { title: "New user — Admin — NikiMart" };
+export const metadata: Metadata = { title: "New user — Admin — Nickimart" };
 
 export default function NewUserPage() {
   return (

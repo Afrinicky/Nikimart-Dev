@@ -43,7 +43,7 @@ export default async function AgentLayout({ children }: { children: React.ReactN
               <p className="font-display text-lg font-bold text-white sm:text-xl">
                 {agent.storeName}
               </p>
-              <p className="text-xs text-white/50">Agent platform · NikiMart Data</p>
+              <p className="text-xs text-white/50">Agent platform · Nickimart Data</p>
             </div>
           </div>
 

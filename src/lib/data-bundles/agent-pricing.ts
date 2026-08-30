@@ -3,7 +3,7 @@
  *
  * Kept out of agents.ts (which is server-only, because it imports Prisma) so
  * the rules can be tested directly and reused anywhere. Getting these wrong is
- * expensive in a specific way: too generous and NikiMart funds an agent's
+ * expensive in a specific way: too generous and Nickimart funds an agent's
  * discount out of its own margin; too mean and an agent is owed less than their
  * storefront told them they'd earn.
  */
@@ -15,7 +15,7 @@ export function round2(n: number): number {
 
 /**
  * What an agent earns on one sale: whatever they charged above the agent price
- * NikiMart charges them. Never negative — an agent who somehow sold under cost
+ * Nickimart charges them. Never negative — an agent who somehow sold under cost
  * earns nothing rather than owing money.
  */
 export function commissionOn(salePrice: number, agentCost: number): number {
@@ -28,7 +28,7 @@ export function priceAtMarkup(agentCost: number, markupPercent: number): number 
 }
 
 /**
- * The agent price NikiMart sets from a retail price and a discount, floored at
+ * The agent price Nickimart sets from a retail price and a discount, floored at
  * the provider's own cost. Selling to an agent below cost would mean paying
  * them to sell.
  */

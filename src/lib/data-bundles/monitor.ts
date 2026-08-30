@@ -88,13 +88,13 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
     // the key stopped working, which fails every order from here on.
     result.notes.push(`Could not read the wallet: ${balance.message}`);
     result.alerted = await alertAdmins(
-      `NikiMart Data: cannot reach the data provider (${balance.message}). Bundle orders will fail until this is fixed.`,
+      `Nickimart Data: cannot reach the data provider (${balance.message}). Bundle orders will fail until this is fixed.`,
       "Data provider unreachable",
     );
   } else if (balance.balance < config.lowBalanceThreshold) {
     result.lowBalance = true;
     result.alerted = await alertAdmins(
-      `NikiMart Data: agent wallet is down to ${formatPrice(balance.balance)} ` +
+      `Nickimart Data: agent wallet is down to ${formatPrice(balance.balance)} ` +
         `(alert set at ${formatPrice(config.lowBalanceThreshold)}). Top up on justicedatashop.com ` +
         `before orders start failing.`,
       "Data wallet running low",

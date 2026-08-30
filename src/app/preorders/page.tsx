@@ -5,7 +5,7 @@ import { ProductGrid } from "@/components/product/ProductGrid";
 import { getPreorderProducts, getVendorNameMap } from "@/lib/catalog";
 
 export const metadata: Metadata = {
-  title: "Preorder Deals — NikiMart",
+  title: "Preorder Deals — Nickimart",
 };
 
 export default async function PreordersPage() {

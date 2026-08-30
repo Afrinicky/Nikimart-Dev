@@ -67,3 +67,26 @@ export function ogResponse(jpeg: Buffer): Response {
     headers: { "Content-Type": OG_CONTENT_TYPE, "Cache-Control": CACHE },
   });
 }
+
+/**
+ * The Nickimart mark, for Open Graph cards.
+ *
+ * A separate copy of the geometry in components/ui/BrandMark, because these
+ * cards are rendered by Satori rather than a browser: it resolves no CSS
+ * classes, so the Tailwind-styled component would come out unstyled, and it
+ * supports only a subset of SVG. Everything here is a plain attribute on a
+ * primitive shape, which is the part Satori renders reliably.
+ */
+export function OgBrandMark({ height, color = "#FF6A00" }: { height: number; color?: string }) {
+  return (
+    <svg width={(height * 1076) / 795} height={height} viewBox="0 0 1076 795" fill={color}>
+      <path d="M392 28 L516 28 L589 329 L632 129 L756 129 L814 399 L924 129 L1048 129 L857 599 L733 599 L694 416 L654 599 L530 599 Z" />
+      <rect x="28" y="28" width="402" height="74" rx="25" />
+      <rect x="28" y="234" width="209" height="50" rx="25" />
+      <rect x="87" y="364" width="205" height="50" rx="25" />
+      <rect x="147" y="494" width="200" height="50" rx="25" />
+      <circle cx="592" cy="707" r="60" />
+      <circle cx="795" cy="707" r="60" />
+    </svg>
+  );
+}

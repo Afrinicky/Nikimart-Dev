@@ -56,7 +56,7 @@ const parseList = (json: string): string => {
   }
 };
 const fundedByLabel = (value: string) =>
-  value === "platform" ? "NikiMart" : value === "seller" ? "Seller" : "—";
+  value === "platform" ? "Nickimart" : value === "seller" ? "Seller" : "—";
 
 // ---------------------------------------------------------------------------
 // Products
@@ -368,9 +368,9 @@ async function financeWorkbook(): Promise<Sheet[]> {
       ["Gross merchandise value", overview.gmv, "Paid order totals, including delivery"],
       ["Platform commission (gross)", overview.commission, `Default rate ${defaultCommission}%`],
       ["Affiliate commission accrued", overview.affiliateAccrued, "All referred sales"],
-      ["  — funded by NikiMart", overview.affiliateFundedByPlatform, "Products NikiMart enrolled"],
+      ["  — funded by Nickimart", overview.affiliateFundedByPlatform, "Products Nickimart enrolled"],
       ["  — funded by sellers", overview.affiliateFundedBySellers, "Products sellers enrolled"],
-      ["Platform earnings (net)", overview.platformEarnings, "Commission less NikiMart-funded affiliate cost"],
+      ["Platform earnings (net)", overview.platformEarnings, "Commission less Nickimart-funded affiliate cost"],
       ["Delivery collected", overview.delivery, "Pass-through to freight"],
       ["Owed to sellers", overview.owedToSellers, "Cleared, awaiting payout"],
       ["In escrow", overview.inEscrow, "Paid but not yet delivered"],
@@ -539,7 +539,7 @@ async function affiliatesWorkbook(): Promise<Sheet[]> {
       });
       return [
         p.name, p.vendor?.businessName ?? "—", p.category?.name ?? "—", p.price,
-        p.affiliateEnrolledBy === "admin" ? "NikiMart" : "Seller",
+        p.affiliateEnrolledBy === "admin" ? "Nickimart" : "Seller",
         a.requestedRate, a.rate, yesNo(a.capped), money((p.price * a.rate) / 100),
         fundedByLabel(a.fundedBy),
       ];

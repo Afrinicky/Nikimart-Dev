@@ -63,7 +63,7 @@ export function AfaForm({
         </p>
         <a
           href={`${trackHref}?q=${encodeURIComponent(done)}`}
-          className="niki-press mt-4 inline-flex rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white"
+          className="niki-press mt-4 inline-flex rounded-full bg-niki-black px-5 py-2.5 text-sm font-semibold text-white"
         >
           Check status
         </a>

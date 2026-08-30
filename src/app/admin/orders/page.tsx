@@ -10,7 +10,7 @@ import { formatPrice } from "@/lib/format";
 import { deleteOrder } from "@/lib/admin-actions";
 import { ORDER_STATUS_LABELS } from "@/lib/order-status";
 
-export const metadata: Metadata = { title: "Orders — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Orders — Admin — Nickimart" };
 
 export default async function AdminOrdersPage() {
   const orders = await prisma.order.findMany({

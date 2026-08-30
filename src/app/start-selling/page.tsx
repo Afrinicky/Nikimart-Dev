@@ -6,7 +6,7 @@ import { ActionLink } from "@/components/ui/motion";
 import { formatMoney } from "@/lib/format";
 import { getAffiliatePitch, getAgentProgramConfig } from "@/lib/settings";
 
-export const metadata: Metadata = { title: "Start earning — NikiMart" };
+export const metadata: Metadata = { title: "Start earning — Nickimart" };
 export const dynamic = "force-dynamic";
 
 /** One of the ways to earn. Whole card is the link, with a pressed state. */
@@ -26,9 +26,9 @@ function EarnCard({
   return (
     <ActionLink
       href={href}
-      className="group niki-lift block rounded-3xl bg-white p-7 ring-1 ring-niki-edge hover:shadow-xl hover:shadow-niki-navy/10"
+      className="group niki-lift block rounded-3xl bg-white p-7 ring-1 ring-niki-edge hover:shadow-xl hover:shadow-niki-black/10"
     >
-      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-niki-navy text-niki-orange transition-colors group-hover:bg-niki-orange group-hover:text-white">
+      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-niki-black text-niki-orange transition-colors group-hover:bg-niki-orange group-hover:text-white">
         <Icon className="h-6 w-6" />
       </span>
       <h2 className="mt-5 font-display text-xl font-bold text-niki-ink">{title}</h2>
@@ -49,7 +49,7 @@ export default async function StartSellingPage() {
   return (
     <>
       <PageHeader
-        title="Start earning on NikiMart"
+        title="Start earning on Nickimart"
         subtitle={`${ways === 3 ? "Three" : "Two"} ways to make money — pick what suits you.`}
         crumbs={[{ label: "Start earning" }]}
       />

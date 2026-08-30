@@ -183,8 +183,8 @@ export const DEFAULT_HOME_SECTIONS: SectionInput[] = [
   {
     type: "product_rail",
     config: {
-      title: "NikiMart Official Store",
-      subtitle: "Verified, NikiMart-branded products you can always trust",
+      title: "Nickimart Official Store",
+      subtitle: "Verified, Nickimart-branded products you can always trust",
       collection: "official",
       viewAllHref: "/categories/nikimart-official-store",
       icon: "badge-check",
@@ -246,15 +246,15 @@ export const DEFAULT_ABOUT_SECTIONS: SectionInput[] = [
   {
     type: "rich_text",
     config: {
-      title: "About NikiMart",
+      title: "About Nickimart",
       body:
-        "NikiMart connects buyers to trusted local shops, preorder sellers, campus vendors, service providers, and official NikiMart products across Ghana. Our mission is to make everyday shopping closer, safer, and simpler — whether you're on campus, in town, or ordering from abroad.",
+        "Nickimart connects buyers to trusted local shops, preorder sellers, campus vendors, service providers, and official Nickimart products across Ghana. Our mission is to make everyday shopping closer, safer, and simpler — whether you're on campus, in town, or ordering from abroad.",
     },
   },
   {
     type: "banner",
     config: {
-      title: "Selling on NikiMart",
+      title: "Selling on Nickimart",
       text: "Reach more customers near you. Register your shop and start listing products, preorders, or services today.",
       tone: "dark",
     },

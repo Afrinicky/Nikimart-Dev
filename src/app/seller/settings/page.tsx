@@ -8,7 +8,7 @@ import { requireDashboard } from "@/lib/session";
 import { getSellerVendor } from "@/lib/seller";
 import { prisma } from "@/lib/prisma";
 
-export const metadata: Metadata = { title: "Shop Settings — Seller — NikiMart" };
+export const metadata: Metadata = { title: "Shop Settings — Seller — Nickimart" };
 
 export default async function SellerSettingsPage() {
   const user = await requireDashboard("/seller");
@@ -56,7 +56,7 @@ export default async function SellerSettingsPage() {
             hubs={hubs}
           />
         ) : (
-          <div className="rounded-2xl bg-niki-navy p-6 text-sm text-white/80">
+          <div className="rounded-2xl bg-niki-black p-6 text-sm text-white/80">
             You don&apos;t have a shop yet.{" "}
             <Link href="/vendor-register" className="font-semibold text-niki-orange hover:underline">
               Register a shop

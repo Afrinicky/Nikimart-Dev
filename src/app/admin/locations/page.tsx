@@ -8,7 +8,7 @@ import { getAllLocations } from "@/lib/locations";
 import { deleteLocation } from "@/lib/location-actions";
 import { prisma } from "@/lib/prisma";
 
-export const metadata: Metadata = { title: "Locations — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Locations — Admin — Nickimart" };
 
 export default async function AdminLocationsPage() {
   const locations = await getAllLocations();
@@ -75,7 +75,7 @@ export default async function AdminLocationsPage() {
                       <Link
                         href={`/admin/locations/${l.id}`}
                         aria-disabled={!editable}
-                        className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold ${editable ? "text-niki-ink/70 hover:bg-niki-navy/5" : "pointer-events-none text-niki-ink/30"}`}
+                        className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold ${editable ? "text-niki-ink/70 hover:bg-niki-black/5" : "pointer-events-none text-niki-ink/30"}`}
                       >
                         <Pencil className="h-3.5 w-3.5" />
                         Edit

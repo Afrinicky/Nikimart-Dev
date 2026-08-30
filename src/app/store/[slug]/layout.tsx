@@ -9,9 +9,9 @@ export const dynamic = "force-dynamic";
 /**
  * The public shell for an agent's storefront.
  *
- * It carries the agent's own name and contacts rather than NikiMart's — their
+ * It carries the agent's own name and contacts rather than Nickimart's — their
  * customers are buying from them. Fulfilment, payment and delivery are still
- * NikiMart's, which the footer says plainly.
+ * Nickimart's, which the footer says plainly.
  */
 export default async function StoreLayout({
   children,
@@ -82,8 +82,8 @@ export default async function StoreLayout({
 
       <Container className="pb-10">
         <p className="text-center text-xs text-niki-ink/40">
-          {agent.storeName} is an authorised NikiMart data agent. Payments are processed by Paystack
-          and bundles are delivered by NikiMart.
+          {agent.storeName} is an authorised Nickimart data agent. Payments are processed by Paystack
+          and bundles are delivered by Nickimart.
         </p>
       </Container>
     </>

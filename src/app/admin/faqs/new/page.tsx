@@ -5,7 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { FaqForm } from "@/components/admin/FaqForm";
 import { createFaq } from "@/lib/settings-actions";
 
-export const metadata: Metadata = { title: "New FAQ — Admin — NikiMart" };
+export const metadata: Metadata = { title: "New FAQ — Admin — Nickimart" };
 
 export default function NewFaqPage() {
   return (

@@ -8,7 +8,7 @@ import { requireDashboard } from "@/lib/session";
 import { getFinanceBreakdown, FINANCE_METRICS, type FinanceMetric } from "@/lib/finance";
 import { formatPrice } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Finance breakdown — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Finance breakdown — Admin — Nickimart" };
 
 export default async function FinanceBreakdownPage({ params }: { params: Promise<{ metric: string }> }) {
   await requireDashboard("/admin");
@@ -26,7 +26,7 @@ export default async function FinanceBreakdownPage({ params }: { params: Promise
       </PageHeader>
 
       <Container className="py-8">
-        <div className="rounded-3xl bg-niki-navy p-6 text-white">
+        <div className="rounded-3xl bg-niki-black p-6 text-white">
           <p className="text-sm text-white/60">{data.title}</p>
           <p className="mt-1 font-figures text-3xl font-bold">{formatPrice(data.total)}</p>
           <p className="mt-1 text-sm text-white/50">{data.rows.length} {data.rows.length === 1 ? "entry" : "entries"}</p>

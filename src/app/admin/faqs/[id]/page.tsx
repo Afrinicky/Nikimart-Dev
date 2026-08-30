@@ -7,7 +7,7 @@ import { FaqForm } from "@/components/admin/FaqForm";
 import { prisma } from "@/lib/prisma";
 import { updateFaq } from "@/lib/settings-actions";
 
-export const metadata: Metadata = { title: "Edit FAQ — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Edit FAQ — Admin — Nickimart" };
 
 type Params = Promise<{ id: string }>;
 

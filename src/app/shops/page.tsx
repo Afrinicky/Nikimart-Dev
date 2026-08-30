@@ -5,7 +5,7 @@ import { VendorCard } from "@/components/vendor/VendorCard";
 import { getVendors } from "@/lib/catalog";
 
 export const metadata: Metadata = {
-  title: "Shops & Vendors — NikiMart",
+  title: "Shops & Vendors — Nickimart",
 };
 
 export default async function ShopsPage() {

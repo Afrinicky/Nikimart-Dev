@@ -10,7 +10,7 @@ import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { cn } from "@/lib/cn";
 
-export const metadata: Metadata = { title: "Order — Agent — NikiMart" };
+export const metadata: Metadata = { title: "Order — Agent — Nickimart" };
 export const dynamic = "force-dynamic";
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -132,7 +132,7 @@ export default async function AgentOrderDetailPage({
           </dl>
           {order.status === "failed" ? (
             <p className="mt-4 rounded-xl bg-niki-danger/10 px-4 py-3 text-sm text-niki-danger">
-              This order failed after payment. NikiMart support is on it — the customer will be
+              This order failed after payment. Nickimart support is on it — the customer will be
               credited or refunded, and no commission is charged against you.
             </p>
           ) : null}

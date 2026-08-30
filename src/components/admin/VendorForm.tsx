@@ -90,10 +90,10 @@ export function VendorForm({
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Accent from" htmlFor="accentFrom">
-          <input id="accentFrom" name="accentFrom" type="color" defaultValue={v?.accentFrom ?? "#FF8A00"} className={`${inputClass} h-11 p-1`} />
+          <input id="accentFrom" name="accentFrom" type="color" defaultValue={v?.accentFrom ?? "#FF6A00"} className={`${inputClass} h-11 p-1`} />
         </Field>
         <Field label="Accent to" htmlFor="accentTo">
-          <input id="accentTo" name="accentTo" type="color" defaultValue={v?.accentTo ?? "#FFC107"} className={`${inputClass} h-11 p-1`} />
+          <input id="accentTo" name="accentTo" type="color" defaultValue={v?.accentTo ?? "#FFB020"} className={`${inputClass} h-11 p-1`} />
         </Field>
         <Field label="Owner (seller account)" htmlFor="ownerId">
           <select id="ownerId" name="ownerId" defaultValue={currentOwnerId ?? ""} className={inputClass}>

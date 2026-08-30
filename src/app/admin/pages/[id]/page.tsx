@@ -15,7 +15,7 @@ import {
   updatePageMeta,
 } from "@/lib/page-actions";
 
-export const metadata: Metadata = { title: "Edit page — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Edit page — Admin — Nickimart" };
 
 type Params = Promise<{ id: string }>;
 
@@ -66,7 +66,7 @@ export default async function EditPageBuilder({ params }: { params: Params }) {
             Published (visible on the site)
           </label>
         </div>
-        <button type="submit" className="mt-2 rounded-full bg-niki-navy px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-niki-navy-light">
+        <button type="submit" className="mt-2 rounded-full bg-niki-black px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-niki-black-soft">
           Save page settings
         </button>
       </form>
@@ -93,24 +93,24 @@ export default async function EditPageBuilder({ params }: { params: Params }) {
               <form action={moveSection}>
                 <input type="hidden" name="id" value={s.id} />
                 <input type="hidden" name="direction" value="up" />
-                <button type="submit" disabled={i === 0} title="Move up" className="rounded-lg p-1.5 text-niki-ink/60 hover:bg-niki-navy/5 disabled:opacity-30">
+                <button type="submit" disabled={i === 0} title="Move up" className="rounded-lg p-1.5 text-niki-ink/60 hover:bg-niki-black/5 disabled:opacity-30">
                   <ArrowUp className="h-4 w-4" />
                 </button>
               </form>
               <form action={moveSection}>
                 <input type="hidden" name="id" value={s.id} />
                 <input type="hidden" name="direction" value="down" />
-                <button type="submit" disabled={i === sections.length - 1} title="Move down" className="rounded-lg p-1.5 text-niki-ink/60 hover:bg-niki-navy/5 disabled:opacity-30">
+                <button type="submit" disabled={i === sections.length - 1} title="Move down" className="rounded-lg p-1.5 text-niki-ink/60 hover:bg-niki-black/5 disabled:opacity-30">
                   <ArrowDown className="h-4 w-4" />
                 </button>
               </form>
               <form action={toggleSection}>
                 <input type="hidden" name="id" value={s.id} />
-                <button type="submit" title={s.isVisible ? "Hide" : "Show"} className="rounded-lg p-1.5 text-niki-ink/60 hover:bg-niki-navy/5">
+                <button type="submit" title={s.isVisible ? "Hide" : "Show"} className="rounded-lg p-1.5 text-niki-ink/60 hover:bg-niki-black/5">
                   {s.isVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                 </button>
               </form>
-              <Link href={`/admin/pages/${id}/${s.id}`} className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-niki-ink/70 hover:bg-niki-navy/5">
+              <Link href={`/admin/pages/${id}/${s.id}`} className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-niki-ink/70 hover:bg-niki-black/5">
                 <Pencil className="h-3.5 w-3.5" />
                 Edit
               </Link>

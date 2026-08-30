@@ -1,5 +1,7 @@
 import "server-only";
 import { normalizeGhPhone } from "@/lib/phone";
+import { describeEmailSender, htmlToText, type EmailSenderStatus } from "@/lib/email-sender";
+import { siteUrl } from "@/lib/site";
 
 /**
  * Notification transport: SMS via Arkesel (Ghana) and optional email.
@@ -20,7 +22,7 @@ function arkeselKey(): string | undefined {
   return k && k.trim() ? k.trim() : undefined;
 }
 function arkeselSender(): string {
-  return (process.env.ARKESEL_SENDER_ID || "NikiMart").trim().slice(0, 11);
+  return (process.env.ARKESEL_SENDER_ID || "Nickimart").trim().slice(0, 11);
 }
 export function isSmsConfigured(): boolean {
   return Boolean(arkeselKey());
@@ -31,10 +33,26 @@ function resendKey(): string | undefined {
   return k && k.trim() ? k.trim() : undefined;
 }
 function resendFrom(): string {
-  return (process.env.RESEND_FROM || "NikiMart <onboarding@resend.dev>").trim();
+  return (process.env.RESEND_FROM || "Nickimart <onboarding@resend.dev>").trim();
+}
+/** Replies land here rather than at an unwatched from-address. Optional. */
+function resendReplyTo(): string | undefined {
+  const v = process.env.RESEND_REPLY_TO?.trim();
+  return v || undefined;
 }
 export function isEmailConfigured(): boolean {
   return Boolean(resendKey());
+}
+
+/**
+ * What email can currently do, for the admin console.
+ *
+ * Distinct from `isEmailConfigured()`, which only says whether a send will be
+ * attempted. A deployment on Resend's sandbox sender is "configured" and still
+ * reaches no customer — see lib/email-sender.
+ */
+export function emailStatus(): EmailSenderStatus {
+  return describeEmailSender(resendKey(), resendFrom());
 }
 
 /** Read a response body for diagnostics without throwing. */
@@ -123,33 +141,88 @@ export async function sendSms(phone: string | null | undefined, message: string)
   }
 }
 
-/** Send an email via Resend if configured. Returns true on success. Never throws. */
-export async function sendEmail(to: string | null | undefined, subject: string, html: string): Promise<boolean> {
+/** The outcome of one email send, with enough detail to diagnose a failure. */
+export interface EmailSendResult {
+  ok: boolean;
+  /** HTTP status, or 0 when the request never completed. */
+  status: number;
+  /** Resend's own message on failure, or a description of what went wrong. */
+  detail: string;
+}
+
+/**
+ * Send one email through Resend and report exactly what happened.
+ *
+ * Use `sendEmail` for fire-and-forget notifications; this is for the admin
+ * test-send, which is worthless unless it can show the provider's own refusal.
+ *
+ * Retries once on 429. Resend's default rate limit is 2 requests a second, and
+ * an order notifies the buyer, the seller and the admins together — enough to
+ * trip it and drop a receipt that nothing was wrong with.
+ */
+export async function deliverEmail(
+  to: string | null | undefined,
+  subject: string,
+  html: string,
+): Promise<EmailSendResult> {
   const key = resendKey();
-  if (!key) {
-    console.warn("[email] skipped: RESEND_API_KEY not set");
-    return false;
-  }
-  if (!to) return false;
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
+  if (!key) return { ok: false, status: 0, detail: "RESEND_API_KEY is not set." };
+  if (!to?.trim()) return { ok: false, status: 0, detail: "No recipient address." };
+
+  const replyTo = resendReplyTo();
+  const payload = JSON.stringify({
+    from: resendFrom(),
+    to: [to.trim()],
+    subject,
+    html,
+    // A text/plain alternative for clients that can't render HTML, and because
+    // its absence is a spam signal. See htmlToText in lib/email-sender.
+    text: htmlToText(html),
+    ...(replyTo ? { reply_to: replyTo } : {}),
+  });
+
+  const post = () =>
+    fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: resendFrom(), to: [to], subject, html }),
+      body: payload,
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) {
-      // Common cause: sending from an unverified domain to an address other than
-      // your own Resend account — verify a domain to email arbitrary users.
-      console.error(`[email] Resend rejected send (HTTP ${res.status}, from "${resendFrom()}", to "${to}"): ${await safeBody(res)}`);
-      return false;
+
+  try {
+    let res = await post();
+    if (res.status === 429) {
+      await new Promise((r) => setTimeout(r, 1100));
+      res = await post();
     }
-    return true;
+    if (res.ok) return { ok: true, status: res.status, detail: "Accepted by Resend." };
+
+    const body = await safeBody(res);
+    // By far the most common failure, and the least self-explanatory: the
+    // sandbox sender only delivers to the Resend account owner.
+    const hint =
+      res.status === 403 && !emailStatus().deliverable
+        ? ` — ${emailStatus().detail}`
+        : "";
+    console.error(
+      `[email] Resend rejected send (HTTP ${res.status}, from "${resendFrom()}", to "${to}"): ${body}`,
+    );
+    return { ok: false, status: res.status, detail: `${body || res.statusText}${hint}` };
   } catch (e) {
-    console.error(`[email] Resend request failed: ${e instanceof Error ? e.message : String(e)}`);
+    const detail = e instanceof Error ? e.message : String(e);
+    console.error(`[email] Resend request failed: ${detail}`);
+    return { ok: false, status: 0, detail };
+  }
+}
+
+/** Send an email via Resend if configured. Returns true on success. Never throws. */
+export async function sendEmail(to: string | null | undefined, subject: string, html: string): Promise<boolean> {
+  if (!resendKey()) {
+    console.warn("[email] skipped: RESEND_API_KEY not set");
     return false;
   }
+  return (await deliverEmail(to, subject, html)).ok;
 }
 
 export interface Recipient {
@@ -182,7 +255,7 @@ export async function notify(
   }
   if (to.email && channel !== "sms") {
     tasks.push(
-      sendEmail(to.email, opts.emailSubject ?? "NikiMart", opts.emailHtml ?? emailShell(opts.sms)).then(
+      sendEmail(to.email, opts.emailSubject ?? "Nickimart", opts.emailHtml ?? emailShell(opts.sms)).then(
         (ok) => (result.email = ok),
       ),
     );
@@ -191,13 +264,41 @@ export async function notify(
   return result;
 }
 
-/** Minimal branded email wrapper around a plain message. */
-export function emailShell(body: string, heading = "NikiMart"): string {
-  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px">
-    <div style="font-size:20px;font-weight:700;color:#0e1f36">Niki<span style="color:#ff7a1a">Mart</span></div>
-    <h1 style="font-size:18px;color:#111827;margin:16px 0 8px">${heading}</h1>
-    <p style="font-size:14px;color:#374151;line-height:1.6">${body}</p>
-    <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
-    <p style="font-size:12px;color:#9ca3af">NikiMart — Shop smart. Sell faster. Deliver closer.</p>
-  </div>`;
+/**
+ * The branded wrapper every email goes out in.
+ *
+ * Deliberately plain HTML with inline styles and a table for the frame: mail
+ * clients are not browsers, and Outlook in particular ignores most of what a
+ * page can rely on. No flexbox, no <style> block, no web fonts, no background
+ * images — the parts that would degrade silently in exactly the clients most
+ * customers read on their phone.
+ *
+ * The mark is an <img> at an absolute URL because inline SVG does not survive
+ * Gmail, with the wordmark as live text beside it so the brand still reads when
+ * images are blocked, which is the default in a lot of clients.
+ */
+export function emailShell(body: string, heading = "Nickimart"): string {
+  const site = siteUrl();
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f1f2;margin:0;padding:24px 12px">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e7e7ea">
+        <tr><td style="height:4px;background:#FF6A00;font-size:0;line-height:0">&nbsp;</td></tr>
+        <tr><td style="padding:24px 24px 0">
+          <a href="${site}" style="text-decoration:none">
+            <img src="${site}/logo.png" width="34" height="34" alt="" style="vertical-align:middle;border:0" />
+            <span style="font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:bold;color:#0B0B0B;vertical-align:middle;padding-left:8px">Nick<span style="color:#FF6A00">imart</span></span>
+          </a>
+        </td></tr>
+        <tr><td style="padding:20px 24px 24px;font-family:Arial,Helvetica,sans-serif">
+          <h1 style="font-size:18px;color:#0B0B0B;margin:0 0 10px">${heading}</h1>
+          <p style="font-size:15px;color:#3f3f46;line-height:1.65;margin:0">${body}</p>
+        </td></tr>
+        <tr><td style="padding:0 24px 24px">
+          <div style="border-top:1px solid #ededf0;padding-top:16px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#8a8a94">
+            Nickimart — Shop smart. Sell faster. Deliver closer.
+          </div>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>`;
 }

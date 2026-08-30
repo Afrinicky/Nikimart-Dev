@@ -48,7 +48,7 @@ export function AgentTopup({ bundles }: { bundles: TopupBundle[] }) {
       <div className="animate-fade-up rounded-2xl bg-white p-8 text-center ring-1 ring-niki-edge">
         <p className="font-display font-bold text-niki-ink">No bundles available yet</p>
         <p className="mt-2 text-sm text-niki-ink/60">
-          NikiMart hasn&apos;t published agent prices for any bundle. Check back shortly, or ask
+          Nickimart hasn&apos;t published agent prices for any bundle. Check back shortly, or ask
           support.
         </p>
       </div>
@@ -141,7 +141,7 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
   }
 
   return (
-    <div className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center bg-niki-navy/70 backdrop-blur-sm sm:items-center">
+    <div className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center bg-niki-black/70 backdrop-blur-sm sm:items-center">
       <button
         type="button"
         aria-label="Close"
@@ -176,7 +176,7 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
               </p>
               <ActionLink
                 href="/agent/orders"
-                className="mt-4 inline-flex rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white"
+                className="mt-4 inline-flex rounded-full bg-niki-black px-5 py-2.5 text-sm font-semibold text-white"
               >
                 See my orders
               </ActionLink>
@@ -258,7 +258,7 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
                   type="button"
                   onClick={onClose}
                   disabled={pending}
-                  className="niki-press niki-focus flex-1 rounded-xl bg-niki-surface px-4 py-3 text-sm font-bold text-niki-ink/70 hover:bg-niki-navy/5 disabled:opacity-60"
+                  className="niki-press niki-focus flex-1 rounded-xl bg-niki-surface px-4 py-3 text-sm font-bold text-niki-ink/70 hover:bg-niki-black/5 disabled:opacity-60"
                 >
                   Cancel
                 </button>

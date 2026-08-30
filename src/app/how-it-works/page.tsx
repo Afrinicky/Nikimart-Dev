@@ -5,11 +5,11 @@ import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export const metadata: Metadata = {
-  title: "How NikiMart Works",
+  title: "How Nickimart Works",
 };
 
 const STEPS = [
-  { title: "Search or paste a product link", body: "Browse NikiMart, or paste a link from Amazon, eBay, Alibaba, AliExpress, or a Dubai store into Buy-for-Me." },
+  { title: "Search or paste a product link", body: "Browse Nickimart, or paste a link from Amazon, eBay, Alibaba, AliExpress, or a Dubai store into Buy-for-Me." },
   { title: "Get a full landed-cost estimate", body: "See the product price plus foreign delivery, international freight, customs, pickup, and our service fee — no surprises." },
   { title: "Pay securely in Ghana", body: "Pay in Ghana Cedis with Mobile Money, card, or bank transfer. Your funds are held safely until your order is on track." },
   { title: "Item ships to our foreign warehouse", body: "The seller ships your item to our partner warehouse abroad, where we consolidate and prepare it for freight." },
@@ -21,7 +21,7 @@ export default function HowItWorksPage() {
   return (
     <>
       <PageHeader
-        title="How NikiMart Works"
+        title="How Nickimart Works"
         subtitle="Shop the world and pick up in Ghana — here's the journey from cart to collection."
         crumbs={[{ label: "How it works" }]}
         tone="dark"
@@ -42,10 +42,10 @@ export default function HowItWorksPage() {
           ))}
         </ol>
 
-        <div className="mt-10 rounded-3xl bg-niki-navy p-8 text-center">
+        <div className="mt-10 rounded-3xl bg-niki-black p-8 text-center">
           <p className="flex items-center justify-center gap-2 text-sm font-semibold text-niki-gold">
             <CheckCircle2 className="h-4 w-4" />
-            Covered by NikiMart Buyer Protection at every step
+            Covered by Nickimart Buyer Protection at every step
           </p>
           <h2 className="mt-3 font-display text-2xl font-bold text-white">Ready to shop the world?</h2>
           <div className="mt-5 flex flex-wrap justify-center gap-3">

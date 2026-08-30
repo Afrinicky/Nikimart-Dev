@@ -19,16 +19,16 @@ type Params = Promise<{ slug: string }>;
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
   const vendor = await getVendorBySlug(slug);
-  if (!vendor) return { title: "Shop — NikiMart" };
+  if (!vendor) return { title: "Shop — Nickimart" };
 
-  const title = `${vendor.businessName} — NikiMart`;
-  const description = (vendor.description?.trim() || `Shop ${vendor.businessName} on NikiMart.`).slice(0, 200);
+  const title = `${vendor.businessName} — Nickimart`;
+  const description = (vendor.description?.trim() || `Shop ${vendor.businessName} on Nickimart.`).slice(0, 200);
   const url = `/shops/${slug}`;
   return {
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, type: "website", siteName: "NikiMart" },
+    openGraph: { title, description, url, type: "website", siteName: "Nickimart" },
     twitter: { card: "summary_large_image", title, description },
   };
 }
@@ -47,7 +47,7 @@ export default async function ShopDetailPage({ params }: { params: Params }) {
   // A ready-to-paste WhatsApp catalogue: product names + links + the shop link.
   const base = siteUrl();
   const catalogueText = [
-    `🛍️ ${vendor.businessName} on NikiMart`,
+    `🛍️ ${vendor.businessName} on Nickimart`,
     vendor.description?.trim() || "",
     "",
     ...items.slice(0, 30).map((p) => `• ${p.name} — ${formatPrice(p.price)}\n${base}/products/${p.slug}`),
@@ -58,7 +58,7 @@ export default async function ShopDetailPage({ params }: { params: Params }) {
     .join("\n");
   const chatLink = waChatLink(
     vendor.whatsapp,
-    `Hi ${vendor.businessName}, I found your shop on NikiMart and I'm interested in your products.`,
+    `Hi ${vendor.businessName}, I found your shop on Nickimart and I'm interested in your products.`,
   );
 
   return (
@@ -140,7 +140,7 @@ export default async function ShopDetailPage({ params }: { params: Params }) {
                 Chat on WhatsApp
               </a>
             ) : null}
-            <ShareButton path={`/shops/${vendor.slug}`} title={`${vendor.businessName} on NikiMart`} label="Share shop" tone="dark" />
+            <ShareButton path={`/shops/${vendor.slug}`} title={`${vendor.businessName} on Nickimart`} label="Share shop" tone="dark" />
             {items.length > 0 ? <CopyCatalogueButton text={catalogueText} label="Copy catalogue" tone="dark" /> : null}
           </div>
         </Container>

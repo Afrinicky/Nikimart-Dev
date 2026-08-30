@@ -13,7 +13,7 @@ export function LandedCostEstimator({ defaultPrice = 1000 }: { defaultPrice?: nu
   return (
     <div className="rounded-3xl bg-white p-6 ring-1 ring-niki-edge sm:p-7">
       <div className="flex items-center gap-2">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-niki-navy text-niki-orange">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-niki-black text-niki-orange">
           <Calculator className="h-5 w-5" />
         </span>
         <h3 className="font-display text-lg font-bold text-niki-ink">Landed-cost estimator</h3>

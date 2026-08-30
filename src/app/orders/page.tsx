@@ -15,7 +15,7 @@ import {
 } from "@/lib/order-status";
 
 export const metadata: Metadata = {
-  title: "My Orders — NikiMart",
+  title: "My Orders — Nickimart",
 };
 
 export default async function OrdersPage({
@@ -140,7 +140,7 @@ export default async function OrdersPage({
                     </Link>
                     <Link
                       href={`/orders/${order.orderNumber}`}
-                      className="rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-navy-light"
+                      className="rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-black-soft"
                     >
                       Track order
                     </Link>

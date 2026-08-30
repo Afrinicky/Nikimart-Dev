@@ -7,7 +7,7 @@ import { BannerForm } from "@/components/admin/BannerForm";
 import { prisma } from "@/lib/prisma";
 import { updateBanner } from "@/lib/banner-actions";
 
-export const metadata: Metadata = { title: "Edit banner — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Edit banner — Admin — Nickimart" };
 
 type Params = Promise<{ id: string }>;
 

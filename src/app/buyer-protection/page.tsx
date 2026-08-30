@@ -5,7 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export const metadata: Metadata = {
-  title: "Buyer Protection — NikiMart",
+  title: "Buyer Protection — Nickimart",
 };
 
 const GUARANTEES = [
@@ -21,7 +21,7 @@ export default function BuyerProtectionPage() {
   return (
     <>
       <PageHeader
-        title="NikiMart Buyer Protection"
+        title="Nickimart Buyer Protection"
         subtitle="Shop local and global with confidence — every order is backed by protections that keep you safe."
         crumbs={[{ label: "Buyer protection" }]}
         tone="dark"
@@ -40,7 +40,7 @@ export default function BuyerProtectionPage() {
           ))}
         </div>
 
-        <div className="mt-10 flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-niki-navy p-8">
+        <div className="mt-10 flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-niki-black p-8">
           <p className="max-w-xl text-sm text-white/80">
             Have a problem with an order? Our team is here to help you resolve it quickly and fairly.
           </p>

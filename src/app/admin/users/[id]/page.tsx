@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { updateUser } from "@/lib/admin-actions";
 import { isRole, type Role } from "@/lib/roles";
 
-export const metadata: Metadata = { title: "Edit user — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Edit user — Admin — Nickimart" };
 
 type Params = Promise<{ id: string }>;
 

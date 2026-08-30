@@ -12,7 +12,7 @@ import { ConfirmStageButton } from "@/components/order/ConfirmStageButton";
 import { confirmActionLabel, nextStageForRole, type ShipmentTimestamps } from "@/lib/tracking";
 
 export const metadata: Metadata = {
-  title: "Pickup Dashboard — NikiMart",
+  title: "Pickup Dashboard — Nickimart",
 };
 
 export default async function PickupDashboardPage() {
@@ -42,7 +42,7 @@ export default async function PickupDashboardPage() {
         crumbs={[{ label: "Pickup" }]}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <span className="flex items-center gap-2 rounded-full bg-niki-navy px-4 py-2 text-sm font-medium text-white">
+          <span className="flex items-center gap-2 rounded-full bg-niki-black px-4 py-2 text-sm font-medium text-white">
             <MapPin className="h-4 w-4 text-niki-orange" />
             {user.name}
           </span>

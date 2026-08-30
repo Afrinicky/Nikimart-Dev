@@ -10,7 +10,7 @@ import { getSettings } from "@/lib/settings";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS } from "@/lib/order-status";
 
-export const metadata: Metadata = { title: "Receipt — NikiMart" };
+export const metadata: Metadata = { title: "Receipt — Nickimart" };
 
 type Params = Promise<{ orderNumber: string }>;
 
@@ -44,7 +44,7 @@ export default async function ReceiptPage({ params }: { params: Params }) {
         <div className="flex items-start justify-between gap-4 border-b border-niki-edge-strong pb-5">
           <div>
             <div className="font-display text-2xl font-bold text-niki-ink">
-              Niki<span className="text-niki-orange">Mart</span>
+              Nick<span className="text-niki-orange">imart</span>
             </div>
             <p className="mt-1 text-xs text-niki-ink/50">{settings.footerTagline}</p>
             <p className="mt-2 text-xs text-niki-ink/50">
@@ -141,7 +141,7 @@ export default async function ReceiptPage({ params }: { params: Params }) {
         </div>
 
         <div className="mt-8 border-t border-niki-edge-strong pt-5 text-center text-xs text-niki-ink/50">
-          <p>Thank you for shopping with NikiMart. This receipt was generated on {new Date().toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" })}.</p>
+          <p>Thank you for shopping with Nickimart. This receipt was generated on {new Date().toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" })}.</p>
           <p className="mt-1">{settings.restrictionsText}</p>
         </div>
       </div>

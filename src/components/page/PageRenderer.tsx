@@ -190,7 +190,7 @@ function SectionBlock({
       return (
         <section className="py-8">
           <Container>
-            <div className={`rounded-3xl p-8 ${dark ? "bg-niki-navy text-white" : "bg-niki-gold/10 text-niki-ink ring-1 ring-niki-gold/30"}`}>
+            <div className={`rounded-3xl p-8 ${dark ? "bg-niki-black text-white" : "bg-niki-gold/10 text-niki-ink ring-1 ring-niki-gold/30"}`}>
               {config.title ? <h3 className="font-display text-xl font-bold">{config.title}</h3> : null}
               {config.text ? (
                 <p className={`mt-2 max-w-2xl text-sm ${dark ? "text-white/80" : "text-niki-ink/70"}`}>{config.text}</p>

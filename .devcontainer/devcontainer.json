@@ -1,10 +1,10 @@
 {
-  "name": "NikiMart Dev",
+  "name": "Nickimart Dev",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
   "forwardPorts": [3000],
   "portsAttributes": {
     "3000": {
-      "label": "NikiMart Web",
+      "label": "Nickimart Web",
       "onAutoForward": "openPreview"
     }
   },

@@ -102,7 +102,7 @@ export function AcceptTerms({
         </span>
 
         <span className="text-sm leading-relaxed text-niki-ink/75">
-          I have read and agree to NikiMart&apos;s terms.
+          I have read and agree to Nickimart&apos;s terms.
         </span>
       </label>
 

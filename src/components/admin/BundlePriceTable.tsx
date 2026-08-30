@@ -37,7 +37,7 @@ function SaveButton() {
  * The price manager for one network.
  *
  * Three numbers per row, because there are three parties: what the provider
- * charges NikiMart (cost), what NikiMart charges its own agents (agent), and
+ * charges Nickimart (cost), what Nickimart charges its own agents (agent), and
  * what a walk-in buyer pays (sell). Both margins are worked out as you type —
  * the numbers that actually decide whether a sale is worth making, and whether
  * an agent has room to earn.
@@ -110,7 +110,7 @@ export function BundlePriceTable({
                 const d = draft[b.id] ?? { price: b.price, cost: b.costPrice, agent: b.agentPrice };
                 const margin = d.cost > 0 ? d.price - d.cost : null;
                 const marginPct = d.cost > 0 ? Math.round(((d.price - d.cost) / d.cost) * 100) : null;
-                // What an agent makes selling at NikiMart's own retail price —
+                // What an agent makes selling at Nickimart's own retail price —
                 // their headroom before they set a price of their own.
                 const agentRoom = d.agent > 0 ? d.price - d.agent : null;
                 // Selling to an agent below cost would be paying them to sell.

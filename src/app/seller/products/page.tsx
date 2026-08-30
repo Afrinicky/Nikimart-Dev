@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/format";
 import { deleteSellerProduct } from "@/lib/seller-actions";
 
-export const metadata: Metadata = { title: "My Products — Seller — NikiMart" };
+export const metadata: Metadata = { title: "My Products — Seller — Nickimart" };
 
 export default async function SellerProductsPage() {
   const user = await requireDashboard("/seller");
@@ -43,7 +43,7 @@ export default async function SellerProductsPage() {
       </div>
 
       {!vendor ? (
-        <div className="mt-6 rounded-2xl bg-niki-navy p-6 text-sm text-white/80">
+        <div className="mt-6 rounded-2xl bg-niki-black p-6 text-sm text-white/80">
           You don&apos;t have a shop yet. Register your business to start listing products.
         </div>
       ) : (
@@ -77,7 +77,7 @@ export default async function SellerProductsPage() {
                   <td className="px-5 py-3">
                     {p.affiliateEnabled ? (
                       <span className="rounded-full bg-niki-success/10 px-2.5 py-1 text-xs font-semibold text-niki-success">
-                        {p.affiliateEnrolledBy === "admin" ? "NikiMart pays" : `You pay${p.affiliateCommissionRate ? ` ${p.affiliateCommissionRate}%` : ""}`}
+                        {p.affiliateEnrolledBy === "admin" ? "Nickimart pays" : `You pay${p.affiliateCommissionRate ? ` ${p.affiliateCommissionRate}%` : ""}`}
                       </span>
                     ) : (
                       <span className="text-xs text-niki-ink/40">Not enrolled</span>
@@ -87,7 +87,7 @@ export default async function SellerProductsPage() {
                     <div className="flex items-center justify-end gap-1">
                       <Link
                         href={`/seller/products/${p.id}`}
-                        className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-niki-ink/70 transition-colors hover:bg-niki-navy/5"
+                        className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-niki-ink/70 transition-colors hover:bg-niki-black/5"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                         Edit

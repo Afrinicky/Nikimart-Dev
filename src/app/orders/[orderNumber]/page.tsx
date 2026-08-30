@@ -11,7 +11,7 @@ import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
 import type { ShipmentTimestamps } from "@/lib/tracking";
 
-export const metadata: Metadata = { title: "Track Order — NikiMart" };
+export const metadata: Metadata = { title: "Track Order — Nickimart" };
 
 type Params = Promise<{ orderNumber: string }>;
 

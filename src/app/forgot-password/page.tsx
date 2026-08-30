@@ -3,16 +3,16 @@ import { Container } from "@/components/ui/Container";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { OtpResetFlow } from "@/components/auth/OtpResetFlow";
 
-export const metadata: Metadata = { title: "Forgot password — NikiMart" };
+export const metadata: Metadata = { title: "Forgot password — Nickimart" };
 
 export default function ForgotPasswordPage() {
   return (
     <Container className="flex justify-center py-14">
       <div className="w-full max-w-md rounded-3xl bg-white p-8 ring-1 ring-niki-edge">
         <div className="flex items-center gap-2">
-          <BrandLogo className="h-9 w-9" />
+          <BrandLogo className="h-8 w-auto text-niki-orange" />
           <span className="font-display text-xl font-bold text-niki-ink">
-            Niki<span className="text-niki-orange">Mart</span>
+            Nick<span className="text-niki-orange">imart</span>
           </span>
         </div>
         <h1 className="mt-6 font-display text-2xl font-bold text-niki-ink">Forgot your password?</h1>

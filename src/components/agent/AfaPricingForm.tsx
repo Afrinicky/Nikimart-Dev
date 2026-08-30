@@ -10,7 +10,7 @@ import { cn } from "@/lib/cn";
 import { setAgentAfaPrice } from "@/lib/data-bundles/agent-actions";
 
 /**
- * AFA Pricing: the agent's own registration price on top of NikiMart's, and
+ * AFA Pricing: the agent's own registration price on top of Nickimart's, and
  * whether AFA shows on their storefront at all.
  */
 export function AfaPricingForm({
@@ -50,7 +50,7 @@ export function AfaPricingForm({
     <form onSubmit={submit} className="space-y-5" noValidate>
       <p className="rounded-xl bg-niki-gold/10 px-4 py-3 text-sm text-niki-ink/70 ring-1 ring-niki-gold/40">
         <span className="font-semibold text-niki-ink">About AFA pricing.</span> Set what you charge
-        for an AFA registration. It has to be at least NikiMart&apos;s price — whatever you add on
+        for an AFA registration. It has to be at least Nickimart&apos;s price — whatever you add on
         top is your commission.
       </p>
 
@@ -68,7 +68,7 @@ export function AfaPricingForm({
 
       <div className="rounded-2xl bg-niki-surface p-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-niki-ink/45">
-          NikiMart&apos;s price
+          Nickimart&apos;s price
         </p>
         <p className="mt-1 font-figures text-2xl font-bold text-niki-ink">
           {formatMoney(basePrice)}

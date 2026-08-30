@@ -77,7 +77,7 @@ export function VendorRegisterForm({
           <Field
             label="Origin / consolidation hub"
             htmlFor="originPickupId"
-            hint="The NikiMart hub nearest you, where your goods are gathered before shipping to buyers. This sets your shipping fees."
+            hint="The Nickimart hub nearest you, where your goods are gathered before shipping to buyers. This sets your shipping fees."
           >
             <select id="originPickupId" name="originPickupId" className={inputClass} defaultValue={hubs[0]?.id ?? ""}>
               {hubs.map((h) => (
@@ -139,7 +139,7 @@ export function VendorRegisterForm({
       <section className="space-y-5 rounded-3xl bg-white p-6 ring-1 ring-niki-edge sm:p-8">
         <div>
           <h2 className="font-display text-lg font-bold text-niki-ink">Payment details</h2>
-          <p className="text-sm text-niki-ink/50">Where NikiMart sends your earnings after each settled order. You can change this later in Shop settings.</p>
+          <p className="text-sm text-niki-ink/50">Where Nickimart sends your earnings after each settled order. You can change this later in Shop settings.</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">

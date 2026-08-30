@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   } catch {
     // tables not migrated yet — use the slug-derived title
   }
-  return { title: `${title} — NikiMart` };
+  return { title: `${title} — Nickimart` };
 }
 
 export default async function BuilderPage({ params }: { params: Params }) {

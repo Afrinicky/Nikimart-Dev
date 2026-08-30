@@ -1,6 +1,6 @@
-// NikiMart shipping-fee engine — CBM (cubic-metre) based, pickup-only.
+// Nickimart shipping-fee engine — CBM (cubic-metre) based, pickup-only.
 //
-// Every order is collected at a NikiMart pickup point. A product ships from its
+// Every order is collected at a Nickimart pickup point. A product ships from its
 // origin hub (the pickup point where the seller's goods consolidate) to the
 // buyer's chosen pickup point. The fee is the product's CBM × an admin-set
 // ₵/CBM route rate. Goods shipped from abroad add an international leg

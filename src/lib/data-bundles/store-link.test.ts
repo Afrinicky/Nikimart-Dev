@@ -14,7 +14,7 @@ import {
 
 test("an address typed the way people type it becomes a real link", () => {
   // The one that broke: no scheme, so it used to be read as a path here and
-  // saved as "/www.4ubundles.store/…", a NikiMart page that does not exist.
+  // saved as "/www.4ubundles.store/…", a Nickimart page that does not exist.
   assert.equal(
     normaliseDataBundlesUrl("www.4ubundles.store/store/Nickland"),
     "https://www.4ubundles.store/store/Nickland",

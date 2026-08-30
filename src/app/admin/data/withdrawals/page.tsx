@@ -8,7 +8,7 @@ import { formatMoney } from "@/lib/format";
 import { processWithdrawal, rejectWithdrawal } from "@/lib/data-bundles/agent-admin-actions";
 import { cn } from "@/lib/cn";
 
-export const metadata: Metadata = { title: "Withdrawals — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Withdrawals — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 const TONES: Record<string, string> = {
@@ -63,7 +63,7 @@ export default async function AdminWithdrawalsPage({
                 "shrink-0 rounded-full px-4 py-2 text-xs font-semibold capitalize",
                 s === status
                   ? "bg-niki-orange text-white"
-                  : "bg-white text-niki-ink/65 ring-1 ring-niki-edge hover:bg-niki-navy/5",
+                  : "bg-white text-niki-ink/65 ring-1 ring-niki-edge hover:bg-niki-black/5",
               )}
             >
               {s}

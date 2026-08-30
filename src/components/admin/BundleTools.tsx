@@ -14,7 +14,7 @@ function Submit({ label, busy }: { label: string; busy: string }) {
       type="submit"
       disabled={pending}
       aria-busy={pending || undefined}
-      className="niki-press niki-focus flex w-full items-center justify-center gap-2 rounded-xl bg-niki-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-niki-navy-soft disabled:cursor-not-allowed disabled:opacity-60"
+      className="niki-press niki-focus flex w-full items-center justify-center gap-2 rounded-xl bg-niki-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-niki-black-mute disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
       {pending ? busy : label}

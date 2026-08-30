@@ -1,4 +1,4 @@
-// Data + helpers for NikiMart's global-shopping / buy-for-me / freight / pickup
+// Data + helpers for Nickimart's global-shopping / buy-for-me / freight / pickup
 // features. Mock data for now; replaced with Prisma-backed data in a later phase.
 
 export interface SourceRegion {
@@ -21,7 +21,7 @@ export const sourceRegions: SourceRegion[] = [
     highlights: ["Same-day & next-day delivery", "Campus & community pickup", "Pay on delivery options"],
     deliveryEstimate: "Same day – 3 days",
     accentFrom: "#16a34a",
-    accentTo: "#0e1f36",
+    accentTo: "#1f1f1f",
   },
   {
     id: "china",
@@ -31,7 +31,7 @@ export const sourceRegions: SourceRegion[] = [
     highlights: ["Best prices on gadgets", "Wholesale & bulk buys", "Huge product range"],
     deliveryEstimate: "2 – 4 weeks",
     accentFrom: "#ef4444",
-    accentTo: "#122a47",
+    accentTo: "#2e2e2e",
   },
   {
     id: "dubai",
@@ -40,8 +40,8 @@ export const sourceRegions: SourceRegion[] = [
     tagline: "Fashion, watches & fragrances",
     highlights: ["Premium fashion & beauty", "Authentic watches", "Fast Gulf freight"],
     deliveryEstimate: "1 – 3 weeks",
-    accentFrom: "#ff8a00",
-    accentTo: "#07111f",
+    accentFrom: "#ff6a00",
+    accentTo: "#131313",
   },
   {
     id: "usa",
@@ -51,7 +51,7 @@ export const sourceRegions: SourceRegion[] = [
     highlights: ["Brand-name goods", "Latest phones & laptops", "Black Friday deals"],
     deliveryEstimate: "2 – 4 weeks",
     accentFrom: "#0ea5e9",
-    accentTo: "#07111f",
+    accentTo: "#131313",
   },
   {
     id: "europe",
@@ -60,8 +60,8 @@ export const sourceRegions: SourceRegion[] = [
     tagline: "Quality goods & UK-used items",
     highlights: ["Quality European goods", "UK-used electronics", "Trusted sellers"],
     deliveryEstimate: "2 – 4 weeks",
-    accentFrom: "#122a47",
-    accentTo: "#ff8a00",
+    accentFrom: "#2e2e2e",
+    accentTo: "#ff6a00",
   },
 ];
 
@@ -113,7 +113,7 @@ export const LANDED_COST_LABELS: { key: keyof Omit<LandedCost, "total">; label: 
   { key: "internationalFreight", label: "International freight" },
   { key: "customs", label: "Customs estimate" },
   { key: "pickupFee", label: "Ghana pickup fee" },
-  { key: "serviceFee", label: "NikiMart service fee" },
+  { key: "serviceFee", label: "Nickimart service fee" },
 ];
 
 export type OrderStatus =

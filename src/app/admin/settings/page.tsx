@@ -3,12 +3,16 @@ import { Scale } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { SettingsForm } from "@/components/admin/SettingsForm";
+import { EmailDeliveryPanel } from "@/components/admin/EmailDeliveryPanel";
 import { getSettings } from "@/lib/settings";
+import { emailStatus } from "@/lib/notifications";
+import { requireAdmin } from "@/lib/session";
 
-export const metadata: Metadata = { title: "Settings — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Settings — Admin — Nickimart" };
 
 export default async function AdminSettingsPage() {
-  const settings = await getSettings();
+  const [settings, admin] = await Promise.all([getSettings(), requireAdmin()]);
+  const email = emailStatus();
 
   return (
     <Container className="max-w-2xl py-8">
@@ -22,7 +26,7 @@ export default async function AdminSettingsPage() {
         href="/admin/legal"
         className="niki-lift mt-6 flex items-center gap-3 rounded-2xl bg-white p-5 ring-1 ring-niki-edge-strong hover:ring-niki-orange/40"
       >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-niki-navy text-niki-orange">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-niki-black text-niki-orange">
           <Scale className="h-5 w-5" />
         </span>
         <span className="min-w-0">
@@ -33,6 +37,15 @@ export default async function AdminSettingsPage() {
           </span>
         </span>
       </ActionLink>
+
+      <div className="mt-6">
+        <EmailDeliveryPanel
+          readiness={email.readiness}
+          detail={email.detail}
+          from={email.from}
+          defaultTo={admin.email ?? ""}
+        />
+      </div>
 
       <div className="mt-6">
         <SettingsForm settings={settings} />

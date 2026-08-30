@@ -1,19 +1,11 @@
-import {
-  OG_SIZE,
-  OG_CONTENT_TYPE,
-  renderOgJpeg,
-  ogResponse,
-  loadImageBuffer,
-  coverJpeg,
-  squareDataUrl,
-} from "@/lib/og";
+import { OG_SIZE, OG_CONTENT_TYPE, renderOgJpeg, ogResponse, loadImageBuffer, coverJpeg, squareDataUrl, OgBrandMark } from "@/lib/og";
 import { getVendorBySlug } from "@/lib/catalog";
 import { absoluteImageUrl } from "@/lib/site";
 
 export const runtime = "nodejs";
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
-export const alt = "NikiMart shop";
+export const alt = "Nickimart shop";
 
 export default async function ShopOgImage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -25,10 +17,10 @@ export default async function ShopOgImage({ params }: { params: Promise<{ slug: 
     if (buf) return ogResponse(await coverJpeg(buf));
   }
 
-  const name = (vendor?.businessName ?? "NikiMart Shop").slice(0, 46);
+  const name = (vendor?.businessName ?? "Nickimart Shop").slice(0, 46);
   const initials = (vendor?.initials ?? "NM").slice(0, 3);
-  const from = vendor?.accentFrom ?? "#FF8A00";
-  const to = vendor?.accentTo ?? "#FFC107";
+  const from = vendor?.accentFrom ?? "#FF6A00";
+  const to = vendor?.accentTo ?? "#FFB020";
   const verified = vendor?.verificationStatus === "verified";
 
   // Fall back to a branded card: the shop logo (if any) or its initials badge.
@@ -42,15 +34,18 @@ export default async function ShopOgImage({ params }: { params: Promise<{ slug: 
         flexDirection: "column",
         width: "100%",
         height: "100%",
-        background: "linear-gradient(135deg, #0e1f36, #07111f)",
+        background: "linear-gradient(135deg, #1f1f1f, #131313)",
         padding: "80px 90px",
         color: "#ffffff",
         justifyContent: "space-between",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", fontSize: 40, fontWeight: 800 }}>
-        <span>Niki</span>
-        <span style={{ color: "#FF8A00" }}>Mart</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <OgBrandMark height={38} />
+        <div style={{ display: "flex", fontSize: 40, fontWeight: 800 }}>
+          <span>Nick</span>
+          <span style={{ color: "#FF6A00" }}>imart</span>
+        </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "center" }}>
@@ -69,7 +64,7 @@ export default async function ShopOgImage({ params }: { params: Promise<{ slug: 
               justifyContent: "center",
               fontSize: 84,
               fontWeight: 800,
-              color: "#0e1f36",
+              color: "#1f1f1f",
               marginRight: 40,
             }}
           >
@@ -79,7 +74,7 @@ export default async function ShopOgImage({ params }: { params: Promise<{ slug: 
         <div style={{ display: "flex", flexDirection: "column", maxWidth: 760 }}>
           <div style={{ fontSize: 66, fontWeight: 800, lineHeight: 1.05 }}>{name}</div>
           <div style={{ fontSize: 32, color: "rgba(255,255,255,0.72)", marginTop: 14 }}>
-            {verified ? "Verified shop on NikiMart" : "Shop on NikiMart"}
+            {verified ? "Verified shop on Nickimart" : "Shop on Nickimart"}
           </div>
         </div>
       </div>

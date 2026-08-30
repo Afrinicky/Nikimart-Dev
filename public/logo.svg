@@ -1,5 +1,18 @@
-<svg viewBox="0 0 576 576" xmlns="http://www.w3.org/2000/svg">
-  <!-- This is a placeholder SVG. Please replace with your actual logo by uploading the PNG/SVG image to public/logo.png -->
-  <rect width="576" height="576" fill="#f0f0f0"/>
-  <text x="288" y="288" text-anchor="middle" dominant-baseline="middle" font-size="48" fill="#666">Logo</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1076 795" role="img" aria-label="Nickimart">
+  <title>Nickimart</title>
+  <!--
+    The Nickimart mark: a bold W whose first stroke carries on upward into a
+    shopping-cart push handle, three motion lines trailing to the left, and two
+    wheels below. Drawn as flat geometry with no gradients or strokes so it
+    stays crisp from a 16px favicon up to print.
+  -->
+  <g fill="#FF6A00">
+    <path d="M392 28 L516 28 L589 329 L632 129 L756 129 L814 399 L924 129 L1048 129 L857 599 L733 599 L694 416 L654 599 L530 599 Z"/>
+    <rect x="28" y="28" width="402" height="74" rx="25"/>
+    <rect x="28" y="234" width="209" height="50" rx="25"/>
+    <rect x="87" y="364" width="205" height="50" rx="25"/>
+    <rect x="147" y="494" width="200" height="50" rx="25"/>
+    <circle cx="592" cy="707" r="60"/>
+    <circle cx="795" cy="707" r="60"/>
+  </g>
 </svg>

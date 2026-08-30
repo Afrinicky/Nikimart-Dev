@@ -12,10 +12,11 @@ import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getAffiliateEarnings } from "@/lib/affiliate";
 import { getAffiliateRate } from "@/lib/settings";
+import { siteUrl } from "@/lib/site";
 import { createAffiliatePayout, markAffiliatePayoutPaid, setAffiliateStatus, deleteAffiliate } from "@/lib/finance-actions";
 import { formatPrice } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Manage affiliate — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Manage affiliate — Admin — Nickimart" };
 
 export default async function ManageAffiliatePage({ params }: { params: Promise<{ id: string }> }) {
   await requireDashboard("/admin");
@@ -131,7 +132,7 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
               {affiliate.phone ? <p className="mt-1 flex items-center gap-1.5 text-sm text-niki-ink/60"><Phone className="h-3.5 w-3.5" />{affiliate.phone}</p> : null}
               {affiliate.email ? <p className="mt-1 flex items-center gap-1.5 text-sm text-niki-ink/60"><Mail className="h-3.5 w-3.5" />{affiliate.email}</p> : null}
               <p className="mt-3 text-xs text-niki-ink/40">Referral link</p>
-              <p className="break-all font-mono text-xs text-niki-orange">nikimart.vercel.app/?ref={affiliate.code}</p>
+              <p className="break-all font-mono text-xs text-niki-orange">{siteUrl().replace(/^https?:\/\//, "")}/?ref={affiliate.code}</p>
             </div>
 
             <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">

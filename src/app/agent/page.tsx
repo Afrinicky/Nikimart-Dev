@@ -20,7 +20,7 @@ import {
   getAgentWallet,
 } from "@/lib/data-bundles/agents";
 
-export const metadata: Metadata = { title: "Agent Dashboard — NikiMart" };
+export const metadata: Metadata = { title: "Agent Dashboard — Nickimart" };
 export const dynamic = "force-dynamic";
 
 function Tile({
@@ -174,11 +174,11 @@ export default async function AgentDashboardPage() {
             value={storeLink}
             label="Copy link"
             hideValue
-            className="bg-niki-surface text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5"
+            className="bg-niki-surface text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-black/5"
           />
           <ActionLink
             href="/agent/store?tab=link"
-            className="flex items-center gap-1.5 rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white"
+            className="flex items-center gap-1.5 rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white"
           >
             Edit store
           </ActionLink>
@@ -196,7 +196,7 @@ export default async function AgentDashboardPage() {
           </div>
           <ActionLink
             href="/agent/orders"
-            className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-navy/5"
+            className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-black/5"
           >
             <ListOrdered className="h-3.5 w-3.5" />
             Check delivery status

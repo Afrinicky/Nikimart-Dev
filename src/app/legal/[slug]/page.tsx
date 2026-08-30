@@ -17,7 +17,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
   const policy = await getPolicy(slug);
-  return { title: policy ? `${policy.title} — NikiMart` : "Policy — NikiMart" };
+  return { title: policy ? `${policy.title} — Nickimart` : "Policy — Nickimart" };
 }
 
 export default async function LegalPage({ params }: { params: Params }) {
@@ -57,7 +57,7 @@ export default async function LegalPage({ params }: { params: Params }) {
             {policy.updatedAt
               ? `Last updated ${policy.updatedAt.toLocaleDateString("en-GH", { day: "numeric", month: "long", year: "numeric" })}.`
               : "This is the current published version."}{" "}
-            Questions about this policy? Contact NikiMart support.
+            Questions about this policy? Contact Nickimart support.
           </p>
         </div>
       </Container>

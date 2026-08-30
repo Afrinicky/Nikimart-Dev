@@ -142,7 +142,7 @@ async function main() {
   const pickupPointsData = [
     {
       id: "pp-ug-legon",
-      name: "NikiMart Pickup — Legon",
+      name: "Nickimart Pickup — Legon",
       code: "UG-LEGON",
       locationName: "University of Ghana, Legon",
       address: "Night Market, near the JQB block, Legon Campus",
@@ -150,7 +150,7 @@ async function main() {
     },
     {
       id: "pp-knust",
-      name: "NikiMart Pickup — KNUST",
+      name: "Nickimart Pickup — KNUST",
       code: "KNUST-CENTRAL",
       locationName: "KNUST, Kumasi",
       address: "Commercial Area, opposite the Central Cafeteria",
@@ -158,7 +158,7 @@ async function main() {
     },
     {
       id: "pp-sunyani",
-      name: "NikiMart Pickup — Sunyani",
+      name: "Nickimart Pickup — Sunyani",
       code: "SUNYANI-MAIN",
       locationName: "Sunyani Central",
       address: "Nana Bosoma Market Road, near the STC yard",
@@ -216,7 +216,7 @@ async function main() {
         trackingNumber: "NMF-1002",
         status: "in_transit",
         origin: "Accra Warehouse",
-        destination: "NikiMart Pickup — Legon",
+        destination: "Nickimart Pickup — Legon",
       },
     },
     {
@@ -286,9 +286,9 @@ async function main() {
   const faqs = [
     { id: "faq-delivery", question: "How does delivery and pickup work?", answer: "Many sellers offer same-day delivery, campus drop-off, or in-person pickup. The available options are shown on each product page and at checkout." },
     { id: "faq-preorder", question: "How do preorders work?", answer: "Preorder items are imported on order. You pay a deposit to reserve your item, then settle the balance on arrival before delivery or pickup. Review each product's arrival estimate and refund policy first." },
-    { id: "faq-pay", question: "How do I pay?", answer: "NikiMart supports local payments including Mobile Money and card. You choose your payment method at checkout." },
-    { id: "faq-sell", question: "How do I become a seller?", answer: "Head to “Sell on NikiMart”, register your shop, complete quick verification, and start listing products, preorders, or services." },
-    { id: "faq-protection", question: "Is my purchase protected?", answer: "Yes. Orders are covered by NikiMart Buyer Protection. If something goes wrong, our support team helps resolve it." },
+    { id: "faq-pay", question: "How do I pay?", answer: "Nickimart supports local payments including Mobile Money and card. You choose your payment method at checkout." },
+    { id: "faq-sell", question: "How do I become a seller?", answer: "Head to “Sell on Nickimart”, register your shop, complete quick verification, and start listing products, preorders, or services." },
+    { id: "faq-protection", question: "Is my purchase protected?", answer: "Yes. Orders are covered by Nickimart Buyer Protection. If something goes wrong, our support team helps resolve it." },
   ];
   for (const [index, f] of faqs.entries()) {
     await prisma.faq.upsert({

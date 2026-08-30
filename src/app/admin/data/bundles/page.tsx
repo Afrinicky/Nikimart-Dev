@@ -6,7 +6,7 @@ import { MarkupTool, NewBundleForm } from "@/components/admin/BundleTools";
 import { getAllBundles, groupByNetwork } from "@/lib/data-bundles/catalog";
 import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/settings";
 
-export const metadata: Metadata = { title: "Bundle Prices — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Bundle Prices — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminBundlePricesPage() {

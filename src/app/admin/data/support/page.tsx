@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveSupportRequest } from "@/lib/data-bundles/agent-admin-actions";
 import { cn } from "@/lib/cn";
 
-export const metadata: Metadata = { title: "Agent Support — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Agent Support — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 /** Callback requests raised from the agent Support screen. */
@@ -41,7 +41,7 @@ export default async function AdminSupportPage({
                 "rounded-full px-4 py-2 text-xs font-semibold capitalize",
                 s === status
                   ? "bg-niki-orange text-white"
-                  : "bg-white text-niki-ink/65 ring-1 ring-niki-edge hover:bg-niki-navy/5",
+                  : "bg-white text-niki-ink/65 ring-1 ring-niki-edge hover:bg-niki-black/5",
               )}
             >
               {s}

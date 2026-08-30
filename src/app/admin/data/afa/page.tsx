@@ -6,7 +6,7 @@ import { getAfaRegistrations } from "@/lib/data-bundles/reporting";
 import { retryAfaRegistration } from "@/lib/data-bundles/admin-actions";
 import { DATA_STATUS_LABELS, DATA_STATUS_TONES, isDataOrderStatus } from "@/lib/data-bundles/networks";
 
-export const metadata: Metadata = { title: "AFA Registrations — Admin — NikiMart" };
+export const metadata: Metadata = { title: "AFA Registrations — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminAfaPage() {

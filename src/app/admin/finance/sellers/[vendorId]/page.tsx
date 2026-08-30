@@ -12,7 +12,7 @@ import { getSellerEarnings } from "@/lib/seller";
 import { createSellerPayout } from "@/lib/finance-actions";
 import { formatPrice } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Pay seller — Finance — NikiMart" };
+export const metadata: Metadata = { title: "Pay seller — Finance — Nickimart" };
 
 export default async function PaySellerPage({ params }: { params: Promise<{ vendorId: string }> }) {
   await requireDashboard("/admin");

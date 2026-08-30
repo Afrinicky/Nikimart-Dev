@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageForm } from "@/components/admin/PageForm";
 
-export const metadata: Metadata = { title: "New page — Admin — NikiMart" };
+export const metadata: Metadata = { title: "New page — Admin — Nickimart" };
 
 export default function NewPagePage() {
   return (

@@ -15,13 +15,13 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; href: string }[] 
       { label: "Preorder Deals", href: "/preorders" },
       { label: "Services", href: "/services" },
       { label: "Shop by Campus", href: "/campus" },
-      { label: "NikiMart Official Store", href: "/categories/nikimart-official-store" },
+      { label: "Nickimart Official Store", href: "/categories/nikimart-official-store" },
     ],
   },
   {
     title: "Sell",
     links: [
-      { label: "Sell on NikiMart", href: "/sell" },
+      { label: "Sell on Nickimart", href: "/sell" },
       { label: "Vendor Registration", href: "/vendor-register" },
       { label: "Seller Dashboard", href: "/seller" },
       { label: "Become an Affiliate", href: "/affiliate" },
@@ -59,13 +59,13 @@ export async function Footer() {
       : c,
   );
   return (
-    <footer className="bg-niki-navy pb-16 text-white/70 sm:pb-0">
+    <footer className="bg-niki-black pb-16 text-white/70 sm:pb-0">
       <Container className="grid grid-cols-2 gap-8 py-12 sm:grid-cols-4 lg:grid-cols-5">
         <div className="col-span-2 sm:col-span-4 lg:col-span-1">
           <div className="flex items-center gap-2">
-            <BrandLogo className="h-9 w-9" src={settings.logoUrl} />
+            <BrandLogo className="h-8 w-auto text-niki-orange" src={settings.logoUrl} />
             <span className="font-display text-xl font-bold tracking-tight text-white">
-              Niki<span className="text-niki-orange">Mart</span>
+              Nick<span className="text-niki-orange">imart</span>
             </span>
           </div>
           <p className="mt-3 text-sm">{settings.footerTagline}</p>

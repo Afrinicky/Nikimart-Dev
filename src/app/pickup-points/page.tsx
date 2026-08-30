@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { pickupPoints } from "@/lib/global-data";
 
 export const metadata: Metadata = {
-  title: "Pickup Points — NikiMart",
+  title: "Pickup Points — Nickimart",
 };
 
 export default function PickupPointsPage() {
@@ -13,7 +13,7 @@ export default function PickupPointsPage() {
     <>
       <PageHeader
         title="Pickup Points"
-        subtitle="Collect your orders securely from a trusted NikiMart pickup point near you, using a one-time OTP."
+        subtitle="Collect your orders securely from a trusted Nickimart pickup point near you, using a one-time OTP."
         crumbs={[{ label: "Pickup points" }]}
       />
 
@@ -22,7 +22,7 @@ export default function PickupPointsPage() {
           {pickupPoints.map((p) => (
             <div key={p.id} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
               <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-niki-navy text-niki-orange">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-niki-black text-niki-orange">
                   <MapPin className="h-5 w-5" />
                 </span>
                 <div>

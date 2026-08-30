@@ -34,8 +34,8 @@ function bannerData(fd: FormData) {
     // or a protocol-relative URL, both of which end up in an anchor href.
     ctaHref: safeHref(str(fd, "ctaHref")),
     image: image || null,
-    accentFrom: color("accentFrom", "#ff7a1a"),
-    accentTo: color("accentTo", "#0e1f36"),
+    accentFrom: color("accentFrom", "#ff6a00"),
+    accentTo: color("accentTo", "#1f1f1f"),
     isActive: fd.get("isActive") === "on",
     order: Number(str(fd, "order")) || 0,
   };

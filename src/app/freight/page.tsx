@@ -11,7 +11,7 @@ import { ConfirmStageButton } from "@/components/order/ConfirmStageButton";
 import { confirmActionLabel, nextStageForRole, type DeliveryMethod, type ShipmentTimestamps } from "@/lib/tracking";
 
 export const metadata: Metadata = {
-  title: "Freight Dashboard — NikiMart",
+  title: "Freight Dashboard — Nickimart",
 };
 
 export default async function FreightDashboardPage() {
@@ -39,7 +39,7 @@ export default async function FreightDashboardPage() {
         crumbs={[{ label: "Freight" }]}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <span className="flex items-center gap-2 rounded-full bg-niki-navy px-4 py-2 text-sm font-medium text-white">
+          <span className="flex items-center gap-2 rounded-full bg-niki-black px-4 py-2 text-sm font-medium text-white">
             <Truck className="h-4 w-4 text-niki-orange" />
             {user.name}
           </span>

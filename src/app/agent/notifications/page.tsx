@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/session";
 import { getAgentForUser, getAnnouncements } from "@/lib/data-bundles/agents";
 import { cn } from "@/lib/cn";
 
-export const metadata: Metadata = { title: "Notifications — Agent — NikiMart" };
+export const metadata: Metadata = { title: "Notifications — Agent — Nickimart" };
 export const dynamic = "force-dynamic";
 
 const TONES: Record<string, string> = {
@@ -28,14 +28,14 @@ export default async function AgentNotificationsPage() {
       <AgentPageHeading title="Notifications" subtitle="Latest announcements and updates.">
         <ActionLink
           href="/agent/notifications"
-          className="rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white"
+          className="rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white"
         >
           Refresh
         </ActionLink>
       </AgentPageHeading>
 
       {notices.length === 0 ? (
-        <EmptyRow>Nothing new. Announcements from NikiMart show up here.</EmptyRow>
+        <EmptyRow>Nothing new. Announcements from Nickimart show up here.</EmptyRow>
       ) : (
         <div className="stagger-children space-y-3">
           {notices.map((n) => (

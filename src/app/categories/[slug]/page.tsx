@@ -16,7 +16,7 @@ type Params = Promise<{ slug: string }>;
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
   const category = await getCategoryBySlug(slug);
-  return { title: category ? `${category.name} — NikiMart` : "Category — NikiMart" };
+  return { title: category ? `${category.name} — Nickimart` : "Category — Nickimart" };
 }
 
 export default async function CategoryPage({ params }: { params: Params }) {

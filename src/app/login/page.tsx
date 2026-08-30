@@ -8,7 +8,7 @@ import { auth } from "@/lib/auth";
 import { isRole, ROLE_HOME } from "@/lib/roles";
 
 export const metadata: Metadata = {
-  title: "Sign in — NikiMart",
+  title: "Sign in — Nickimart",
 };
 
 export default async function LoginPage({
@@ -27,13 +27,13 @@ export default async function LoginPage({
     <Container className="flex justify-center py-14">
       <div className="w-full max-w-md rounded-3xl bg-white p-8 ring-1 ring-niki-edge">
         <div className="flex items-center gap-2">
-          <BrandLogo className="h-9 w-9" />
+          <BrandLogo className="h-8 w-auto text-niki-orange" />
           <span className="font-display text-xl font-bold text-niki-ink">
-            Niki<span className="text-niki-orange">Mart</span>
+            Nick<span className="text-niki-orange">imart</span>
           </span>
         </div>
         <h1 className="mt-6 font-display text-2xl font-bold text-niki-ink">Welcome back</h1>
-        <p className="mt-1 text-sm text-niki-ink/60">Sign in to your NikiMart account.</p>
+        <p className="mt-1 text-sm text-niki-ink/60">Sign in to your Nickimart account.</p>
 
         <LoginForm callbackUrl={cb} />
 
@@ -44,7 +44,7 @@ export default async function LoginPage({
         </p>
 
         <p className="mt-6 text-center text-sm text-niki-ink/60">
-          New to NikiMart?{" "}
+          New to Nickimart?{" "}
           <Link href={cb ? `/register?callbackUrl=${encodeURIComponent(cb)}` : "/register"} className="font-semibold text-niki-orange hover:underline">
             Create an account
           </Link>

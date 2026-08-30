@@ -24,7 +24,7 @@ export interface PricingRow {
 }
 
 /**
- * Package Pricing: what NikiMart charges the agent, what they charge, and the
+ * Package Pricing: what Nickimart charges the agent, what they charge, and the
  * profit between the two — editable one row at a time, or all at once with a
  * markup.
  *
@@ -93,7 +93,7 @@ export function PricingTable({ rows }: { rows: PricingRow[] }) {
   if (rows.length === 0) {
     return (
       <p className="rounded-2xl bg-niki-surface px-4 py-10 text-center text-sm text-niki-ink/55">
-        NikiMart hasn&apos;t published agent prices for any bundle yet. Once it does, your ladder
+        Nickimart hasn&apos;t published agent prices for any bundle yet. Once it does, your ladder
         appears here.
       </p>
     );
@@ -124,8 +124,8 @@ export function PricingTable({ rows }: { rows: PricingRow[] }) {
               className={cn(
                 "niki-press niki-focus shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold",
                 filter === n
-                  ? "bg-niki-navy text-white"
-                  : "bg-white text-niki-ink/60 ring-1 ring-niki-edge hover:bg-niki-navy/5",
+                  ? "bg-niki-black text-white"
+                  : "bg-white text-niki-ink/60 ring-1 ring-niki-edge hover:bg-niki-black/5",
               )}
             >
               {n === "ALL" ? "All networks" : NETWORK_INFO[n as Network].short}
@@ -150,7 +150,7 @@ export function PricingTable({ rows }: { rows: PricingRow[] }) {
             onClick={bulk}
             busy={busyKey === "bulk"}
             pendingLabel="Applying…"
-            className="rounded-full bg-niki-navy px-4 py-2 text-xs font-bold text-white"
+            className="rounded-full bg-niki-black px-4 py-2 text-xs font-bold text-white"
           >
             Price all
           </BusyButton>

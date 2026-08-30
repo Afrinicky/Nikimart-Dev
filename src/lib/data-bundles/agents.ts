@@ -9,10 +9,10 @@ import { outstandingSetupFee, round2 } from "@/lib/data-bundles/agent-pricing";
 /**
  * Reads for the sub-agent platform.
  *
- * The money model in one paragraph: NikiMart buys from Justice Datashop and
+ * The money model in one paragraph: Nickimart buys from Justice Datashop and
  * resells to its own agents at `DataBundle.agentPrice`. An agent puts their own
  * price on top of that and sells it from `/store/<slug>`; the customer pays
- * NikiMart through Paystack, and the difference is the agent's commission —
+ * Nickimart through Paystack, and the difference is the agent's commission —
  * credited only once the bundle has actually been delivered. Opening a store
  * costs a setup fee, charged as a debit, so an agent account starts on a
  * negative balance that clears itself out of their first commissions.
@@ -72,7 +72,7 @@ export function agentIsSelling(agent: AgentAccount): boolean {
 
 const SLUG_RESERVED = new Set([
   "admin", "api", "agent", "store", "stores", "login", "register", "account",
-  "checkout", "cart", "orders", "help", "support", "new", "join", "nikimart",
+  "checkout", "cart", "orders", "help", "support", "new", "join", "nikimart", "nickimart",
 ]);
 
 /** Normalise a store slug. Shared with the browser via lib/data-bundles/slug. */
@@ -112,11 +112,11 @@ export interface AgentBundleRow {
   network: Network;
   sizeGb: number;
   validity: string;
-  /** What NikiMart charges the agent (their cost basis). */
+  /** What Nickimart charges the agent (their cost basis). */
   agentPrice: number;
-  /** NikiMart's own public retail price, for reference. */
+  /** Nickimart's own public retail price, for reference. */
   retailPrice: number;
-  /** What this agent charges. Defaults to NikiMart's retail price. */
+  /** What this agent charges. Defaults to Nickimart's retail price. */
   price: number;
   /** price − agentPrice. */
   profit: number;
@@ -127,7 +127,7 @@ export interface AgentBundleRow {
 }
 
 /**
- * The full ladder for one agent: every bundle NikiMart resells, merged with
+ * The full ladder for one agent: every bundle Nickimart resells, merged with
  * whatever prices that agent has set. Bundles with no agent price (agentPrice
  * of 0) are not resold and never appear.
  */

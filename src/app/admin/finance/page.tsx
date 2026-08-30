@@ -10,7 +10,7 @@ import { getCommissionRate } from "@/lib/settings";
 import { markPayoutPaid, markAffiliatePayoutPaid } from "@/lib/finance-actions";
 import { formatPrice } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Finance — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Finance — Admin — Nickimart" };
 
 export default async function AdminFinancePage() {
   await requireDashboard("/admin");
@@ -35,7 +35,7 @@ export default async function AdminFinancePage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExportButton dataset="finance" />
-          <Link href="/admin/affiliates" className="flex items-center gap-2 rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-navy-light">
+          <Link href="/admin/affiliates" className="flex items-center gap-2 rounded-full bg-niki-black px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-black-soft">
             <Users className="h-4 w-4" />
             Affiliates
           </Link>
@@ -55,7 +55,7 @@ export default async function AdminFinancePage() {
           ["affiliateCost", "Affiliate commission accrued", overview.affiliateAccrued],
           ["earnings", "Platform earnings (net)", overview.platformEarnings],
         ] as const).map(([metric, label, value]) => (
-          <Link key={metric} href={`/admin/finance/breakdown/${metric}`} className="group rounded-2xl bg-white p-5 ring-1 ring-niki-edge transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-niki-navy/5">
+          <Link key={metric} href={`/admin/finance/breakdown/${metric}`} className="group rounded-2xl bg-white p-5 ring-1 ring-niki-edge transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-niki-black/5">
             <p className="font-figures text-2xl font-bold text-niki-ink">{formatPrice(value)}</p>
             <p className="mt-1 flex items-center gap-1 text-sm text-niki-ink/60">
               {label}
@@ -100,12 +100,12 @@ export default async function AdminFinancePage() {
                 <span className="font-semibold text-niki-ink">{formatPrice(overview.affiliateFundedBySellers)}</span>
               </li>
               <li className="flex justify-between text-niki-ink/70">
-                <span>NikiMart (platform enrolments)</span>
+                <span>Nickimart (platform enrolments)</span>
                 <span className="font-semibold text-niki-ink">{formatPrice(overview.affiliateFundedByPlatform)}</span>
               </li>
             </ul>
             <p className="mt-2 text-xs text-niki-ink/50">
-              NikiMart-funded enrolments are capped at half the platform commission on the item.
+              Nickimart-funded enrolments are capped at half the platform commission on the item.
             </p>
           </div>
         </div>

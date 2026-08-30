@@ -5,7 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { BannerForm } from "@/components/admin/BannerForm";
 import { createBanner } from "@/lib/banner-actions";
 
-export const metadata: Metadata = { title: "New banner — Admin — NikiMart" };
+export const metadata: Metadata = { title: "New banner — Admin — Nickimart" };
 
 export default function NewBannerPage() {
   return (

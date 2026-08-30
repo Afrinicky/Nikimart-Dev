@@ -12,7 +12,7 @@ import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
 
 export const metadata: Metadata = {
-  title: "Seller Dashboard — NikiMart",
+  title: "Seller Dashboard — Nickimart",
 };
 
 const ACTIONS = [
@@ -88,7 +88,7 @@ export default async function SellerDashboardPage() {
 
       <Container className="py-8">
         {!vendor ? (
-          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl bg-niki-navy p-6">
+          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl bg-niki-black p-6">
             <p className="flex-1 text-sm text-white/80">
               You don&apos;t have a shop yet. Register your business to start listing products.
             </p>
@@ -190,9 +190,9 @@ export default async function SellerDashboardPage() {
             <Link
               key={title}
               href={href}
-              className="group rounded-2xl bg-white p-5 ring-1 ring-niki-edge transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-niki-navy/5"
+              className="group rounded-2xl bg-white p-5 ring-1 ring-niki-edge transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-niki-black/5"
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-niki-navy text-niki-orange transition-colors group-hover:bg-niki-orange group-hover:text-white">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-niki-black text-niki-orange transition-colors group-hover:bg-niki-orange group-hover:text-white">
                 <Icon className="h-5 w-5" />
               </span>
               <h3 className="mt-4 font-semibold text-niki-ink">{title}</h3>

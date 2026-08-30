@@ -11,7 +11,7 @@ function Inner({ label }: { label: string }) {
     <button
       type="submit"
       disabled={pending}
-      className="flex items-center gap-1.5 rounded-full bg-niki-navy px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-navy-light disabled:opacity-60"
+      className="flex items-center gap-1.5 rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-black-soft disabled:opacity-60"
     >
       <CheckCircle2 className="h-4 w-4 text-niki-orange" />
       {pending ? "Confirming…" : label}

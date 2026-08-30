@@ -9,7 +9,7 @@ import { getAgentProgramConfig } from "@/lib/settings";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Set up your agent account — NikiMart" };
+export const metadata: Metadata = { title: "Set up your agent account — Nickimart" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -58,7 +58,7 @@ export default async function AgentSetupPage({
               <div className="mt-5 flex flex-wrap justify-center gap-2">
                 <ActionLink
                   href="/login?callbackUrl=%2Fagent"
-                  className="rounded-full bg-niki-navy px-5 py-2.5 text-sm font-semibold text-white"
+                  className="rounded-full bg-niki-black px-5 py-2.5 text-sm font-semibold text-white"
                 >
                   Sign in
                 </ActionLink>

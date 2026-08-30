@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { sourceRegions } from "@/lib/global-data";
 
 export const metadata: Metadata = {
-  title: "Global Shopping — NikiMart",
+  title: "Global Shopping — Nickimart",
 };
 
 export default function GlobalShoppingPage() {
@@ -24,7 +24,7 @@ export default function GlobalShoppingPage() {
           {sourceRegions.map((region) => (
             <div
               key={region.id}
-              className="group relative overflow-hidden rounded-3xl bg-white ring-1 ring-niki-edge transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-niki-navy/10"
+              className="group relative overflow-hidden rounded-3xl bg-white ring-1 ring-niki-edge transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-niki-black/10"
             >
               <div
                 className="flex items-center gap-3 p-5 text-white"
@@ -62,7 +62,7 @@ export default function GlobalShoppingPage() {
           ))}
         </div>
 
-        <div className="mt-10 grid gap-4 rounded-3xl bg-niki-navy p-8 sm:grid-cols-[1fr_auto] sm:items-center">
+        <div className="mt-10 grid gap-4 rounded-3xl bg-niki-black p-8 sm:grid-cols-[1fr_auto] sm:items-center">
           <div>
             <h2 className="flex items-center gap-2 font-display text-2xl font-bold text-white">
               <Globe className="h-6 w-6 text-niki-orange" />

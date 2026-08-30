@@ -15,7 +15,7 @@ import { formatMoney, formatPrice } from "../format.ts";
  * The money rules for the sub-agent programme.
  *
  * Each of these is a place where being wrong costs someone real cedis: an agent
- * paid more than they earned, NikiMart funding an agent's discount, or a
+ * paid more than they earned, Nickimart funding an agent's discount, or a
  * storefront URL that quietly isn't the one the agent typed.
  *
  * Run with: npm test

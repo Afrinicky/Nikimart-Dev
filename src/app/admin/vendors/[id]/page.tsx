@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { mapVendor } from "@/lib/catalog";
 import { updateVendor } from "@/lib/admin-actions";
 
-export const metadata: Metadata = { title: "Edit shop — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Edit shop — Admin — Nickimart" };
 
 type Params = Promise<{ id: string }>;
 

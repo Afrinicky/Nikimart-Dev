@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { blockDef, type SectionConfig } from "@/lib/page-blocks";
 import { updateSection } from "@/lib/page-actions";
 
-export const metadata: Metadata = { title: "Edit section — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Edit section — Admin — Nickimart" };
 
 type Params = Promise<{ id: string; sectionId: string }>;
 

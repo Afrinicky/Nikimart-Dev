@@ -1,39 +1,52 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f5f6fa;
-  --foreground: #111827;
+  --background: #f1f1f2;
+  --foreground: #1a1a1a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
-  --font-display: var(--font-space-grotesk);
+  --font-display: var(--font-montserrat);
   --font-mono: var(--font-geist-mono);
 
-  /* NikiMart brand palette */
-  --color-niki-navy: #07111f;
-  --color-niki-navy-light: #0e1f36;
-  --color-niki-navy-soft: #122a47;
-  --color-niki-orange: #ff8a00;
-  --color-niki-orange-light: #ffab47;
-  --color-niki-gold: #ffc107;
-  --color-niki-surface: #f5f6fa;
+  /* --- Brand palette -------------------------------------------------------
+     Three colours, in the proportions the logo uses them: white carries most
+     of the surface, orange is the one accent, black is text and the footer.
+     Orange is loud enough that spreading it across large areas is what makes a
+     shop look cheap, so it is reserved for the things a shopper acts on — the
+     buy button, the price, the active tab — and never used as a backdrop.
+
+     Everything neutral here is genuinely neutral. The previous palette was
+     built on blue-tinted greys (#111827 text, #f5f6fa page, a navy chrome),
+     which read as cool next to the mark's flat black and left the orange
+     looking slightly wrong against it without it being obvious why. */
+  --color-niki-black: #131313;
+  --color-niki-black-soft: #1f1f1f;
+  --color-niki-black-mute: #2e2e2e;
+  --color-niki-orange: #ff6a00;
+  --color-niki-orange-light: #ff8a3d;
+  /* A wash for selected chips and highlight rows — orange at a strength that
+     can sit behind text without fighting it. */
+  --color-niki-orange-soft: #fff2e8;
+  --color-niki-gold: #ffb020;
+  --color-niki-surface: #f1f1f2;
   --color-niki-success: #10b981;
-  --color-niki-danger: #ef4444;
-  --color-niki-ink: #111827;
+  --color-niki-danger: #e02b2b;
+  --color-niki-ink: #1a1a1a;
   --color-niki-trust: #0ea5e9;
   --color-niki-ghana: #16a34a;
 
   /* --- Edges ---------------------------------------------------------------
-     White cards on the near-white page background (#f5f6fa) lose their edge:
+     White cards on the near-white page background (#f1f1f2) lose their edge:
      the card and the page read as one surface and the layout goes soft. These
-     are hairlines tinted with the brand navy rather than pure black, so they
+     are hairlines tinted with the brand black rather than pure black, so they
      separate a surface from its background without greying the palette down.
 
      The first pass at these was too timid: at 10% over white, on a page that
-     is itself #f5f6fa, a 1px line is very nearly nothing, and chips that are
+     is itself near-white, a 1px line is very nearly nothing, and chips that are
      meant to look pressable read as flat text. Each step up is roughly a
      third, which is enough to see without greying the palette down.
 
@@ -41,10 +54,10 @@
      `edge-strong`  — panels and inputs that need a definite boundary.
      `edge-control` — chips, pills and secondary buttons: things you can click,
                       which have to look like it before you hover them.
-     `edge-light`   — the same job on navy, where a dark line would vanish. */
-  --color-niki-edge: rgba(7, 17, 31, 0.14);
-  --color-niki-edge-strong: rgba(7, 17, 31, 0.22);
-  --color-niki-edge-control: rgba(7, 17, 31, 0.3);
+     `edge-light`   — the same job on black, where a dark line would vanish. */
+  --color-niki-edge: rgba(19, 19, 19, 0.14);
+  --color-niki-edge-strong: rgba(19, 19, 19, 0.22);
+  --color-niki-edge-control: rgba(19, 19, 19, 0.3);
   --color-niki-edge-light: rgba(255, 255, 255, 0.22);
 }
 
@@ -102,26 +115,29 @@ summary {
     scrollbar-width: none;
   }
 
+  /* Dark panels. These were multi-stop gradients with two coloured radial
+     washes over them, which is the look of a landing-page template rather than
+     a shop — and the wash sat directly behind body text. They are flat black
+     now, with one shallow gradient for depth and nothing behind the words. */
   .niki-gradient-hero {
-    background: radial-gradient(
-        circle at 15% 20%,
-        rgba(255, 138, 0, 0.35),
-        transparent 45%
-      ),
-      radial-gradient(
-        circle at 85% 0%,
-        rgba(255, 193, 7, 0.25),
-        transparent 50%
-      ),
-      linear-gradient(135deg, #07111f 0%, #0e1f36 55%, #122a47 100%);
+    background: linear-gradient(160deg, #1f1f1f 0%, #131313 100%);
   }
 
   .niki-gradient-card {
-    background: linear-gradient(135deg, #0e1f36 0%, #07111f 100%);
+    background: linear-gradient(160deg, #1f1f1f 0%, #131313 100%);
   }
 
   .niki-glow {
-    box-shadow: 0 0 0 1px rgba(255, 138, 0, 0.15), 0 20px 45px -20px rgba(255, 138, 0, 0.35);
+    box-shadow: 0 0 0 1px rgba(255, 106, 0, 0.15), 0 20px 45px -20px rgba(255, 106, 0, 0.35);
+  }
+
+  /* The header's separation from the page. A hairline plus a shallow shadow,
+     because a white bar on a near-white page has no edge of its own and the
+     sticky header would otherwise slide over content with nothing between. */
+  .niki-header-edge {
+    box-shadow:
+      inset 0 -1px 0 var(--color-niki-edge),
+      0 1px 3px rgba(19, 19, 19, 0.06);
   }
 }
 
@@ -204,13 +220,13 @@ summary {
 
 @keyframes niki-pulse-ring {
   0% {
-    box-shadow: 0 0 0 0 rgba(255, 138, 0, 0.45);
+    box-shadow: 0 0 0 0 rgba(255, 106, 0, 0.45);
   }
   70% {
-    box-shadow: 0 0 0 10px rgba(255, 138, 0, 0);
+    box-shadow: 0 0 0 10px rgba(255, 106, 0, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(255, 138, 0, 0);
+    box-shadow: 0 0 0 0 rgba(255, 106, 0, 0);
   }
 }
 
@@ -270,9 +286,9 @@ summary {
   .niki-skeleton {
     background-image: linear-gradient(
       90deg,
-      rgba(17, 24, 39, 0.06) 25%,
-      rgba(17, 24, 39, 0.12) 37%,
-      rgba(17, 24, 39, 0.06) 63%
+      rgba(19, 19, 19, 0.06) 25%,
+      rgba(19, 19, 19, 0.12) 37%,
+      rgba(19, 19, 19, 0.06) 63%
     );
     background-size: 320% 100%;
     animation: niki-shimmer 1.4s ease-in-out infinite;
@@ -307,7 +323,7 @@ summary {
     background: #fff;
     box-shadow:
       inset 0 0 0 1px var(--color-niki-edge-control),
-      0 1px 2px rgba(7, 17, 31, 0.05);
+      0 1px 2px rgba(19, 19, 19, 0.05);
     transition:
       box-shadow 0.15s ease,
       background-color 0.15s ease,
@@ -317,31 +333,35 @@ summary {
   .niki-chip:hover {
     background: #fff;
     box-shadow:
-      inset 0 0 0 1px rgba(7, 17, 31, 0.45),
-      0 2px 6px rgba(7, 17, 31, 0.09);
+      inset 0 0 0 1px rgba(19, 19, 19, 0.45),
+      0 2px 6px rgba(19, 19, 19, 0.09);
   }
 
   .niki-chip:active {
     transform: translateY(1px);
     box-shadow:
-      inset 0 0 0 1px rgba(7, 17, 31, 0.45),
-      0 1px 2px rgba(7, 17, 31, 0.06);
+      inset 0 0 0 1px rgba(19, 19, 19, 0.45),
+      0 1px 2px rgba(19, 19, 19, 0.06);
   }
 
   /* The selected one in a set of chips. Solid, so it wins on colour rather
      than on a heavier line. */
   .niki-chip-active {
     box-shadow:
-      inset 0 0 0 1px rgba(7, 17, 31, 0.08),
-      0 2px 8px rgba(255, 138, 0, 0.28);
+      inset 0 0 0 1px rgba(19, 19, 19, 0.08),
+      0 2px 8px rgba(255, 106, 0, 0.28);
   }
 
-  /* Numbers are data, and Space Grotesk is not the face for reading them.
-     Its "1" is a bare angled stroke with no base — fine in a logo, but in
-     "1GB", "10GB" and "GH₵1.50" it reads as a slash or a clipped glyph, and a
-     customer checking what they paid should never have to squint. So figures
-     go in the body face, with tabular spacing so columns of prices line up.
-     The display face keeps the words. */
+  /* Numbers are data: prices, quantities, order totals. Even in a face whose
+     figures are legible, proportional digits make a column of prices ragged
+     and a total hard to compare against the one above it. Figures therefore go
+     in the body face with tabular spacing, so every digit takes the same width
+     and columns line up. The display face keeps the words.
+
+     This started as a workaround for Space Grotesk, whose "1" is a bare angled
+     stroke with no base and read as a slash in "1GB" and "GH₵1.50". That face
+     is gone — the display face is Montserrat, which matches the wordmark in
+     the logo — but tabular figures are worth keeping on their own merits. */
   .font-figures {
     font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
     font-variant-numeric: tabular-nums;

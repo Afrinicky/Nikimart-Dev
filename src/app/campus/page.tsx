@@ -4,7 +4,7 @@ import { CampusShowcase } from "@/components/home/CampusShowcase";
 import { getProducts, getVendors, getVendorNameMap } from "@/lib/catalog";
 
 export const metadata: Metadata = {
-  title: "Shop by Campus — NikiMart",
+  title: "Shop by Campus — Nickimart",
 };
 
 export default async function CampusPage() {

@@ -129,7 +129,7 @@ export function PolicyEditor({
               <button
                 type="button"
                 onClick={() => setText(standardBody)}
-                className="niki-press niki-focus flex items-center gap-1.5 rounded-xl bg-niki-surface px-4 py-2.5 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-niki-navy/5"
+                className="niki-press niki-focus flex items-center gap-1.5 rounded-xl bg-niki-surface px-4 py-2.5 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-niki-black/5"
               >
                 <RotateCcw className="h-4 w-4" />
                 Load standard wording

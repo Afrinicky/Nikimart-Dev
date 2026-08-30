@@ -14,7 +14,7 @@ import {
  *
  * Sellers choose whether to offer their product to affiliates and at what rate
  * — that commission comes out of their own earnings, so the choice is theirs.
- * Admins get one extra option: enrolling the product at NikiMart's expense,
+ * Admins get one extra option: enrolling the product at Nickimart's expense,
  * which is capped at half the platform commission on the item.
  *
  * Turning enrolment off immediately removes the product from every affiliate's
@@ -95,20 +95,20 @@ export function AffiliateEnrolmentField({
                 className={inputClass}
               >
                 <option value="seller">The seller — deducted from their earnings</option>
-                <option value="admin">NikiMart — paid out of the platform commission</option>
+                <option value="admin">Nickimart — paid out of the platform commission</option>
               </select>
               <p className="mt-1.5 flex items-start gap-1.5 text-xs text-niki-ink/60">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 {funder === "admin" ? (
                   <span>
-                    NikiMart funds this one. Platform commission on this item is{" "}
+                    Nickimart funds this one. Platform commission on this item is{" "}
                     <strong>{platformCommissionRate}%</strong>, so the affiliate rate is capped at half
                     of it — <strong>{ceiling}%</strong>.
                   </span>
                 ) : (
                   <span>
                     Only enrol at the seller&apos;s expense when they&apos;ve agreed to it. Otherwise
-                    put it on NikiMart&apos;s tab.
+                    put it on Nickimart&apos;s tab.
                   </span>
                 )}
               </p>
@@ -147,7 +147,7 @@ export function AffiliateEnrolmentField({
             <span>
               Affiliates earn <strong className="text-niki-ink">{resolved.rate}%</strong> of the item
               price
-              {effectiveFunder === "admin" ? ", funded by NikiMart" : ", deducted from the seller's earnings"}.
+              {effectiveFunder === "admin" ? ", funded by Nickimart" : ", deducted from the seller's earnings"}.
               {resolved.capped ? (
                 <span className="text-niki-ink/60"> Reduced from {resolved.requestedRate}% by the cap.</span>
               ) : null}

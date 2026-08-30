@@ -31,24 +31,31 @@ import { cn } from "@/lib/cn";
  * Every pairing below clears 4.5:1, which is why some of the colours are a step
  * darker than the brand swatch — white on #10b981 is 2.1:1 and unreadable at
  * 10px. Orange keeps ink text rather than white for the same reason: white on
- * NikiMart orange is 2.4:1, ink on it is 6.7:1.
+ * Nickimart orange is 2.4:1, ink on it is 6.7:1.
+ *
+ * The palette is deliberately short. Only the colours a shopper already reads
+ * without being taught earn a hue of their own: green for available, red for
+ * running out, orange and gold for the shop's own promotions. Blue, teal and
+ * slate were carrying "verified seller", "service" and "local shop" — three
+ * more hues that mean nothing on sight, on a card that may show four badges at
+ * once. Those are neutral now, and their icon and label do the work.
  */
 const BADGE_STYLES: Record<BadgeKind, string> = {
   in_stock: "bg-emerald-700 text-white",
-  preorder: "bg-niki-navy text-niki-gold",
+  preorder: "bg-niki-black text-niki-gold",
   same_day_delivery: "bg-emerald-700 text-white",
-  pickup_available: "bg-niki-navy text-white",
-  campus_delivery: "bg-niki-orange text-niki-navy",
-  verified_seller: "bg-blue-600 text-white",
-  official: "bg-niki-navy text-niki-orange",
+  pickup_available: "bg-niki-black text-white",
+  campus_delivery: "bg-niki-orange text-niki-black",
+  verified_seller: "bg-niki-black text-white",
+  official: "bg-niki-black text-niki-orange",
   deposit_required: "bg-amber-700 text-white",
-  imported_item: "bg-niki-navy-soft text-white",
-  local_shop: "bg-slate-700 text-white",
-  service: "bg-teal-700 text-white",
+  imported_item: "bg-niki-black-mute text-white",
+  local_shop: "bg-niki-black-mute text-white",
+  service: "bg-niki-black-mute text-white",
   limited_stock: "bg-red-600 text-white",
   flash_sale: "bg-red-600 text-white",
-  food_vendor: "bg-niki-orange text-niki-navy",
-  top_rated: "bg-niki-gold text-niki-navy",
+  food_vendor: "bg-niki-orange text-niki-black",
+  top_rated: "bg-niki-gold text-niki-black",
 };
 
 const BADGE_ICONS: Partial<Record<BadgeKind, LucideIcon>> = {
@@ -88,7 +95,7 @@ export function Badge({
         // gives every badge an edge of its own; it disappears on white, where
         // the badge already contrasts, and rescues it everywhere else.
         "inline-flex items-center gap-1 rounded-full font-bold whitespace-nowrap",
-        "ring-1 ring-white/70 shadow-[0_1px_3px_rgba(7,17,31,0.32)]",
+        "ring-1 ring-white/70 shadow-[0_1px_3px_rgba(19,19,19,0.32)]",
         size === "sm" ? "px-2 py-[3px] text-[10px]" : "px-3 py-1 text-xs",
         BADGE_STYLES[kind],
         className,

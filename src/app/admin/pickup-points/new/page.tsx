@@ -6,7 +6,7 @@ import { PickupPointForm } from "@/components/admin/PickupPointForm";
 import { prisma } from "@/lib/prisma";
 import { createPickupPoint } from "@/lib/pickup-actions";
 
-export const metadata: Metadata = { title: "New pickup point — Admin — NikiMart" };
+export const metadata: Metadata = { title: "New pickup point — Admin — Nickimart" };
 
 export default async function NewPickupPointPage() {
   // Only offer operators who don't already run a pickup point (operatorId is

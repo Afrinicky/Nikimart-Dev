@@ -49,7 +49,7 @@ const buySchema = z.object({
   sizeGb: z.number().positive().max(1000),
   recipientPhone: z.string().min(9, "Enter the number to top up."),
   buyerEmail: z.string().trim().email("Enter a valid email address.").optional().or(z.literal("")),
-  /** Buy through an agent's storefront: their slug. Omitted on NikiMart's own store. */
+  /** Buy through an agent's storefront: their slug. Omitted on Nickimart's own store. */
   storeSlug: z.string().trim().max(40).optional(),
 });
 
@@ -92,7 +92,7 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
   }
 
   // A sale through an agent's storefront is priced from *their* ladder, and
-  // earns them the difference over what NikiMart charges them. Everything else
+  // earns them the difference over what Nickimart charges them. Everything else
   // (payment, dispatch, delivery) is identical.
   const agent = data.storeSlug ? await getAgentBySlug(data.storeSlug) : null;
   if (data.storeSlug && (!agent || !agentIsSelling(agent))) {
@@ -109,7 +109,7 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
   }
 
   // On an agent sale the cost basis is the agent price, and the commission is
-  // whatever they charge above it. On NikiMart's own store there is neither.
+  // whatever they charge above it. On Nickimart's own store there is neither.
   const agentCost = agent && "agentPrice" in bundle ? bundle.agentPrice : 0;
   const agentCommission = agent ? commissionOn(bundle.price, agentCost) : 0;
   const costPrice = "costPrice" in bundle ? bundle.costPrice : 0;
@@ -243,7 +243,7 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
   const session = await auth();
   const collectPayment = isPaymentConfigured();
 
-  // An agent may charge their own AFA price; the difference over NikiMart's is
+  // An agent may charge their own AFA price; the difference over Nickimart's is
   // their commission, exactly as on a bundle.
   const agent = data.storeSlug ? await getAgentBySlug(data.storeSlug) : null;
   if (data.storeSlug && (!agent || !agentIsSelling(agent) || !agent.afaEnabled)) {

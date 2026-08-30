@@ -1,10 +1,30 @@
-// The canonical, absolute base URL of the site. Open Graph / link-preview
-// images and URLs must be absolute, so metadata and the OG image routes use
-// this. Override with NEXT_PUBLIC_SITE_URL (e.g. a custom domain); otherwise it
-// falls back to the production Vercel domain.
+/**
+ * The canonical, absolute base URL of the site.
+ *
+ * Open Graph / link-preview images and canonical URLs must be absolute, so
+ * metadata and the OG image routes are built from this. It resolves in the
+ * same order of deliberateness as `callbackOrigin()` below, and for the same
+ * reason: the two must never disagree about what this site is called.
+ *
+ *   1. NEXT_PUBLIC_SITE_URL — set by hand, wins over everything. Point this at
+ *      the custom domain and every link preview follows it.
+ *   2. VERCEL_PROJECT_PRODUCTION_URL — the project's production domain, from
+ *      the platform. Once a custom domain is the production domain, previews
+ *      and OG cards pick it up with no redeploy of this file.
+ *   3. The built-in fallback, for anywhere neither is set.
+ *
+ * Never VERCEL_URL: that is the per-deployment address, which sits behind
+ * Vercel's own login wall (see the note on callbackOrigin).
+ */
 export function siteUrl(): string {
   const env = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   if (env) return env.replace(/\/+$/, "");
+
+  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (production) {
+    return `https://${production.replace(/^https?:\/\//, "").replace(/\/+$/, "")}`;
+  }
+
   return "https://nikimart.vercel.app";
 }
 

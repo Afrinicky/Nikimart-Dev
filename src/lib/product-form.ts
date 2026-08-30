@@ -167,8 +167,8 @@ export function buildProductData(fd: FormData, options: BuildProductOptions = {}
     })(),
     // Keep the single `image` column in sync with the primary gallery image.
     image: images[0] ?? null,
-    gradientFrom: optStr(fd, "gradientFrom") ?? "#0e1f36",
-    gradientTo: optStr(fd, "gradientTo") ?? "#07111f",
+    gradientFrom: optStr(fd, "gradientFrom") ?? "#1f1f1f",
+    gradientTo: optStr(fd, "gradientTo") ?? "#131313",
     badges: JSON.stringify(csv(fd, "badges")),
     locationIds: JSON.stringify(csv(fd, "locationIds").length ? csv(fd, "locationIds") : ["any"]),
     attributes: JSON.stringify(parseAttributes(fd)),

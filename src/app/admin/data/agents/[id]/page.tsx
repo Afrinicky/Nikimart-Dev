@@ -19,7 +19,7 @@ import {
 import { setAgentStatus } from "@/lib/data-bundles/agent-admin-actions";
 import { cn } from "@/lib/cn";
 
-export const metadata: Metadata = { title: "Agent — Admin — NikiMart" };
+export const metadata: Metadata = { title: "Agent — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 function Tile({ label, value, tone = "ink" }: { label: string; value: string; tone?: "ink" | "success" | "danger" }) {
