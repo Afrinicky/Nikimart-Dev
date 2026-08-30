@@ -38,6 +38,30 @@ export const FREIGHT_MODE_LABELS: Record<FreightMode, string> = {
   express: "Express courier",
 };
 
+/**
+ * How the leg abroad → Ghana is quoted.
+ *
+ *   itemised — the carriage is priced from the arrival point's rate table (or
+ *              the seller's own figure), and duty, clearing and Ghana tax are
+ *              charged on top, each on its own line.
+ *   all_in   — the forwarder quoted one number covering everything between
+ *              their warehouse abroad and the Ghana arrival point: carriage,
+ *              duty, clearing, the lot. This is how most Ghana-bound
+ *              consolidators actually sell, and splitting their single figure
+ *              into invented components would be a fiction that then gets
+ *              taxed again.
+ *
+ * Legs 1 and 3 are outside both: the supplier's run to the forwarder is still
+ * the seller's own cost, and the Ghana arrival point → the buyer's pickup
+ * station is still the domestic route engine's.
+ */
+export type FreightBasis = "itemised" | "all_in";
+
+export const FREIGHT_BASIS_LABELS: Record<FreightBasis, string> = {
+  itemised: "Itemised — carriage, duty and clearing charged separately",
+  all_in: "All-in — one combined fee to the Ghana arrival point",
+};
+
 /** Short buyer-facing note on what each mode means for the wait. */
 export const FREIGHT_MODE_HINTS: Record<FreightMode, string> = {
   air: "Faster, priced by weight.",
@@ -69,12 +93,18 @@ export interface AbroadTerms {
   freightMode: FreightMode;
   /** The admin-configured Ghana point this listing lands at. */
   arrivalPointId: string;
+  /** How leg 2 is quoted. See FreightBasis. */
+  freightBasis: FreightBasis;
   /** Leg 1, GH₵ per unit: supplier → freight forwarder abroad. */
   supplierFreight: number;
   /**
-   * Leg 2 override, GH₵ per unit. 0 means "use the arrival point's rate
-   * table", which is the normal case; a seller with their own forwarder deal
-   * can pin their own number instead.
+   * Leg 2, GH₵ per unit.
+   *
+   * On the itemised basis this is an override: 0 means "use the arrival
+   * point's rate table", which is the normal case, and a seller with their own
+   * forwarder deal can pin their own number instead. On the all-in basis it is
+   * the forwarder's single combined figure — carriage, duty and clearing to
+   * the Ghana arrival point — and nothing else is added on top.
    */
   intlFreight: number;
   /** True when legs 1 and 2 are already inside the listed price. */
@@ -118,6 +148,7 @@ export const EMPTY_ABROAD_TERMS: AbroadTerms = {
   minimumOrders: 0,
   freightMode: "sea",
   arrivalPointId: "",
+  freightBasis: "itemised",
   supplierFreight: 0,
   intlFreight: 0,
   freightIncluded: false,
@@ -201,6 +232,7 @@ export function parseAbroadTerms(raw: string | null | undefined): AbroadTerms | 
     minimumOrders: Math.round(count(o.minimumOrders)),
     freightMode: mode(o.freightMode),
     arrivalPointId: text(o.arrivalPointId),
+    freightBasis: o.freightBasis === "all_in" ? "all_in" : "itemised",
     supplierFreight: money(count(o.supplierFreight)),
     intlFreight: money(count(o.intlFreight)),
     freightIncluded: Boolean(o.freightIncluded),
@@ -240,6 +272,7 @@ export function hasAnyTerms(terms: AbroadTerms): boolean {
       terms.depositRequired ||
       terms.supplierFreight > 0 ||
       terms.intlFreight > 0 ||
+      terms.freightBasis === "all_in" ||
       terms.originTaxRate > 0 ||
       terms.freightIncluded ||
       terms.minimumOrders > 0,

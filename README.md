@@ -242,8 +242,20 @@ them:
 3. **Arrival point → the buyer's pickup station.** The existing CBM route
    engine, starting from the arrival point's hub rather than the seller's.
 
+Leg 2 is quoted on one of two bases, chosen per listing:
+
+- **Itemised** — carriage comes from the arrival point's rate table (or the
+  seller's own override), and duty, clearing and Ghana VAT are charged on top,
+  each on its own line.
+- **All-in** — the forwarder quoted one number covering everything between
+  their warehouse abroad and the Ghana arrival point: carriage, duty, clearing,
+  taxes on landing. This is how most Ghana-bound consolidators actually sell.
+  That figure is charged once and **nothing is added to it** — splitting it into
+  invented components and then assessing duty on those would bill the buyer
+  twice for the same customs charge. Legs 1 and 3 stay outside it either way.
+
 A seller whose supplier already quoted a delivered-to-Ghana price ticks
-**freight included**; legs 1 and 2 are then charged at zero rather than
+**freight included** instead; legs 1 and 2 are then charged at zero rather than
 double-billing the buyer, and the arrival point still matters because leg 3
 starts there.
 

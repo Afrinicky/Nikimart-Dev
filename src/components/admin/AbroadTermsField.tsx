@@ -11,6 +11,7 @@ import {
   isSafeSourceUrl,
   serialiseAbroadTerms,
   type AbroadTerms,
+  type FreightBasis,
   type FreightMode,
 } from "@/lib/abroad";
 import { priceAbroadLine } from "@/lib/abroad-costs";
@@ -91,6 +92,7 @@ export function AbroadTermsField({
     [price, cbm, weightKg, terms, rate, point, defaultGhanaTaxRate, defaultDutyPercent],
   );
 
+  const allIn = terms.freightBasis === "all_in";
   const badUrl = terms.sourceUrl.trim().length > 0 && !isSafeSourceUrl(terms.sourceUrl);
 
   return (
@@ -153,7 +155,7 @@ export function AbroadTermsField({
             <Field
               label="Country of purchase"
               htmlFor="abroadOrigin"
-              hint="Sets the freight rate and the arrival estimate. Leave blank to use your shop's country."
+              hint="Sets the freight rate, the arrival estimate, and which origin buyers find this under."
             >
               <select
                 id="abroadOrigin"
@@ -169,6 +171,19 @@ export function AbroadTermsField({
                 ))}
               </select>
             </Field>
+
+            {!terms.originCountry ? (
+              // A Ghanaian shop dropshipping from Guangzhou that leaves this
+              // blank inherits "Ghana", and the listing then belongs to no
+              // origin at all: it never appears under Shop by origin, and the
+              // freight table has nothing to rate it against.
+              <p className="rounded-xl bg-niki-gold/15 px-4 py-3 text-sm text-amber-900">
+                Set the country you are buying from unless your shop itself is
+                registered there. Left blank, this listing inherits your shop&apos;s country — so a
+                Ghana-registered shop&apos;s imported item won&apos;t show up under any origin, and
+                its freight can&apos;t be rated.
+              </p>
+            ) : null}
           </Section>
 
           {/* --- Freight ----------------------------------------------------- */}
@@ -218,7 +233,7 @@ export function AbroadTermsField({
               </Field>
             </div>
 
-            {terms.arrivalPointId && !rate ? (
+            {terms.arrivalPointId && !rate && !allIn && terms.intlFreight <= 0 && !terms.freightIncluded ? (
               <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
                 No freight rate is configured for {terms.originCountry || "this origin"} by{" "}
                 {FREIGHT_MODE_LABELS[terms.freightMode].toLowerCase()} into that point. Buyers
@@ -245,38 +260,79 @@ export function AbroadTermsField({
             </label>
 
             {!terms.freightIncluded ? (
-              <div className="grid gap-4 sm:grid-cols-2">
+              <>
                 <Field
-                  label="Leg 1 — supplier to forwarder (GH₵ per unit)"
-                  htmlFor="abroadLeg1"
-                  hint="What it costs to get one unit from the supplier to your freight forwarder abroad."
+                  label="How your forwarder charges you"
+                  htmlFor="abroadBasis"
+                  hint={
+                    allIn
+                      ? "One figure covering carriage, duty and clearing to the Ghana arrival point. Nothing is added on top of it."
+                      : "Carriage comes from the arrival point's rate table; duty, clearing and Ghana VAT are added separately."
+                  }
                 >
-                  <input
-                    id="abroadLeg1"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={terms.supplierFreight || ""}
-                    onChange={(e) => set("supplierFreight", Number(e.target.value) || 0)}
+                  <select
+                    id="abroadBasis"
+                    value={terms.freightBasis}
+                    onChange={(e) => set("freightBasis", e.target.value as FreightBasis)}
                     className={inputClass}
-                  />
+                  >
+                    <option value="itemised">
+                      Itemised — carriage, then duty and clearing on top
+                    </option>
+                    <option value="all_in">
+                      All-in — one combined fee to the Ghana arrival point
+                    </option>
+                  </select>
                 </Field>
-                <Field
-                  label="Leg 2 override (GH₵ per unit)"
-                  htmlFor="abroadLeg2"
-                  hint="Leave at 0 to use the arrival point's own rate. Set a figure only if you have your own forwarder deal."
-                >
-                  <input
-                    id="abroadLeg2"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={terms.intlFreight || ""}
-                    onChange={(e) => set("intlFreight", Number(e.target.value) || 0)}
-                    className={inputClass}
-                  />
-                </Field>
-              </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field
+                    label="Leg 1 — supplier to forwarder (GH₵ per unit)"
+                    htmlFor="abroadLeg1"
+                    hint="What it costs to get one unit from the supplier to your freight forwarder abroad. Charged separately on either basis."
+                  >
+                    <input
+                      id="abroadLeg1"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={terms.supplierFreight || ""}
+                      onChange={(e) => set("supplierFreight", Number(e.target.value) || 0)}
+                      className={inputClass}
+                    />
+                  </Field>
+                  <Field
+                    label={
+                      allIn
+                        ? "All-in freight to Ghana (GH₵ per unit)"
+                        : "Leg 2 override (GH₵ per unit)"
+                    }
+                    htmlFor="abroadLeg2"
+                    hint={
+                      allIn
+                        ? "Your forwarder's single combined figure — carriage, duty and clearing. Required on this basis."
+                        : "Leave at 0 to use the arrival point's own rate. Set a figure only if you have your own forwarder deal."
+                    }
+                  >
+                    <input
+                      id="abroadLeg2"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={terms.intlFreight || ""}
+                      onChange={(e) => set("intlFreight", Number(e.target.value) || 0)}
+                      className={inputClass}
+                    />
+                  </Field>
+                </div>
+
+                {allIn && terms.intlFreight <= 0 ? (
+                  <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
+                    An all-in listing needs your forwarder&apos;s combined figure. Without it the
+                    freight into Ghana would be charged at zero.
+                  </p>
+                ) : null}
+              </>
             ) : null}
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -332,7 +388,11 @@ export function AbroadTermsField({
               <Field
                 label="Ghana VAT & levies (%)"
                 htmlFor="abroadGhanaTax"
-                hint={`Leave blank to use the platform rate of ${defaultGhanaTaxRate}%.`}
+                hint={
+                  allIn
+                    ? "Not charged on the all-in basis — your forwarder's figure already covers it."
+                    : `Leave blank to use the platform rate of ${defaultGhanaTaxRate}%.`
+                }
               >
                 <input
                   id="abroadGhanaTax"
@@ -350,18 +410,26 @@ export function AbroadTermsField({
               </Field>
             </div>
 
-            <label className="flex items-start gap-3 rounded-xl bg-niki-surface p-4 ring-1 ring-niki-edge">
-              <input
-                type="checkbox"
-                checked={terms.dutyIncluded}
-                onChange={(e) => set("dutyIncluded", e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded"
-              />
-              <span className="text-sm text-niki-ink/80">
-                Duty and clearing are already covered — don&apos;t charge them again. Tick this only
-                when your forwarder quoted you a duty-paid, cleared price.
-              </span>
-            </label>
+            {allIn ? (
+              <p className="rounded-xl bg-niki-surface p-4 text-sm text-niki-ink/70 ring-1 ring-niki-edge">
+                Your all-in freight figure already covers import duty, clearing and the taxes
+                assessed on landing, so none of them is charged again. Only the tax at source above
+                still applies.
+              </p>
+            ) : (
+              <label className="flex items-start gap-3 rounded-xl bg-niki-surface p-4 ring-1 ring-niki-edge">
+                <input
+                  type="checkbox"
+                  checked={terms.dutyIncluded}
+                  onChange={(e) => set("dutyIncluded", e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded"
+                />
+                <span className="text-sm text-niki-ink/80">
+                  Duty and clearing are already covered — don&apos;t charge them again. Tick this
+                  only when your forwarder quoted you a duty-paid, cleared price.
+                </span>
+              </label>
+            )}
           </Section>
 
           {/* --- Money ------------------------------------------------------- */}
@@ -489,7 +557,10 @@ export function AbroadTermsField({
               <Row label="Item price" value={estimate.goods} />
               <Row label="Tax at source" value={estimate.originTax} />
               <Row label="Leg 1 — supplier to forwarder" value={estimate.supplierFreight} />
-              <Row label="Leg 2 — forwarder to Ghana" value={estimate.internationalFreight} />
+              <Row
+                label={allIn ? "Freight to Ghana (all-in)" : "Leg 2 — forwarder to Ghana"}
+                value={estimate.internationalFreight}
+              />
               <Row label="Import duty" value={estimate.importDuty} />
               <Row label="Clearing & handling" value={estimate.clearingFee} />
               <Row label="Ghana VAT & levies" value={estimate.ghanaTax} />

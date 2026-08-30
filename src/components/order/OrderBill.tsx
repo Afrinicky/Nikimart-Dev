@@ -33,11 +33,24 @@ export function OrderBill({
   };
   className?: string;
 }) {
+  // Whether leg 2 was an all-in forwarder quote. The order stores the figures,
+  // not the basis that produced them, but the shape gives it away: a charge to
+  // Ghana with no duty and no Ghana tax beside it is a combined quote that
+  // already swallowed both. Labelling it plain "carriage" would leave a reader
+  // asking who paid the customs bill.
+  const allIn =
+    order.internationalFreight > 0 && order.importDuty === 0 && order.ghanaTax === 0;
+
   const rows: { label: string; value: number }[] = [
     { label: "Items", value: order.subtotal },
     { label: "Tax at source", value: order.originTax },
     { label: "Freight leg 1 — supplier to forwarder", value: order.supplierFreight },
-    { label: "Freight leg 2 — forwarder to Ghana", value: order.internationalFreight },
+    {
+      label: allIn
+        ? "Freight to Ghana — all-in (incl. duty & clearing)"
+        : "Freight leg 2 — forwarder to Ghana",
+      value: order.internationalFreight,
+    },
     { label: "Import duty", value: order.importDuty },
     { label: "Clearing & handling", value: order.clearingFee },
     { label: "Ghana VAT & levies", value: order.ghanaTax },

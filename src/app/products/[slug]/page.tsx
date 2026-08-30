@@ -41,6 +41,7 @@ import {
   type FreightMode,
 } from "@/lib/abroad";
 import { getArrivalPoint } from "@/lib/arrival-points-data";
+import { productBadges } from "@/lib/product-badges";
 
 type Params = Promise<{ slug: string }>;
 
@@ -81,7 +82,10 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
   const category = categories.find((c) => c.id === product.categoryId);
   const discount = discountPercent(product.price, product.oldPrice);
 
-  const abroad = isAbroad(product.originCountry);
+  // The same derived list the cards use, so a listing marked as imported is
+  // labelled here whether or not anyone typed the badge.
+  const badges = productBadges(product);
+  const abroad = shippedFromAbroad || isAbroad(product.originCountry);
   const originCountry = countryByCode(product.originCountry);
   const leadDays = abroad ? await getLeadDays(product.originCountry ?? "") : 0;
   const arrivalDate = abroad ? estimatedArrival(leadDays) : null;
@@ -118,9 +122,9 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
               emoji={product.emoji}
               alt={product.name}
             />
-            {product.badges.length > 0 ? (
+            {badges.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {product.badges.map((b) => (
+                {badges.map((b) => (
                   <Badge key={b} kind={b} />
                 ))}
               </div>
@@ -232,63 +236,65 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
                   <CalendarClock className="h-4 w-4 text-niki-orange" />
                   Shipped from abroad — please review before ordering
                 </p>
-                <p className="mt-2 text-xs text-niki-ink/60">
-                  The seller sources this once you order, so there is no closing date — you can order
-                  at any time. It is freighted in and handed over at your pickup point.
-                </p>
-                {/* Only terms the seller actually wrote. A labelled blank reads
-                    as a promise nobody made. */}
-                <ul className="mt-3 space-y-1.5 text-niki-ink/75">
-                  {abroadTerms.sourceLocation ? <li>Ships from: {abroadTerms.sourceLocation}</li> : null}
-                  {abroadTerms.supplierName ? <li>Supplier: {abroadTerms.supplierName}</li> : null}
-                  <li>
-                    Freight method:{" "}
-                    {FREIGHT_MODE_LABELS[abroadTerms.freightMode as FreightMode] ?? abroadTerms.freightMode}
-                  </li>
-                  {arrivalPoint ? (
-                    <li>
-                      Lands at: {arrivalPoint.name}
-                      {arrivalPoint.city ? ` — ${arrivalPoint.city}` : ""}
-                    </li>
-                  ) : null}
-                  {abroadTerms.estimatedArrival ? (
-                    <li>Estimated arrival: {abroadTerms.estimatedArrival}</li>
-                  ) : null}
-                  <li>{describeDeposit(abroadTerms)}</li>
-                  {abroadTerms.freightIncluded ? (
-                    <li>Freight into Ghana is already included in this price.</li>
-                  ) : (
-                    <li>
-                      Freight, duty and taxes are added at checkout, itemised — you see every leg
-                      before you pay.
-                    </li>
-                  )}
-                  {abroadTerms.allowFreightOnArrival ? (
-                    <li>
-                      You may pay for the goods now and settle the freight and duty when it lands.
-                    </li>
-                  ) : null}
-                  {(abroadTerms.depositRequired || abroadTerms.allowFreightOnArrival) &&
-                  abroadTerms.balanceInstruction ? (
-                    <li>{abroadTerms.balanceInstruction}</li>
-                  ) : null}
-                  {abroadTerms.refundPolicy ? <li>{abroadTerms.refundPolicy}</li> : null}
-                  {abroadTerms.minimumOrders > 0 ? (
-                    <li>Ordered once {abroadTerms.minimumOrders} buyers have bought</li>
-                  ) : null}
-                </ul>
-                {abroadTerms.sourceUrl ? (
-                  <a
-                    href={abroadTerms.sourceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow"
-                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-niki-orange hover:underline"
-                  >
-                    View the supplier&apos;s listing
-                  </a>
+                {/* The facts, as a grid rather than a list of sentences: a
+                    shopper scans this for four things — where from, how, when,
+                    what it costs on top — and a paragraph makes them read to
+                    find each one. Terms the seller left blank are dropped; a
+                    labelled blank reads as a promise nobody made. */}
+                <dl className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                  <Fact label="Ships from" value={abroadTerms.sourceLocation} />
+                  <Fact
+                    label="Arrives"
+                    value={abroadTerms.estimatedArrival || (leadDays ? `about ${leadDays} days` : "")}
+                  />
+                  <Fact
+                    label="Freight"
+                    value={FREIGHT_MODE_LABELS[abroadTerms.freightMode as FreightMode] ?? ""}
+                  />
+                  <Fact
+                    label="Clears at"
+                    value={
+                      arrivalPoint
+                        ? `${arrivalPoint.name}${arrivalPoint.city ? `, ${arrivalPoint.city}` : ""}`
+                        : ""
+                    }
+                  />
+                  <Fact label="Payment" value={describeDeposit(abroadTerms)} />
+                  <Fact
+                    label="Extra charges"
+                    value={
+                      abroadTerms.freightIncluded
+                        ? "Freight to Ghana already in this price"
+                        : "Freight, duty and tax itemised at checkout"
+                    }
+                  />
+                </dl>
+
+                {abroadTerms.refundPolicy ? (
+                  <p className="mt-3 text-xs leading-relaxed text-niki-ink/60">
+                    {abroadTerms.refundPolicy}
+                  </p>
                 ) : null}
+
                 <p className="mt-3 text-xs text-niki-ink/60">
-                  You&apos;ll be asked to accept these terms at checkout.
+                  Ordering never closes.{" "}
+                  {abroadTerms.allowFreightOnArrival
+                    ? "You can pay for the goods now and settle the freight when it lands. "
+                    : ""}
+                  You&apos;ll see the full bill and accept these terms at checkout.
+                  {abroadTerms.sourceUrl ? (
+                    <>
+                      {" "}
+                      <a
+                        href={abroadTerms.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                        className="font-semibold text-niki-orange hover:underline"
+                      >
+                        View the supplier&apos;s listing
+                      </a>
+                    </>
+                  ) : null}
                 </p>
               </div>
             ) : null}
@@ -349,5 +355,16 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         ) : null}
       </Container>
     </>
+  );
+}
+
+/** One labelled fact in the shipped-from-abroad panel, or nothing at all. */
+function Fact({ label, value }: { label: string; value: string }) {
+  if (!value.trim()) return null;
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-niki-ink/45">{label}</dt>
+      <dd className="text-sm text-niki-ink/80">{value}</dd>
+    </div>
   );
 }
