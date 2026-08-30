@@ -32,7 +32,15 @@ import { discountPercent, formatPrice } from "@/lib/format";
 import { countryByCode, estimatedArrival, isAbroad } from "@/lib/countries";
 import { getLeadDays } from "@/lib/settings";
 import { waChatLink } from "@/lib/whatsapp";
-import { describeDeposit, hasAnyTerms, toPreorderTerms } from "@/lib/preorder";
+import {
+  describeDeposit,
+  FREIGHT_MODE_LABELS,
+  hasAnyTerms,
+  isAbroadType,
+  toAbroadTerms,
+  type FreightMode,
+} from "@/lib/abroad";
+import { getArrivalPoint } from "@/lib/arrival-points-data";
 
 type Params = Promise<{ slug: string }>;
 
@@ -61,7 +69,8 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
   if (!product) notFound();
 
   // Only terms the seller actually wrote; null keeps the panel off entirely.
-  const preorderTerms = product.preorderInfo ? toPreorderTerms(product.preorderInfo) : null;
+  const abroadTerms = product.preorderInfo ? toAbroadTerms(product.preorderInfo) : null;
+  const shippedFromAbroad = isAbroadType(product.productType) && abroadTerms !== null;
 
   const [vendor, categories, related, vendorNames] = await Promise.all([
     getVendorById(product.vendorId),
@@ -76,6 +85,11 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
   const originCountry = countryByCode(product.originCountry);
   const leadDays = abroad ? await getLeadDays(product.originCountry ?? "") : 0;
   const arrivalDate = abroad ? estimatedArrival(leadDays) : null;
+  // The Ghana point this listing lands at, when the seller named one. Shown so
+  // a buyer can see where it clears before the domestic leg starts.
+  const arrivalPoint = shippedFromAbroad
+    ? await getArrivalPoint(abroadTerms.arrivalPointId || product.arrivalPointId)
+    : null;
 
   const deliveryOptions = [
     product.sameDayDeliveryAvailable && { icon: Truck, label: "Same-day delivery available" },
@@ -212,33 +226,67 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
               </div>
             ) : null}
 
-            {preorderTerms && hasAnyTerms(preorderTerms) ? (
+            {abroadTerms && hasAnyTerms(abroadTerms) ? (
               <div className="mt-5 rounded-2xl bg-niki-orange/[0.07] p-4 text-sm ring-1 ring-niki-orange/30">
                 <p className="flex items-center gap-2 font-semibold text-niki-ink">
                   <CalendarClock className="h-4 w-4 text-niki-orange" />
-                  Preorder — please review before ordering
+                  Shipped from abroad — please review before ordering
+                </p>
+                <p className="mt-2 text-xs text-niki-ink/60">
+                  The seller sources this once you order, so there is no closing date — you can order
+                  at any time. It is freighted in and handed over at your pickup point.
                 </p>
                 {/* Only terms the seller actually wrote. A labelled blank reads
                     as a promise nobody made. */}
                 <ul className="mt-3 space-y-1.5 text-niki-ink/75">
-                  {preorderTerms.estimatedArrival ? (
-                    <li>Estimated arrival: {preorderTerms.estimatedArrival}</li>
+                  {abroadTerms.sourceLocation ? <li>Ships from: {abroadTerms.sourceLocation}</li> : null}
+                  {abroadTerms.supplierName ? <li>Supplier: {abroadTerms.supplierName}</li> : null}
+                  <li>
+                    Freight method:{" "}
+                    {FREIGHT_MODE_LABELS[abroadTerms.freightMode as FreightMode] ?? abroadTerms.freightMode}
+                  </li>
+                  {arrivalPoint ? (
+                    <li>
+                      Lands at: {arrivalPoint.name}
+                      {arrivalPoint.city ? ` — ${arrivalPoint.city}` : ""}
+                    </li>
                   ) : null}
-                  {preorderTerms.closingDate ? (
-                    <li>Preorder closes: {preorderTerms.closingDate}</li>
+                  {abroadTerms.estimatedArrival ? (
+                    <li>Estimated arrival: {abroadTerms.estimatedArrival}</li>
                   ) : null}
-                  <li>{describeDeposit(preorderTerms)}</li>
-                  {preorderTerms.depositRequired && preorderTerms.balanceInstruction ? (
-                    <li>{preorderTerms.balanceInstruction}</li>
+                  <li>{describeDeposit(abroadTerms)}</li>
+                  {abroadTerms.freightIncluded ? (
+                    <li>Freight into Ghana is already included in this price.</li>
+                  ) : (
+                    <li>
+                      Freight, duty and taxes are added at checkout, itemised — you see every leg
+                      before you pay.
+                    </li>
+                  )}
+                  {abroadTerms.allowFreightOnArrival ? (
+                    <li>
+                      You may pay for the goods now and settle the freight and duty when it lands.
+                    </li>
                   ) : null}
-                  {preorderTerms.refundPolicy ? <li>{preorderTerms.refundPolicy}</li> : null}
-                  {preorderTerms.sourceLocation ? (
-                    <li>Sourced from: {preorderTerms.sourceLocation}</li>
+                  {(abroadTerms.depositRequired || abroadTerms.allowFreightOnArrival) &&
+                  abroadTerms.balanceInstruction ? (
+                    <li>{abroadTerms.balanceInstruction}</li>
                   ) : null}
-                  {preorderTerms.minimumOrders > 0 ? (
-                    <li>Ships once {preorderTerms.minimumOrders} buyers have ordered</li>
+                  {abroadTerms.refundPolicy ? <li>{abroadTerms.refundPolicy}</li> : null}
+                  {abroadTerms.minimumOrders > 0 ? (
+                    <li>Ordered once {abroadTerms.minimumOrders} buyers have bought</li>
                   ) : null}
                 </ul>
+                {abroadTerms.sourceUrl ? (
+                  <a
+                    href={abroadTerms.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-niki-orange hover:underline"
+                  >
+                    View the supplier&apos;s listing
+                  </a>
+                ) : null}
                 <p className="mt-3 text-xs text-niki-ink/60">
                   You&apos;ll be asked to accept these terms at checkout.
                 </p>

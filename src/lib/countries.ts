@@ -1,6 +1,6 @@
 // Origin countries for sellers/products. "GH" is local; anything else ships
 // from abroad. regionId matches the ids used in global-data's sourceRegions and
-// the /global-shopping/[region] route.
+// the /shipped-from-abroad/[region] route.
 
 export interface CountryInfo {
   code: string; // GH, CN, AE, US, EU

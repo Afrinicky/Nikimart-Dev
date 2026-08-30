@@ -36,7 +36,7 @@ export default async function RegisterPage({
           </span>
         </div>
         <h1 className="mt-6 font-display text-2xl font-bold text-niki-ink">Create your account</h1>
-        <p className="mt-1 text-sm text-niki-ink/60">Shop, preorder, and track orders on Nickimart.</p>
+        <p className="mt-1 text-sm text-niki-ink/60">Shop locally, order from abroad, and track it all on Nickimart.</p>
 
         <RegisterForm pickupPoints={pickupPoints} callbackUrl={cb} />
 

@@ -126,6 +126,18 @@ async function main() {
       image: p.image ?? `/products/${p.slug}.jpg`,
       preorderInfo: p.preorderInfo ? JSON.stringify(p.preorderInfo) : null,
       serviceInfo: p.serviceInfo ? JSON.stringify(p.serviceInfo) : null,
+      // The shipped-from-abroad columns mirrored out of the seeded terms, the
+      // same way the product form does it — otherwise a seeded imported listing
+      // would price as a domestic one, because origin comes from the listing
+      // now rather than only from the shop.
+      originCountry: p.preorderInfo?.originCountry ?? "",
+      sourceUrl: p.preorderInfo?.sourceUrl ?? "",
+      supplierName: p.preorderInfo?.supplierName ?? "",
+      freightMode: p.preorderInfo?.freightMode ?? "",
+      supplierFreight: p.preorderInfo?.supplierFreight ?? 0,
+      intlFreight: p.preorderInfo?.intlFreight ?? 0,
+      freightIncluded: p.preorderInfo?.freightIncluded ?? false,
+      originTaxRate: p.preorderInfo?.originTaxRate ?? 0,
       categoryId: p.categoryId,
       vendorId: p.vendorId,
     };
@@ -285,9 +297,9 @@ async function main() {
   // -------------------------------------------------------------------------
   const faqs = [
     { id: "faq-delivery", question: "How does delivery and pickup work?", answer: "Many sellers offer same-day delivery, campus drop-off, or in-person pickup. The available options are shown on each product page and at checkout." },
-    { id: "faq-preorder", question: "How do preorders work?", answer: "Preorder items are imported on order. You pay a deposit to reserve your item, then settle the balance on arrival before delivery or pickup. Review each product's arrival estimate and refund policy first." },
+    { id: "faq-preorder", question: "How does Shipped from Abroad work?", answer: "The seller sources the item from a supplier abroad once you order — ordering never closes. Your bill itemises the three freight legs, the tax at source, and Ghana duty and VAT, so you see every charge before paying. Where the seller allows it you can pay for the goods now and settle the freight and duty when it lands. You are alerted when it reaches Ghana and again when it is ready to collect." },
     { id: "faq-pay", question: "How do I pay?", answer: "Nickimart supports local payments including Mobile Money and card. You choose your payment method at checkout." },
-    { id: "faq-sell", question: "How do I become a seller?", answer: "Head to “Sell on Nickimart”, register your shop, complete quick verification, and start listing products, preorders, or services." },
+    { id: "faq-sell", question: "How do I become a seller?", answer: "Head to “Sell on Nickimart”, register your shop, complete quick verification, and start listing products, imported goods, or services." },
     { id: "faq-protection", question: "Is my purchase protected?", answer: "Yes. Orders are covered by Nickimart Buyer Protection. If something goes wrong, our support team helps resolve it." },
   ];
   for (const [index, f] of faqs.entries()) {

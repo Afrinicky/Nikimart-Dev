@@ -9,7 +9,12 @@ import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
 import { ConfirmStageButton } from "@/components/order/ConfirmStageButton";
-import { confirmActionLabel, nextStageForRole, type ShipmentTimestamps } from "@/lib/tracking";
+import {
+  confirmActionLabel,
+  nextStageForRole,
+  type ShipmentRoute,
+  type ShipmentTimestamps,
+} from "@/lib/tracking";
 
 export const metadata: Metadata = {
   title: "Pickup Dashboard — Nickimart",
@@ -110,15 +115,22 @@ export default async function PickupDashboardPage() {
                           </span>
                           {order.shipment && order.status !== "cancelled"
                             ? (() => {
+                                const route: ShipmentRoute = order.hasAbroadItems ? "abroad" : "domestic";
                                 const ts: ShipmentTimestamps = {
                                   processingAt: order.shipment.processingAt,
                                   transitAt: order.shipment.transitAt,
                                   outForDeliveryAt: order.shipment.outForDeliveryAt,
                                   deliveredAt: order.shipment.deliveredAt,
+                                  forwarderReceivedAt: order.shipment.forwarderReceivedAt,
+                                  arrivedGhanaAt: order.shipment.arrivedGhanaAt,
                                 };
-                                const next = nextStageForRole(user.role, "pickup", ts);
+                                const next = nextStageForRole(user.role, "pickup", ts, route);
                                 return next ? (
-                                  <ConfirmStageButton shipmentId={order.shipment.id} stage={next} label={confirmActionLabel(next, "pickup")} />
+                                  <ConfirmStageButton
+                                    shipmentId={order.shipment.id}
+                                    stage={next}
+                                    label={confirmActionLabel(next, "pickup", route)}
+                                  />
                                 ) : null;
                               })()
                             : null}

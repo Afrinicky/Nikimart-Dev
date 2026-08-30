@@ -5,8 +5,9 @@ import { useActionState, useState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { ProductImagesField } from "@/components/admin/ProductImagesField";
-import { PreorderTermsField } from "@/components/admin/PreorderTermsField";
-import { toPreorderTerms } from "@/lib/preorder";
+import { AbroadTermsField } from "@/components/admin/AbroadTermsField";
+import { isAbroadType, SHIPPED_FROM_ABROAD, toAbroadTerms } from "@/lib/abroad";
+import type { ArrivalPointConfig } from "@/lib/arrival-points";
 import { KeyAttributesField } from "@/components/admin/KeyAttributesField";
 import { AffiliateEnrolmentField } from "@/components/admin/AffiliateEnrolmentField";
 import type { CrudState } from "@/lib/admin-actions";
@@ -16,7 +17,7 @@ type Action = (prev: CrudState, fd: FormData) => Promise<CrudState>;
 
 const PRODUCT_TYPES = [
   { value: "in_stock", label: "In stock" },
-  { value: "preorder", label: "Preorder" },
+  { value: SHIPPED_FROM_ABROAD, label: "Shipped from abroad" },
   { value: "service", label: "Service" },
   { value: "food", label: "Food" },
 ];
@@ -41,6 +42,10 @@ export function ProductForm({
   cancelHref = "/admin/products",
   defaultCommissionRate,
   defaultAffiliateRate,
+  arrivalPoints = [],
+  defaultGhanaTaxRate = 0,
+  defaultDutyPercent = 0,
+  partialPaymentEnabled = true,
 }: {
   action: Action;
   categories: ProductFormCategory[];
@@ -56,14 +61,39 @@ export function ProductForm({
   defaultCommissionRate: number;
   /** Programme default affiliate commission (percent). */
   defaultAffiliateRate: number;
+  /** Ghana arrival points a shipped-from-abroad listing may land at. */
+  arrivalPoints?: ArrivalPointConfig[];
+  /** Platform Ghana VAT + levies, and the fallback import duty (percent). */
+  defaultGhanaTaxRate?: number;
+  defaultDutyPercent?: number;
+  /** Whether the goods-only payment plan may be offered at all. */
+  partialPaymentEnabled?: boolean;
 }) {
   const [state, formAction] = useActionState<CrudState, FormData>(action, {});
   const p = product;
   const [categoryId, setCategoryId] = useState(p?.categoryId ?? "");
-  // Drives the preorder terms section below: terms are meaningless for a
-  // product that is already on a shelf.
-  const [productType, setProductType] = useState<string>(p?.productType ?? "in_stock");
+  // Drives the shipped-from-abroad section below: freight terms are meaningless
+  // for a product that is already on a shelf in Accra. A legacy "preorder" row
+  // opens on the new type, so saving it normalises the value.
+  const [productType, setProductType] = useState<string>(
+    isAbroadType(p?.productType) ? SHIPPED_FROM_ABROAD : (p?.productType ?? "in_stock"),
+  );
   const selectedCategory = categories.find((c) => c.id === categoryId);
+
+  // Mirrored so the landed-cost estimate reacts as they are typed. The form
+  // still submits the inputs themselves; these only feed the preview.
+  const [price, setPrice] = useState<number>(p?.price ?? 0);
+  const [dims, setDims] = useState({
+    cbm: p?.cbm ?? 0,
+    lengthCm: p?.lengthCm ?? 0,
+    widthCm: p?.widthCm ?? 0,
+    heightCm: p?.heightCm ?? 0,
+    weightKg: p?.shippingWeightKg ?? 0.5,
+  });
+  const estimateCbm =
+    dims.cbm > 0
+      ? dims.cbm
+      : (dims.lengthCm * dims.widthCm * dims.heightCm) / 1_000_000;
 
   return (
     <form action={formAction} className="space-y-5" noValidate>
@@ -88,7 +118,17 @@ export function ProductForm({
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Price (GH₵)" htmlFor="price" hint={state.fieldErrors?.price}>
-          <input id="price" name="price" type="number" step="0.01" min="0" defaultValue={p?.price} required className={inputClass} />
+          <input
+            id="price"
+            name="price"
+            type="number"
+            step="0.01"
+            min="0"
+            defaultValue={p?.price}
+            onChange={(e) => setPrice(Number(e.target.value) || 0)}
+            required
+            className={inputClass}
+          />
         </Field>
         <Field label="Old price (optional)" htmlFor="oldPrice">
           <input id="oldPrice" name="oldPrice" type="number" step="0.01" min="0" defaultValue={p?.oldPrice ?? ""} className={inputClass} />
@@ -100,16 +140,16 @@ export function ProductForm({
 
       <div className="grid gap-4 sm:grid-cols-4">
         <Field label="Shipping weight (kg)" htmlFor="shippingWeightKg" hint="Used when charging by weight">
-          <input id="shippingWeightKg" name="shippingWeightKg" type="number" step="0.1" min="0" defaultValue={p?.shippingWeightKg ?? 0.5} className={inputClass} />
+          <input id="shippingWeightKg" name="shippingWeightKg" onChange={(e) => setDims((d) => ({ ...d, weightKg: Number(e.target.value) || 0 }))} type="number" step="0.1" min="0" defaultValue={p?.shippingWeightKg ?? 0.5} className={inputClass} />
         </Field>
         <Field label="Length (cm)" htmlFor="lengthCm" hint="For size pricing">
-          <input id="lengthCm" name="lengthCm" type="number" step="0.1" min="0" defaultValue={p?.lengthCm ?? 0} className={inputClass} />
+          <input id="lengthCm" name="lengthCm" onChange={(e) => setDims((d) => ({ ...d, lengthCm: Number(e.target.value) || 0 }))} type="number" step="0.1" min="0" defaultValue={p?.lengthCm ?? 0} className={inputClass} />
         </Field>
         <Field label="Width (cm)" htmlFor="widthCm">
-          <input id="widthCm" name="widthCm" type="number" step="0.1" min="0" defaultValue={p?.widthCm ?? 0} className={inputClass} />
+          <input id="widthCm" name="widthCm" onChange={(e) => setDims((d) => ({ ...d, widthCm: Number(e.target.value) || 0 }))} type="number" step="0.1" min="0" defaultValue={p?.widthCm ?? 0} className={inputClass} />
         </Field>
         <Field label="Height (cm)" htmlFor="heightCm">
-          <input id="heightCm" name="heightCm" type="number" step="0.1" min="0" defaultValue={p?.heightCm ?? 0} className={inputClass} />
+          <input id="heightCm" name="heightCm" onChange={(e) => setDims((d) => ({ ...d, heightCm: Number(e.target.value) || 0 }))} type="number" step="0.1" min="0" defaultValue={p?.heightCm ?? 0} className={inputClass} />
         </Field>
       </div>
 
@@ -119,7 +159,7 @@ export function ProductForm({
           htmlFor="cbm"
           hint="Cubic metres per unit — the basis of the shipping fee. Leave blank to auto-calculate from L×W×H."
         >
-          <input id="cbm" name="cbm" type="number" step="0.0001" min="0" defaultValue={p?.cbm ? p.cbm : ""} placeholder="e.g. 0.045" className={inputClass} />
+          <input id="cbm" name="cbm" onChange={(e) => setDims((d) => ({ ...d, cbm: Number(e.target.value) || 0 }))} type="number" step="0.0001" min="0" defaultValue={p?.cbm ? p.cbm : ""} placeholder="e.g. 0.045" className={inputClass} />
         </Field>
       </div>
 
@@ -178,9 +218,16 @@ export function ProductForm({
 
       <ProductImagesField initial={p?.images} />
 
-      <PreorderTermsField
-        initial={p?.preorderInfo ? toPreorderTerms(p.preorderInfo) : null}
-        visible={productType === "preorder"}
+      <AbroadTermsField
+        initial={p?.preorderInfo ? toAbroadTerms(p.preorderInfo) : null}
+        visible={productType === SHIPPED_FROM_ABROAD}
+        arrivalPoints={arrivalPoints}
+        defaultGhanaTaxRate={defaultGhanaTaxRate}
+        defaultDutyPercent={defaultDutyPercent}
+        partialPaymentEnabled={partialPaymentEnabled}
+        price={price}
+        cbm={estimateCbm}
+        weightKg={dims.weightKg}
       />
 
       <div className="grid gap-4 sm:grid-cols-2">

@@ -34,7 +34,7 @@ export default async function OgImage() {
         Shop smart. Sell faster. Deliver closer.
       </div>
       <div style={{ fontSize: 30, color: "rgba(255,255,255,0.7)", marginTop: 18, maxWidth: 960 }}>
-        Trusted local shops, preorders & official products across Ghana.
+        Local shops, goods shipped from abroad & official products across Ghana.
       </div>
     </div>,
   );

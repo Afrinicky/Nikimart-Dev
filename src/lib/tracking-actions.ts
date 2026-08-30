@@ -11,7 +11,9 @@ import {
   deriveStatus,
   orderStatusForStage,
   stageLabel,
+  stagesFor,
   type DeliveryMethod,
+  type ShipmentRoute,
   type ShipmentStage,
   type ShipmentTimestamps,
 } from "@/lib/tracking";
@@ -40,15 +42,30 @@ export async function confirmShipmentStage(_prev: ConfirmState, fd: FormData): P
       transitAt: true,
       outForDeliveryAt: true,
       deliveredAt: true,
-      order: { select: { id: true, deliveryMethod: true, pickupPointId: true } },
+      forwarderReceivedAt: true,
+      arrivedGhanaAt: true,
+      order: {
+        select: { id: true, deliveryMethod: true, pickupPointId: true, hasAbroadItems: true },
+      },
     },
   });
   if (!shipment) return { error: "Shipment not found." };
 
   const method: DeliveryMethod = shipment.order.deliveryMethod === "pickup" ? "pickup" : "delivery";
+  // An imported consignment has two extra milestones — the forwarder hand-off
+  // and the landing in Ghana — that a domestic one does not, so which stages
+  // exist at all depends on the route.
+  const route: ShipmentRoute = shipment.order.hasAbroadItems ? "abroad" : "domestic";
+  const stages = stagesFor(route);
+
+  // A stage that isn't on this route can't be confirmed for it: nothing should
+  // be able to mark a parcel moving across Accra as "arrived in Ghana".
+  if (!stages.includes(stage)) {
+    return { error: "That step doesn't apply to this consignment." };
+  }
 
   // Role may confirm this stage for this method?
-  if (!canConfirmStage(user.role, stage, method)) {
+  if (!canConfirmStage(user.role, stage, method, route)) {
     return { error: "You're not responsible for this step." };
   }
 
@@ -76,11 +93,13 @@ export async function confirmShipmentStage(_prev: ConfirmState, fd: FormData): P
     transitAt: shipment.transitAt,
     outForDeliveryAt: shipment.outForDeliveryAt,
     deliveredAt: shipment.deliveredAt,
+    forwarderReceivedAt: shipment.forwarderReceivedAt,
+    arrivedGhanaAt: shipment.arrivedGhanaAt,
   };
-  const targetIdx = SHIPMENT_STAGES.indexOf(stage);
+  const targetIdx = stages.indexOf(stage);
   const now = new Date();
   const data: Record<string, unknown> = { manualHold: true };
-  SHIPMENT_STAGES.forEach((s, i) => {
+  stages.forEach((s, i) => {
     if (i <= targetIdx && !ts[STAGE_COLUMN[s]]) {
       data[STAGE_COLUMN[s]] = now;
       ts[STAGE_COLUMN[s]] = now;
@@ -89,7 +108,7 @@ export async function confirmShipmentStage(_prev: ConfirmState, fd: FormData): P
   // Freight self-assigns if the consignment was unassigned.
   if (user.role === "FREIGHT" && !shipment.freightAgentId) data.freightAgentId = user.id;
 
-  const status = deriveStatus(ts);
+  const status = deriveStatus(ts, route);
   data.status = status;
 
   await prisma.shipment.update({ where: { id: shipment.id }, data });
@@ -99,10 +118,12 @@ export async function confirmShipmentStage(_prev: ConfirmState, fd: FormData): P
   // — after the response so notifications never block the confirmation.
   if (status !== "created") {
     const oid = shipment.order.id;
-    const label = stageLabel(status, method);
+    const label = stageLabel(status, method, route);
     const actingRole = user.role;
     after(async () => {
-      await notifyShipmentUpdate(oid, label);
+      // The stage goes through as well as its label: arrival in Ghana and
+      // hand-over get their own message rather than a generic status line.
+      await notifyShipmentUpdate(oid, label, status);
       await notifyNextResponsible(oid, actingRole);
     });
   }

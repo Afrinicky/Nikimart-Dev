@@ -9,7 +9,13 @@ import { getSellerVendor } from "@/lib/seller";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, SHIPMENT_STATUS_LABELS, statusTone } from "@/lib/order-status";
 import { ConfirmStageButton } from "@/components/order/ConfirmStageButton";
-import { nextStageForRole, confirmActionLabel, type DeliveryMethod, type ShipmentTimestamps } from "@/lib/tracking";
+import {
+  nextStageForRole,
+  confirmActionLabel,
+  type DeliveryMethod,
+  type ShipmentRoute,
+  type ShipmentTimestamps,
+} from "@/lib/tracking";
 
 export const metadata: Metadata = { title: "Orders — Seller — Nickimart" };
 
@@ -49,6 +55,7 @@ export default async function SellerOrdersPage() {
         select: {
           id: true, status: true, trackingNumber: true,
           processingAt: true, transitAt: true, outForDeliveryAt: true, deliveredAt: true,
+          forwarderReceivedAt: true, arrivedGhanaAt: true,
         },
       },
       pickupPoint: { select: { name: true } },
@@ -110,15 +117,24 @@ export default async function SellerOrdersPage() {
                       {order.shipment
                         ? (() => {
                             const method: DeliveryMethod = order.deliveryMethod === "pickup" ? "pickup" : "delivery";
+                            // On an imported order the seller's first step is
+                            // "ordered from the supplier", not "prepared".
+                            const route: ShipmentRoute = order.hasAbroadItems ? "abroad" : "domestic";
                             const ts: ShipmentTimestamps = {
                               processingAt: order.shipment.processingAt,
                               transitAt: order.shipment.transitAt,
                               outForDeliveryAt: order.shipment.outForDeliveryAt,
                               deliveredAt: order.shipment.deliveredAt,
+                              forwarderReceivedAt: order.shipment.forwarderReceivedAt,
+                              arrivedGhanaAt: order.shipment.arrivedGhanaAt,
                             };
-                            const next = nextStageForRole("SELLER", method, ts);
+                            const next = nextStageForRole("SELLER", method, ts, route);
                             return next ? (
-                              <ConfirmStageButton shipmentId={order.shipment.id} stage={next} label={confirmActionLabel(next, method)} />
+                              <ConfirmStageButton
+                                shipmentId={order.shipment.id}
+                                stage={next}
+                                label={confirmActionLabel(next, method, route)}
+                              />
                             ) : null;
                           })()
                         : null}

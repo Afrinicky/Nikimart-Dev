@@ -11,7 +11,10 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
 export const SHIPMENT_STATUS_LABELS: Record<string, string> = {
   created: "Awaiting confirmation",
   processing: "Prepared by seller",
+  // Only reached by a consignment shipped from abroad.
+  at_forwarder: "At the freight forwarder",
   in_transit: "In transit",
+  arrived_ghana: "Arrived in Ghana",
   out_for_delivery: "Out for delivery",
   delivered: "Delivered",
 };
@@ -23,8 +26,11 @@ export function statusTone(status: string): string {
       return "bg-niki-success/10 text-niki-success";
     case "shipped":
     case "in_transit":
+    case "arrived_ghana":
     case "out_for_delivery":
       return "bg-niki-trust/10 text-niki-trust";
+    case "at_forwarder":
+      return "bg-niki-gold/15 text-amber-800";
     case "paid":
       return "bg-niki-orange/10 text-niki-orange";
     case "cancelled":

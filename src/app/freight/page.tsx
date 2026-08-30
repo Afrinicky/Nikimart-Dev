@@ -8,7 +8,13 @@ import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { SHIPMENT_STATUS_LABELS, statusTone } from "@/lib/order-status";
 import { ConfirmStageButton } from "@/components/order/ConfirmStageButton";
-import { confirmActionLabel, nextStageForRole, type DeliveryMethod, type ShipmentTimestamps } from "@/lib/tracking";
+import {
+  confirmActionLabel,
+  nextStageForRole,
+  type DeliveryMethod,
+  type ShipmentRoute,
+  type ShipmentTimestamps,
+} from "@/lib/tracking";
 
 export const metadata: Metadata = {
   title: "Freight Dashboard — Nickimart",
@@ -89,15 +95,25 @@ export default async function FreightDashboardPage() {
                   </span>
                   {(() => {
                     const method: DeliveryMethod = s.order.deliveryMethod === "pickup" ? "pickup" : "delivery";
+                    // An imported consignment has two extra legs to confirm —
+                    // the forwarder hand-off and the landing in Ghana — so the
+                    // next step depends on the route it is taking.
+                    const route: ShipmentRoute = s.order.hasAbroadItems ? "abroad" : "domestic";
                     const ts: ShipmentTimestamps = {
                       processingAt: s.processingAt,
                       transitAt: s.transitAt,
                       outForDeliveryAt: s.outForDeliveryAt,
                       deliveredAt: s.deliveredAt,
+                      forwarderReceivedAt: s.forwarderReceivedAt,
+                      arrivedGhanaAt: s.arrivedGhanaAt,
                     };
-                    const next = nextStageForRole(user.role, method, ts);
+                    const next = nextStageForRole(user.role, method, ts, route);
                     return next ? (
-                      <ConfirmStageButton shipmentId={s.id} stage={next} label={confirmActionLabel(next, method)} />
+                      <ConfirmStageButton
+                        shipmentId={s.id}
+                        stage={next}
+                        label={confirmActionLabel(next, method, route)}
+                      />
                     ) : null;
                   })()}
                 </div>

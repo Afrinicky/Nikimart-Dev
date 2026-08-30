@@ -114,13 +114,76 @@ test("not enrolled clears the rate rather than leaving a stale one", () => {
 });
 
 test("the product type survives the round trip", () => {
-  // The edit that surfaced the crash: switching In stock → Preorder.
-  for (const kind of ["in_stock", "preorder", "service", "food"]) {
+  // The edit that surfaced the crash: switching In stock → another type.
+  for (const kind of ["in_stock", "shipped_from_abroad", "service", "food"]) {
     const data = buildProductData(form({ ...FULL, productType: kind }));
     assert.equal(data.productType, kind);
   }
   // An empty select falls back rather than writing "".
   assert.equal(buildProductData(form({ ...FULL, productType: "" })).productType, "in_stock");
+});
+
+test("the legacy preorder type is normalised on save", () => {
+  // Listings made before the rename are stored as "preorder" and are never
+  // backfilled — migrations here are additive. Saving one through the form is
+  // the one moment we can move it on, and both values mean the same thing
+  // everywhere they are read (see lib/abroad).
+  const data = buildProductData(form({ ...FULL, productType: "preorder" }));
+  assert.equal(data.productType, "shipped_from_abroad");
+});
+
+test("switching away from shipped-from-abroad leaves no freight behind", () => {
+  // A stale arrival point or leg-1 cost on an in-stock item would quietly bill
+  // a buyer for freight that no longer applies to it.
+  const data = buildProductData(
+    form({
+      ...FULL,
+      productType: "in_stock",
+      abroadTerms: JSON.stringify({
+        arrivalPointId: "ap-tema",
+        supplierFreight: 90,
+        originCountry: "CN",
+        freightIncluded: true,
+      }),
+    }),
+  );
+  assert.equal(data.arrivalPointId, null);
+  assert.equal(data.supplierFreight, 0);
+  assert.equal(data.originCountry, "");
+  assert.equal(data.freightIncluded, false);
+  assert.equal(data.preorderInfo, null);
+});
+
+test("the abroad columns are mirrored out of the submitted terms", () => {
+  // The terms are one JSON blob for the buyer to read; these columns are what
+  // the pricing and the queries actually join on, so they must agree.
+  const data = buildProductData(
+    form({
+      ...FULL,
+      productType: "shipped_from_abroad",
+      abroadTerms: JSON.stringify({
+        originCountry: "cn",
+        sourceUrl: "https://www.alibaba.com/x",
+        supplierName: "Shenzhen Kaiyuan",
+        freightMode: "air",
+        arrivalPointId: "ap-kia",
+        supplierFreight: 90,
+        intlFreight: 0,
+        originTaxRate: 13,
+        ghanaTaxRate: -1,
+      }),
+    }),
+  );
+  assert.equal(data.originCountry, "CN");
+  assert.equal(data.sourceUrl, "https://www.alibaba.com/x");
+  assert.equal(data.supplierName, "Shenzhen Kaiyuan");
+  assert.equal(data.freightMode, "air");
+  assert.equal(data.arrivalPointId, "ap-kia");
+  assert.equal(data.supplierFreight, 90);
+  assert.equal(data.originTaxRate, 13);
+  // A negative rate means "use the platform rate"; the column says so with
+  // null rather than storing a nonsense negative percentage.
+  assert.equal(data.ghanaTaxRate, null);
 });
 
 test("CBM is derived from the dimensions when it isn't given", () => {

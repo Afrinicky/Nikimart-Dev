@@ -4,6 +4,15 @@
 
 import { z } from "zod";
 import type { KeyAttribute } from "@/lib/types";
+// Relative, not aliased: this module is unit-tested by `node --test` with no
+// bundler, so a real (non-type-only) import has to resolve without tsconfig
+// path mapping. The type-only import above is erased and can stay aliased.
+import {
+  isAbroadType,
+  parseAbroadTerms,
+  serialiseAbroadTerms,
+  SHIPPED_FROM_ABROAD,
+} from "./abroad.ts";
 
 export function slugify(input: string): string {
   return input.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -129,6 +138,68 @@ function affiliateFields(fd: FormData, actor: "admin" | "seller") {
 }
 
 /**
+ * The shipped-from-abroad columns, mirrored out of the submitted terms.
+ *
+ * The terms themselves are one JSON blob, which is the right shape for a panel
+ * a buyer reads top to bottom and the wrong shape for a query. So the handful
+ * of fields the rest of the system needs to filter, join or price on are
+ * unpacked into real columns here, from the same submitted JSON — one source,
+ * parsed once, so a column can never disagree with the terms it came from.
+ *
+ * A product that is not imported gets every field cleared. Switching a listing
+ * away from that type has to leave nothing behind: a stale arrival point on an
+ * in-stock item would quietly bill somebody for freight.
+ */
+function abroadFields(fd: FormData) {
+  const productType = str(fd, "productType") || "in_stock";
+  const terms = isAbroadType(productType) ? parseAbroadTerms(str(fd, "abroadTerms")) : null;
+
+  if (!terms) {
+    return {
+      // Normalise the stored type: new and edited listings use the current
+      // value, while untouched legacy "preorder" rows keep theirs.
+      productType: isAbroadType(productType) ? SHIPPED_FROM_ABROAD : productType,
+      // Cleared, not carried over. The form blanks the hidden field when the
+      // section is hidden, but a submission is a claim from a browser: a
+      // handcrafted one must not be able to leave freight terms on an in-stock
+      // item, where nothing would display them and the pricing would still
+      // find them.
+      preorderInfo: null,
+      originCountry: "",
+      sourceUrl: "",
+      supplierName: "",
+      freightMode: "",
+      supplierFreight: 0,
+      intlFreight: 0,
+      freightIncluded: false,
+      originTaxRate: 0,
+      ghanaTaxRate: null,
+      arrivalPointId: null,
+    };
+  }
+
+  return {
+    productType: SHIPPED_FROM_ABROAD,
+    // Stored as the parser produced it, not as it arrived: one normalised
+    // shape in the column, so a legacy record re-saved through the form comes
+    // back out in the current shape rather than half of each.
+    preorderInfo: serialiseAbroadTerms(terms),
+    originCountry: terms.originCountry,
+    sourceUrl: terms.sourceUrl,
+    supplierName: terms.supplierName,
+    freightMode: terms.freightMode,
+    supplierFreight: terms.supplierFreight,
+    intlFreight: terms.intlFreight,
+    freightIncluded: terms.freightIncluded,
+    originTaxRate: terms.originTaxRate,
+    // A negative rate in the terms means "use the platform rate", which the
+    // column expresses as null rather than as a nonsense negative percentage.
+    ghanaTaxRate: terms.ghanaTaxRate >= 0 ? terms.ghanaTaxRate : null,
+    arrivalPointId: terms.arrivalPointId || null,
+  };
+}
+
+/**
  * Builds the scalar Product fields from the form. `vendorId` can be forced
  * (seller flow) regardless of the submitted value.
  */
@@ -144,12 +215,9 @@ export function buildProductData(fd: FormData, options: BuildProductOptions = {}
     price: num(fd, "price") ?? 0,
     oldPrice: num(fd, "oldPrice") ?? null,
     stockQuantity: num(fd, "stockQuantity") ?? 0,
-    productType: str(fd, "productType") || "in_stock",
-    // The preorder arrangement the buyer is shown before paying. The field is
-    // always submitted — blank when the product is not a preorder — so
-    // switching a product away from preorder clears stale terms rather than
-    // leaving them behind a type that no longer displays them.
-    preorderInfo: optStr(fd, "preorderTerms") ?? null,
+    // The shipped-from-abroad arrangement and the columns mirrored out of it,
+    // including `preorderInfo` — the column keeps its old name; see lib/abroad.
+    ...abroadFields(fd),
     categoryId: str(fd, "categoryId"),
     vendorId: forceVendorId ?? str(fd, "vendorId"),
     emoji: optStr(fd, "emoji") ?? "🛍️",

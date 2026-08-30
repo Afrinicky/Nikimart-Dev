@@ -7,13 +7,15 @@ import { ProductForm } from "@/components/admin/ProductForm";
 import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { createSellerProduct } from "@/lib/seller-actions";
-import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
+import { getAbroadConfig, getAffiliateRate, getCommissionRate } from "@/lib/settings";
+import { getActiveArrivalPoints } from "@/lib/arrival-points-data";
 
 export const metadata: Metadata = { title: "New product — Seller — Nickimart" };
 
 export default async function NewSellerProductPage() {
   const user = await requireDashboard("/seller");
-  const [vendor, categories, defaultCommissionRate, defaultAffiliateRate] = await Promise.all([
+  const [vendor, categories, defaultCommissionRate, defaultAffiliateRate, arrivalPoints, abroadConfig] =
+    await Promise.all([
     prisma.vendor.findFirst({ where: { ownerId: user.id }, select: { id: true } }),
     prisma.category.findMany({
       orderBy: { name: "asc" },
@@ -21,6 +23,11 @@ export default async function NewSellerProductPage() {
     }),
     getCommissionRate(),
     getAffiliateRate(),
+    // A shipped-from-abroad listing has to land somewhere, and the point the
+    // seller picks sets the freight rate, the duty and where the domestic leg
+    // starts. Only active points are offered.
+    getActiveArrivalPoints(),
+    getAbroadConfig(),
   ]);
   if (!vendor) redirect("/seller");
 
@@ -42,6 +49,10 @@ export default async function NewSellerProductPage() {
           submitLabel="Create product"
           defaultCommissionRate={defaultCommissionRate}
           defaultAffiliateRate={defaultAffiliateRate}
+          arrivalPoints={arrivalPoints}
+          defaultGhanaTaxRate={abroadConfig.ghanaTaxRate}
+          defaultDutyPercent={abroadConfig.defaultDutyPercent}
+          partialPaymentEnabled={abroadConfig.partialPaymentEnabled}
         />
       </div>
     </Container>

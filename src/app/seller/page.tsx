@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 const ACTIONS = [
-  { icon: Plus, title: "Add a product", desc: "List a new product, preorder, or service.", href: "/seller/products/new" },
+  { icon: Plus, title: "Add a product", desc: "List a new product, an item shipped from abroad, or a service.", href: "/seller/products/new" },
   { icon: Boxes, title: "Manage products", desc: "Edit, restock, or remove your listings.", href: "/seller/products" },
   { icon: ClipboardList, title: "Orders", desc: "View and fulfil incoming orders.", href: "/seller/orders" },
   { icon: Wallet, title: "Earnings & payouts", desc: "Track your sales, commission, and settlements.", href: "/seller/settlements" },

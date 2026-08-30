@@ -12,7 +12,7 @@ import { classifyOrderQuery } from "@/lib/order-query";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
 import { formatPrice } from "@/lib/format";
-import type { ShipmentTimestamps } from "@/lib/tracking";
+import type { ShipmentRoute, ShipmentTimestamps } from "@/lib/tracking";
 
 export const metadata: Metadata = {
   title: "Track an Order — Nickimart",
@@ -137,6 +137,7 @@ async function findOrder(orderNumber: string) {
         total: true,
         createdAt: true,
         deliveryMethod: true,
+        hasAbroadItems: true,
         pickupPoint: { select: { name: true, locationName: true } },
         shipment: {
           select: {
@@ -144,6 +145,8 @@ async function findOrder(orderNumber: string) {
             transitAt: true,
             outForDeliveryAt: true,
             deliveredAt: true,
+            forwarderReceivedAt: true,
+            arrivedGhanaAt: true,
           },
         },
         items: { select: { quantity: true, product: { select: { name: true } } } },
@@ -162,7 +165,11 @@ function OrderCard({ order }: { order: NonNullable<Awaited<ReturnType<typeof fin
     transitAt: order.shipment?.transitAt ?? null,
     outForDeliveryAt: order.shipment?.outForDeliveryAt ?? null,
     deliveredAt: order.shipment?.deliveredAt ?? null,
+    forwarderReceivedAt: order.shipment?.forwarderReceivedAt ?? null,
+    arrivedGhanaAt: order.shipment?.arrivedGhanaAt ?? null,
   };
+  // An imported order's timeline has two extra steps; a domestic one's does not.
+  const route: ShipmentRoute = order.hasAbroadItems ? "abroad" : "domestic";
 
   return (
     <div className="rounded-3xl bg-white p-6 ring-1 ring-niki-edge sm:p-7">
@@ -211,7 +218,7 @@ function OrderCard({ order }: { order: NonNullable<Awaited<ReturnType<typeof fin
       </div>
 
       <div className="mt-6 border-t border-niki-edge pt-6">
-        <TrackingTimeline timestamps={timestamps} method={method} />
+        <TrackingTimeline timestamps={timestamps} method={method} route={route} />
       </div>
 
       <p className="mt-5 text-xs text-niki-ink/55">

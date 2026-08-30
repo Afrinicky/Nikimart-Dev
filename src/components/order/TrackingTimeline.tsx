@@ -1,14 +1,21 @@
 import { Check, Circle } from "lucide-react";
-import { buildTimeline, type DeliveryMethod, type ShipmentTimestamps } from "@/lib/tracking";
+import { buildTimeline, type DeliveryMethod, type ShipmentRoute, type ShipmentTimestamps } from "@/lib/tracking";
 
 export function TrackingTimeline({
   timestamps,
   method,
+  route = "domestic",
 }: {
   timestamps: ShipmentTimestamps;
   method: DeliveryMethod;
+  /**
+   * An imported consignment shows two extra steps — the forwarder hand-off and
+   * the landing in Ghana — because those are the weeks a buyer is otherwise
+   * staring at an unmoving "in transit".
+   */
+  route?: ShipmentRoute;
 }) {
-  const steps = buildTimeline(timestamps, method);
+  const steps = buildTimeline(timestamps, method, route);
 
   return (
     <ol className="relative ml-3 border-l-2 border-niki-edge">

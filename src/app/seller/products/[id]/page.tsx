@@ -8,7 +8,8 @@ import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { mapProduct } from "@/lib/catalog";
 import { updateSellerProduct } from "@/lib/seller-actions";
-import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
+import { getAbroadConfig, getAffiliateRate, getCommissionRate } from "@/lib/settings";
+import { getActiveArrivalPoints } from "@/lib/arrival-points-data";
 
 export const metadata: Metadata = { title: "Edit product — Seller — Nickimart" };
 
@@ -18,7 +19,8 @@ export default async function EditSellerProductPage({ params }: { params: Params
   const user = await requireDashboard("/seller");
   const { id } = await params;
 
-  const [vendor, categories, defaultCommissionRate, defaultAffiliateRate] = await Promise.all([
+  const [vendor, categories, defaultCommissionRate, defaultAffiliateRate, arrivalPoints, abroadConfig] =
+    await Promise.all([
     prisma.vendor.findFirst({ where: { ownerId: user.id }, select: { id: true } }),
     prisma.category.findMany({
       orderBy: { name: "asc" },
@@ -26,6 +28,11 @@ export default async function EditSellerProductPage({ params }: { params: Params
     }),
     getCommissionRate(),
     getAffiliateRate(),
+    // A shipped-from-abroad listing has to land somewhere, and the point the
+    // seller picks sets the freight rate, the duty and where the domestic leg
+    // starts. Only active points are offered.
+    getActiveArrivalPoints(),
+    getAbroadConfig(),
   ]);
   if (!vendor) redirect("/seller");
 
@@ -57,6 +64,10 @@ export default async function EditSellerProductPage({ params }: { params: Params
           submitLabel="Save changes"
           defaultCommissionRate={defaultCommissionRate}
           defaultAffiliateRate={defaultAffiliateRate}
+          arrivalPoints={arrivalPoints}
+          defaultGhanaTaxRate={abroadConfig.ghanaTaxRate}
+          defaultDutyPercent={abroadConfig.defaultDutyPercent}
+          partialPaymentEnabled={abroadConfig.partialPaymentEnabled}
         />
       </div>
     </Container>

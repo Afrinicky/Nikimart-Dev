@@ -17,9 +17,9 @@ const DEFAULT_FAQS = [
       "Many sellers offer same-day delivery, campus drop-off, or in-person pickup. The available options are shown on each product page and at checkout.",
   },
   {
-    question: "How do preorders work?",
+    question: "How does Shipped from Abroad work?",
     answer:
-      "Preorder items are imported on order. You pay a deposit to reserve your item, then settle the balance on arrival before delivery or pickup. Review each product's arrival estimate and refund policy first.",
+      "The seller sources the item from a supplier abroad once you order — ordering never closes. Your bill itemises the three freight legs, the tax at source, and Ghana duty and VAT, so you see every charge before paying. Where the seller allows it you can pay for the goods now and settle the freight and duty when it lands. You're alerted when it reaches Ghana and again when it's ready to collect.",
   },
   {
     question: "How do I pay?",
@@ -29,7 +29,7 @@ const DEFAULT_FAQS = [
   {
     question: "How do I become a seller?",
     answer:
-      "Head to “Sell on Nickimart”, register your shop, complete quick verification, and start listing products, preorders, or services.",
+      "Head to “Sell on Nickimart”, register your shop, complete quick verification, and start listing products, imported goods, or services.",
   },
 ];
 

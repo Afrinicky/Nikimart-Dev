@@ -1,8 +1,8 @@
 # Nickimart
 
-Nickimart is an online shopping mall connecting buyers to local shops, preorder
-sellers, campus vendors, food vendors, service providers, and official Nickimart
-products across Ghana.
+Nickimart is an online shopping mall connecting buyers to local shops, sellers
+sourcing from abroad, campus vendors, food vendors, service providers, and
+official Nickimart products across Ghana.
 
 Built with **Next.js 16** (App Router), **Tailwind CSS v4**, **Prisma**, and
 **Auth.js (NextAuth v5)**.
@@ -93,6 +93,7 @@ idempotent, and records itself in `_prisma_migrations` so a later
 | ------- | ------------- |
 | Affiliate programme, product archiving | `nikimart-neon-affiliate-products.sql` |
 | CBM shipping routes | `nikimart-neon-shipping-cbm.sql` |
+| Shipped from Abroad (arrival points, rates, landed-cost columns) | `db/migrations/0005_shipped_from_abroad.sql` — applied automatically at build |
 | Commission + seller payouts | `nikimart-neon-commission.sql` |
 | Affiliates (Finance console) | `nikimart-neon-affiliates.sql` |
 | Data bundle storefront | `nikimart-neon-data-bundles.sql` |
@@ -217,6 +218,77 @@ Commission is snapshotted per order item at sale time (rate, amount, funder), so
 later enrolment changes never rewrite past payouts. It **clears on delivery**,
 mirroring seller settlements, so a payout is never made against an order that
 can still be cancelled.
+
+## Shipped from Abroad
+
+Replaces the old preorder system, and absorbs the old Global Shopping page.
+A preorder was a window that closed; this is dropshipping that never does. A
+seller finds an item on Alibaba (or anywhere), copies its details and link, and
+lists it at **`/shipped-from-abroad`**; buyers can order at any time and the
+seller sources it once they do.
+
+### The three freight legs
+
+Freight is billed as three separate legs because three different people quote
+them:
+
+1. **Supplier → freight forwarder abroad.** The seller knows this figure and
+   types it on the listing (GH₵ per unit).
+2. **Forwarder → a Ghana arrival point**, by air, sea, road or express courier.
+   Admins configure the points (`/admin/arrival-points`) and a rate table per
+   origin and mode — ₵/CBM for sea, ₵/kg for air, with a minimum charge. Import
+   duty and clearing are settled here. A seller with their own forwarder deal
+   can override the rate on the listing.
+3. **Arrival point → the buyer's pickup station.** The existing CBM route
+   engine, starting from the arrival point's hub rather than the seller's.
+
+A seller whose supplier already quoted a delivered-to-Ghana price ticks
+**freight included**; legs 1 and 2 are then charged at zero rather than
+double-billing the buyer, and the arrival point still matters because leg 3
+starts there.
+
+### Tax
+
+Both jurisdictions are billed. Sales tax charged in the country of purchase is a
+per-listing rate on the goods. Ghana import duty is assessed on the CIF value
+(goods plus the freight that got them here), and Ghana VAT and levies on that
+value plus the duty — customs practice, not intuition. Duty is per arrival
+point; the VAT rate and a fallback duty are platform settings.
+
+### Paying now or on arrival
+
+Where the platform and the seller both allow it, a buyer may settle the goods,
+the tax at source and leg 1 today and pay leg 2, duty, Ghana tax and leg 3 when
+the item lands — **at the rates in force then**, which the checkout says plainly
+before they choose it. Paying in full locks the freight, so a later rate rise is
+the platform's. The order stores which plan was chosen, what was paid and what
+is outstanding.
+
+### Tracking and notifications
+
+An imported consignment has two milestones a domestic one does not — *at the
+freight forwarder* and *arrived in Ghana* — because otherwise a buyer stares at
+"in transit" for six weeks. Sellers are alerted on **both SMS and email** for
+every new order regardless of the staff-channel setting; buyers get their own
+message when the goods land in Ghana (carrying any balance now due) and again
+when they are handed over.
+
+### Where the code lives
+
+| Concern | Module |
+| --- | --- |
+| Terms parse/serialise, the two spellings of the product type | `src/lib/abroad.ts` |
+| The landed-cost maths (pure, unit-tested) | `src/lib/abroad-costs.ts` |
+| Arrival points and rate resolution (pure) | `src/lib/arrival-points.ts` |
+| Cart pricing, server-side | `src/lib/abroad-pricing.ts` |
+| Admin CRUD for points and rates | `src/lib/arrival-point-actions.ts` |
+
+Listings created before the rename are stored as `productType: "preorder"` and
+are **never backfilled** — migrations here are additive by rule (see
+`db/migrations/README.md`). Both values mean the same thing and the code, not
+the database, reconciles them: read with `isAbroadType`, query with
+`ABROAD_TYPES`, write with `SHIPPED_FROM_ABROAD`. `/preorders` and
+`/global-shopping` permanently redirect to `/shipped-from-abroad`.
 
 ## Data bundles
 

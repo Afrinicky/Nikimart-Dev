@@ -273,9 +273,40 @@ model Product {
   // Primary image (kept for backward-compat / fallback); the gallery lives in
   // ProductImage. May be an http(s) URL or a data: URL.
   image                    String?
-  // JSON-encoded PreorderInfo / ServiceInfo objects (nullable).
+  // JSON-encoded AbroadTerms (legacy name: PreorderInfo) / ServiceInfo
+  // objects (nullable). The column keeps its old name because migrations here
+  // are additive and every existing listing's terms already live in it.
   preorderInfo             String?
   serviceInfo              String?
+
+  // --- Shipped from abroad --------------------------------------------------
+  // A dropshipped listing: the seller found it on Alibaba (or anywhere), copied
+  // the details, and lists it here. These columns mirror the parts of the JSON
+  // terms that have to be queryable or joinable; the rest stays in preorderInfo.
+  //
+  // The listing's own origin, not the shop's. A seller in Accra dropshipping
+  // from Guangzhou has a GH vendor and a CN product; before this, origin came
+  // from the vendor alone and every such listing priced as domestic. Blank
+  // falls back to the vendor's originCountry.
+  originCountry            String  @default("")
+  // The supplier listing the seller copied from, and who sells it.
+  sourceUrl                String  @default("")
+  supplierName             String  @default("")
+  // air | sea | road | express — how it travels abroad → Ghana.
+  freightMode              String  @default("")
+  // Leg 1 (GH₵ per unit): supplier → freight forwarder abroad.
+  supplierFreight          Float   @default(0)
+  // Leg 2 override (GH₵ per unit). 0 = price it from the arrival point's rates.
+  intlFreight              Float   @default(0)
+  // True when the listed price already covers legs 1 and 2.
+  freightIncluded          Boolean @default(false)
+  // Sales tax / VAT charged in the country of purchase (percent).
+  originTaxRate            Float   @default(0)
+  // Ghana VAT + levies (percent). Null = the platform rate from settings.
+  ghanaTaxRate             Float?
+  // The Ghana point this listing lands at (leg 2's destination, leg 3's start).
+  arrivalPointId           String?
+  arrivalPoint             ArrivalPoint? @relation(fields: [arrivalPointId], references: [id], onDelete: SetNull)
   // JSON-encoded array of { label, value } key attributes (spec table).
   attributes               String  @default("[]")
 
@@ -328,6 +359,32 @@ model Order {
   deliveryFee    Float    @default(0)
   total          Float    @default(0)
   deliveryMethod String   @default("delivery") // delivery | pickup
+
+  // --- Shipped-from-abroad billing -----------------------------------------
+  // A domestic order is goods + delivery. An imported one is bought in another
+  // country, taxed there, carried to a forwarder, freighted in, dutied and
+  // taxed on landing, then moved inside Ghana. Each leg is snapshotted so the
+  // bill can be shown back exactly as it was quoted, and so a later rate change
+  // never silently rewrites what somebody already paid.
+  hasAbroadItems       Boolean @default(false)
+  // Sales tax / VAT charged in the country of purchase.
+  originTax            Float   @default(0)
+  // Leg 1: supplier → freight forwarder abroad.
+  supplierFreight      Float   @default(0)
+  // Leg 2: forwarder → the Ghana arrival point. (Leg 3 is deliveryFee.)
+  internationalFreight Float   @default(0)
+  importDuty           Float   @default(0)
+  clearingFee          Float   @default(0)
+  ghanaTax             Float   @default(0)
+  // What the buyer chose to settle today: "full" | "goods_only". Under
+  // goods_only the freight legs, duty and Ghana tax are paid when it lands —
+  // and any rate rise in between is theirs.
+  paymentPlan          String  @default("full")
+  amountPaid           Float   @default(0)
+  balanceDue           Float   @default(0)
+  // True when the whole bill was settled up front, so later rate rises are
+  // absorbed rather than passed on.
+  freightLocked        Boolean @default(true)
   address        String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -362,6 +419,23 @@ model OrderItem {
   affiliateCommission     Float  @default(0)
   affiliateFundedBy       String @default("")
 
+  // Per-line snapshot of the shipped-from-abroad bill. Kept at line level as
+  // well as order level because a cart can mix an imported item with a local
+  // one, and a seller payout must not be computed off freight the seller never
+  // charged.
+  originTax            Float   @default(0)
+  supplierFreight      Float   @default(0)
+  internationalFreight Float   @default(0)
+  importDuty           Float   @default(0)
+  clearingFee          Float   @default(0)
+  ghanaTax             Float   @default(0)
+  domesticFreight      Float   @default(0)
+  freightMode          String  @default("")
+  freightIncluded      Boolean @default(false)
+
+  arrivalPointId String?
+  arrivalPoint   ArrivalPoint? @relation(fields: [arrivalPointId], references: [id], onDelete: SetNull)
+
   orderId   String
   order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId String
@@ -388,6 +462,8 @@ model PickupPoint {
 
   // Sellers whose origin/consolidation hub is this point.
   originVendors Vendor[]       @relation("VendorOrigin")
+  // Ghana arrival points whose domestic leg starts from this point.
+  arrivalHubFor ArrivalPoint[] @relation("ArrivalHub")
   // Shipping-rate rows where this point is the origin / the destination.
   ratesFrom     ShippingRate[] @relation("RateOrigin")
   ratesTo       ShippingRate[] @relation("RateDest")
@@ -410,6 +486,63 @@ model ShippingRate {
   @@index([destPickupId])
 }
 
+// ---------------------------------------------------------------------------
+// Shipped from abroad — Ghana arrival points and their international rates
+// ---------------------------------------------------------------------------
+
+// Where goods from abroad land before the domestic leg: Tema Port, KIA's cargo
+// village, a consolidator's Kumasi warehouse. Admin-configured, because the
+// choice moves the bill twice — the sea rate into Tema is nothing like the air
+// rate into Accra, and the domestic leg that follows starts somewhere else. The
+// seller picks one of these when listing a shipped-from-abroad product.
+model ArrivalPoint {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  city        String   @default("")
+  address     String   @default("")
+  // Ghana import duty charged here, as a percent of the CIF value.
+  dutyPercent Float    @default(0)
+  // Flat clearing / handling charge (GH₵) per order line landing here.
+  clearingFee Float    @default(0)
+  // Shown to sellers and buyers: what this point is for.
+  note        String   @default("")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // The pickup point the domestic leg (leg 3) starts from. Null falls back to
+  // the site-wide international arrival hub setting.
+  hubPickupId String?
+  hubPickup   PickupPoint? @relation("ArrivalHub", fields: [hubPickupId], references: [id], onDelete: SetNull)
+
+  rates      ArrivalRate[]
+  products   Product[]
+  orderItems OrderItem[]
+  shipments  Shipment[]
+}
+
+// What it costs to bring one consignment to an arrival point, per origin and
+// per mode. Air is sold by the kilo and sea by the cubic metre, so a row can
+// carry both; minCharge is the floor under the sum.
+model ArrivalRate {
+  id             String @id @default(cuid())
+  arrivalPointId String
+  arrivalPoint   ArrivalPoint @relation(fields: [arrivalPointId], references: [id], onDelete: Cascade)
+  // Origin country code (CN, AE, US, EU…), or "*" for any origin.
+  originCountry  String @default("*")
+  // air | sea | road | express, or "*" for any mode.
+  mode           String @default("sea")
+  ratePerCbm     Float  @default(0)
+  ratePerKg      Float  @default(0)
+  minCharge      Float  @default(0)
+  // Typical days in transit on this route, for the arrival estimate.
+  transitDays    Int    @default(21)
+
+  @@unique([arrivalPointId, originCountry, mode])
+  @@index([arrivalPointId])
+}
+
 model Shipment {
   id               String    @id @default(cuid())
   trackingNumber   String    @unique
@@ -427,6 +560,18 @@ model Shipment {
   transitAt        DateTime?
   outForDeliveryAt DateTime?
   deliveredAt      DateTime?
+  // Extra milestones for a consignment coming from abroad. A domestic order
+  // goes prepared → in transit → out for delivery → delivered; an imported one
+  // spends weeks between "the seller has ordered it" and "it is in the country",
+  // and a buyer who cannot see that stretch assumes nothing is happening.
+  // forwarderReceivedAt = at the freight forwarder abroad.
+  // arrivedGhanaAt      = landed and cleared at the Ghana arrival point. This
+  //                       is the milestone the buyer is alerted on.
+  forwarderReceivedAt DateTime?
+  arrivedGhanaAt      DateTime?
+  // The Ghana point this consignment lands at, when it comes from abroad.
+  arrivalPointId   String?
+  arrivalPoint     ArrivalPoint? @relation(fields: [arrivalPointId], references: [id], onDelete: SetNull)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

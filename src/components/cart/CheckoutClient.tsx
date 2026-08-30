@@ -8,10 +8,21 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useCart } from "@/components/providers/CartProvider";
 import { formatPrice } from "@/lib/format";
 import { placeOrder } from "@/lib/order-actions";
-import { quoteCartShipping, type CartShippingQuote } from "@/lib/shipping-actions";
-import { preorderTermsForCart, type CartPreorderItem } from "@/lib/preorder-actions";
-import { PreorderTermsPanel } from "@/components/cart/PreorderTermsPanel";
+import { quoteCart, type CartQuote } from "@/lib/abroad-actions";
+import { emptyBreakdown, type PaymentPlan } from "@/lib/abroad-costs";
+import { AbroadTermsPanel } from "@/components/cart/AbroadTermsPanel";
+import { LandedBill, PaymentPlanChoice } from "@/components/cart/LandedBill";
 
+/**
+ * Checkout.
+ *
+ * The page holds no pricing logic at all. It asks the server to quote the cart
+ * at every pickup point and renders what comes back — the landed bill, the
+ * imported-item terms, the payment plans on offer. That is deliberate: an
+ * imported order's bill has eight rows, two tax jurisdictions and three freight
+ * legs in it, and a client that recomputed any of that would eventually quote a
+ * number the order action disagreed with.
+ */
 export function CheckoutClient({
   defaultPickupId = "",
   paymentEnabled = false,
@@ -22,18 +33,15 @@ export function CheckoutClient({
   const { items, subtotal, clear, ready } = useCart();
   const router = useRouter();
 
-  const [quote, setQuote] = useState<CartShippingQuote | null>(null);
+  const [quote, setQuote] = useState<CartQuote | null>(null);
   // Which cart contents the current quote was fetched for. Anything else means
   // a fetch is still in flight — derived rather than a second state flag.
   const [quotedFor, setQuotedFor] = useState<string | null>(null);
   const [pickupPointId, setPickupPointId] = useState(defaultPickupId);
+  const [plan, setPlan] = useState<PaymentPlan>("full");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  // Preorder terms for whatever is in the cart, and whether they were accepted.
-  // The cart holds only ids and prices, so the page has to ask what is a
-  // preorder and what was promised about it.
-  const [preorders, setPreorders] = useState<CartPreorderItem[]>([]);
-  const [acceptedPreorder, setAcceptedPreorder] = useState(false);
+  const [acceptedAbroad, setAcceptedAbroad] = useState(false);
 
   // A stable key so the quote refetches only when the actual cart contents change.
   const itemsKey = useMemo(
@@ -46,7 +54,7 @@ export function CheckoutClient({
     // the empty-cart state renders before any of it is used.
     if (!ready || items.length === 0) return;
     let cancelled = false;
-    quoteCartShipping({ items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })) })
+    quoteCart({ items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })) })
       .then((q) => {
         if (cancelled) return;
         setQuote(q);
@@ -54,10 +62,14 @@ export function CheckoutClient({
         setPickupPointId((prev) =>
           prev && q.points.some((p) => p.id === prev) ? prev : (q.points[0]?.id ?? ""),
         );
+        // Changing the cart invalidates both the acceptance and the plan: the
+        // first was given for different terms, the second for a different bill.
+        setAcceptedAbroad(false);
+        if (!q.partialPaymentAvailable) setPlan("full");
       })
       .catch(() => {
         if (cancelled) return;
-        setQuote({ points: [], totalCbm: 0, hasAbroad: false });
+        setQuote(null);
         setQuotedFor(itemsKey);
       });
     return () => {
@@ -67,33 +79,15 @@ export function CheckoutClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemsKey, ready]);
 
-  useEffect(() => {
-    // Same shape as the shipping effect above: an empty cart renders the
-    // empty-cart state long before the panel, so there is nothing to clear.
-    if (!ready || items.length === 0) return;
-    let cancelled = false;
-    preorderTermsForCart(items.map((i) => i.productId))
-      .then((rows) => {
-        if (cancelled) return;
-        setPreorders(rows);
-        // Changing the cart invalidates an acceptance: it was given for a
-        // different set of terms than the one now on screen.
-        setAcceptedPreorder(false);
-      })
-      .catch(() => {
-        if (!cancelled) setPreorders([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemsKey, ready]);
-
   const loadingQuote = quotedFor !== itemsKey;
   const points = quote?.points ?? [];
   const selected = points.find((p) => p.id === pickupPointId);
-  const shippingFee = selected?.fee ?? 0;
-  const total = subtotal + shippingFee;
+  // Before the first quote lands there is still a cart to show, so the goods
+  // total from the browser stands in for the bill. It is replaced, not
+  // supplemented, the moment the server answers.
+  const bill = selected?.bill ?? emptyBreakdown(subtotal, 0);
+  const abroadItems = quote?.items ?? [];
+  const dueNow = plan === "goods_only" ? bill.goodsOnlyNow : bill.total;
 
   if (!ready) {
     return <div className="rounded-2xl bg-white p-10 text-center text-sm text-niki-ink/50 ring-1 ring-niki-edge">Loading…</div>;
@@ -117,15 +111,16 @@ export function CheckoutClient({
       setError("Please choose a pickup point.");
       return;
     }
-    if (preorders.length > 0 && !acceptedPreorder) {
-      setError("Please read and accept the preorder terms before paying.");
+    if (abroadItems.length > 0 && !acceptedAbroad) {
+      setError("Please read and accept the shipped-from-abroad terms before paying.");
       return;
     }
     setPending(true);
     const res = await placeOrder({
       items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
       pickupPointId,
-      acceptedPreorderTerms: acceptedPreorder,
+      acceptedAbroadTerms: acceptedAbroad,
+      paymentPlan: plan,
     });
     if (res.ok) {
       if (res.authorizationUrl) {
@@ -146,7 +141,17 @@ export function CheckoutClient({
     <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
       <div className="space-y-6">
         {error ? (
-          <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{error}</p>
+          <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{error}</p>
+        ) : null}
+
+        {quote?.unpricedRoute ? (
+          // A route the admin has not priced would quote zero international
+          // freight. Saying so here beats letting the buyer reach the button and
+          // be refused by the server with no idea why.
+          <p className="rounded-xl bg-niki-gold/15 px-4 py-3 text-sm font-medium text-amber-900">
+            Freight into Ghana isn&apos;t priced yet for one of these items, so it can&apos;t be
+            ordered right now. Please check back shortly or contact support.
+          </p>
         ) : null}
 
         <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
@@ -155,14 +160,14 @@ export function CheckoutClient({
             <h2 className="font-display text-lg font-bold text-niki-ink">Choose a pickup point</h2>
           </div>
           <p className="mt-1 text-sm text-niki-ink/60">
-            Collect your order at any Nickimart station. The shipping fee depends on the distance from the
-            seller and the size (CBM) of your items.
+            Collect your order at any Nickimart station. The fee depends on the size (CBM) of your
+            items and the distance from where they start.
           </p>
 
           {quote?.hasAbroad ? (
             <p className="mt-3 flex items-center gap-2 rounded-xl bg-niki-black/5 px-3 py-2 text-xs font-medium text-niki-ink/70">
-              <Plane className="h-4 w-4 text-niki-orange" /> Some items ship from abroad — the fee includes
-              international freight.
+              <Plane className="h-4 w-4 text-niki-orange" /> Some items ship from abroad — this leg
+              runs from the Ghana point they land at to the station you pick.
             </p>
           ) : null}
 
@@ -209,11 +214,20 @@ export function CheckoutClient({
           </div>
         </div>
 
-        <PreorderTermsPanel
-          items={preorders}
-          accepted={acceptedPreorder}
-          onAcceptedChange={setAcceptedPreorder}
+        <AbroadTermsPanel
+          items={abroadItems}
+          accepted={acceptedAbroad}
+          onAcceptedChange={setAcceptedAbroad}
         />
+
+        {quote?.partialPaymentAvailable ? (
+          <PaymentPlanChoice
+            bill={bill}
+            plan={plan}
+            onPlanChange={setPlan}
+            disabled={loadingQuote || !pickupPointId}
+          />
+        ) : null}
 
         <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
           <h2 className="font-display text-lg font-bold text-niki-ink">Payment</h2>
@@ -244,38 +258,30 @@ export function CheckoutClient({
             </li>
           ))}
         </ul>
-        <dl className="mt-4 space-y-2 border-t border-niki-edge pt-4 text-sm">
-          <div className="flex justify-between text-niki-ink/70">
-            <dt>Subtotal</dt>
-            <dd className="font-medium text-niki-ink">{formatPrice(subtotal)}</dd>
-          </div>
-          <div className="flex justify-between text-niki-ink/70">
-            <dt>
-              Shipping
-              {quote && quote.totalCbm > 0 ? (
-                <span className="flex items-center gap-1 text-xs text-niki-ink/40">
-                  <Package className="h-3 w-3" /> {quote.totalCbm.toFixed(3)} CBM
-                </span>
-              ) : null}
-            </dt>
-            <dd className="font-medium text-niki-ink">
-              {loadingQuote ? "…" : shippingFee === 0 ? "Free" : formatPrice(shippingFee)}
-            </dd>
-          </div>
-          <div className="flex justify-between border-t border-niki-edge pt-2 text-base font-bold text-niki-ink">
-            <dt>Total</dt>
-            <dd className="font-figures">{formatPrice(total)}</dd>
-          </div>
-        </dl>
+
+        {quote && quote.totalCbm > 0 ? (
+          <p className="mt-3 flex items-center gap-1 text-xs text-niki-ink/40">
+            <Package className="h-3 w-3" /> {quote.totalCbm.toFixed(3)} CBM total
+          </p>
+        ) : null}
+
+        <div className="mt-4 border-t border-niki-edge pt-4">
+          <LandedBill bill={bill} plan={plan} loading={loadingQuote} />
+        </div>
+
         <button
           type="button"
           onClick={submit}
           disabled={
-            pending || loadingQuote || !pickupPointId || (preorders.length > 0 && !acceptedPreorder)
+            pending ||
+            loadingQuote ||
+            !pickupPointId ||
+            quote?.unpricedRoute ||
+            (abroadItems.length > 0 && !acceptedAbroad)
           }
           className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-niki-orange px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {pending ? "Placing order…" : `Place order · ${formatPrice(total)}`}
+          {pending ? "Placing order…" : `Place order · ${formatPrice(dueNow)}`}
         </button>
         <Link href="/cart" className="mt-3 block text-center text-sm font-medium text-niki-ink/60 hover:text-niki-ink">
           Back to cart

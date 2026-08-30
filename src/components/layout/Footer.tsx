@@ -11,8 +11,7 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; href: string }[] 
     title: "Shop",
     links: [
       { label: "All Products", href: "/products" },
-      { label: "Global Shopping", href: "/global-shopping" },
-      { label: "Preorder Deals", href: "/preorders" },
+      { label: "Shipped from Abroad", href: "/shipped-from-abroad" },
       { label: "Services", href: "/services" },
       { label: "Shop by Campus", href: "/campus" },
       { label: "Nickimart Official Store", href: "/categories/nikimart-official-store" },
@@ -44,7 +43,7 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; href: string }[] 
       { label: "Privacy Policy", href: "/legal/privacy" },
       { label: "Return & Refund Policy", href: "/legal/returns" },
       { label: "Seller Policy", href: "/legal/seller-policy" },
-      { label: "Preorder Policy", href: "/legal/preorder-policy" },
+      { label: "Shipped from Abroad Policy", href: "/legal/preorder-policy" },
       { label: "Delivery Policy", href: "/legal/delivery-policy" },
     ],
   },

@@ -21,13 +21,13 @@ const BENEFITS = [
   { icon: Banknote, title: "Fast, local payouts", desc: "Get paid quickly to your Mobile Money or bank account after each completed order." },
   { icon: BadgeCheck, title: "Build trust with verification", desc: "Get a verified badge and stand out as a seller our community can rely on." },
   { icon: LineChart, title: "Simple seller dashboard", desc: "Manage products, orders, and settlements from one clean dashboard." },
-  { icon: Store, title: "Any kind of seller", desc: "Local shops, preorder sellers, campus vendors, food vendors, and service providers welcome." },
+  { icon: Store, title: "Any kind of seller", desc: "Local shops, sellers sourcing from abroad, campus vendors, food vendors, and service providers welcome." },
 ];
 
 const STEPS = [
   "Register your shop and tell us what you sell",
   "Complete quick verification (KYC) to build trust",
-  "List your products, preorders, or services",
+  "List your products, imported goods, or services",
   "Start receiving orders and getting paid",
 ];
 
@@ -46,7 +46,7 @@ export default function SellPage() {
             </h1>
             <p className="mt-4 text-base text-white/70">
               Reach thousands of shoppers across campuses and communities in Ghana. List products,
-              preorders, and services — and get paid fast.
+              imported goods, and services — and get paid fast.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link

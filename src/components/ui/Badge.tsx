@@ -1,7 +1,6 @@
 import {
   AlertTriangle,
   BadgeCheck,
-  Clock3,
   GraduationCap,
   MapPin,
   Plane,
@@ -42,7 +41,7 @@ import { cn } from "@/lib/cn";
  */
 const BADGE_STYLES: Record<BadgeKind, string> = {
   in_stock: "bg-emerald-700 text-white",
-  preorder: "bg-niki-black text-niki-gold",
+  shipped_from_abroad: "bg-niki-black text-niki-gold",
   same_day_delivery: "bg-emerald-700 text-white",
   pickup_available: "bg-niki-black text-white",
   campus_delivery: "bg-niki-orange text-niki-black",
@@ -60,7 +59,7 @@ const BADGE_STYLES: Record<BadgeKind, string> = {
 
 const BADGE_ICONS: Partial<Record<BadgeKind, LucideIcon>> = {
   in_stock: CheckCircle2,
-  preorder: Clock3,
+  shipped_from_abroad: Plane,
   same_day_delivery: Truck,
   pickup_available: MapPin,
   campus_delivery: GraduationCap,

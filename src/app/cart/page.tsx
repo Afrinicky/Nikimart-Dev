@@ -23,7 +23,7 @@ export default function CartPage() {
           <EmptyState
             icon={<ShoppingCart className="h-6 w-6" />}
             title="Your cart is empty"
-            message="Browse Nickimart and add products, preorders, or services to your cart."
+            message="Browse Nickimart and add products, imported goods, or services to your cart."
             actionLabel="Start shopping"
             actionHref="/products"
           />

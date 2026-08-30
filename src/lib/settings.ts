@@ -20,7 +20,7 @@ export const SETTINGS_DEFAULTS = {
   businessHours: "Mon–Sat, 8am–7pm",
   liveChatStatus: "Coming soon",
   footerTagline: "Shop smart. Sell faster. Deliver closer.",
-  footerNote: "Buy local. Preorder global. Shop Nickimart.",
+  footerNote: "Buy local. Ship from abroad. Shop Nickimart.",
   restrictionsText:
     "Nickimart restricts dangerous, illegal, and age-restricted products including weapons, alcohol, nicotine, drugs, gambling, adult content, counterfeit goods, and prescription medicine.",
   copyrightName: "Nickimart",
@@ -117,8 +117,25 @@ export const SETTINGS_DEFAULTS = {
   intlRatePerCbmEU: "1500",
   intlDefaultRatePerCbm: "1500",
   // Pickup point where goods shipped from abroad land before the domestic leg.
-  // Empty = the first active pickup point.
+  // Empty = the first active pickup point. Superseded per-listing by the Ghana
+  // arrival point the seller chooses; this stays as the fallback.
   internationalArrivalHubId: "",
+  // --- Shipped from abroad --------------------------------------------------
+  // Ghana VAT + levies (percent) applied to the landed value plus duty of an
+  // imported order, when a listing doesn't set its own rate. 15% VAT plus the
+  // NHIL/GETFund/COVID levies is the usual standing figure.
+  ghanaImportTaxRate: "21.9",
+  // Fallback Ghana import duty (percent of CIF) for an arrival point that has
+  // not had its own duty set.
+  defaultImportDutyPercent: "20",
+  // Whether buyers may pay for the goods now and settle the freight legs, duty
+  // and Ghana tax when the item lands. "0" forces payment in full. A listing
+  // can still decline it; this is the platform-level switch.
+  abroadPartialPaymentEnabled: "1",
+  // The public heading and blurb on /shipped-from-abroad.
+  abroadPageTitle: "Shipped from Abroad",
+  abroadPageIntro:
+    "Sellers source these from suppliers in China, Dubai, the USA and Europe. You order here, we freight it in, and you collect it at your pickup point. Ordering stays open — nothing closes.",
 } as const;
 
 export type SettingKey = keyof typeof SETTINGS_DEFAULTS;
@@ -264,6 +281,44 @@ export async function getShippingRates(): Promise<ShippingRates> {
     },
     intlDefaultRatePerCbm: numOr(settings.intlDefaultRatePerCbm, 1500),
     arrivalHubId,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Shipped from abroad
+// ---------------------------------------------------------------------------
+
+export interface AbroadConfig {
+  /** Ghana VAT + levies (percent) on the landed value plus duty. */
+  ghanaTaxRate: number;
+  /** Fallback import duty (percent of CIF) when an arrival point sets none. */
+  defaultDutyPercent: number;
+  /** Whether the goods-only payment plan is offered at all. */
+  partialPaymentEnabled: boolean;
+  pageTitle: string;
+  pageIntro: string;
+}
+
+/** Platform-level settings for the shipped-from-abroad system. */
+export async function getAbroadConfig(): Promise<AbroadConfig> {
+  const settings = await getSettings();
+  const numOr = (raw: string, fallback: number) => {
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 && n <= 100 ? n : fallback;
+  };
+  return {
+    ghanaTaxRate: numOr(settings.ghanaImportTaxRate, Number(SETTINGS_DEFAULTS.ghanaImportTaxRate)),
+    defaultDutyPercent: numOr(
+      settings.defaultImportDutyPercent,
+      Number(SETTINGS_DEFAULTS.defaultImportDutyPercent),
+    ),
+    // Anything but an explicit off keeps the option available, so a half-written
+    // value never quietly removes a payment plan buyers were relying on.
+    partialPaymentEnabled: !["0", "off", "false", "no"].includes(
+      settings.abroadPartialPaymentEnabled.trim().toLowerCase(),
+    ),
+    pageTitle: settings.abroadPageTitle.trim() || SETTINGS_DEFAULTS.abroadPageTitle,
+    pageIntro: settings.abroadPageIntro.trim() || SETTINGS_DEFAULTS.abroadPageIntro,
   };
 }
 

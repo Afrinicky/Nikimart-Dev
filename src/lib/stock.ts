@@ -7,8 +7,9 @@ import { prisma } from "@/lib/prisma";
  * Reservation happens inside the order transaction with a guarded update
  * (`stockQuantity >= quantity`), so two buyers racing for the last unit can't
  * both succeed — the loser's update matches zero rows and the whole order rolls
- * back. Only physical, in-stock products are counted; preorders, services, and
- * made-to-order food aren't limited by a shelf count.
+ * back. Only physical, in-stock products are counted; items shipped from
+ * abroad, services, and made-to-order food aren't limited by a shelf count —
+ * an imported listing is sourced on order, so there is no shelf to count.
  */
 export const STOCK_TRACKED_TYPES = new Set(["in_stock"]);
 

@@ -36,7 +36,7 @@ export interface SectionInput {
 export const COLLECTIONS = [
   { value: "featured", label: "Featured" },
   { value: "flash_sale", label: "Flash sale" },
-  { value: "preorder", label: "Preorders" },
+  { value: "preorder", label: "Shipped from Abroad" },
   { value: "service", label: "Services" },
   { value: "food", label: "Food" },
   { value: "official", label: "Official store" },
@@ -160,13 +160,13 @@ export const DEFAULT_HOME_SECTIONS: SectionInput[] = [
   {
     type: "product_rail",
     config: {
-      title: "Preorder Deals",
+      title: "Shipped from Abroad",
       subtitle: "Discover imported and upcoming products from trusted sellers",
       collection: "preorder",
-      viewAllHref: "/preorders",
+      viewAllHref: "/shipped-from-abroad",
       icon: "clock",
       notice:
-        "This is a preorder item. Please review the estimated arrival date, deposit requirement, balance payment rule, and refund policy before placing your order.",
+        "This item is sourced from abroad once you order — ordering never closes. Review the estimated arrival, the freight and tax charges, and the refund policy before ordering.",
     },
   },
   {
@@ -248,14 +248,14 @@ export const DEFAULT_ABOUT_SECTIONS: SectionInput[] = [
     config: {
       title: "About Nickimart",
       body:
-        "Nickimart connects buyers to trusted local shops, preorder sellers, campus vendors, service providers, and official Nickimart products across Ghana. Our mission is to make everyday shopping closer, safer, and simpler — whether you're on campus, in town, or ordering from abroad.",
+        "Nickimart connects buyers to trusted local shops, sellers sourcing from abroad, campus vendors, service providers, and official Nickimart products across Ghana. Our mission is to make everyday shopping closer, safer, and simpler — whether you're on campus, in town, or ordering from abroad.",
     },
   },
   {
     type: "banner",
     config: {
       title: "Selling on Nickimart",
-      text: "Reach more customers near you. Register your shop and start listing products, preorders, or services today.",
+      text: "Reach more customers near you. Register your shop and start listing products, imported goods, or services today.",
       tone: "dark",
     },
   },
