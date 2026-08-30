@@ -16,6 +16,7 @@ function pickupData(fd: FormData) {
     code: str(fd, "code").toUpperCase().replace(/\s+/g, "-"),
     locationName: str(fd, "locationName"),
     address: str(fd, "address"),
+    openingHours: str(fd, "openingHours"),
     isActive: fd.get("isActive") === "on",
     operatorId: str(fd, "operatorId") || null,
   };

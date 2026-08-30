@@ -12,7 +12,9 @@ export function OrderLookup({ defaultValue = "" }: { defaultValue?: string }) {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = value.trim();
-    if (trimmed) router.push(`/order-tracking/${encodeURIComponent(trimmed)}`);
+    // One front door: /order-tracking works out whether this is a marketplace
+    // order number, a data reference, or the phone a bundle was paid with.
+    if (trimmed) router.push(`/order-tracking?q=${encodeURIComponent(trimmed)}`);
   }
 
   return (
@@ -21,9 +23,9 @@ export function OrderLookup({ defaultValue = "" }: { defaultValue?: string }) {
         type="text"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Enter your order number, e.g. NM-10001"
+        placeholder="Order number, ND- reference, or your phone number"
         className={inputClass}
-        aria-label="Order number"
+        aria-label="Order number, reference, or phone number"
       />
       <button
         type="submit"

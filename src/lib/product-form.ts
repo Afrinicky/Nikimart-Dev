@@ -172,13 +172,13 @@ export function buildProductData(fd: FormData, options: BuildProductOptions = {}
     badges: JSON.stringify(csv(fd, "badges")),
     locationIds: JSON.stringify(csv(fd, "locationIds").length ? csv(fd, "locationIds") : ["any"]),
     attributes: JSON.stringify(parseAttributes(fd)),
-    // Affiliate program: opt-in per product, with an optional commission
-    // override (blank → the program's default affiliate rate).
-    affiliateEnabled: bool(fd, "affiliateEnabled"),
-    affiliateCommission: (() => {
-      const v = num(fd, "affiliateCommission");
-      return v !== undefined && v >= 0 && v <= 100 ? v : null;
-    })(),
+    // NB: affiliate enrolment is set once, by affiliateFields() spread at the
+    // top of this object. It used to be set a second time down here alongside
+    // an `affiliateCommission` number — a column Product does not have (it is
+    // on Order and OrderItem; Product's is `affiliateCommissionRate`). Prisma
+    // rejects an unknown argument outright, so that one stray key failed every
+    // product create and update from both the admin and the seller console,
+    // whatever the edit was.
     isFeatured: bool(fd, "isFeatured"),
     isOfficial: bool(fd, "isOfficial"),
     pickupAvailable: bool(fd, "pickupAvailable"),

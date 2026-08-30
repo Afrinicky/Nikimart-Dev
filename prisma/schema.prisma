@@ -374,6 +374,9 @@ model PickupPoint {
   code         String   @unique
   locationName String
   address      String
+  // Collection hours, shown on the public /pickup-points page. Blank falls
+  // back to the site-wide businessHours setting.
+  openingHours String   @default("")
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
 
