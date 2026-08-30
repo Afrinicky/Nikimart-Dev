@@ -9,7 +9,7 @@ export function CartBadge() {
   return (
     <Link
       href="/cart"
-      className="relative flex flex-col items-center gap-0.5 rounded-xl px-2.5 py-1.5 text-niki-ink/70 transition-colors hover:bg-niki-ink/5 hover:text-niki-ink"
+      className="relative flex flex-col items-center gap-0.5 rounded-xl px-2.5 py-1.5 text-niki-ink/80 transition-colors hover:bg-niki-ink/[0.07] hover:text-niki-ink"
       aria-label="Cart"
     >
       <span className="relative">

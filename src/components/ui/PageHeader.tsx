@@ -24,12 +24,19 @@ export function PageHeader({
 }) {
   const dark = tone === "dark";
   return (
-    <div className={cn(dark ? "niki-gradient-hero text-white" : "bg-white ring-1 ring-niki-edge")}>
+    <div className={cn(
+        dark
+          ? "niki-gradient-hero text-white"
+          : // A white band on a near-white page has no top or bottom, so the
+            // page opened with the title floating. An orange hairline along
+            // the top ties it to the brand and gives it a definite edge.
+            "border-t-2 border-niki-orange bg-white shadow-[inset_0_-1px_0_var(--color-niki-edge)]",
+      )}>
       <Container className="py-8 sm:py-10">
         <nav
           className={cn(
             "flex flex-wrap items-center gap-1 text-xs",
-            dark ? "text-white/60" : "text-niki-ink/50",
+            dark ? "text-white/60" : "text-niki-ink/55",
           )}
         >
           <Link href="/" className="hover:text-niki-orange">
@@ -53,14 +60,14 @@ export function PageHeader({
           <div>
             <h1
               className={cn(
-                "font-display text-2xl font-bold sm:text-3xl",
+                "font-display text-2xl font-extrabold tracking-tight sm:text-3xl",
                 dark ? "text-white" : "text-niki-ink",
               )}
             >
               {title}
             </h1>
             {subtitle ? (
-              <p className={cn("mt-2 max-w-2xl text-sm", dark ? "text-white/70" : "text-niki-ink/60")}>
+              <p className={cn("mt-2 max-w-2xl text-sm", dark ? "text-white/70" : "text-niki-ink/65")}>
                 {subtitle}
               </p>
             ) : null}

@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f1f1f2;
-  --foreground: #1a1a1a;
+  --background: #eeeef0;
+  --foreground: #121212;
 }
 
 @theme inline {
@@ -23,24 +23,24 @@
      built on blue-tinted greys (#111827 text, #f5f6fa page, a navy chrome),
      which read as cool next to the mark's flat black and left the orange
      looking slightly wrong against it without it being obvious why. */
-  --color-niki-black: #131313;
-  --color-niki-black-soft: #1f1f1f;
-  --color-niki-black-mute: #2e2e2e;
+  --color-niki-black: #101010;
+  --color-niki-black-soft: #1c1c1c;
+  --color-niki-black-mute: #2b2b2b;
   --color-niki-orange: #ff6a00;
   --color-niki-orange-light: #ff8a3d;
   /* A wash for selected chips and highlight rows — orange at a strength that
      can sit behind text without fighting it. */
   --color-niki-orange-soft: #fff2e8;
   --color-niki-gold: #ffb020;
-  --color-niki-surface: #f1f1f2;
+  --color-niki-surface: #eeeef0;
   --color-niki-success: #10b981;
   --color-niki-danger: #e02b2b;
-  --color-niki-ink: #1a1a1a;
+  --color-niki-ink: #121212;
   --color-niki-trust: #0ea5e9;
   --color-niki-ghana: #16a34a;
 
   /* --- Edges ---------------------------------------------------------------
-     White cards on the near-white page background (#f1f1f2) lose their edge:
+     White cards on the near-white page background (#eeeef0) lose their edge:
      the card and the page read as one surface and the layout goes soft. These
      are hairlines tinted with the brand black rather than pure black, so they
      separate a surface from its background without greying the palette down.
@@ -55,9 +55,9 @@
      `edge-control` — chips, pills and secondary buttons: things you can click,
                       which have to look like it before you hover them.
      `edge-light`   — the same job on black, where a dark line would vanish. */
-  --color-niki-edge: rgba(19, 19, 19, 0.14);
-  --color-niki-edge-strong: rgba(19, 19, 19, 0.22);
-  --color-niki-edge-control: rgba(19, 19, 19, 0.3);
+  --color-niki-edge: rgba(16, 16, 16, 0.16);
+  --color-niki-edge-strong: rgba(16, 16, 16, 0.26);
+  --color-niki-edge-control: rgba(16, 16, 16, 0.34);
   --color-niki-edge-light: rgba(255, 255, 255, 0.22);
 }
 
@@ -120,11 +120,11 @@ summary {
      a shop — and the wash sat directly behind body text. They are flat black
      now, with one shallow gradient for depth and nothing behind the words. */
   .niki-gradient-hero {
-    background: linear-gradient(160deg, #1f1f1f 0%, #131313 100%);
+    background: linear-gradient(160deg, #1e1e1e 0%, #0d0d0d 100%);
   }
 
   .niki-gradient-card {
-    background: linear-gradient(160deg, #1f1f1f 0%, #131313 100%);
+    background: linear-gradient(160deg, #1e1e1e 0%, #0d0d0d 100%);
   }
 
   .niki-glow {
@@ -136,8 +136,8 @@ summary {
      sticky header would otherwise slide over content with nothing between. */
   .niki-header-edge {
     box-shadow:
-      inset 0 -1px 0 var(--color-niki-edge),
-      0 1px 3px rgba(19, 19, 19, 0.06);
+      inset 0 -1px 0 rgba(16, 16, 16, 0.14),
+      0 2px 6px rgba(16, 16, 16, 0.08);
   }
 }
 
