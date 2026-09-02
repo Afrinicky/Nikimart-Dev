@@ -5,13 +5,13 @@ import { Container } from "@/components/ui/Container";
 import { ProductForm } from "@/components/admin/ProductForm";
 import { prisma } from "@/lib/prisma";
 import { createProduct } from "@/lib/admin-actions";
-import { getAbroadConfig, getAffiliateRate, getCommissionRate } from "@/lib/settings";
-import { getActiveArrivalPoints } from "@/lib/arrival-points-data";
+import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
+import { getProductShippingProps } from "@/lib/product-shipping-props";
 
 export const metadata: Metadata = { title: "New product — Admin — Nickimart" };
 
 export default async function NewProductPage() {
-  const [categories, vendors, defaultCommissionRate, defaultAffiliateRate, arrivalPoints, abroadConfig] =
+  const [categories, vendors, defaultCommissionRate, defaultAffiliateRate, shipping] =
     await Promise.all([
     prisma.category.findMany({
       orderBy: { name: "asc" },
@@ -20,11 +20,9 @@ export default async function NewProductPage() {
     prisma.vendor.findMany({ orderBy: { businessName: "asc" }, select: { id: true, businessName: true } }),
     getCommissionRate(),
     getAffiliateRate(),
-    // A shipped-from-abroad listing has to land somewhere, and the point the
-    // seller picks sets the freight rate, the duty and where the domestic leg
-    // starts. Only active points are offered.
-    getActiveArrivalPoints(),
-    getAbroadConfig(),
+    // Consolidation points, forwarders and the rate tables — everything the
+    // shipping section prices its live estimate from.
+    getProductShippingProps(),
   ]);
 
   return (
@@ -42,10 +40,7 @@ export default async function NewProductPage() {
           submitLabel="Create product"
           defaultCommissionRate={defaultCommissionRate}
           defaultAffiliateRate={defaultAffiliateRate}
-          arrivalPoints={arrivalPoints}
-          defaultGhanaTaxRate={abroadConfig.ghanaTaxRate}
-          defaultDutyPercent={abroadConfig.defaultDutyPercent}
-          partialPaymentEnabled={abroadConfig.partialPaymentEnabled}
+          shipping={shipping}
         />
       </div>
     </Container>

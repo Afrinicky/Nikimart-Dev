@@ -1,32 +1,32 @@
 /**
  * Shipped from Abroad — the arrangement a buyer is agreeing to.
  *
- * This replaces the old preorder terms. A preorder was "pay now for a batch
- * that closes on a date"; this is dropshipping: a seller finds an item on
- * Alibaba (or anywhere), copies its details and link, lists it here, and it is
- * bought, freighted and handed over weeks later. Nothing closes — the listing
- * stays open — so what the buyer needs instead is the *route* and the *bill*:
- * where it is coming from, how it travels, which Ghana point it lands at, what
- * it costs at each leg, and which of those legs they are paying for today.
+ * A seller finds an item on Alibaba (or anywhere), copies its details and link,
+ * lists it here, and it is bought, freighted and handed over weeks later.
+ * Nothing closes — the listing stays open — so what the buyer needs is the
+ * *promise*: where it comes from, when it should arrive, what happens if it
+ * does not, and how they pay.
  *
- * Freight comes in three legs, and they are billed separately because they are
- * quoted by three different people:
+ * The *money* is not in here. Where the goods gather, which forwarder carries
+ * them, what the duty is — those live in real columns on Product and are priced
+ * by `lib/shipping`, because they have to be queried, joined and re-priced on
+ * the server. What is left in this JSON is what a seller promises in words, and
+ * the handful of per-listing numbers that only make sense beside those words.
  *
- *   1. Supplier → freight forwarder abroad. The seller knows this; they type it.
- *   2. Forwarder → a Ghana arrival point, by air or sea. Duty and clearing land
- *      here too. The admin configures the points and their rates; the seller
- *      picks one. Some sellers already have this inside their price, which is
- *      what `freightIncluded` says.
- *   3. Ghana arrival point → the buyer's pickup point. That is the existing
- *      CBM route engine, unchanged.
+ * Two arrangements exist, and the split runs through everything:
  *
- * Pure, with no imports beyond types, so the same parse/serialise runs in a
- * client form and a server action alike, and is unit-tested directly.
+ *   1. **The supplier delivers.** Their price already puts the goods at a Ghana
+ *      consolidation point. Nothing is charged to bring them in; the buyer pays
+ *      the local run from that point to the station they choose.
+ *   2. **A forwarder carries it.** The supplier only reaches a forwarder in
+ *      their own country — the buyer pays that hop — and the forwarder's rate
+ *      per cubic metre covers the rest, port fees and duty included.
+ *
+ * Pure, with no imports beyond types, so the same parse and serialise run in a
+ * client form and a server action alike, and are unit-tested directly.
  */
 
-export type DepositType = "percentage" | "fixed_amount";
-
-/** How goods travel from abroad to a Ghana arrival point. */
+/** How goods travel from abroad. Set by the forwarder, shown to the buyer. */
 export type FreightMode = "air" | "sea" | "road" | "express";
 
 export const FREIGHT_MODES: FreightMode[] = ["air", "sea", "road", "express"];
@@ -38,30 +38,6 @@ export const FREIGHT_MODE_LABELS: Record<FreightMode, string> = {
   express: "Express courier",
 };
 
-/**
- * How the leg abroad → Ghana is quoted.
- *
- *   itemised — the carriage is priced from the arrival point's rate table (or
- *              the seller's own figure), and duty, clearing and Ghana tax are
- *              charged on top, each on its own line.
- *   all_in   — the forwarder quoted one number covering everything between
- *              their warehouse abroad and the Ghana arrival point: carriage,
- *              duty, clearing, the lot. This is how most Ghana-bound
- *              consolidators actually sell, and splitting their single figure
- *              into invented components would be a fiction that then gets
- *              taxed again.
- *
- * Legs 1 and 3 are outside both: the supplier's run to the forwarder is still
- * the seller's own cost, and the Ghana arrival point → the buyer's pickup
- * station is still the domestic route engine's.
- */
-export type FreightBasis = "itemised" | "all_in";
-
-export const FREIGHT_BASIS_LABELS: Record<FreightBasis, string> = {
-  itemised: "Itemised — carriage, duty and clearing charged separately",
-  all_in: "All-in — one combined fee to the Ghana arrival point",
-};
-
 /** Short buyer-facing note on what each mode means for the wait. */
 export const FREIGHT_MODE_HINTS: Record<FreightMode, string> = {
   air: "Faster, priced by weight.",
@@ -69,6 +45,10 @@ export const FREIGHT_MODE_HINTS: Record<FreightMode, string> = {
   road: "Regional overland freight.",
   express: "Door-to-door courier, fastest and dearest.",
 };
+
+export function freightModeLabel(mode: string | null | undefined): string {
+  return FREIGHT_MODE_LABELS[(mode ?? "") as FreightMode] ?? "";
+}
 
 export interface AbroadTerms {
   // --- Sourcing: where the seller found it --------------------------------
@@ -78,7 +58,7 @@ export interface AbroadTerms {
   supplierName: string;
   /** Where it ships from, in words: "Guangzhou, China". */
   sourceLocation: string;
-  /** Origin country code (CN, AE, US, EU…). Blank inherits the shop's. */
+  /** Origin country code (CN, AE, US…). Blank inherits the shop's. */
   originCountry: string;
 
   // --- Timing: nothing closes, but the wait is stated ---------------------
@@ -89,28 +69,21 @@ export interface AbroadTerms {
   /** Orders needed before the seller places the batch. 0 = no minimum. */
   minimumOrders: number;
 
-  // --- Freight -------------------------------------------------------------
-  freightMode: FreightMode;
-  /** The admin-configured Ghana point this listing lands at. */
-  arrivalPointId: string;
-  /** How leg 2 is quoted. See FreightBasis. */
-  freightBasis: FreightBasis;
-  /** Leg 1, GH₵ per unit: supplier → freight forwarder abroad. */
-  supplierFreight: number;
+  // --- The route ----------------------------------------------------------
   /**
-   * Leg 2, GH₵ per unit.
-   *
-   * On the itemised basis this is an override: 0 means "use the arrival
-   * point's rate table", which is the normal case, and a seller with their own
-   * forwarder deal can pin their own number instead. On the all-in basis it is
-   * the forwarder's single combined figure — carriage, duty and clearing to
-   * the Ghana arrival point — and nothing else is added on top.
+   * True when the supplier's price already puts the goods at the Ghana
+   * consolidation point. Arrangement 1: nothing is charged for the
+   * international leg, and the local system takes over from that point.
    */
-  intlFreight: number;
-  /** True when legs 1 and 2 are already inside the listed price. */
-  freightIncluded: boolean;
+  supplierDelivers: boolean;
+  /** The forwarder carrying the international leg. Arrangement 2. */
+  forwarderId: string;
+  /** The Ghana consolidation point this listing gathers at. */
+  consolidationPointId: string;
+  /** GH₵ per unit to get the goods to the forwarder abroad. The buyer pays it. */
+  supplierFreight: number;
 
-  // --- Tax -----------------------------------------------------------------
+  // --- Tax: computed, charged, never itemised to a buyer -------------------
   /** Sales tax / VAT charged in the country of purchase (percent of goods). */
   originTaxRate: number;
   /**
@@ -118,24 +91,21 @@ export interface AbroadTerms {
    * which is what almost every listing should do.
    */
   ghanaTaxRate: number;
-  /** True when import duty is already covered by the price or by leg 2. */
+  /** True when import duty and clearing are already covered by the price. */
   dutyIncluded: boolean;
 
   // --- Money ---------------------------------------------------------------
-  depositRequired: boolean;
-  depositType: DepositType;
-  /** Percent of the price, or an amount in GH₵, depending on depositType. */
-  depositValue: number;
-  /** How and when the rest is paid. */
+  //
+  // There is no deposit and no part-payment for the goods. A buyer pays the
+  // full item price at checkout, because that is the money the seller spends
+  // the moment they place the order with the supplier. Whether the *shipping*
+  // may be settled at collection is a per-listing choice, and it lives on the
+  // Product row (`shippingOnPickup`) rather than here — it applies to a
+  // Kumasi blender exactly as it applies to a Guangzhou one.
+  /** How and when the shipping is settled, when it is left until collection. */
   balanceInstruction: string;
   /** What happens if it is late, cancelled, or never arrives. */
   refundPolicy: string;
-  /**
-   * Whether the buyer may pay for the goods now and settle the freight legs
-   * when the item lands. They carry any rate rise in that window; that is the
-   * trade and it is spelled out at checkout.
-   */
-  allowFreightOnArrival: boolean;
 }
 
 export const EMPTY_ABROAD_TERMS: AbroadTerms = {
@@ -146,21 +116,15 @@ export const EMPTY_ABROAD_TERMS: AbroadTerms = {
   estimatedArrival: "",
   processingDays: 0,
   minimumOrders: 0,
-  freightMode: "sea",
-  arrivalPointId: "",
-  freightBasis: "itemised",
+  supplierDelivers: false,
+  forwarderId: "",
+  consolidationPointId: "",
   supplierFreight: 0,
-  intlFreight: 0,
-  freightIncluded: false,
   originTaxRate: 0,
   ghanaTaxRate: -1,
   dutyIncluded: false,
-  depositRequired: false,
-  depositType: "percentage",
-  depositValue: 0,
   balanceInstruction: "",
   refundPolicy: "",
-  allowFreightOnArrival: false,
 };
 
 function text(value: unknown): string {
@@ -180,9 +144,9 @@ function optionalRate(value: unknown): number {
   return Math.min(n, 100);
 }
 
-function mode(value: unknown): FreightMode {
-  const v = text(value);
-  return (FREIGHT_MODES as string[]).includes(v) ? (v as FreightMode) : "sea";
+/** Round to the pesewa. */
+function money(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
 /**
@@ -202,9 +166,11 @@ export function isSafeSourceUrl(url: string): boolean {
  * tell "this seller wrote terms" from "this listing has none" — the difference
  * decides whether the product page and checkout show a panel or stay quiet.
  *
- * Accepts the legacy preorder shape too. Those listings carry `closingDate`
- * and no freight fields; they parse into the new shape with the freight legs at
- * zero, which is exactly what they were: a price with no route behind it.
+ * Older shapes parse too, and this is where they are reconciled. A listing
+ * written under the previous system carries `arrivalPointId` for its
+ * consolidation point and `freightIncluded` for what is now `supplierDelivers`;
+ * both meant the same thing and both are read. Nothing is backfilled — the code
+ * is what reconciles them, per db/migrations/README.md.
  */
 export function parseAbroadTerms(raw: string | null | undefined): AbroadTerms | null {
   const value = (raw ?? "").trim();
@@ -219,7 +185,6 @@ export function parseAbroadTerms(raw: string | null | undefined): AbroadTerms | 
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
 
   const o = parsed as Record<string, unknown>;
-  const depositValue = count(o.depositValue);
   const sourceUrl = text(o.sourceUrl);
 
   const terms: AbroadTerms = {
@@ -230,32 +195,25 @@ export function parseAbroadTerms(raw: string | null | undefined): AbroadTerms | 
     estimatedArrival: text(o.estimatedArrival),
     processingDays: Math.round(count(o.processingDays)),
     minimumOrders: Math.round(count(o.minimumOrders)),
-    freightMode: mode(o.freightMode),
-    arrivalPointId: text(o.arrivalPointId),
-    freightBasis: o.freightBasis === "all_in" ? "all_in" : "itemised",
+    // "freightIncluded" is the old name for the same promise: the price already
+    // reaches Ghana. An all-in listing said the same in a third way.
+    supplierDelivers:
+      Boolean(o.supplierDelivers) || Boolean(o.freightIncluded),
+    forwarderId: text(o.forwarderId),
+    consolidationPointId: text(o.consolidationPointId) || text(o.arrivalPointId),
     supplierFreight: money(count(o.supplierFreight)),
-    intlFreight: money(count(o.intlFreight)),
-    freightIncluded: Boolean(o.freightIncluded),
     originTaxRate: Math.min(count(o.originTaxRate), 100),
     ghanaTaxRate: optionalRate(o.ghanaTaxRate),
     dutyIncluded: Boolean(o.dutyIncluded),
-    // A deposit that was flagged but priced at zero is not a deposit. Treating
-    // it as one would show a buyer "Deposit: 0%" and imply a part-payment the
-    // seller never asked for.
-    depositRequired: Boolean(o.depositRequired) && depositValue > 0,
-    depositType: o.depositType === "fixed_amount" ? "fixed_amount" : "percentage",
-    depositValue,
+    // Deposits are gone: the goods are paid for in full at checkout. A legacy
+    // record's deposit fields are dropped here rather than migrated, because
+    // honouring a 30% deposit written under the old rules would take a third of
+    // the money for an order the seller has to fund in full.
     balanceInstruction: text(o.balanceInstruction),
     refundPolicy: text(o.refundPolicy),
-    allowFreightOnArrival: Boolean(o.allowFreightOnArrival),
   };
 
   return hasAnyTerms(terms) ? terms : null;
-}
-
-/** Round to the pesewa. */
-function money(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 /** True when at least one term says something a buyer could act on. */
@@ -266,15 +224,13 @@ export function hasAnyTerms(terms: AbroadTerms): boolean {
       terms.sourceUrl ||
       terms.supplierName ||
       terms.originCountry ||
-      terms.arrivalPointId ||
+      terms.consolidationPointId ||
+      terms.forwarderId ||
       terms.balanceInstruction ||
       terms.refundPolicy ||
-      terms.depositRequired ||
+      terms.supplierDelivers ||
       terms.supplierFreight > 0 ||
-      terms.intlFreight > 0 ||
-      terms.freightBasis === "all_in" ||
       terms.originTaxRate > 0 ||
-      terms.freightIncluded ||
       terms.minimumOrders > 0,
   );
 }
@@ -290,35 +246,11 @@ export function serialiseAbroadTerms(terms: AbroadTerms): string | null {
 }
 
 /**
- * The deposit due on one line, or null when the whole bill is due now.
- *
- * Rounded to the pesewa, and never more than the amount itself — a fixed
- * deposit left over from a higher price must not ask for more than it costs.
- */
-export function depositDue(terms: AbroadTerms, unitPrice: number, quantity = 1): number | null {
-  if (!terms.depositRequired || terms.depositValue <= 0) return null;
-  const line = unitPrice * quantity;
-  const raw =
-    terms.depositType === "percentage"
-      ? (line * terms.depositValue) / 100
-      : terms.depositValue * quantity;
-  return money(Math.min(raw, line));
-}
-
-/** One line summarising the deposit, for a buyer. */
-export function describeDeposit(terms: AbroadTerms): string {
-  if (!terms.depositRequired || terms.depositValue <= 0) return "Paid in full at checkout";
-  return terms.depositType === "percentage"
-    ? `${terms.depositValue}% deposit`
-    : `GH₵${terms.depositValue} deposit`;
-}
-
-/**
  * Adapt a parsed catalogue object into the editor's shape.
  *
  * The storefront reads a loosely-typed object off the JSON column (it may be a
- * legacy preorder record); this narrows it to exactly the fields the form owns,
- * so the editor never silently drops or invents anything.
+ * legacy record); this narrows it to exactly the fields the form owns, so the
+ * editor never silently drops or invents anything.
  */
 export function toAbroadTerms(info: object): AbroadTerms {
   return parseAbroadTerms(JSON.stringify(info)) ?? EMPTY_ABROAD_TERMS;

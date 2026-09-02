@@ -12,6 +12,7 @@ import {
   type ShipmentTimestamps,
 } from "@/lib/tracking";
 import type { Role } from "@/lib/roles";
+import { isDeferredPlan } from "@/lib/cart-bill";
 
 const money = (n: number) => `GHS ${n.toFixed(2)}`;
 
@@ -129,8 +130,8 @@ export async function notifyStaffNewOrder(orderId: string): Promise<void> {
       : "prepare the item(s) and confirm in your seller dashboard";
     const sellerMsg = `Nickimart: new order ${order.orderNumber} — please ${sellerAction}.`;
     const balanceNote =
-      order.paymentPlan === "goods_only" && order.balanceDue > 0
-        ? ` The buyer is paying freight on arrival — ${money(order.balanceDue)} is due when it lands.`
+      isDeferredPlan(order.paymentPlan) && order.balanceDue > 0
+        ? ` The buyer is settling the shipping at collection — ${money(order.balanceDue)} is due at the station.`
         : "";
     const adminMsg = `Nickimart: new order ${order.orderNumber} placed (${money(order.total)}).${balanceNote}`;
 
@@ -259,11 +260,12 @@ export async function notifyShipmentUpdate(
       const landedAt = order.shipment?.arrivalPoint
         ? `${order.shipment.arrivalPoint.name}${order.shipment.arrivalPoint.city ? `, ${order.shipment.arrivalPoint.city}` : ""}`
         : "Ghana";
-      // On a goods-only plan the balance is now due, and burying that in a
-      // status line is how a consignment sits uncollected for a fortnight.
+      // When the shipping was left until collection, saying so here is the
+      // point: burying it in a status line is how a consignment sits
+      // uncollected for a fortnight because nobody arrived with the money.
       const balanceLine =
-        order.paymentPlan === "goods_only" && order.balanceDue > 0
-          ? ` Balance of ${money(order.balanceDue)} for freight, duty and delivery is now due.`
+        isDeferredPlan(order.paymentPlan) && order.balanceDue > 0
+          ? ` Shipping of ${money(order.balanceDue)} is due when you collect.`
           : "";
       await notify(order.user, {
         sms: `Nickimart: good news ${first} — order ${order.orderNumber} has arrived in Ghana at ${landedAt}.${balanceLine} We'll tell you the moment it reaches ${point}.`,
@@ -271,7 +273,7 @@ export async function notifyShipmentUpdate(
         emailHtml: emailShell(
           `Hi ${first}, your order <strong>${order.orderNumber}</strong> has landed in Ghana at <strong>${landedAt}</strong>.` +
             (balanceLine
-              ? `<br/><br/>Because you chose to settle the freight on arrival, a balance of <strong>${money(order.balanceDue)}</strong> is now due for freight, duty, tax and local delivery. You can pay it from your Nickimart account.`
+              ? `<br/><br/>Because you chose to settle the shipping at collection, <strong>${money(order.balanceDue)}</strong> is due when you pick it up. You can also pay it in advance from your Nickimart account.`
               : "") +
             `<br/><br/>It now travels to <strong>${point}</strong>. We'll let you know as soon as it's ready to collect.`,
           "It's in the country 🇬🇭",

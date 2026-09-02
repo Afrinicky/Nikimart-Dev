@@ -5,9 +5,9 @@ import { useActionState, useState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { ProductImagesField } from "@/components/admin/ProductImagesField";
-import { AbroadTermsField } from "@/components/admin/AbroadTermsField";
+import { ShippingField } from "@/components/admin/ShippingField";
 import { isAbroadType, SHIPPED_FROM_ABROAD, toAbroadTerms } from "@/lib/abroad";
-import type { ArrivalPointConfig } from "@/lib/arrival-points";
+import { isShippingMethod, type ConsolidationPoint, type Forwarder, type ShippingConfig } from "@/lib/shipping";
 import { KeyAttributesField } from "@/components/admin/KeyAttributesField";
 import { AffiliateEnrolmentField } from "@/components/admin/AffiliateEnrolmentField";
 import type { CrudState } from "@/lib/admin-actions";
@@ -42,10 +42,7 @@ export function ProductForm({
   cancelHref = "/admin/products",
   defaultCommissionRate,
   defaultAffiliateRate,
-  arrivalPoints = [],
-  defaultGhanaTaxRate = 0,
-  defaultDutyPercent = 0,
-  partialPaymentEnabled = true,
+  shipping,
 }: {
   action: Action;
   categories: ProductFormCategory[];
@@ -61,13 +58,15 @@ export function ProductForm({
   defaultCommissionRate: number;
   /** Programme default affiliate commission (percent). */
   defaultAffiliateRate: number;
-  /** Ghana arrival points a shipped-from-abroad listing may land at. */
-  arrivalPoints?: ArrivalPointConfig[];
-  /** Platform Ghana VAT + levies, and the fallback import duty (percent). */
-  defaultGhanaTaxRate?: number;
-  defaultDutyPercent?: number;
-  /** Whether the goods-only payment plan may be offered at all. */
-  partialPaymentEnabled?: boolean;
+  /** Everything the shipping section needs to price this listing live. */
+  shipping: {
+    points: ConsolidationPoint[];
+    forwarders: Forwarder[];
+    config: ShippingConfig;
+    payOnPickupEnabled: boolean;
+    /** A station to price the estimate against. */
+    sampleDestinationId: string;
+  };
 }) {
   const [state, formAction] = useActionState<CrudState, FormData>(action, {});
   const p = product;
@@ -80,20 +79,9 @@ export function ProductForm({
   );
   const selectedCategory = categories.find((c) => c.id === categoryId);
 
-  // Mirrored so the landed-cost estimate reacts as they are typed. The form
-  // still submits the inputs themselves; these only feed the preview.
+  // Mirrored so the shipping estimate reacts as the price is typed. Size and
+  // weight live inside the shipping section, which owns and submits them.
   const [price, setPrice] = useState<number>(p?.price ?? 0);
-  const [dims, setDims] = useState({
-    cbm: p?.cbm ?? 0,
-    lengthCm: p?.lengthCm ?? 0,
-    widthCm: p?.widthCm ?? 0,
-    heightCm: p?.heightCm ?? 0,
-    weightKg: p?.shippingWeightKg ?? 0.5,
-  });
-  const estimateCbm =
-    dims.cbm > 0
-      ? dims.cbm
-      : (dims.lengthCm * dims.widthCm * dims.heightCm) / 1_000_000;
 
   return (
     <form action={formAction} className="space-y-5" noValidate>
@@ -135,31 +123,6 @@ export function ProductForm({
         </Field>
         <Field label="Stock quantity" htmlFor="stockQuantity">
           <input id="stockQuantity" name="stockQuantity" type="number" min="0" defaultValue={p?.stockQuantity ?? 0} className={inputClass} />
-        </Field>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-4">
-        <Field label="Shipping weight (kg)" htmlFor="shippingWeightKg" hint="Used when charging by weight">
-          <input id="shippingWeightKg" name="shippingWeightKg" onChange={(e) => setDims((d) => ({ ...d, weightKg: Number(e.target.value) || 0 }))} type="number" step="0.1" min="0" defaultValue={p?.shippingWeightKg ?? 0.5} className={inputClass} />
-        </Field>
-        <Field label="Length (cm)" htmlFor="lengthCm" hint="For size pricing">
-          <input id="lengthCm" name="lengthCm" onChange={(e) => setDims((d) => ({ ...d, lengthCm: Number(e.target.value) || 0 }))} type="number" step="0.1" min="0" defaultValue={p?.lengthCm ?? 0} className={inputClass} />
-        </Field>
-        <Field label="Width (cm)" htmlFor="widthCm">
-          <input id="widthCm" name="widthCm" onChange={(e) => setDims((d) => ({ ...d, widthCm: Number(e.target.value) || 0 }))} type="number" step="0.1" min="0" defaultValue={p?.widthCm ?? 0} className={inputClass} />
-        </Field>
-        <Field label="Height (cm)" htmlFor="heightCm">
-          <input id="heightCm" name="heightCm" onChange={(e) => setDims((d) => ({ ...d, heightCm: Number(e.target.value) || 0 }))} type="number" step="0.1" min="0" defaultValue={p?.heightCm ?? 0} className={inputClass} />
-        </Field>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label="Shipping volume (CBM)"
-          htmlFor="cbm"
-          hint="Cubic metres per unit — the basis of the shipping fee. Leave blank to auto-calculate from L×W×H."
-        >
-          <input id="cbm" name="cbm" onChange={(e) => setDims((d) => ({ ...d, cbm: Number(e.target.value) || 0 }))} type="number" step="0.0001" min="0" defaultValue={p?.cbm ? p.cbm : ""} placeholder="e.g. 0.045" className={inputClass} />
         </Field>
       </div>
 
@@ -218,16 +181,26 @@ export function ProductForm({
 
       <ProductImagesField initial={p?.images} />
 
-      <AbroadTermsField
+      <ShippingField
         initial={p?.preorderInfo ? toAbroadTerms(p.preorderInfo) : null}
-        visible={productType === SHIPPED_FROM_ABROAD}
-        arrivalPoints={arrivalPoints}
-        defaultGhanaTaxRate={defaultGhanaTaxRate}
-        defaultDutyPercent={defaultDutyPercent}
-        partialPaymentEnabled={partialPaymentEnabled}
+        isAbroad={productType === SHIPPED_FROM_ABROAD}
+        points={shipping.points}
+        forwarders={shipping.forwarders}
+        config={shipping.config}
+        payOnPickupEnabled={shipping.payOnPickupEnabled}
+        sampleDestinationId={shipping.sampleDestinationId}
         price={price}
-        cbm={estimateCbm}
-        weightKg={dims.weightKg}
+        categoryId={categoryId}
+        method={isShippingMethod(p?.shippingMethod) ? p.shippingMethod : "auto"}
+        manualFee={p?.manualShippingFee ?? 0}
+        shippingOnPickup={p?.shippingOnPickup ?? false}
+        size={{
+          shippingWeightKg: p?.shippingWeightKg ?? 0.5,
+          lengthCm: p?.lengthCm ?? 0,
+          widthCm: p?.widthCm ?? 0,
+          heightCm: p?.heightCm ?? 0,
+          cbm: p?.cbm ?? 0,
+        }}
       />
 
       <div className="grid gap-4 sm:grid-cols-2">

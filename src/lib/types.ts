@@ -142,27 +142,40 @@ export interface Vendor {
  */
 export interface AbroadInfo {
   estimatedArrival?: string;
-  depositRequired?: boolean;
-  depositType?: "percentage" | "fixed_amount";
-  depositValue?: number;
   balanceInstruction?: string;
   refundPolicy?: string;
   sourceLocation?: string;
   sourceUrl?: string;
   supplierName?: string;
   originCountry?: string;
-  freightMode?: string;
-  arrivalPointId?: string;
+  /** The consolidation point this listing gathers at. */
+  consolidationPointId?: string;
+  /** The forwarder carrying the leg into Ghana. */
+  forwarderId?: string;
+  /** True when the supplier's price already reaches Ghana. */
+  supplierDelivers?: boolean;
   supplierFreight?: number;
-  intlFreight?: number;
-  freightIncluded?: boolean;
   originTaxRate?: number;
   ghanaTaxRate?: number;
   dutyIncluded?: boolean;
-  allowFreightOnArrival?: boolean;
   processingDays?: number;
   abroadStatus?: AbroadStatus;
   minimumOrders?: number;
+
+  // --- Fields older records carry, read but never written ------------------
+  /** The old name for `consolidationPointId`. */
+  arrivalPointId?: string;
+  /** The old name for `supplierDelivers`. */
+  freightIncluded?: boolean;
+  /** air | sea | road | express. Now taken from the forwarder. */
+  freightMode?: string;
+  intlFreight?: number;
+  /** Deposits are gone — the goods are paid for in full at checkout. */
+  depositRequired?: boolean;
+  depositType?: "percentage" | "fixed_amount";
+  depositValue?: number;
+  /** Replaced by `Product.shippingOnPickup`, which is not abroad-only. */
+  allowFreightOnArrival?: boolean;
   /** Legacy preorder field. Read only; nothing writes it any more. */
   closingDate?: string;
 }
@@ -228,10 +241,18 @@ export interface Product {
   supplierName?: string;
   /** air | sea | road | express, for the abroad → Ghana leg. */
   freightMode?: string;
-  /** The Ghana arrival point this listing lands at. */
+  /** The consolidation point this listing gathers at. */
   arrivalPointId?: string | null;
-  /** True when the listed price already covers freight into Ghana. */
+  /** True when the supplier's price already reaches Ghana. */
   freightIncluded?: boolean;
+  /** The forwarder carrying the leg into Ghana, when one does. */
+  forwarderId?: string | null;
+  /** How this listing's shipping is priced: auto | free | manual. */
+  shippingMethod?: string;
+  /** The hand-quoted fee per unit, on the manual method. */
+  manualShippingFee?: number;
+  /** True when the seller lets a buyer settle the shipping at collection. */
+  shippingOnPickup?: boolean;
   /** Key attributes / spec table rows. */
   attributes?: KeyAttribute[];
   /** Offered to affiliate marketers? */

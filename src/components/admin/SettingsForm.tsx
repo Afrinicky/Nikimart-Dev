@@ -23,91 +23,14 @@ export function SettingsForm({ settings }: { settings: Settings }) {
       <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Shipping</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
-          Orders are collected at Nickimart pickup points and priced by CBM. Set the per-route ₵/CBM rates,
-          international rates, and the arrival hub in the{" "}
-          <Link href="/admin/shipping" className="font-semibold text-niki-orange hover:underline">Shipping</Link> tab.
-        </p>
-      </section>
-
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
-        <h2 className="font-display text-lg font-bold text-niki-ink">Shipped from abroad</h2>
-        <p className="mt-1 text-sm text-niki-ink/60">
-          The tax and duty applied to imported orders, and whether buyers may settle the freight on
-          arrival. Per-point duty, clearing charges and the freight rates into each Ghana arrival
-          point are set in{" "}
-          <Link href="/admin/arrival-points" className="font-semibold text-niki-orange hover:underline">
-            Arrival points
+          Consolidation points, the rates inside Ghana, the forwarders who bring goods in, and the
+          duty and tax on an imported order are all in one place now:{" "}
+          <Link href="/admin/shipping" className="font-semibold text-niki-orange hover:underline">
+            Shipping
           </Link>
-          .
+          . They used to be split between this page, a rates screen and an arrival-points tab, so
+          nobody could see a fee&apos;s whole configuration at once.
         </p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <Field
-            label="Ghana VAT & levies (%)"
-            htmlFor="ghanaImportTaxRate"
-            hint="Applied to the landed value plus duty when a listing sets no rate of its own."
-          >
-            <input
-              id="ghanaImportTaxRate"
-              name="ghanaImportTaxRate"
-              type="number"
-              min="0"
-              max="100"
-              step="0.1"
-              defaultValue={settings.ghanaImportTaxRate}
-              className={inputClass}
-            />
-          </Field>
-          <Field
-            label="Fallback import duty (%)"
-            htmlFor="defaultImportDutyPercent"
-            hint="Used for an arrival point whose own duty hasn't been set."
-          >
-            <input
-              id="defaultImportDutyPercent"
-              name="defaultImportDutyPercent"
-              type="number"
-              min="0"
-              max="100"
-              step="0.1"
-              defaultValue={settings.defaultImportDutyPercent}
-              className={inputClass}
-            />
-          </Field>
-          <Field
-            label="Pay freight on arrival"
-            htmlFor="abroadPartialPaymentEnabled"
-            hint="Sellers still choose per listing; this is the platform-wide switch."
-          >
-            <select
-              id="abroadPartialPaymentEnabled"
-              name="abroadPartialPaymentEnabled"
-              defaultValue={settings.abroadPartialPaymentEnabled}
-              className={inputClass}
-            >
-              <option value="1">Allowed</option>
-              <option value="0">Everyone pays in full</option>
-            </select>
-          </Field>
-        </div>
-        <div className="mt-4 grid gap-4">
-          <Field label="Page heading" htmlFor="abroadPageTitle">
-            <input
-              id="abroadPageTitle"
-              name="abroadPageTitle"
-              defaultValue={settings.abroadPageTitle}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Page intro" htmlFor="abroadPageIntro" hint="Shown under the heading on /shipped-from-abroad.">
-            <textarea
-              id="abroadPageIntro"
-              name="abroadPageIntro"
-              rows={2}
-              defaultValue={settings.abroadPageIntro}
-              className={inputClass}
-            />
-          </Field>
-        </div>
       </section>
 
       <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
@@ -157,25 +80,6 @@ export function SettingsForm({ settings }: { settings: Settings }) {
               <option value="sms">SMS only</option>
               <option value="email">Email only</option>
             </select>
-          </Field>
-        </div>
-      </section>
-
-      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
-        <h2 className="font-display text-lg font-bold text-niki-ink">Global shipping</h2>
-        <p className="mt-1 text-sm text-niki-ink/60">Estimated days for imported items to arrive in Ghana.</p>
-        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Field label="China (days)" htmlFor="leadDaysCN">
-            <input id="leadDaysCN" name="leadDaysCN" type="number" min="0" defaultValue={settings.leadDaysCN} className={inputClass} />
-          </Field>
-          <Field label="Dubai (days)" htmlFor="leadDaysAE">
-            <input id="leadDaysAE" name="leadDaysAE" type="number" min="0" defaultValue={settings.leadDaysAE} className={inputClass} />
-          </Field>
-          <Field label="USA (days)" htmlFor="leadDaysUS">
-            <input id="leadDaysUS" name="leadDaysUS" type="number" min="0" defaultValue={settings.leadDaysUS} className={inputClass} />
-          </Field>
-          <Field label="Europe (days)" htmlFor="leadDaysEU">
-            <input id="leadDaysEU" name="leadDaysEU" type="number" min="0" defaultValue={settings.leadDaysEU} className={inputClass} />
           </Field>
         </div>
       </section>

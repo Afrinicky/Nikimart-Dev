@@ -1,20 +1,10 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { DELIVERY_DEFAULTS, type DeliveryConfig } from "@/lib/delivery";
-import type { ShippingRates } from "@/lib/shipping";
 import { normaliseDataBundlesUrl } from "@/lib/data-bundles/store-link";
 
 // Site-wide settings stored as key/value rows, merged with these defaults.
 export const SETTINGS_DEFAULTS = {
-  deliveryFee: "20",
-  // Delivery-fee engine (Jumia-style): base + per-kg, and a flat pickup fee.
-  deliveryPerKg: "5",
-  pickupFee: "0",
-  // Price the per-kg component by "weight" or "size" (volumetric weight).
-  deliveryBasis: "weight",
-  // cm³ per volumetric kg when using size basis (courier standard ~5000).
-  volumetricDivisor: "5000",
   supportEmail: "support@nickimart.gh",
   supportPhone: "030 000 0000",
   businessHours: "Mon–Sat, 8am–7pm",
@@ -105,22 +95,28 @@ export const SETTINGS_DEFAULTS = {
   leadDaysAE: "14",
   leadDaysUS: "21",
   leadDaysEU: "21",
-  // --- CBM shipping-fee engine (pickup-only) --------------------------------
-  // Fallback domestic rate (GH₵ per CBM) when a specific origin→pickup route
-  // rate isn't configured in the Shipping rates table.
-  shippingDefaultRatePerCbm: "150",
-  // International rate (GH₵ per CBM) for the abroad→Ghana leg, per origin
-  // country, plus a fallback for other countries.
-  intlRatePerCbmCN: "1200",
-  intlRatePerCbmAE: "1000",
-  intlRatePerCbmUS: "1500",
-  intlRatePerCbmEU: "1500",
-  intlDefaultRatePerCbm: "1500",
-  // Pickup point where goods shipped from abroad land before the domestic leg.
-  // Empty = the first active pickup point. Superseded per-listing by the Ghana
-  // arrival point the seller chooses; this stays as the fallback.
-  internationalArrivalHubId: "",
-  // --- Shipped from abroad --------------------------------------------------
+  // --- Shipping: the domestic leg -------------------------------------------
+  // Goods gather at a consolidation point, are checked, and are couriered to
+  // the buyer's pickup station. That run is priced the way a Ghanaian courier
+  // prices one: a fee per consignment plus a rate per billable kilogram, where
+  // billable weight is the greater of what a parcel weighs and what its size
+  // says it weighs. Per-route and per-category overrides live in the shipping
+  // rules table (Admin → Shipping → Rates); these are the fallbacks.
+  shipBaseFee: "15",
+  shipPerKgRate: "4",
+  // cm³ per volumetric kilogram (courier standard ≈ 5000).
+  shipVolumetricDivisor: "5000",
+  // No charged domestic leg is billed under this. Collection at the point the
+  // goods already sit at stays free regardless — it is not a charged leg.
+  shipMinFee: "0",
+  // The consolidation point a listing with none of its own falls back to.
+  shipDefaultPointId: "",
+  // --- Shipping: from abroad ------------------------------------------------
+  // Fallback GH₵ per CBM when a listing's route matches no forwarder price.
+  // Zero means "refuse to quote", which is the safe default: an unpriced sea
+  // container sold at the price of the courier run is a loss nobody notices
+  // until the invoice arrives.
+  shipFallbackRatePerCbm: "0",
   // Ghana VAT + levies (percent) applied to the landed value plus duty of an
   // imported order, when a listing doesn't set its own rate. 15% VAT plus the
   // NHIL/GETFund/COVID levies is the usual standing figure.
@@ -128,10 +124,10 @@ export const SETTINGS_DEFAULTS = {
   // Fallback Ghana import duty (percent of CIF) for an arrival point that has
   // not had its own duty set.
   defaultImportDutyPercent: "20",
-  // Whether buyers may pay for the goods now and settle the freight legs, duty
-  // and Ghana tax when the item lands. "0" forces payment in full. A listing
-  // can still decline it; this is the platform-level switch.
-  abroadPartialPaymentEnabled: "1",
+  // Whether a buyer may settle the shipping when they collect instead of at
+  // checkout. The goods are always paid for in full at checkout. "0" turns the
+  // option off everywhere; a listing can still decline it on its own.
+  shipPayOnPickupEnabled: "1",
   // The public heading and blurb on /shipped-from-abroad.
   abroadPageTitle: "Shipped from Abroad",
   abroadPageIntro:
@@ -160,30 +156,6 @@ export const getSettings = cache(async (): Promise<Settings> => {
   return merged;
 });
 
-
-/** Numeric delivery fee (GH₵). */
-export async function getDeliveryFee(): Promise<number> {
-  const settings = await getSettings();
-  const fee = Number(settings.deliveryFee);
-  return Number.isFinite(fee) && fee >= 0 ? fee : Number(SETTINGS_DEFAULTS.deliveryFee);
-}
-
-/** Delivery-fee engine configuration (base + per-kg + pickup), from settings. */
-export async function getDeliveryConfig(): Promise<DeliveryConfig> {
-  const settings = await getSettings();
-  const numOr = (raw: string, fallback: number) => {
-    const n = Number(raw);
-    return Number.isFinite(n) && n >= 0 ? n : fallback;
-  };
-  const basis = settings.deliveryBasis === "size" ? "size" : "weight";
-  return {
-    baseFee: numOr(settings.deliveryFee, DELIVERY_DEFAULTS.baseFee),
-    perKgRate: numOr(settings.deliveryPerKg, DELIVERY_DEFAULTS.perKgRate),
-    pickupFee: numOr(settings.pickupFee, DELIVERY_DEFAULTS.pickupFee),
-    basis,
-    volumetricDivisor: numOr(settings.volumetricDivisor, DELIVERY_DEFAULTS.volumetricDivisor),
-  };
-}
 
 /** Platform default commission rate (percent). Falls back if unset/invalid. */
 export async function getCommissionRate(): Promise<number> {
@@ -245,45 +217,6 @@ export async function getLeadDays(countryCode: string): Promise<number> {
   return Number.isFinite(raw) && raw >= 0 ? raw : 21;
 }
 
-/** The CBM shipping-rate tables (default + configured routes + international). */
-export async function getShippingRates(): Promise<ShippingRates> {
-  const settings = await getSettings();
-  const numOr = (raw: string, fallback: number) => {
-    const n = Number(raw);
-    return Number.isFinite(n) && n >= 0 ? n : fallback;
-  };
-
-  const routes: Record<string, number> = {};
-  let arrivalHubId: string | null = settings.internationalArrivalHubId || null;
-  try {
-    const rows = await prisma.shippingRate.findMany();
-    for (const r of rows) routes[`${r.originHubId}|${r.destPickupId}`] = r.ratePerCbm;
-    if (!arrivalHubId) {
-      const first = await prisma.pickupPoint.findFirst({
-        where: { isActive: true },
-        orderBy: { createdAt: "asc" },
-        select: { id: true },
-      });
-      arrivalHubId = first?.id ?? null;
-    }
-  } catch {
-    // table not migrated yet — default rate only
-  }
-
-  return {
-    defaultRatePerCbm: numOr(settings.shippingDefaultRatePerCbm, 150),
-    routes,
-    intlRatePerCbm: {
-      CN: numOr(settings.intlRatePerCbmCN, 1200),
-      AE: numOr(settings.intlRatePerCbmAE, 1000),
-      US: numOr(settings.intlRatePerCbmUS, 1500),
-      EU: numOr(settings.intlRatePerCbmEU, 1500),
-    },
-    intlDefaultRatePerCbm: numOr(settings.intlDefaultRatePerCbm, 1500),
-    arrivalHubId,
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Shipped from abroad
 // ---------------------------------------------------------------------------
@@ -293,8 +226,10 @@ export interface AbroadConfig {
   ghanaTaxRate: number;
   /** Fallback import duty (percent of CIF) when an arrival point sets none. */
   defaultDutyPercent: number;
-  /** Whether the goods-only payment plan is offered at all. */
-  partialPaymentEnabled: boolean;
+  /** Whether shipping may be settled at collection rather than at checkout. */
+  payOnPickupEnabled: boolean;
+  /** The consolidation point a listing with none of its own falls back to. */
+  defaultPointId: string | null;
   pageTitle: string;
   pageIntro: string;
 }
@@ -314,9 +249,10 @@ export async function getAbroadConfig(): Promise<AbroadConfig> {
     ),
     // Anything but an explicit off keeps the option available, so a half-written
     // value never quietly removes a payment plan buyers were relying on.
-    partialPaymentEnabled: !["0", "off", "false", "no"].includes(
-      settings.abroadPartialPaymentEnabled.trim().toLowerCase(),
+    payOnPickupEnabled: !["0", "off", "false", "no"].includes(
+      settings.shipPayOnPickupEnabled.trim().toLowerCase(),
     ),
+    defaultPointId: settings.shipDefaultPointId.trim() || null,
     pageTitle: settings.abroadPageTitle.trim() || SETTINGS_DEFAULTS.abroadPageTitle,
     pageIntro: settings.abroadPageIntro.trim() || SETTINGS_DEFAULTS.abroadPageIntro,
   };

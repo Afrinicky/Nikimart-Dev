@@ -173,7 +173,7 @@ function vendorData(fd: FormData) {
     deliveryAvailable: bool(fd, "deliveryAvailable"),
     pickupAvailable: bool(fd, "pickupAvailable"),
     sameDayDeliveryAvailable: bool(fd, "sameDayDeliveryAvailable"),
-    originPickupId: optStr(fd, "originPickupId") ?? null,
+    consolidationPointId: optStr(fd, "consolidationPointId") ?? null,
     logoUrl: str(fd, "logoUrl"),
     bannerUrl: str(fd, "bannerUrl"),
     whatsapp: str(fd, "whatsapp"),

@@ -4,6 +4,8 @@ import { ArrowLeft } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { VendorForm } from "@/components/admin/VendorForm";
 import { prisma } from "@/lib/prisma";
+import { describePoint } from "@/lib/shipping";
+import { getActiveConsolidationPoints } from "@/lib/shipping-config";
 import { createVendor } from "@/lib/admin-actions";
 
 export const metadata: Metadata = { title: "New shop — Admin — Nickimart" };
@@ -15,13 +17,12 @@ export default async function NewVendorPage() {
       orderBy: { name: "asc" },
       select: { id: true, name: true, email: true },
     }),
-    prisma.pickupPoint.findMany({
-      where: { isActive: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, locationName: true },
-    }),
+    getActiveConsolidationPoints(),
   ]);
-  const hubs = hubPoints.map((h) => ({ id: h.id, label: `${h.locationName} — ${h.name}` }));
+  const hubs = hubPoints.map((h) => ({
+    id: h.id,
+    label: h.pickupPointId ? `${describePoint(h)} · free to collect here` : describePoint(h),
+  }));
 
   return (
     <Container className="max-w-3xl py-8">

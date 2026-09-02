@@ -92,8 +92,9 @@ idempotent, and records itself in `_prisma_migrations` so a later
 | Release | Catch-up file |
 | ------- | ------------- |
 | Affiliate programme, product archiving | `nikimart-neon-affiliate-products.sql` |
-| CBM shipping routes | `nikimart-neon-shipping-cbm.sql` |
+| CBM shipping routes (superseded by `0006`) | `nikimart-neon-shipping-cbm.sql` |
 | Shipped from Abroad (arrival points, rates, landed-cost columns) | `db/migrations/0005_shipped_from_abroad.sql` — applied automatically at build |
+| One shipping system (consolidation points, rules, forwarders) | `db/migrations/0006_shipping_hub.sql` — applied automatically at build |
 | Commission + seller payouts | `nikimart-neon-commission.sql` |
 | Affiliates (Finance console) | `nikimart-neon-affiliates.sql` |
 | Data bundle storefront | `nikimart-neon-data-bundles.sql` |
@@ -219,62 +220,120 @@ later enrolment changes never rewrite past payouts. It **clears on delivery**,
 mirroring seller settlements, so a payout is never made against an order that
 can still be cancelled.
 
+## Shipping
+
+One console, one fee, one number the buyer sees.
+
+Shipping configuration used to live in three places — a rate matrix under
+Shipping, an Arrival points tab, and a slice of Settings — so nobody could see a
+fee's whole configuration at once and a rate set in one place could quietly
+contradict a rate set in another. It is all under **`/admin/shipping`** now, in
+four screens: Overview (the platform defaults), Points, Rates, and From abroad.
+
+### The journey
+
+Every order is collected. Goods are gathered at a **consolidation point** — a
+seller's Kumasi store, a supplier's Accra receiving depot, Tema Port — checked
+there, and couriered to the **pickup station** the buyer chose.
+
+A consolidation point may *sit at* a pickup station, and that link is the point
+of the whole model: when it does, a buyer collecting there pays **nothing**,
+because the goods are already in the room. Nobody configures a zero.
+
+Points are admin-owned (`/admin/shipping/points`) and come in two kinds: local,
+where goods that never left Ghana gather, and international, where imported
+consignments land and clear. The table behind them is still called
+`ArrivalPoint` — every listing, order line and shipment already points at it,
+and migrations here are additive by rule.
+
+### Pricing the run inside Ghana
+
+Jumia's model, not a freight one: **billable weight**, the greater of what a
+parcel weighs and what its size says it weighs (L×W×H ÷ 5000 by default),
+rounded up to the next half kilo. Cubic metres are how sea freight is sold and
+not how a van crossing Ghana is — a seller listing a blender should not have to
+compute m³ to four decimals.
+
+A **shipping rule** (`/admin/shipping/rates`) is a scope and a price. The scope
+is any combination of *from this point*, *to this station* and *for this
+category*, and every part is optional. The price is either a flat fee per item —
+"all blenders from Kumasi to Accra, GH₵50" — or a base plus a rate per kilogram.
+The most specific matching rule wins; anything no rule claims is priced by the
+platform defaults on the Overview screen.
+
+That is deliberately a list rather than a matrix. A matrix has a cell for every
+pair whether or not anybody has an opinion about it, no room for a category, and
+it grows as the square of the network.
+
+### Goods from abroad
+
+CBM stays where it belongs — the forwarder's leg — because that is how
+forwarders invoice. Two arrangements exist, and the seller picks one on the
+listing:
+
+1. **The supplier delivers.** Their price already puts the goods at a Ghana
+   consolidation point. Nothing is charged for the international leg and no
+   border is billed again; the buyer pays only the local run from that point.
+2. **A forwarder carries it.** The supplier reaches a forwarder in their own
+   country (the buyer pays that hop), and the forwarder's rate per cubic metre
+   brings it the rest of the way. Forwarders are admin-owned
+   (`/admin/shipping/abroad`) and carry a **price list keyed by category**, since
+   a cubic metre of clothing and a cubic metre of electronics do not attract the
+   same duty. The row with no category is the catch-all.
+
+A forwarder's rate normally covers the carriage, the port fees, the duty and the
+taxes up to their Ghana point — that is what **"their price covers everything to
+Ghana"** means on the forwarder form, and it is why nothing is added on top of
+it. Untick it and duty, clearing and Ghana VAT are assessed on the landed value
+instead (goods plus the freight that got them here; VAT on that plus the duty —
+customs practice, not intuition).
+
+A route nobody has priced is **refused**, not quoted at zero: an unpriced sea
+container sold at the price of the courier run at the other end is a loss nobody
+notices until the invoice arrives. An admin who prefers a guess to a refusal can
+set a fallback ₵/CBM.
+
+### Special shipments
+
+Cars, generators, anything fragile or oversized: the seller or admin sets
+**a fixed fee** on the listing and nothing is added to it. That is the point of
+quoting a car by hand — no rate table gets an opinion about it. **Free
+shipping** is the third method, where the seller absorbs the cost.
+
+### What the buyer sees
+
+Two numbers: the item price, and the shipping to the station they chose.
+
+The freight legs, the import duty, the clearing and both tax jurisdictions are
+all real, all charged, and all **inside that second number**. They are kept
+itemised on the order and its lines — an admin has to be able to answer "why
+GH₵240?", a seller's payout must not be computed off freight they never charged,
+and the finance reports need to tell a courier run from a customs bill — but
+none of it is ever a row on a buyer's screen. An eight-row bill did not read as
+transparency; it read as a list of things being charged for, none of which a
+buyer can audit.
+
+### Paying
+
+The item price is **always paid in full at checkout** — that is money the seller
+spends the moment they fulfil the order. Only the **shipping** may wait, and
+only when the platform allows it and every seller on the order has ticked *let
+buyers pay the shipping when they collect*. The buyer then carries any rate
+movement in between, which the checkout says plainly before they choose it. The
+order stores the plan, what was paid and what is outstanding.
+
 ## Shipped from Abroad
 
-Replaces the old preorder system, and absorbs the old Global Shopping page.
-A preorder was a window that closed; this is dropshipping that never does. A
+The public face of arrangement 2 above, at **`/shipped-from-abroad`**. It
+replaces the old preorder system and absorbs the old Global Shopping page: a
+preorder was a window that closed, this is dropshipping that never does. A
 seller finds an item on Alibaba (or anywhere), copies its details and link, and
-lists it at **`/shipped-from-abroad`**; buyers can order at any time and the
-seller sources it once they do.
+lists it; buyers can order at any time and the seller sources it once they do.
 
-### The three freight legs
-
-Freight is billed as three separate legs because three different people quote
-them:
-
-1. **Supplier → freight forwarder abroad.** The seller knows this figure and
-   types it on the listing (GH₵ per unit).
-2. **Forwarder → a Ghana arrival point**, by air, sea, road or express courier.
-   Admins configure the points (`/admin/arrival-points`) and a rate table per
-   origin and mode — ₵/CBM for sea, ₵/kg for air, with a minimum charge. Import
-   duty and clearing are settled here. A seller with their own forwarder deal
-   can override the rate on the listing.
-3. **Arrival point → the buyer's pickup station.** The existing CBM route
-   engine, starting from the arrival point's hub rather than the seller's.
-
-Leg 2 is quoted on one of two bases, chosen per listing:
-
-- **Itemised** — carriage comes from the arrival point's rate table (or the
-  seller's own override), and duty, clearing and Ghana VAT are charged on top,
-  each on its own line.
-- **All-in** — the forwarder quoted one number covering everything between
-  their warehouse abroad and the Ghana arrival point: carriage, duty, clearing,
-  taxes on landing. This is how most Ghana-bound consolidators actually sell.
-  That figure is charged once and **nothing is added to it** — splitting it into
-  invented components and then assessing duty on those would bill the buyer
-  twice for the same customs charge. Legs 1 and 3 stay outside it either way.
-
-A seller whose supplier already quoted a delivered-to-Ghana price ticks
-**freight included** instead; legs 1 and 2 are then charged at zero rather than
-double-billing the buyer, and the arrival point still matters because leg 3
-starts there.
-
-### Tax
-
-Both jurisdictions are billed. Sales tax charged in the country of purchase is a
-per-listing rate on the goods. Ghana import duty is assessed on the CIF value
-(goods plus the freight that got them here), and Ghana VAT and levies on that
-value plus the duty — customs practice, not intuition. Duty is per arrival
-point; the VAT rate and a fallback duty are platform settings.
-
-### Paying now or on arrival
-
-Where the platform and the seller both allow it, a buyer may settle the goods,
-the tax at source and leg 1 today and pay leg 2, duty, Ghana tax and leg 3 when
-the item lands — **at the rates in force then**, which the checkout says plainly
-before they choose it. Paying in full locks the freight, so a later rate rise is
-the platform's. The order stores which plan was chosen, what was paid and what
-is outstanding.
+The listing's JSON terms hold what the seller *promises* — where it is coming
+from, when it should arrive, what happens if it does not. The money lives in
+real columns and is priced by the shipping engine, because it has to be queried,
+joined and re-priced on the server.
 
 ### Tracking and notifications
 
@@ -282,18 +341,20 @@ An imported consignment has two milestones a domestic one does not — *at the
 freight forwarder* and *arrived in Ghana* — because otherwise a buyer stares at
 "in transit" for six weeks. Sellers are alerted on **both SMS and email** for
 every new order regardless of the staff-channel setting; buyers get their own
-message when the goods land in Ghana (carrying any balance now due) and again
-when they are handed over.
+message when the goods land in Ghana (carrying any shipping now due) and again
+when they are ready to collect.
 
 ### Where the code lives
 
 | Concern | Module |
 | --- | --- |
+| The fee engine: weight, rules, forwarder rates, the free-at-origin rule (pure, unit-tested) | `src/lib/shipping.ts` |
+| Loading points, forwarders, rules and defaults | `src/lib/shipping-config.ts` |
+| Admin CRUD for all of it | `src/lib/shipping-admin-actions.ts` |
+| Cart pricing, server-side | `src/lib/cart-pricing.ts` |
+| The bill's shape and the payment plans (pure, client-safe) | `src/lib/cart-bill.ts` |
+| Checkout's quote | `src/lib/checkout-actions.ts` |
 | Terms parse/serialise, the two spellings of the product type | `src/lib/abroad.ts` |
-| The landed-cost maths (pure, unit-tested) | `src/lib/abroad-costs.ts` |
-| Arrival points and rate resolution (pure) | `src/lib/arrival-points.ts` |
-| Cart pricing, server-side | `src/lib/abroad-pricing.ts` |
-| Admin CRUD for points and rates | `src/lib/arrival-point-actions.ts` |
 
 Listings created before the rename are stored as `productType: "preorder"` and
 are **never backfilled** — migrations here are additive by rule (see

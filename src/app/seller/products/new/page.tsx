@@ -7,14 +7,14 @@ import { ProductForm } from "@/components/admin/ProductForm";
 import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { createSellerProduct } from "@/lib/seller-actions";
-import { getAbroadConfig, getAffiliateRate, getCommissionRate } from "@/lib/settings";
-import { getActiveArrivalPoints } from "@/lib/arrival-points-data";
+import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
+import { getProductShippingProps } from "@/lib/product-shipping-props";
 
 export const metadata: Metadata = { title: "New product — Seller — Nickimart" };
 
 export default async function NewSellerProductPage() {
   const user = await requireDashboard("/seller");
-  const [vendor, categories, defaultCommissionRate, defaultAffiliateRate, arrivalPoints, abroadConfig] =
+  const [vendor, categories, defaultCommissionRate, defaultAffiliateRate, shipping] =
     await Promise.all([
     prisma.vendor.findFirst({ where: { ownerId: user.id }, select: { id: true } }),
     prisma.category.findMany({
@@ -23,11 +23,9 @@ export default async function NewSellerProductPage() {
     }),
     getCommissionRate(),
     getAffiliateRate(),
-    // A shipped-from-abroad listing has to land somewhere, and the point the
-    // seller picks sets the freight rate, the duty and where the domestic leg
-    // starts. Only active points are offered.
-    getActiveArrivalPoints(),
-    getAbroadConfig(),
+    // Consolidation points, forwarders and the rate tables — everything the
+    // shipping section prices its live estimate from.
+    getProductShippingProps(),
   ]);
   if (!vendor) redirect("/seller");
 
@@ -49,10 +47,7 @@ export default async function NewSellerProductPage() {
           submitLabel="Create product"
           defaultCommissionRate={defaultCommissionRate}
           defaultAffiliateRate={defaultAffiliateRate}
-          arrivalPoints={arrivalPoints}
-          defaultGhanaTaxRate={abroadConfig.ghanaTaxRate}
-          defaultDutyPercent={abroadConfig.defaultDutyPercent}
-          partialPaymentEnabled={abroadConfig.partialPaymentEnabled}
+          shipping={shipping}
         />
       </div>
     </Container>

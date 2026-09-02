@@ -18,7 +18,7 @@ interface Shop {
   bankName: string;
   bankAccountName: string;
   bankAccountNumber: string;
-  originPickupId: string;
+  consolidationPointId: string;
   logoUrl: string;
   bannerUrl: string;
   whatsapp: string;
@@ -82,14 +82,20 @@ export function ShopSettingsForm({ shop, hubs = [] }: { shop: Shop; hubs?: { id:
 
       {hubs.length > 0 ? (
         <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
-          <h2 className="font-display text-lg font-bold text-niki-ink">Origin / consolidation hub</h2>
+          <h2 className="font-display text-lg font-bold text-niki-ink">Where your goods gather</h2>
           <p className="mt-1 text-sm text-niki-ink/60">
-            The Nickimart hub nearest you, where your goods are gathered before shipping to buyers. This sets
-            the shipping fees buyers pay on your products.
+            The consolidation point your stock is brought to and checked before a courier takes it to
+            a buyer. It sets the shipping your buyers pay — and when the point is at a pickup
+            station, buyers who collect there pay nothing at all. A listing can override it.
           </p>
           <div className="mt-4">
-            <Field label="Origin hub" htmlFor="originPickupId">
-              <select id="originPickupId" name="originPickupId" defaultValue={shop.originPickupId} className={inputClass}>
+            <Field label="Consolidation point" htmlFor="consolidationPointId">
+              <select
+                id="consolidationPointId"
+                name="consolidationPointId"
+                defaultValue={shop.consolidationPointId}
+                className={inputClass}
+              >
                 <option value="">Not set</option>
                 {hubs.map((h) => (
                   <option key={h.id} value={h.id}>

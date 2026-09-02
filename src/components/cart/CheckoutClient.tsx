@@ -3,25 +3,25 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { CreditCard, MapPin, Package, Plane } from "lucide-react";
+import { CreditCard, MapPin, Plane, Scale } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useCart } from "@/components/providers/CartProvider";
 import { formatPrice } from "@/lib/format";
 import { placeOrder } from "@/lib/order-actions";
-import { quoteCart, type CartQuote } from "@/lib/abroad-actions";
-import { emptyBreakdown, type PaymentPlan } from "@/lib/abroad-costs";
+import { quoteCart, type CartQuote } from "@/lib/checkout-actions";
+import { emptyBill, type PaymentPlan } from "@/lib/cart-bill";
 import { AbroadTermsPanel } from "@/components/cart/AbroadTermsPanel";
-import { LandedBill, PaymentPlanChoice } from "@/components/cart/LandedBill";
+import { CheckoutBill, PaymentPlanChoice } from "@/components/cart/CheckoutBill";
 
 /**
  * Checkout.
  *
  * The page holds no pricing logic at all. It asks the server to quote the cart
- * at every pickup point and renders what comes back — the landed bill, the
- * imported-item terms, the payment plans on offer. That is deliberate: an
- * imported order's bill has eight rows, two tax jurisdictions and three freight
- * legs in it, and a client that recomputed any of that would eventually quote a
- * number the order action disagreed with.
+ * at every pickup station and renders what comes back — the bill, the
+ * imported-item terms, the payment choice. That is deliberate: behind the one
+ * shipping figure a buyer sees there are freight legs, duty and two tax
+ * jurisdictions, and a client that recomputed any of it would eventually quote
+ * a number the order action disagreed with.
  */
 export function CheckoutClient({
   defaultPickupId = "",
@@ -65,7 +65,7 @@ export function CheckoutClient({
         // Changing the cart invalidates both the acceptance and the plan: the
         // first was given for different terms, the second for a different bill.
         setAcceptedAbroad(false);
-        if (!q.partialPaymentAvailable) setPlan("full");
+        if (!q.payShippingOnPickup) setPlan("full");
       })
       .catch(() => {
         if (cancelled) return;
@@ -85,9 +85,9 @@ export function CheckoutClient({
   // Before the first quote lands there is still a cart to show, so the goods
   // total from the browser stands in for the bill. It is replaced, not
   // supplemented, the moment the server answers.
-  const bill = selected?.bill ?? emptyBreakdown(subtotal, 0);
+  const bill = selected?.bill ?? emptyBill(subtotal, 0);
   const abroadItems = quote?.items ?? [];
-  const dueNow = plan === "goods_only" ? bill.goodsOnlyNow : bill.total;
+  const dueNow = plan === "shipping_on_pickup" ? bill.goodsOnlyNow : bill.total;
 
   if (!ready) {
     return <div className="rounded-2xl bg-white p-10 text-center text-sm text-niki-ink/50 ring-1 ring-niki-edge">Loading…</div>;
@@ -145,11 +145,11 @@ export function CheckoutClient({
         ) : null}
 
         {quote?.unpricedRoute ? (
-          // A route the admin has not priced would quote zero international
-          // freight. Saying so here beats letting the buyer reach the button and
-          // be refused by the server with no idea why.
+          // A route nobody has priced would quote zero freight into Ghana.
+          // Saying so here beats letting the buyer reach the button and be
+          // refused by the server with no idea why.
           <p className="rounded-xl bg-niki-gold/15 px-4 py-3 text-sm font-medium text-amber-900">
-            Freight into Ghana isn&apos;t priced yet for one of these items, so it can&apos;t be
+            Shipping into Ghana isn&apos;t priced yet for one of these items, so it can&apos;t be
             ordered right now. Please check back shortly or contact support.
           </p>
         ) : null}
@@ -160,14 +160,15 @@ export function CheckoutClient({
             <h2 className="font-display text-lg font-bold text-niki-ink">Choose a pickup point</h2>
           </div>
           <p className="mt-1 text-sm text-niki-ink/60">
-            Collect your order at any Nickimart station. The fee depends on the size (CBM) of your
-            items and the distance from where they start.
+            Your items are brought together, checked, and couriered to the station you pick. The fee
+            depends on how much there is to move and how far it has to go — and it is nothing at all
+            when your items are already at the station you choose.
           </p>
 
           {quote?.hasAbroad ? (
             <p className="mt-3 flex items-center gap-2 rounded-xl bg-niki-black/5 px-3 py-2 text-xs font-medium text-niki-ink/70">
-              <Plane className="h-4 w-4 text-niki-orange" /> Some items ship from abroad — this leg
-              runs from the Ghana point they land at to the station you pick.
+              <Plane className="h-4 w-4 text-niki-orange" /> Some items come from abroad. Everything
+              it takes to get them here is already in the figures below.
             </p>
           ) : null}
 
@@ -204,8 +205,13 @@ export function CheckoutClient({
                         <span className="block text-xs text-niki-ink/60">{p.locationName}</span>
                       </span>
                     </span>
-                    <span className="shrink-0 text-sm font-semibold text-niki-ink">
+                    <span className="shrink-0 text-right text-sm font-semibold text-niki-ink">
                       {p.fee === 0 ? <span className="text-niki-success">Free</span> : formatPrice(p.fee)}
+                      {p.collectedHere ? (
+                        <span className="block text-xs font-normal text-niki-ink/50">
+                          Already here
+                        </span>
+                      ) : null}
                     </span>
                   </label>
                 );
@@ -220,7 +226,7 @@ export function CheckoutClient({
           onAcceptedChange={setAcceptedAbroad}
         />
 
-        {quote?.partialPaymentAvailable ? (
+        {quote?.payShippingOnPickup ? (
           <PaymentPlanChoice
             bill={bill}
             plan={plan}
@@ -259,14 +265,14 @@ export function CheckoutClient({
           ))}
         </ul>
 
-        {quote && quote.totalCbm > 0 ? (
+        {quote && quote.totalWeightKg > 0 ? (
           <p className="mt-3 flex items-center gap-1 text-xs text-niki-ink/40">
-            <Package className="h-3 w-3" /> {quote.totalCbm.toFixed(3)} CBM total
+            <Scale className="h-3 w-3" /> {quote.totalWeightKg} kg billable weight
           </p>
         ) : null}
 
         <div className="mt-4 border-t border-niki-edge pt-4">
-          <LandedBill bill={bill} plan={plan} loading={loadingQuote} />
+          <CheckoutBill bill={bill} plan={plan} loading={loadingQuote} />
         </div>
 
         <button

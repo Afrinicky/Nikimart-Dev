@@ -17,7 +17,7 @@ export function VendorForm({
   owners,
   currentOwnerId,
   hubs = [],
-  currentOriginPickupId,
+  currentConsolidationPointId,
   submitLabel,
 }: {
   action: Action;
@@ -25,7 +25,7 @@ export function VendorForm({
   owners: { id: string; name: string | null; email: string | null }[];
   currentOwnerId?: string | null;
   hubs?: { id: string; label: string }[];
-  currentOriginPickupId?: string | null;
+  currentConsolidationPointId?: string | null;
   submitLabel: string;
 }) {
   const [state, formAction] = useActionState<CrudState, FormData>(action, {});
@@ -76,8 +76,17 @@ export function VendorForm({
             ))}
           </select>
         </Field>
-        <Field label="Origin / consolidation hub" htmlFor="originPickupId" hint="Domestic hub where this shop's goods gather (sets shipping routes)">
-          <select id="originPickupId" name="originPickupId" defaultValue={currentOriginPickupId ?? ""} className={inputClass}>
+        <Field
+          label="Consolidation point"
+          htmlFor="consolidationPointId"
+          hint="Where this shop's goods gather before a courier takes them to a buyer. Sets the shipping on its listings; a listing may override it."
+        >
+          <select
+            id="consolidationPointId"
+            name="consolidationPointId"
+            defaultValue={currentConsolidationPointId ?? ""}
+            className={inputClass}
+          >
             <option value="">— none —</option>
             {hubs.map((h) => (
               <option key={h.id} value={h.id}>

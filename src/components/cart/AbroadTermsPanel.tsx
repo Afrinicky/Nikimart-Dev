@@ -10,10 +10,8 @@ import {
   RotateCcw,
   Store,
   Users,
-  Wallet,
 } from "lucide-react";
-import { describeDeposit } from "@/lib/abroad";
-import type { CartAbroadItem } from "@/lib/abroad-actions";
+import type { CartAbroadItem } from "@/lib/checkout-actions";
 
 /**
  * What a buyer of an imported item is agreeing to, shown before they pay.
@@ -68,7 +66,7 @@ export function AbroadTermsPanel({
               <Term icon={MapPin} label="Ships from" value={item.terms.sourceLocation} />
               <Term icon={Store} label="Supplier" value={item.terms.supplierName} />
               <Term icon={Plane} label="Freight method" value={item.freightModeLabel} />
-              <Term icon={Anchor} label="Lands at" value={item.arrivalPointName} />
+              <Term icon={Anchor} label="Gathered at" value={item.pointName} />
               <Term
                 icon={CalendarClock}
                 label="Estimated arrival"
@@ -77,10 +75,6 @@ export function AbroadTermsPanel({
                   (item.transitDays > 0 ? `about ${item.transitDays} days in transit` : "")
                 }
               />
-              <Term icon={Wallet} label="Payment" value={describeDeposit(item.terms)} />
-              {item.terms.depositRequired || item.terms.allowFreightOnArrival ? (
-                <Term icon={Wallet} label="Balance" value={item.terms.balanceInstruction} />
-              ) : null}
               <Term icon={RotateCcw} label="Refunds" value={item.terms.refundPolicy} />
               {item.terms.minimumOrders > 0 ? (
                 <Term
@@ -89,11 +83,11 @@ export function AbroadTermsPanel({
                   value={`${item.terms.minimumOrders} buyers`}
                 />
               ) : null}
-              {item.terms.freightIncluded ? (
+              {item.terms.supplierDelivers ? (
                 <Term
                   icon={Plane}
-                  label="Freight"
-                  value="Already included in the item price — no separate charge to Ghana."
+                  label="Shipping"
+                  value="The supplier brings it to Ghana. You pay only the run to your pickup station."
                 />
               ) : null}
             </dl>
@@ -131,8 +125,8 @@ export function AbroadTermsPanel({
         />
         <span className="text-sm text-niki-ink/80">
           I understand {one ? "this item is" : "these items are"} shipped from abroad and accept the{" "}
-          {one ? "arrangement" : "arrangements"} above, including the arrival estimate, the freight
-          and tax charges, and the refund terms.
+          {one ? "arrangement" : "arrangements"} above, including the arrival estimate and the refund
+          terms.
         </span>
       </label>
     </section>
