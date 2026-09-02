@@ -165,10 +165,10 @@ test("the abroad columns are mirrored out of the submitted terms", () => {
         originCountry: "cn",
         sourceUrl: "https://www.alibaba.com/x",
         supplierName: "Shenzhen Kaiyuan",
-        freightMode: "air",
-        arrivalPointId: "ap-kia",
+        consolidationPointId: "cp-kia",
+        forwarderId: "fw-gz",
+        supplierDelivers: false,
         supplierFreight: 90,
-        intlFreight: 0,
         originTaxRate: 13,
         ghanaTaxRate: -1,
       }),
@@ -177,13 +177,52 @@ test("the abroad columns are mirrored out of the submitted terms", () => {
   assert.equal(data.originCountry, "CN");
   assert.equal(data.sourceUrl, "https://www.alibaba.com/x");
   assert.equal(data.supplierName, "Shenzhen Kaiyuan");
-  assert.equal(data.freightMode, "air");
-  assert.equal(data.arrivalPointId, "ap-kia");
+  assert.equal(data.arrivalPointId, "cp-kia");
+  assert.equal(data.forwarderId, "fw-gz");
+  assert.equal(data.supplierDelivers, false);
   assert.equal(data.supplierFreight, 90);
   assert.equal(data.originTaxRate, 13);
   // A negative rate means "use the platform rate"; the column says so with
   // null rather than storing a nonsense negative percentage.
   assert.equal(data.ghanaTaxRate, null);
+});
+
+test("switching a listing off the abroad type leaves no freight behind", () => {
+  // A submission is a claim from a browser. A handcrafted one must not be able
+  // to leave a forwarder on an in-stock item, where nothing would display it
+  // and the pricing would still find it.
+  const data = buildProductData(
+    form({
+      ...FULL,
+      productType: "in_stock",
+      abroadTerms: JSON.stringify({ forwarderId: "fw-gz", supplierFreight: 90, supplierDelivers: true }),
+    }),
+  );
+  assert.equal(data.preorderInfo, null);
+  assert.equal(data.forwarderId, null);
+  assert.equal(data.supplierFreight, 0);
+  assert.equal(data.supplierDelivers, false);
+  assert.equal(data.originCountry, "");
+});
+
+test("a fixed shipping fee is only stored on the manual method", () => {
+  // Otherwise a listing switched back to standard pricing would keep charging
+  // a fee nothing on the form still shows.
+  const manual = buildProductData(form({ ...FULL, shippingMethod: "manual", manualShippingFee: "1200" }));
+  assert.equal(manual.shippingMethod, "manual");
+  assert.equal(manual.manualShippingFee, 1200);
+
+  const auto = buildProductData(form({ ...FULL, shippingMethod: "auto", manualShippingFee: "1200" }));
+  assert.equal(auto.shippingMethod, "auto");
+  assert.equal(auto.manualShippingFee, 0);
+
+  // An unknown method is not a method.
+  assert.equal(buildProductData(form({ ...FULL, shippingMethod: "teleport" })).shippingMethod, "auto");
+});
+
+test("a local listing states its consolidation point directly", () => {
+  const data = buildProductData(form({ ...FULL, consolidationPointId: "cp-kumasi" }));
+  assert.equal(data.arrivalPointId, "cp-kumasi");
 });
 
 test("CBM is derived from the dimensions when it isn't given", () => {

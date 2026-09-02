@@ -122,6 +122,10 @@ model Category {
   // rate used when a product is enrolled without its own override.
   affiliateCommissionRate Float?
   products                Product[]
+
+  // Shipping prices that single this category out.
+  shippingRules  ShippingRule[]
+  forwarderRates ForwarderRate[]
 }
 
 model Vendor {
@@ -166,6 +170,13 @@ model Vendor {
   // arrival hub instead and this may be null.
   originPickupId String?
   originPickup   PickupPoint? @relation("VendorOrigin", fields: [originPickupId], references: [id], onDelete: SetNull)
+
+  // The shop's default consolidation point — where its goods are gathered and
+  // checked before they are couriered to a buyer's pickup station. Set once per
+  // shop so a seller listing their tenth product is not asked a tenth time; a
+  // listing may still override it.
+  consolidationPointId String?
+  consolidationPoint   ArrivalPoint? @relation("VendorConsolidation", fields: [consolidationPointId], references: [id], onDelete: SetNull)
 
   ownerId String? @unique
   owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
@@ -304,9 +315,30 @@ model Product {
   originTaxRate            Float   @default(0)
   // Ghana VAT + levies (percent). Null = the platform rate from settings.
   ghanaTaxRate             Float?
-  // The Ghana point this listing lands at (leg 2's destination, leg 3's start).
+  // The consolidation point this listing gathers at: where an imported
+  // consignment lands and clears, or where a local seller's goods are brought
+  // together. The column keeps its old name — every existing listing, order
+  // line and shipment already points at it.
   arrivalPointId           String?
   arrivalPoint             ArrivalPoint? @relation(fields: [arrivalPointId], references: [id], onDelete: SetNull)
+
+  // --- How this listing is shipped -----------------------------------------
+  // auto   — priced by the shipping rules (almost everything).
+  // free   — the seller absorbs it; nothing is charged to any pickup point.
+  // manual — the fee is typed in. Cars, sensitive goods, anything a rate table
+  //          would price wrongly: a special shipment, quoted by hand.
+  shippingMethod           String  @default("auto")
+  manualShippingFee        Float   @default(0)
+  // True when the supplier's price already puts the goods at the Ghana
+  // consolidation point. Nothing is charged for the international leg; the
+  // buyer pays only the local run from there to the station they choose.
+  supplierDelivers         Boolean @default(false)
+  // The forwarder carrying the international leg, when one does.
+  forwarderId              String?
+  forwarder                FreightForwarder? @relation(fields: [forwarderId], references: [id], onDelete: SetNull)
+  // Whether the seller lets a buyer settle the shipping at collection. The
+  // goods are always paid for at checkout; only the courier run may wait.
+  shippingOnPickup         Boolean @default(false)
   // JSON-encoded array of { label, value } key attributes (spec table).
   attributes               String  @default("[]")
 
@@ -433,8 +465,20 @@ model OrderItem {
   freightMode          String  @default("")
   freightIncluded      Boolean @default(false)
 
+  // The single shipping figure the buyer was shown and agreed to. The itemised
+  // columns above stay for the seller payout and the finance reports; this is
+  // what was on the screen, snapshotted so a later rate change cannot rewrite
+  // what somebody was charged.
+  shippingFee    Float  @default(0)
+  shippingMethod String @default("auto")
+  // True when this line's shipping was left to be settled at collection.
+  shippingDeferred Boolean @default(false)
+
   arrivalPointId String?
   arrivalPoint   ArrivalPoint? @relation(fields: [arrivalPointId], references: [id], onDelete: SetNull)
+  // Where this line's goods gathered before the courier run.
+  consolidationPointId String?
+  consolidationPoint   ArrivalPoint? @relation("ItemConsolidation", fields: [consolidationPointId], references: [id], onDelete: SetNull)
 
   orderId   String
   order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -467,6 +511,8 @@ model PickupPoint {
   // Shipping-rate rows where this point is the origin / the destination.
   ratesFrom     ShippingRate[] @relation("RateOrigin")
   ratesTo       ShippingRate[] @relation("RateDest")
+  // Domestic shipping rules that end at this point.
+  rulesTo       ShippingRule[] @relation("RuleDest")
 }
 
 // Admin-configured shipping rate (GH₵ per CBM) for a domestic route: from an
@@ -501,6 +547,10 @@ model ArrivalPoint {
   code        String   @unique
   city        String   @default("")
   address     String   @default("")
+  // 'local' — goods that never left Ghana gather here; 'international' — an
+  // imported consignment lands and clears here. Both are consolidation points:
+  // the place a load is brought together and checked before it moves on.
+  kind        String   @default("international")
   // Ghana import duty charged here, as a percent of the CIF value.
   dutyPercent Float    @default(0)
   // Flat clearing / handling charge (GH₵) per order line landing here.
@@ -520,6 +570,106 @@ model ArrivalPoint {
   products   Product[]
   orderItems OrderItem[]
   shipments  Shipment[]
+
+  // Domestic rules that start here, forwarders that deliver here, shops and
+  // order lines that gather here.
+  rulesFrom      ShippingRule[]
+  forwarders     FreightForwarder[]
+  vendors        Vendor[]           @relation("VendorConsolidation")
+  consolidatedIn OrderItem[]        @relation("ItemConsolidation")
+}
+
+// What the domestic leg costs: one scope, one price.
+//
+// The scope is any combination of "from this consolidation point", "to this
+// pickup point" and "for this category", and every part is optional — a rule
+// with none set prices everything that no sharper rule claims. The price is
+// either a flat fee per item ("blenders, Kumasi to Accra, GH₵50") or a base
+// plus a rate on the billable weight, which is Jumia's shape and the one a
+// seller can reason about without computing cubic metres.
+//
+// Resolution is most-specific-first, in src/lib/shipping.ts.
+model ShippingRule {
+  id String @id @default(cuid())
+
+  // Null on any of the three means "any".
+  originPointId String?
+  originPoint   ArrivalPoint? @relation(fields: [originPointId], references: [id], onDelete: Cascade)
+  destPickupId  String?
+  destPickup    PickupPoint?  @relation("RuleDest", fields: [destPickupId], references: [id], onDelete: Cascade)
+  categoryId    String?
+  category      Category?     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  // Above zero, this is the price and weight is not consulted.
+  flatFee   Float @default(0)
+  // Otherwise: per consignment, plus per billable kilogram.
+  baseFee   Float @default(0)
+  perKgRate Float @default(0)
+
+  note      String   @default("")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Scope uniqueness is a COALESCE index in db/migrations/0006, which Prisma
+  // cannot express: NULL never equals NULL, so a plain @@unique would let the
+  // same scope be stored twice.
+  @@index([originPointId])
+  @@index([destPickupId])
+  @@index([categoryId])
+}
+
+// A freight forwarder abroad: who consolidates a load in China or Dubai and
+// carries it to a Ghana consolidation point, and what they charge for it.
+//
+// Their price is per cubic metre and normally covers everything up to that
+// point — carriage, port fees, duty, taxes — which is what allInclusive says,
+// and why duty is not then assessed a second time on top of it.
+model FreightForwarder {
+  id            String @id @default(cuid())
+  name          String
+  code          String @unique
+  // Country the forwarder collects in: CN, AE, US, EU…
+  originCountry String @default("")
+  // air | sea | road | express
+  mode          String @default("sea")
+  allInclusive  Boolean @default(true)
+  note          String  @default("")
+  isActive      Boolean @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // The Ghana consolidation point they deliver into.
+  consolidationPointId String?
+  consolidationPoint   ArrivalPoint? @relation(fields: [consolidationPointId], references: [id], onDelete: SetNull)
+
+  rates    ForwarderRate[]
+  products Product[]
+
+  @@index([consolidationPointId])
+}
+
+// One forwarder, several prices. A forwarder who charges one rate per cubic
+// metre for clothing and another for electronics is ordinary, so the price list
+// is keyed on category; the row with no category prices everything else.
+model ForwarderRate {
+  id          String @id @default(cuid())
+  forwarderId String
+  forwarder   FreightForwarder @relation(fields: [forwarderId], references: [id], onDelete: Cascade)
+  // Null = the catch-all price.
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  label       String @default("")
+  ratePerCbm  Float  @default(0)
+  ratePerKg   Float  @default(0)
+  minCharge   Float  @default(0)
+  transitDays Int    @default(21)
+
+  // Scope uniqueness is a COALESCE index in db/migrations/0006 — see the note
+  // on ShippingRule.
+  @@index([forwarderId])
+  @@index([categoryId])
 }
 
 // What it costs to bring one consignment to an arrival point, per origin and

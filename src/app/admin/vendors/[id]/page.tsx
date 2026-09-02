@@ -5,6 +5,8 @@ import { ArrowLeft } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { VendorForm } from "@/components/admin/VendorForm";
 import { prisma } from "@/lib/prisma";
+import { describePoint } from "@/lib/shipping";
+import { getActiveConsolidationPoints } from "@/lib/shipping-config";
 import { mapVendor } from "@/lib/catalog";
 import { updateVendor } from "@/lib/admin-actions";
 
@@ -21,14 +23,13 @@ export default async function EditVendorPage({ params }: { params: Params }) {
       orderBy: { name: "asc" },
       select: { id: true, name: true, email: true },
     }),
-    prisma.pickupPoint.findMany({
-      where: { isActive: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, locationName: true },
-    }),
+    getActiveConsolidationPoints(),
   ]);
   if (!row) notFound();
-  const hubs = hubPoints.map((h) => ({ id: h.id, label: `${h.locationName} — ${h.name}` }));
+  const hubs = hubPoints.map((h) => ({
+    id: h.id,
+    label: h.pickupPointId ? `${describePoint(h)} · free to collect here` : describePoint(h),
+  }));
 
   const vendor = mapVendor(row);
   const action = updateVendor.bind(null, id);
@@ -47,7 +48,7 @@ export default async function EditVendorPage({ params }: { params: Params }) {
           owners={owners}
           currentOwnerId={row.ownerId}
           hubs={hubs}
-          currentOriginPickupId={row.originPickupId}
+          currentConsolidationPointId={row.consolidationPointId}
           submitLabel="Save changes"
         />
       </div>

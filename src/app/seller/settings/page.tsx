@@ -6,19 +6,18 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ShopSettingsForm } from "@/components/seller/ShopSettingsForm";
 import { requireDashboard } from "@/lib/session";
 import { getSellerVendor } from "@/lib/seller";
-import { prisma } from "@/lib/prisma";
+import { describePoint } from "@/lib/shipping";
+import { getActiveConsolidationPoints } from "@/lib/shipping-config";
 
 export const metadata: Metadata = { title: "Shop Settings — Seller — Nickimart" };
 
 export default async function SellerSettingsPage() {
   const user = await requireDashboard("/seller");
   const vendor = await getSellerVendor(user.id);
-  const hubPoints = await prisma.pickupPoint.findMany({
-    where: { isActive: true },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true, locationName: true },
-  });
-  const hubs = hubPoints.map((h) => ({ id: h.id, label: `${h.locationName} — ${h.name}` }));
+  const hubs = (await getActiveConsolidationPoints()).map((p) => ({
+    id: p.id,
+    label: p.pickupPointId ? `${describePoint(p)} · free to collect here` : describePoint(p),
+  }));
 
   return (
     <>
@@ -48,7 +47,7 @@ export default async function SellerSettingsPage() {
               bankName: vendor.bankName,
               bankAccountName: vendor.bankAccountName,
               bankAccountNumber: vendor.bankAccountNumber,
-              originPickupId: vendor.originPickupId ?? "",
+              consolidationPointId: vendor.consolidationPointId ?? "",
               logoUrl: vendor.logoUrl ?? "",
               bannerUrl: vendor.bannerUrl ?? "",
               whatsapp: vendor.whatsapp ?? "",

@@ -32,15 +32,9 @@ import { discountPercent, formatPrice } from "@/lib/format";
 import { countryByCode, estimatedArrival, isAbroad } from "@/lib/countries";
 import { getLeadDays } from "@/lib/settings";
 import { waChatLink } from "@/lib/whatsapp";
-import {
-  describeDeposit,
-  FREIGHT_MODE_LABELS,
-  hasAnyTerms,
-  isAbroadType,
-  toAbroadTerms,
-  type FreightMode,
-} from "@/lib/abroad";
-import { getArrivalPoint } from "@/lib/arrival-points-data";
+import { freightModeLabel, hasAnyTerms, isAbroadType, toAbroadTerms } from "@/lib/abroad";
+import { describePoint } from "@/lib/shipping";
+import { getConsolidationPoint, getForwarders } from "@/lib/shipping-config";
 import { productBadges } from "@/lib/product-badges";
 
 type Params = Promise<{ slug: string }>;
@@ -89,10 +83,16 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
   const originCountry = countryByCode(product.originCountry);
   const leadDays = abroad ? await getLeadDays(product.originCountry ?? "") : 0;
   const arrivalDate = abroad ? estimatedArrival(leadDays) : null;
-  // The Ghana point this listing lands at, when the seller named one. Shown so
-  // a buyer can see where it clears before the domestic leg starts.
-  const arrivalPoint = shippedFromAbroad
-    ? await getArrivalPoint(abroadTerms.arrivalPointId || product.arrivalPointId)
+  // Where this listing's goods gather, and who brings them in. Shown so a buyer
+  // can see the journey — not the money behind it, which is one figure at
+  // checkout and stays one figure.
+  const consolidationPoint = shippedFromAbroad
+    ? await getConsolidationPoint(abroadTerms.consolidationPointId || product.arrivalPointId)
+    : null;
+  const forwarder = shippedFromAbroad
+    ? ((await getForwarders()).find(
+        (f) => f.id === (abroadTerms.forwarderId || product.forwarderId),
+      ) ?? null)
     : null;
 
   const deliveryOptions = [
@@ -247,25 +247,17 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
                     label="Arrives"
                     value={abroadTerms.estimatedArrival || (leadDays ? `about ${leadDays} days` : "")}
                   />
+                  <Fact label="Freight" value={freightModeLabel(forwarder?.mode)} />
                   <Fact
-                    label="Freight"
-                    value={FREIGHT_MODE_LABELS[abroadTerms.freightMode as FreightMode] ?? ""}
+                    label="Collected in Ghana at"
+                    value={consolidationPoint ? describePoint(consolidationPoint) : ""}
                   />
                   <Fact
-                    label="Clears at"
+                    label="Shipping"
                     value={
-                      arrivalPoint
-                        ? `${arrivalPoint.name}${arrivalPoint.city ? `, ${arrivalPoint.city}` : ""}`
-                        : ""
-                    }
-                  />
-                  <Fact label="Payment" value={describeDeposit(abroadTerms)} />
-                  <Fact
-                    label="Extra charges"
-                    value={
-                      abroadTerms.freightIncluded
-                        ? "Freight to Ghana already in this price"
-                        : "Freight, duty and tax itemised at checkout"
+                      product.shippingMethod === "free"
+                        ? "Free to any pickup station"
+                        : "One figure at checkout, for the station you choose"
                     }
                   />
                 </dl>
@@ -278,10 +270,10 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
 
                 <p className="mt-3 text-xs text-niki-ink/60">
                   Ordering never closes.{" "}
-                  {abroadTerms.allowFreightOnArrival
-                    ? "You can pay for the goods now and settle the freight when it lands. "
+                  {product.shippingOnPickup
+                    ? "You can pay for the item now and settle the shipping when you collect. "
                     : ""}
-                  You&apos;ll see the full bill and accept these terms at checkout.
+                  You&apos;ll see the price and the shipping to your station at checkout.
                   {abroadTerms.sourceUrl ? (
                     <>
                       {" "}

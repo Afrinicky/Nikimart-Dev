@@ -9,7 +9,8 @@ import {
   sellerAffiliateCost,
 } from "@/lib/commission";
 import { resolveAffiliateRate } from "@/lib/affiliate-commission";
-import { getAffiliateRate, getCommissionRate, getSettings } from "@/lib/settings";
+import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
+import { getShippingDefaults } from "@/lib/shipping-config";
 import { getAffiliateEarnings } from "@/lib/affiliate";
 import { getSellerEarnings } from "@/lib/seller";
 import { getFinanceOverview, getVendorSettlements } from "@/lib/finance";
@@ -633,78 +634,114 @@ async function pickupWorkbook(): Promise<Sheet[]> {
 // Shipping rates
 // ---------------------------------------------------------------------------
 
+/**
+ * The whole shipping configuration, in three sheets.
+ *
+ * Points first, then the rules that price the run between them, then the
+ * forwarders who bring goods in. It mirrors the console's own order, so a
+ * spreadsheet somebody opens six months from now reads the same way the screen
+ * they set it up on did.
+ */
 async function shippingWorkbook(): Promise<Sheet[]> {
-  const [rates, points, settings] = await Promise.all([
-    prisma.shippingRate.findMany({
+  const [points, rules, forwarders, defaults] = await Promise.all([
+    prisma.arrivalPoint.findMany({
+      orderBy: [{ isActive: "desc" }, { name: "asc" }],
+      include: { hubPickup: { select: { name: true, locationName: true } } },
+    }),
+    prisma.shippingRule.findMany({
+      orderBy: { createdAt: "asc" },
       include: {
-        originHub: { select: { name: true, locationName: true } },
-        destPickup: { select: { name: true, locationName: true, code: true } },
+        originPoint: { select: { name: true, city: true } },
+        destPickup: { select: { name: true, locationName: true } },
+        category: { select: { name: true } },
       },
     }),
-    prisma.pickupPoint.findMany({
-      where: { isActive: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, locationName: true },
+    prisma.freightForwarder.findMany({
+      orderBy: [{ isActive: "desc" }, { name: "asc" }],
+      include: {
+        consolidationPoint: { select: { name: true, city: true } },
+        rates: { include: { category: { select: { name: true } } } },
+      },
     }),
-    getSettings(),
+    getShippingDefaults(),
   ]);
 
-  const configured = new Set(rates.map((r) => `${r.originHubId}|${r.destPickupId}`));
-  const fallback = Number(settings.shippingDefaultRatePerCbm);
+  const pointSheet: Sheet = {
+    name: "Consolidation points",
+    columns: ["Name", "Code", "City", "Kind", "Sits at pickup station", "Duty %", "Clearing (GH₵)", "Status"],
+    rows: points.map((p) => [
+      p.name,
+      p.code,
+      p.city,
+      p.kind === "local" ? "Local" : "International",
+      p.hubPickup ? `${p.hubPickup.name} — ${p.hubPickup.locationName}` : "No — collection is never free here",
+      p.kind === "local" ? "" : p.dutyPercent,
+      p.kind === "local" ? "" : p.clearingFee,
+      p.isActive ? "Active" : "Retired",
+    ]),
+  };
 
-  const routeSheet: Sheet = {
-    name: "Domestic routes",
-    columns: ["Origin hub", "Destination", "Destination code", "Rate (GH₵/CBM)", "Source"],
+  const ruleSheet: Sheet = {
+    name: "Rates inside Ghana",
+    columns: ["From", "To", "Category", "Flat fee (GH₵/item)", "Base fee (GH₵)", "Per kg (GH₵)", "Status", "Note"],
     rows: [
-      ...rates.map((r) => [
-        `${r.originHub.name} — ${r.originHub.locationName}`,
-        `${r.destPickup.name} — ${r.destPickup.locationName}`,
-        r.destPickup.code, r.ratePerCbm, "Configured",
+      ...rules.map((r) => [
+        r.originPoint ? `${r.originPoint.name}${r.originPoint.city ? `, ${r.originPoint.city}` : ""}` : "Any point",
+        r.destPickup ? `${r.destPickup.name} — ${r.destPickup.locationName}` : "Any station",
+        r.category?.name ?? "Any category",
+        r.flatFee || "",
+        r.flatFee > 0 ? "" : r.baseFee,
+        r.flatFee > 0 ? "" : r.perKgRate,
+        r.isActive ? "Active" : "Paused",
+        r.note,
       ]),
-      // Every route that falls back to the default, so the sheet shows the full
-      // matrix rather than only the rows someone has already filled in.
-      ...points.flatMap((origin) =>
-        points
-          .filter((dest) => !configured.has(`${origin.id}|${dest.id}`))
-          .map((dest) => [
-            `${origin.name} — ${origin.locationName}`,
-            `${dest.name} — ${dest.locationName}`,
-            "", origin.id === dest.id ? 0 : fallback,
-            origin.id === dest.id ? "Same hub" : "Default rate",
-          ]),
-      ),
+      // The platform fallback, as its own row: a sheet of overrides with no
+      // baseline in it does not say what anything actually costs.
+      [
+        "Any point",
+        "Any station",
+        "Any category",
+        "",
+        defaults.baseFee,
+        defaults.perKgRate,
+        "Platform default",
+        `Billable weight rounded up to the next 0.5 kg; divisor ${defaults.volumetricDivisor}${
+          defaults.minFee > 0 ? `; minimum GH₵${defaults.minFee}` : ""
+        }`,
+      ],
     ],
   };
 
-  const arrivalHub = points.find((p) => p.id === settings.internationalArrivalHubId);
-  const intlSheet: Sheet = {
-    name: "International",
-    columns: ["Origin country", "Rate (GH₵/CBM)"],
-    rows: [
-      ["China (CN)", Number(settings.intlRatePerCbmCN)],
-      ["UAE (AE)", Number(settings.intlRatePerCbmAE)],
-      ["United States (US)", Number(settings.intlRatePerCbmUS)],
-      ["Europe (EU)", Number(settings.intlRatePerCbmEU)],
-      ["All other countries", Number(settings.intlDefaultRatePerCbm)],
-    ],
+  const forwarderSheet: Sheet = {
+    name: "From abroad",
+    columns: ["Forwarder", "Collects in", "Mode", "Delivers into", "Rate covers", "Category", "Per CBM", "Per kg", "Minimum", "Transit (days)", "Status"],
+    rows: forwarders.flatMap((f) => {
+      const head = [
+        f.name,
+        f.originCountry || "Any country",
+        f.mode,
+        f.consolidationPoint
+          ? `${f.consolidationPoint.name}${f.consolidationPoint.city ? `, ${f.consolidationPoint.city}` : ""}`
+          : "Whatever the listing says",
+        f.allInclusive ? "Everything to Ghana" : "Carriage only",
+      ];
+      const tail = f.isActive ? "Active" : "Retired";
+      if (f.rates.length === 0) {
+        return [[...head, "— no prices set —", "", "", "", "", tail]];
+      }
+      return f.rates.map((r) => [
+        ...head,
+        r.category?.name ?? "Everything else",
+        r.ratePerCbm,
+        r.ratePerKg,
+        r.minCharge,
+        r.transitDays,
+        tail,
+      ]);
+    }),
   };
 
-  const configSheet: Sheet = {
-    name: "Settings",
-    columns: ["Setting", "Value"],
-    rows: [
-      ["Default domestic rate (GH₵/CBM)", fallback],
-      ["International arrival hub", arrivalHub ? `${arrivalHub.name} — ${arrivalHub.locationName}` : "First active pickup point"],
-      ["Configured routes", rates.length],
-      ["Active pickup points", points.length],
-      ["Lead time — China (days)", Number(settings.leadDaysCN)],
-      ["Lead time — UAE (days)", Number(settings.leadDaysAE)],
-      ["Lead time — US (days)", Number(settings.leadDaysUS)],
-      ["Lead time — Europe (days)", Number(settings.leadDaysEU)],
-    ],
-  };
-
-  return [routeSheet, intlSheet, configSheet];
+  return [pointSheet, ruleSheet, forwarderSheet];
 }
 
 // ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ import {
   serialiseAbroadTerms,
   SHIPPED_FROM_ABROAD,
 } from "./abroad.ts";
+import { cbmFromDimensions, isShippingMethod } from "./shipping.ts";
 
 export function slugify(input: string): string {
   return input.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -138,27 +139,51 @@ function affiliateFields(fd: FormData, actor: "admin" | "seller") {
 }
 
 /**
- * The shipped-from-abroad columns, mirrored out of the submitted terms.
+ * How this listing ships, mirrored out of the form and the submitted terms.
  *
- * The terms themselves are one JSON blob, which is the right shape for a panel
- * a buyer reads top to bottom and the wrong shape for a query. So the handful
- * of fields the rest of the system needs to filter, join or price on are
- * unpacked into real columns here, from the same submitted JSON — one source,
- * parsed once, so a column can never disagree with the terms it came from.
+ * The terms are one JSON blob, which is the right shape for a panel a buyer
+ * reads top to bottom and the wrong shape for a query. So the fields the rest
+ * of the system needs to filter, join or price on are unpacked into real
+ * columns here, from the same submitted JSON — one source, parsed once, so a
+ * column can never disagree with the terms it came from.
  *
- * A product that is not imported gets every field cleared. Switching a listing
- * away from that type has to leave nothing behind: a stale arrival point on an
- * in-stock item would quietly bill somebody for freight.
+ * A product that is not imported gets every import field cleared. Switching a
+ * listing away from that type has to leave nothing behind: a stale forwarder on
+ * an in-stock item would quietly bill somebody for a sea container.
  */
-function abroadFields(fd: FormData) {
+function shippingFields(fd: FormData) {
   const productType = str(fd, "productType") || "in_stock";
-  const terms = isAbroadType(productType) ? parseAbroadTerms(str(fd, "abroadTerms")) : null;
+  const abroad = isAbroadType(productType);
+  const terms = abroad ? parseAbroadTerms(str(fd, "abroadTerms")) : null;
+
+  const method = str(fd, "shippingMethod");
+  const local = {
+    shippingMethod: isShippingMethod(method) ? method : "auto",
+    // Only ever charged on the manual method; stored at zero otherwise so a
+    // listing switched back to standard pricing cannot keep a stale fee.
+    manualShippingFee: isShippingMethod(method) && method === "manual" ? (num(fd, "manualShippingFee") ?? 0) : 0,
+    // The checkbox is absent when the option is switched off platform-wide or
+    // the listing ships free, and absent means no.
+    shippingOnPickup: bool(fd, "shippingOnPickup"),
+    shippingWeightKg: num(fd, "shippingWeightKg") ?? 0.5,
+    lengthCm: num(fd, "lengthCm") ?? 0,
+    widthCm: num(fd, "widthCm") ?? 0,
+    heightCm: num(fd, "heightCm") ?? 0,
+    // Prefer the entered volume; otherwise derive it from L×W×H. Only the leg
+    // from abroad is priced on it, but it is cheap to keep current.
+    cbm: (() => {
+      const direct = num(fd, "cbm");
+      if (direct && direct > 0) return Math.round(direct * 1_000_000) / 1_000_000;
+      return cbmFromDimensions(num(fd, "lengthCm") ?? 0, num(fd, "widthCm") ?? 0, num(fd, "heightCm") ?? 0);
+    })(),
+  };
 
   if (!terms) {
     return {
+      ...local,
       // Normalise the stored type: new and edited listings use the current
       // value, while untouched legacy "preorder" rows keep theirs.
-      productType: isAbroadType(productType) ? SHIPPED_FROM_ABROAD : productType,
+      productType: abroad ? SHIPPED_FROM_ABROAD : productType,
       // Cleared, not carried over. The form blanks the hidden field when the
       // section is hidden, but a submission is a claim from a browser: a
       // handcrafted one must not be able to leave freight terms on an in-stock
@@ -172,13 +197,18 @@ function abroadFields(fd: FormData) {
       supplierFreight: 0,
       intlFreight: 0,
       freightIncluded: false,
+      supplierDelivers: false,
+      forwarderId: null,
       originTaxRate: 0,
       ghanaTaxRate: null,
-      arrivalPointId: null,
+      // A local listing states its consolidation point directly; an imported
+      // one carries it inside the terms.
+      arrivalPointId: str(fd, "consolidationPointId") || null,
     };
   }
 
   return {
+    ...local,
     productType: SHIPPED_FROM_ABROAD,
     // Stored as the parser produced it, not as it arrived: one normalised
     // shape in the column, so a legacy record re-saved through the form comes
@@ -187,15 +217,19 @@ function abroadFields(fd: FormData) {
     originCountry: terms.originCountry,
     sourceUrl: terms.sourceUrl,
     supplierName: terms.supplierName,
-    freightMode: terms.freightMode,
+    freightMode: "",
     supplierFreight: terms.supplierFreight,
-    intlFreight: terms.intlFreight,
-    freightIncluded: terms.freightIncluded,
+    intlFreight: 0,
+    // The old column name for the same promise, kept in step so anything still
+    // reading it agrees with the terms.
+    freightIncluded: terms.supplierDelivers,
+    supplierDelivers: terms.supplierDelivers,
+    forwarderId: terms.forwarderId || null,
     originTaxRate: terms.originTaxRate,
     // A negative rate in the terms means "use the platform rate", which the
     // column expresses as null rather than as a nonsense negative percentage.
     ghanaTaxRate: terms.ghanaTaxRate >= 0 ? terms.ghanaTaxRate : null,
-    arrivalPointId: terms.arrivalPointId || null,
+    arrivalPointId: terms.consolidationPointId || null,
   };
 }
 
@@ -215,29 +249,13 @@ export function buildProductData(fd: FormData, options: BuildProductOptions = {}
     price: num(fd, "price") ?? 0,
     oldPrice: num(fd, "oldPrice") ?? null,
     stockQuantity: num(fd, "stockQuantity") ?? 0,
-    // The shipped-from-abroad arrangement and the columns mirrored out of it,
-    // including `preorderInfo` — the column keeps its old name; see lib/abroad.
-    ...abroadFields(fd),
+    // How it ships: the method, the size it is billed on, and — for an imported
+    // listing — the columns mirrored out of its terms, `preorderInfo` included.
+    // That column keeps its old name; see lib/abroad.
+    ...shippingFields(fd),
     categoryId: str(fd, "categoryId"),
     vendorId: forceVendorId ?? str(fd, "vendorId"),
     emoji: optStr(fd, "emoji") ?? "🛍️",
-    // Billable shipping weight (kg) for the delivery-fee engine; default 0.5.
-    shippingWeightKg: num(fd, "shippingWeightKg") ?? 0.5,
-    // Parcel dimensions (cm) — used to derive the CBM when not entered directly.
-    lengthCm: num(fd, "lengthCm") ?? 0,
-    widthCm: num(fd, "widthCm") ?? 0,
-    heightCm: num(fd, "heightCm") ?? 0,
-    // Shipping volume in CBM (m³) — the basis of the shipping fee. Prefer the
-    // entered value; otherwise derive it from L×W×H ÷ 1,000,000.
-    cbm: (() => {
-      const direct = num(fd, "cbm");
-      if (direct && direct > 0) return Math.round(direct * 1_000_000) / 1_000_000;
-      const l = num(fd, "lengthCm") ?? 0;
-      const w = num(fd, "widthCm") ?? 0;
-      const h = num(fd, "heightCm") ?? 0;
-      const vol = l * w * h;
-      return vol > 0 ? Math.round((vol / 1_000_000) * 1_000_000) / 1_000_000 : 0;
-    })(),
     // Keep the single `image` column in sync with the primary gallery image.
     image: images[0] ?? null,
     gradientFrom: optStr(fd, "gradientFrom") ?? "#1f1f1f",

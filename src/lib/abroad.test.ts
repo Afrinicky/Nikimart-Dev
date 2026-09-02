@@ -1,8 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  depositDue,
-  describeDeposit,
   EMPTY_ABROAD_TERMS,
   isAbroadType,
   isSafeSourceUrl,
@@ -28,21 +26,15 @@ const FULL: AbroadTerms = {
   estimatedArrival: "4–6 weeks from order",
   processingDays: 5,
   minimumOrders: 10,
-  freightMode: "sea",
-  arrivalPointId: "ap-tema",
-  freightBasis: "itemised",
+  supplierDelivers: false,
+  forwarderId: "fw-gz",
+  consolidationPointId: "cp-tema",
   supplierFreight: 40,
-  intlFreight: 0,
-  freightIncluded: false,
   originTaxRate: 13,
   ghanaTaxRate: 21.9,
   dutyIncluded: false,
-  depositRequired: true,
-  depositType: "percentage",
-  depositValue: 40,
-  balanceInstruction: "Balance due when it lands in Accra.",
+  balanceInstruction: "Shipping settled when you collect in Accra.",
   refundPolicy: "Full refund if it has not arrived within 10 weeks.",
-  allowFreightOnArrival: true,
 };
 
 test("terms survive the round trip", () => {
@@ -81,38 +73,15 @@ test("a legacy preorder record still parses", () => {
   assert.ok(terms);
   assert.equal(terms.estimatedArrival, "3-4 weeks");
   assert.equal(terms.sourceLocation, "Dubai, UAE");
-  assert.equal(terms.depositValue, 30);
+  // Deposits are gone: the goods are paid for in full at checkout, so a
+  // deposit written under the old rules is dropped rather than honoured.
+  assert.equal("depositValue" in terms, false);
   assert.equal(terms.supplierFreight, 0);
-  assert.equal(terms.intlFreight, 0);
-  assert.equal(terms.arrivalPointId, "");
-  // A record written before all-in quotes existed is itemised, which is what
-  // it was: a price with no combined forwarder invoice behind it.
-  assert.equal(terms.freightBasis, "itemised");
+  assert.equal(terms.forwarderId, "");
+  assert.equal(terms.consolidationPointId, "");
   // No listing-level Ghana tax rate means "use the platform rate".
   assert.equal(terms.ghanaTaxRate, -1);
   assert.equal("closingDate" in terms, false);
-});
-
-test("a deposit flagged but priced at zero is not a deposit", () => {
-  // Otherwise a buyer is shown "Deposit: 0%" and infers a part-payment the
-  // seller never asked for.
-  const terms = parseAbroadTerms(
-    JSON.stringify({ ...FULL, depositRequired: true, depositValue: 0 }),
-  );
-  assert.ok(terms);
-  assert.equal(terms.depositRequired, false);
-  assert.equal(describeDeposit(terms), "Paid in full at checkout");
-  assert.equal(depositDue(terms, 500), null);
-});
-
-test("a fixed deposit never exceeds what the item costs", () => {
-  // A deposit left over from a higher price must not ask for more than the
-  // thing is now listed at.
-  const terms: AbroadTerms = { ...FULL, depositType: "fixed_amount", depositValue: 900 };
-  assert.equal(depositDue(terms, 500, 1), 500);
-  // Per unit, so two units at 500 admit the full 900 deposit.
-  assert.equal(depositDue(terms, 500, 2), 1000);
-  assert.equal(depositDue({ ...FULL, depositValue: 40 }, 500, 2), 400);
 });
 
 test("an unsafe source URL is dropped rather than stored", () => {
@@ -127,10 +96,20 @@ test("an unsafe source URL is dropped rather than stored", () => {
   assert.equal(isSafeSourceUrl("https://alibaba.com/x"), true);
 });
 
-test("an unknown freight mode falls back rather than reaching the rate table", () => {
-  const terms = parseAbroadTerms(JSON.stringify({ ...FULL, freightMode: "teleport" }));
-  assert.ok(terms);
-  assert.equal(terms.freightMode, "sea");
+test("the old names for the same promises are still read", () => {
+  // Listings written under the previous system said "freightIncluded" for what
+  // is now "the supplier delivers", and kept the consolidation point under
+  // "arrivalPointId". Nothing is backfilled, so both have to keep parsing.
+  const legacy = parseAbroadTerms(
+    JSON.stringify({
+      sourceLocation: "Guangzhou, China",
+      freightIncluded: true,
+      arrivalPointId: "ap-tema",
+    }),
+  );
+  assert.ok(legacy);
+  assert.equal(legacy.supplierDelivers, true);
+  assert.equal(legacy.consolidationPointId, "ap-tema");
 });
 
 test("both spellings of the product type mean the same thing", () => {

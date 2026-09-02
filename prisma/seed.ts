@@ -133,10 +133,9 @@ async function main() {
       originCountry: p.preorderInfo?.originCountry ?? "",
       sourceUrl: p.preorderInfo?.sourceUrl ?? "",
       supplierName: p.preorderInfo?.supplierName ?? "",
-      freightMode: p.preorderInfo?.freightMode ?? "",
       supplierFreight: p.preorderInfo?.supplierFreight ?? 0,
-      intlFreight: p.preorderInfo?.intlFreight ?? 0,
-      freightIncluded: p.preorderInfo?.freightIncluded ?? false,
+      supplierDelivers: p.preorderInfo?.supplierDelivers ?? false,
+      freightIncluded: p.preorderInfo?.supplierDelivers ?? false,
       originTaxRate: p.preorderInfo?.originTaxRate ?? 0,
       categoryId: p.categoryId,
       vendorId: p.vendorId,
@@ -297,7 +296,7 @@ async function main() {
   // -------------------------------------------------------------------------
   const faqs = [
     { id: "faq-delivery", question: "How does delivery and pickup work?", answer: "Many sellers offer same-day delivery, campus drop-off, or in-person pickup. The available options are shown on each product page and at checkout." },
-    { id: "faq-preorder", question: "How does Shipped from Abroad work?", answer: "The seller sources the item from a supplier abroad once you order — ordering never closes. Your bill itemises the three freight legs, the tax at source, and Ghana duty and VAT, so you see every charge before paying. Where the seller allows it you can pay for the goods now and settle the freight and duty when it lands. You are alerted when it reaches Ghana and again when it is ready to collect." },
+    { id: "faq-preorder", question: "How does Shipped from Abroad work?", answer: "The seller sources the item from a supplier abroad once you order — ordering never closes. You see two numbers at checkout: the item price and the shipping to the pickup station you choose, with everything it takes to get it here already inside that second figure. Where the seller allows it, you can pay for the item now and settle the shipping when you collect. You are alerted when it reaches Ghana and again when it is ready to collect." },
     { id: "faq-pay", question: "How do I pay?", answer: "Nickimart supports local payments including Mobile Money and card. You choose your payment method at checkout." },
     { id: "faq-sell", question: "How do I become a seller?", answer: "Head to “Sell on Nickimart”, register your shop, complete quick verification, and start listing products, imported goods, or services." },
     { id: "faq-protection", question: "Is my purchase protected?", answer: "Yes. Orders are covered by Nickimart Buyer Protection. If something goes wrong, our support team helps resolve it." },

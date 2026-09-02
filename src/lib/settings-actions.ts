@@ -33,24 +33,9 @@ export async function updateSettings(_prev: SettingsState, fd: FormData): Promis
   await requireAdmin();
 
   for (const [key, label] of [
-    ["deliveryFee", "Base delivery fee"],
-    ["deliveryPerKg", "Per-kg rate"],
-    ["pickupFee", "Pickup fee"],
-  ] as const) {
-    const v = str(fd, key);
-    if (v && !(Number(v) >= 0)) {
-      return { error: `${label} must be a number ≥ 0.`, fieldErrors: { [key]: "Invalid amount." } };
-    }
-  }
-
-  for (const [key, label] of [
     ["commissionRate", "Commission rate"],
     ["affiliateRate", "Affiliate commission"],
     ["affiliateMaxRate", "Affiliate headline rate"],
-    // Both go straight into every imported order's bill, so a typo here is a
-    // mis-charge on real money rather than a cosmetic slip.
-    ["ghanaImportTaxRate", "Ghana VAT & levies"],
-    ["defaultImportDutyPercent", "Fallback import duty"],
   ] as const) {
     const v = str(fd, key);
     if (v && !(Number(v) >= 0 && Number(v) <= 100)) {
@@ -60,7 +45,8 @@ export async function updateSettings(_prev: SettingsState, fd: FormData): Promis
 
   for (const key of SETTING_KEYS) {
     // Only touch settings this form actually submitted — otherwise settings
-    // managed on other pages (e.g. shipping rates) would be blanked.
+    // managed on other pages (the whole shipping console, for one) would be
+    // blanked by a save from here.
     if (!fd.has(key)) continue;
     const value = str(fd, key);
     await prisma.siteSetting.upsert({

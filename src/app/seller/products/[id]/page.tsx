@@ -8,8 +8,8 @@ import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { mapProduct } from "@/lib/catalog";
 import { updateSellerProduct } from "@/lib/seller-actions";
-import { getAbroadConfig, getAffiliateRate, getCommissionRate } from "@/lib/settings";
-import { getActiveArrivalPoints } from "@/lib/arrival-points-data";
+import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
+import { getProductShippingProps } from "@/lib/product-shipping-props";
 
 export const metadata: Metadata = { title: "Edit product — Seller — Nickimart" };
 
@@ -19,7 +19,7 @@ export default async function EditSellerProductPage({ params }: { params: Params
   const user = await requireDashboard("/seller");
   const { id } = await params;
 
-  const [vendor, categories, defaultCommissionRate, defaultAffiliateRate, arrivalPoints, abroadConfig] =
+  const [vendor, categories, defaultCommissionRate, defaultAffiliateRate, shipping] =
     await Promise.all([
     prisma.vendor.findFirst({ where: { ownerId: user.id }, select: { id: true } }),
     prisma.category.findMany({
@@ -28,11 +28,9 @@ export default async function EditSellerProductPage({ params }: { params: Params
     }),
     getCommissionRate(),
     getAffiliateRate(),
-    // A shipped-from-abroad listing has to land somewhere, and the point the
-    // seller picks sets the freight rate, the duty and where the domestic leg
-    // starts. Only active points are offered.
-    getActiveArrivalPoints(),
-    getAbroadConfig(),
+    // Consolidation points, forwarders and the rate tables — everything the
+    // shipping section prices its live estimate from.
+    getProductShippingProps(),
   ]);
   if (!vendor) redirect("/seller");
 
@@ -64,10 +62,7 @@ export default async function EditSellerProductPage({ params }: { params: Params
           submitLabel="Save changes"
           defaultCommissionRate={defaultCommissionRate}
           defaultAffiliateRate={defaultAffiliateRate}
-          arrivalPoints={arrivalPoints}
-          defaultGhanaTaxRate={abroadConfig.ghanaTaxRate}
-          defaultDutyPercent={abroadConfig.defaultDutyPercent}
-          partialPaymentEnabled={abroadConfig.partialPaymentEnabled}
+          shipping={shipping}
         />
       </div>
     </Container>
