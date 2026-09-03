@@ -12,8 +12,12 @@ import {
 import {
   billableWeightKg,
   describePoint,
-  priceLine,
-  resolveForwarderRate,
+  describeRoute,
+  describeTransit,
+  quoteShipment,
+  resolveGoodsClass,
+  resolveRoute,
+  resolveRouteRate,
   SHIPPING_METHODS,
   SHIPPING_METHOD_HINTS,
   SHIPPING_METHOD_LABELS,
@@ -94,36 +98,45 @@ export function ShippingField({
 
   const point = points.find((p) => p.id === terms.consolidationPointId) ?? null;
   const forwarder = forwarders.find((f) => f.id === terms.forwarderId) ?? null;
-  const rate = resolveForwarderRate(forwarder, categoryId);
+  const goodsClass = resolveGoodsClass(forwarder, categoryId);
+  const route = resolveRoute(forwarder);
+  const rate = resolveRouteRate(route, goodsClass?.id ?? null);
   const weight = billableWeightKg(size, config.defaults.volumetricDivisor);
 
-  // Not memoised: `priceLine` is pure arithmetic on a handful of numbers, and
-  // the dependency list a memo would need includes objects looked up from
-  // props on every render — so the cache would miss anyway while making the
-  // estimate look more expensive than it is.
-  const estimate = priceLine(
-    {
-      quantity: 1,
-      unitPrice: price || 0,
-      size,
-      categoryId,
-      method,
-      manualFee,
-      originCountry: isAbroad ? terms.originCountry || "CN" : "GH",
-      point,
-      forwarder: isAbroad ? forwarder : null,
-      supplierDelivers: isAbroad ? terms.supplierDelivers : false,
-      supplierFreight: isAbroad ? terms.supplierFreight : 0,
-      originTaxRate: isAbroad ? terms.originTaxRate : 0,
-      taxRate: isAbroad ? terms.ghanaTaxRate : -1,
-      dutyIncluded: isAbroad ? terms.dutyIncluded : false,
-    },
-    sampleDestinationId,
-    config,
-  );
+  // Not memoised: this is pure arithmetic on a handful of numbers, and the
+  // dependency list a memo would need includes objects looked up from props on
+  // every render — so the cache would miss anyway while making the estimate
+  // look more expensive than it is.
+  //
+  // Quantities of one and two, because that difference is the whole point of
+  // the pricing model and a seller cannot see it from a single figure.
+  const estimateLine = (quantity: number) => ({
+    vendorId: "estimate",
+    quantity,
+    unitPrice: price || 0,
+    size,
+    categoryId,
+    method,
+    manualFee,
+    originCountry: isAbroad ? terms.originCountry || "CN" : "GH",
+    point,
+    forwarder: isAbroad ? forwarder : null,
+    routeId: null,
+    supplierDelivers: isAbroad ? terms.supplierDelivers : false,
+    supplierFreight: isAbroad ? terms.supplierFreight : 0,
+    originTaxRate: isAbroad ? terms.originTaxRate : 0,
+    taxRate: isAbroad ? terms.ghanaTaxRate : -1,
+    dutyIncluded: isAbroad ? terms.dutyIncluded : false,
+  });
+
+  const one = quoteShipment([estimateLine(1)], sampleDestinationId, config);
+  const estimate = one.perLine[0];
+  const twoFee = quoteShipment([estimateLine(2)], sampleDestinationId, config).quote.fee;
 
   const badUrl = terms.sourceUrl.trim().length > 0 && !isSafeSourceUrl(terms.sourceUrl);
-  const unpriced = isAbroad && !terms.supplierDelivers && !rate && config.defaults.fallbackRatePerCbm <= 0;
+  const unpriced =
+    isAbroad && !terms.supplierDelivers && !rate && config.defaults.fallbackRatePerCbm <= 0;
+  const routeCount = (forwarder?.routes ?? []).filter((r) => r.isActive).length;
 
   return (
     <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
@@ -376,8 +389,14 @@ export function ShippingField({
                     hint={
                       forwarders.length === 0
                         ? "None are set up yet — ask an admin to add one."
-                        : rate
-                          ? `Their price for this category: ${formatPrice(rate.ratePerCbm)} per m³, about ${rate.transitDays} days in transit.`
+                        : route
+                          ? `Quoted on ${describeRoute(route)}${
+                              goodsClass ? ` as ${goodsClass.name}` : ""
+                            }, ${describeTransit(route.minDays, route.maxDays)}.${
+                              routeCount > 1
+                                ? ` Buyers can choose between ${routeCount} routes at checkout.`
+                                : ""
+                            }`
                           : "Pick the forwarder who consolidates your goods."
                     }
                   >
@@ -412,6 +431,13 @@ export function ShippingField({
                     />
                   </Field>
                 </div>
+
+                {forwarder?.terms ? (
+                  <p className="rounded-xl bg-niki-surface px-4 py-3 text-sm text-niki-ink/70 ring-1 ring-niki-edge">
+                    <span className="font-medium text-niki-ink">{forwarder.name} note:</span>{" "}
+                    {forwarder.terms}
+                  </p>
+                ) : null}
 
                 {unpriced ? (
                   <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
@@ -560,12 +586,20 @@ export function ShippingField({
             value={estimate.fee}
           />
           <div className="flex justify-between border-t border-white/15 pt-2 font-bold">
-            <dt>Total</dt>
+            <dt>Total for one</dt>
             <dd className="font-figures text-niki-orange">
               {formatPrice((price || 0) + estimate.fee)}
             </dd>
           </div>
         </dl>
+        {method === "auto" ? (
+          <p className="mt-3 rounded-xl bg-white/10 px-3 py-2 text-xs leading-relaxed text-white/75">
+            Buying two costs{" "}
+            <span className="font-figures font-bold text-white">{formatPrice(twoFee)}</span> to ship,
+            not {formatPrice(estimate.fee * 2)} — the base fee is charged once per order from your
+            shop, and each extra item only adds the increment.
+          </p>
+        ) : null}
         <p className="mt-3 text-xs leading-relaxed text-white/60">
           {method === "free"
             ? "You are absorbing the shipping, so buyers pay the item price wherever they collect."

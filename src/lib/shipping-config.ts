@@ -3,9 +3,14 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import {
+  currencyRatesFrom,
+  DEFAULT_CURRENCIES,
+  HOME_CURRENCY,
   isPointKind,
   SHIPPING_DEFAULTS,
   type ConsolidationPoint,
+  type Currency,
+  type CurrencyRates,
   type Forwarder,
   type ShippingConfig,
   type ShippingDefaults,
@@ -32,6 +37,7 @@ export async function getShippingDefaults(): Promise<ShippingDefaults> {
   const s = await getSettings();
   return {
     baseFee: numOr(s.shipBaseFee, SHIPPING_DEFAULTS.baseFee),
+    perUnitFee: numOr(s.shipPerUnitFee, SHIPPING_DEFAULTS.perUnitFee),
     perKgRate: numOr(s.shipPerKgRate, SHIPPING_DEFAULTS.perKgRate),
     volumetricDivisor: numOr(s.shipVolumetricDivisor, SHIPPING_DEFAULTS.volumetricDivisor),
     minFee: numOr(s.shipMinFee, SHIPPING_DEFAULTS.minFee),
@@ -93,12 +99,72 @@ export async function getConsolidationPointMap(): Promise<Map<string, Consolidat
   return new Map((await getConsolidationPoints()).map((p) => [p.id, p]));
 }
 
-/** Every freight forwarder with its price list, active first. */
+// ---------------------------------------------------------------------------
+// Currencies
+// ---------------------------------------------------------------------------
+
+/**
+ * Every currency the platform knows, with the seeded set filling any gap.
+ *
+ * A fresh install has an empty table and forwarders quoting in dollars, so
+ * returning nothing would silently convert every USD rate one-for-one. The
+ * defaults are indicative figures an admin is expected to correct — visible and
+ * wrong beats invisible and wrong.
+ */
+export const getCurrencies = cache(async (): Promise<Currency[]> => {
+  try {
+    const rows = await prisma.currency.findMany({ orderBy: [{ code: "asc" }] });
+    const known = new Map(
+      rows.map((r) => [
+        r.code.toUpperCase(),
+        {
+          code: r.code.toUpperCase(),
+          name: r.name,
+          symbol: r.symbol,
+          rateToGhs: r.rateToGhs,
+          isActive: r.isActive,
+        } satisfies Currency,
+      ]),
+    );
+    for (const seed of DEFAULT_CURRENCIES) {
+      if (!known.has(seed.code)) known.set(seed.code, seed);
+    }
+    return [...known.values()].sort((a, b) =>
+      a.code === HOME_CURRENCY ? -1 : b.code === HOME_CURRENCY ? 1 : a.code.localeCompare(b.code),
+    );
+  } catch {
+    return [...DEFAULT_CURRENCIES];
+  }
+});
+
+/** Only the currencies an admin may quote a route in. */
+export async function getActiveCurrencies(): Promise<Currency[]> {
+  return (await getCurrencies()).filter((c) => c.isActive);
+}
+
+/** The code → GH₵-per-unit lookup the engine takes. */
+export async function getCurrencyRates(): Promise<CurrencyRates> {
+  return currencyRatesFrom(await getCurrencies());
+}
+
+// ---------------------------------------------------------------------------
+// Forwarders
+// ---------------------------------------------------------------------------
+
+/** Every freight forwarder with their classes, routes and prices. */
 export const getForwarders = cache(async (): Promise<Forwarder[]> => {
   try {
     const rows = await prisma.freightForwarder.findMany({
       orderBy: [{ isActive: "desc" }, { name: "asc" }],
-      include: { rates: { orderBy: [{ categoryId: "asc" }] } },
+      include: {
+        goodsClasses: { orderBy: [{ sortOrder: "asc" }, { name: "asc" }] },
+        categoryMap: true,
+        routes: {
+          orderBy: [{ isDefault: "desc" }, { mode: "asc" }, { name: "asc" }],
+          include: { rates: true },
+        },
+        rates: { orderBy: [{ categoryId: "asc" }] },
+      },
     });
     return rows.map((f) => ({
       id: f.id,
@@ -107,9 +173,45 @@ export const getForwarders = cache(async (): Promise<Forwarder[]> => {
       originCountry: f.originCountry,
       mode: f.mode,
       consolidationPointId: f.consolidationPointId,
+      currency: f.currency || HOME_CURRENCY,
       allInclusive: f.allInclusive,
       note: f.note,
+      terms: f.terms,
       isActive: f.isActive,
+      goodsClasses: f.goodsClasses.map((g) => ({
+        id: g.id,
+        name: g.name,
+        note: g.note,
+        surchargePerCbm: g.surchargePerCbm,
+        surchargeLabel: g.surchargeLabel,
+        sortOrder: g.sortOrder,
+        isDefault: g.isDefault,
+      })),
+      categoryMap: Object.fromEntries(f.categoryMap.map((m) => [m.categoryId, m.goodsClassId])),
+      routes: f.routes.map((r) => ({
+        id: r.id,
+        forwarderId: r.forwarderId,
+        name: r.name,
+        originCountry: r.originCountry,
+        originCity: r.originCity,
+        mode: r.mode,
+        destinationPointId: r.destinationPointId,
+        currency: r.currency || f.currency || HOME_CURRENCY,
+        minDays: r.minDays,
+        maxDays: r.maxDays,
+        note: r.note,
+        isActive: r.isActive,
+        isDefault: r.isDefault,
+        rates: r.rates.map((rr) => ({
+          id: rr.id,
+          goodsClassId: rr.goodsClassId,
+          ratePerCbm: rr.ratePerCbm,
+          ratePerKg: rr.ratePerKg,
+          minCharge: rr.minCharge,
+          minCbm: rr.minCbm,
+          note: rr.note,
+        })),
+      })),
       rates: f.rates.map((r) => ({
         id: r.id,
         categoryId: r.categoryId,
@@ -144,8 +246,9 @@ export const getShippingRules = cache(async (): Promise<ShippingRule[]> => {
       originPointId: r.originPointId,
       destPickupId: r.destPickupId,
       categoryId: r.categoryId,
-      flatFee: r.flatFee,
       baseFee: r.baseFee,
+      perUnitFee: r.perUnitFee,
+      flatFee: r.flatFee,
       perKgRate: r.perKgRate,
       note: r.note,
       isActive: r.isActive,
@@ -155,10 +258,14 @@ export const getShippingRules = cache(async (): Promise<ShippingRule[]> => {
   }
 });
 
-/** The defaults and the rules together — what the engine takes. */
+/** The defaults, the rules and the exchange rates — what the engine takes. */
 export async function getShippingConfig(): Promise<ShippingConfig> {
-  const [defaults, rules] = await Promise.all([getShippingDefaults(), getShippingRules()]);
-  return { defaults, rules };
+  const [defaults, rules, currencies] = await Promise.all([
+    getShippingDefaults(),
+    getShippingRules(),
+    getCurrencyRates(),
+  ]);
+  return { defaults, rules, currencies };
 }
 
 /**
@@ -177,16 +284,24 @@ export interface ShippingHealth {
   pickupPoints: number;
   rules: number;
   forwarders: number;
-  forwardersWithRates: number;
+  /** Forwarders that can actually quote: at least one route with a price on it. */
+  forwardersWithRoutes: number;
+  routes: number;
+  /** Forwarders still on the legacy flat price list, with no routes yet. */
+  forwardersOnLegacyRates: number;
+  currencies: number;
+  /** Currencies quoted by a route whose exchange rate is still at 1:1. */
+  unratedCurrencies: string[];
   /** Listings from abroad that no forwarder and no supplier delivery covers. */
   unpricedListings: number;
 }
 
 export async function getShippingHealth(): Promise<ShippingHealth> {
   try {
-    const [points, forwarders, rules, pickupPoints, unpriced] = await Promise.all([
+    const [points, forwarders, currencies, rules, pickupPoints, unpriced] = await Promise.all([
       getConsolidationPoints(),
       getForwarders(),
+      getCurrencies(),
       prisma.shippingRule.count(),
       prisma.pickupPoint.count({ where: { isActive: true } }),
       prisma.product.count({
@@ -202,6 +317,21 @@ export async function getShippingHealth(): Promise<ShippingHealth> {
         },
       }),
     ]);
+
+    const quotableRoutes = (f: Forwarder) =>
+      f.routes.filter((r) => r.isActive && r.rates.length > 0);
+
+    // A route quoted in a currency nobody has priced converts one-for-one,
+    // which turns $260 into GH₵260. Worth saying out loud on the overview.
+    const rateByCode = new Map(currencies.map((c) => [c.code, c.rateToGhs]));
+    const unrated = new Set<string>();
+    for (const f of forwarders) {
+      for (const r of f.routes) {
+        const code = (r.currency || HOME_CURRENCY).toUpperCase();
+        if (code !== HOME_CURRENCY && (rateByCode.get(code) ?? 1) === 1) unrated.add(code);
+      }
+    }
+
     return {
       points: points.length,
       localPoints: points.filter((p) => p.kind === "local").length,
@@ -210,7 +340,13 @@ export async function getShippingHealth(): Promise<ShippingHealth> {
       pickupPoints,
       rules,
       forwarders: forwarders.length,
-      forwardersWithRates: forwarders.filter((f) => f.rates.length > 0).length,
+      forwardersWithRoutes: forwarders.filter((f) => quotableRoutes(f).length > 0).length,
+      routes: forwarders.reduce((s, f) => s + f.routes.length, 0),
+      forwardersOnLegacyRates: forwarders.filter(
+        (f) => f.routes.length === 0 && f.rates.length > 0,
+      ).length,
+      currencies: currencies.length,
+      unratedCurrencies: [...unrated].sort(),
       unpricedListings: unpriced,
     };
   } catch {
@@ -222,7 +358,11 @@ export async function getShippingHealth(): Promise<ShippingHealth> {
       pickupPoints: 0,
       rules: 0,
       forwarders: 0,
-      forwardersWithRates: 0,
+      forwardersWithRoutes: 0,
+      routes: 0,
+      forwardersOnLegacyRates: 0,
+      currencies: 0,
+      unratedCurrencies: [],
       unpricedListings: 0,
     };
   }

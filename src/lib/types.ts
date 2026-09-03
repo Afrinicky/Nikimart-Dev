@@ -199,6 +199,12 @@ export interface Product {
   price: number;
   oldPrice?: number;
   stockQuantity: number;
+  /**
+   * Minimum order quantity: the fewest units a buyer may order at once.
+   * 1 for anything sold singly; a listing sold by the carton says so here
+   * rather than in a description nothing enforces.
+   */
+  moq?: number;
   productType: ProductType;
   badges: BadgeKind[];
   locationIds: string[];

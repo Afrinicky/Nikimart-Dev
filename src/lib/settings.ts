@@ -97,13 +97,17 @@ export const SETTINGS_DEFAULTS = {
   leadDaysEU: "21",
   // --- Shipping: the domestic leg -------------------------------------------
   // Goods gather at a consolidation point, are checked, and are couriered to
-  // the buyer's pickup station. That run is priced the way a Ghanaian courier
-  // prices one: a fee per consignment plus a rate per billable kilogram, where
-  // billable weight is the greater of what a parcel weighs and what its size
-  // says it weighs. Per-route and per-category overrides live in the shipping
-  // rules table (Admin → Shipping → Rates); these are the fallbacks.
-  shipBaseFee: "15",
-  shipPerKgRate: "4",
+  // the buyer's pickup station. One seller's goods are one consignment, and it
+  // is priced the way a courier prices one: a base fee for the load, then a
+  // small increment for every unit after the first. Ten bottles from one shop
+  // are one van and one handover, not ten of each. Per-route and per-category
+  // overrides live in the shipping rules table (Admin → Shipping → Inside
+  // Ghana); these are the fallbacks.
+  shipBaseFee: "10",
+  shipPerUnitFee: "1.5",
+  // Legacy: GH₵ per billable kilogram. Only used to derive an increment for a
+  // rule written before the base+increment model and never updated since.
+  shipPerKgRate: "0",
   // cm³ per volumetric kilogram (courier standard ≈ 5000).
   shipVolumetricDivisor: "5000",
   // No charged domestic leg is billed under this. Collection at the point the

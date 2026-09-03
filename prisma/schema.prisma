@@ -124,8 +124,9 @@ model Category {
   products                Product[]
 
   // Shipping prices that single this category out.
-  shippingRules  ShippingRule[]
-  forwarderRates ForwarderRate[]
+  shippingRules    ShippingRule[]
+  forwarderRates   ForwarderRate[]
+  forwarderClasses ForwarderCategoryMap[]
 }
 
 model Vendor {
@@ -257,6 +258,10 @@ model Product {
   price                    Float
   oldPrice                 Float?
   stockQuantity            Int     @default(0)
+  // Minimum order quantity: the fewest units a buyer may order in one go.
+  // Wholesale and imported listings are rarely sold one at a time, and a
+  // minimum written in the description is a minimum nothing enforces.
+  moq                      Int     @default(1)
   productType              String  @default("in_stock")
   // JSON-encoded string[] of BadgeKind values.
   badges                   String  @default("[]")
@@ -299,48 +304,48 @@ model Product {
   // from Guangzhou has a GH vendor and a CN product; before this, origin came
   // from the vendor alone and every such listing priced as domestic. Blank
   // falls back to the vendor's originCountry.
-  originCountry            String  @default("")
+  originCountry   String        @default("")
   // The supplier listing the seller copied from, and who sells it.
-  sourceUrl                String  @default("")
-  supplierName             String  @default("")
+  sourceUrl       String        @default("")
+  supplierName    String        @default("")
   // air | sea | road | express — how it travels abroad → Ghana.
-  freightMode              String  @default("")
+  freightMode     String        @default("")
   // Leg 1 (GH₵ per unit): supplier → freight forwarder abroad.
-  supplierFreight          Float   @default(0)
+  supplierFreight Float         @default(0)
   // Leg 2 override (GH₵ per unit). 0 = price it from the arrival point's rates.
-  intlFreight              Float   @default(0)
+  intlFreight     Float         @default(0)
   // True when the listed price already covers legs 1 and 2.
-  freightIncluded          Boolean @default(false)
+  freightIncluded Boolean       @default(false)
   // Sales tax / VAT charged in the country of purchase (percent).
-  originTaxRate            Float   @default(0)
+  originTaxRate   Float         @default(0)
   // Ghana VAT + levies (percent). Null = the platform rate from settings.
-  ghanaTaxRate             Float?
+  ghanaTaxRate    Float?
   // The consolidation point this listing gathers at: where an imported
   // consignment lands and clears, or where a local seller's goods are brought
   // together. The column keeps its old name — every existing listing, order
   // line and shipment already points at it.
-  arrivalPointId           String?
-  arrivalPoint             ArrivalPoint? @relation(fields: [arrivalPointId], references: [id], onDelete: SetNull)
+  arrivalPointId  String?
+  arrivalPoint    ArrivalPoint? @relation(fields: [arrivalPointId], references: [id], onDelete: SetNull)
 
   // --- How this listing is shipped -----------------------------------------
   // auto   — priced by the shipping rules (almost everything).
   // free   — the seller absorbs it; nothing is charged to any pickup point.
   // manual — the fee is typed in. Cars, sensitive goods, anything a rate table
   //          would price wrongly: a special shipment, quoted by hand.
-  shippingMethod           String  @default("auto")
-  manualShippingFee        Float   @default(0)
+  shippingMethod    String            @default("auto")
+  manualShippingFee Float             @default(0)
   // True when the supplier's price already puts the goods at the Ghana
   // consolidation point. Nothing is charged for the international leg; the
   // buyer pays only the local run from there to the station they choose.
-  supplierDelivers         Boolean @default(false)
+  supplierDelivers  Boolean           @default(false)
   // The forwarder carrying the international leg, when one does.
-  forwarderId              String?
-  forwarder                FreightForwarder? @relation(fields: [forwarderId], references: [id], onDelete: SetNull)
+  forwarderId       String?
+  forwarder         FreightForwarder? @relation(fields: [forwarderId], references: [id], onDelete: SetNull)
   // Whether the seller lets a buyer settle the shipping at collection. The
   // goods are always paid for at checkout; only the courier run may wait.
-  shippingOnPickup         Boolean @default(false)
+  shippingOnPickup  Boolean           @default(false)
   // JSON-encoded array of { label, value } key attributes (spec table).
-  attributes               String  @default("[]")
+  attributes        String            @default("[]")
 
   // --- Affiliate programme enrolment ---------------------------------------
   // Whether this product is offered to affiliate marketers. Only enrolled
@@ -384,13 +389,13 @@ model ProductImage {
 // ---------------------------------------------------------------------------
 
 model Order {
-  id             String   @id @default(cuid())
-  orderNumber    String   @unique
-  status         String   @default("pending") // pending | paid | shipped | delivered | cancelled
-  subtotal       Float    @default(0)
-  deliveryFee    Float    @default(0)
-  total          Float    @default(0)
-  deliveryMethod String   @default("delivery") // delivery | pickup
+  id             String @id @default(cuid())
+  orderNumber    String @unique
+  status         String @default("pending") // pending | paid | shipped | delivered | cancelled
+  subtotal       Float  @default(0)
+  deliveryFee    Float  @default(0)
+  total          Float  @default(0)
+  deliveryMethod String @default("delivery") // delivery | pickup
 
   // --- Shipped-from-abroad billing -----------------------------------------
   // A domestic order is goods + delivery. An imported one is bought in another
@@ -398,28 +403,28 @@ model Order {
   // taxed on landing, then moved inside Ghana. Each leg is snapshotted so the
   // bill can be shown back exactly as it was quoted, and so a later rate change
   // never silently rewrites what somebody already paid.
-  hasAbroadItems       Boolean @default(false)
+  hasAbroadItems       Boolean  @default(false)
   // Sales tax / VAT charged in the country of purchase.
-  originTax            Float   @default(0)
+  originTax            Float    @default(0)
   // Leg 1: supplier → freight forwarder abroad.
-  supplierFreight      Float   @default(0)
+  supplierFreight      Float    @default(0)
   // Leg 2: forwarder → the Ghana arrival point. (Leg 3 is deliveryFee.)
-  internationalFreight Float   @default(0)
-  importDuty           Float   @default(0)
-  clearingFee          Float   @default(0)
-  ghanaTax             Float   @default(0)
+  internationalFreight Float    @default(0)
+  importDuty           Float    @default(0)
+  clearingFee          Float    @default(0)
+  ghanaTax             Float    @default(0)
   // What the buyer chose to settle today: "full" | "goods_only". Under
   // goods_only the freight legs, duty and Ghana tax are paid when it lands —
   // and any rate rise in between is theirs.
-  paymentPlan          String  @default("full")
-  amountPaid           Float   @default(0)
-  balanceDue           Float   @default(0)
+  paymentPlan          String   @default("full")
+  amountPaid           Float    @default(0)
+  balanceDue           Float    @default(0)
   // True when the whole bill was settled up front, so later rate rises are
   // absorbed rather than passed on.
-  freightLocked        Boolean @default(true)
-  address        String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  freightLocked        Boolean  @default(true)
+  address              String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -469,13 +474,21 @@ model OrderItem {
   // columns above stay for the seller payout and the finance reports; this is
   // what was on the screen, snapshotted so a later rate change cannot rewrite
   // what somebody was charged.
-  shippingFee    Float  @default(0)
-  shippingMethod String @default("auto")
+  shippingFee      Float   @default(0)
+  shippingMethod   String  @default("auto")
   // True when this line's shipping was left to be settled at collection.
   shippingDeferred Boolean @default(false)
 
-  arrivalPointId String?
-  arrivalPoint   ArrivalPoint? @relation(fields: [arrivalPointId], references: [id], onDelete: SetNull)
+  // The route the buyer chose, and the window they were promised. Snapshotted
+  // like the rest of the bill: somebody who paid for air freight keeps that
+  // record even if the listing later moves to sea.
+  freightRouteId String?
+  freightRoute   ForwarderRoute? @relation(fields: [freightRouteId], references: [id], onDelete: SetNull)
+  transitMinDays Int             @default(0)
+  transitMaxDays Int             @default(0)
+
+  arrivalPointId       String?
+  arrivalPoint         ArrivalPoint? @relation(fields: [arrivalPointId], references: [id], onDelete: SetNull)
   // Where this line's goods gathered before the courier run.
   consolidationPointId String?
   consolidationPoint   ArrivalPoint? @relation("ItemConsolidation", fields: [consolidationPointId], references: [id], onDelete: SetNull)
@@ -575,6 +588,7 @@ model ArrivalPoint {
   // order lines that gather here.
   rulesFrom      ShippingRule[]
   forwarders     FreightForwarder[]
+  routesInto     ForwarderRoute[]   @relation("RouteDestination")
   vendors        Vendor[]           @relation("VendorConsolidation")
   consolidatedIn OrderItem[]        @relation("ItemConsolidation")
 }
@@ -600,11 +614,18 @@ model ShippingRule {
   categoryId    String?
   category      Category?     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
-  // Above zero, this is the price and weight is not consulted.
-  flatFee   Float @default(0)
-  // Otherwise: per consignment, plus per billable kilogram.
-  baseFee   Float @default(0)
-  perKgRate Float @default(0)
+  // What one consignment from one seller costs on this route.
+  baseFee    Float @default(0)
+  // What each unit after the first adds. Zero falls back to the weight rate
+  // below (per billable kilogram of a single unit), then to the platform
+  // default — so rules written before the base+increment model still price.
+  perUnitFee Float @default(0)
+  // Legacy: a flat price per item. Read as the base fee when no base is set,
+  // never multiplied by the quantity any more — that multiplication is the bug
+  // this model exists to remove.
+  flatFee    Float @default(0)
+  // Legacy: GH₵ per billable kilogram, now used only to derive an increment.
+  perKgRate  Float @default(0)
 
   note      String   @default("")
   isActive  Boolean  @default(true)
@@ -626,16 +647,23 @@ model ShippingRule {
 // point — carriage, port fees, duty, taxes — which is what allInclusive says,
 // and why duty is not then assessed a second time on top of it.
 model FreightForwarder {
-  id            String @id @default(cuid())
+  id            String   @id @default(cuid())
   name          String
-  code          String @unique
+  code          String   @unique
   // Country the forwarder collects in: CN, AE, US, EU…
-  originCountry String @default("")
+  originCountry String   @default("")
   // air | sea | road | express
-  mode          String @default("sea")
-  allInclusive  Boolean @default(true)
-  note          String  @default("")
-  isActive      Boolean @default(true)
+  mode          String   @default("sea")
+  allInclusive  Boolean  @default(true)
+  // The currency this forwarder quotes in: USD, GHS, CNY, AED, EUR, GBP…
+  // Rates are stored as quoted and converted at pricing time, so correcting one
+  // exchange rate re-prices every listing that depends on it.
+  currency      String   @default("GHS")
+  note          String   @default("")
+  // The forwarder's own standing notes — the levies and quirks that belong to
+  // their whole price list rather than to any one route. Shown, never priced.
+  terms         String   @default("")
+  isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -643,22 +671,141 @@ model FreightForwarder {
   consolidationPointId String?
   consolidationPoint   ArrivalPoint? @relation(fields: [consolidationPointId], references: [id], onDelete: SetNull)
 
-  rates    ForwarderRate[]
-  products Product[]
+  // The legacy flat price list (our category → GH₵/CBM). Still read as a
+  // fallback for a forwarder that has no routes yet; nothing writes it.
+  rates        ForwarderRate[]
+  goodsClasses ForwarderGoodsClass[]
+  categoryMap  ForwarderCategoryMap[]
+  routes       ForwarderRoute[]
+  products     Product[]
 
   @@index([consolidationPointId])
+}
+
+// A forwarder's own classes of goods — Normal, Special, Heavy-Duty — which are
+// never our categories. Ours are what a shopper browses; theirs are what a
+// container is priced by. Our categories are mapped onto these.
+model ForwarderGoodsClass {
+  id              String           @id @default(cuid())
+  forwarderId     String
+  forwarder       FreightForwarder @relation(fields: [forwarderId], references: [id], onDelete: Cascade)
+  name            String
+  note            String           @default("")
+  // A levy that rides on this class whatever the route: the energy commission
+  // on appliances, the FDA charge on diapers and wigs. In the forwarder's own
+  // currency, like every other figure they quote.
+  surchargePerCbm Float            @default(0)
+  surchargeLabel  String           @default("")
+  sortOrder       Int              @default(0)
+  // The class a category with no mapping of its own falls into.
+  isDefault       Boolean          @default(false)
+
+  rates    ForwarderRouteRate[]
+  mappings ForwarderCategoryMap[]
+
+  @@unique([forwarderId, name])
+  @@index([forwarderId])
+}
+
+// One of our categories, placed in one of a forwarder's classes.
+model ForwarderCategoryMap {
+  id           String              @id @default(cuid())
+  forwarderId  String
+  forwarder    FreightForwarder    @relation(fields: [forwarderId], references: [id], onDelete: Cascade)
+  categoryId   String
+  category     Category            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  goodsClassId String
+  goodsClass   ForwarderGoodsClass @relation(fields: [goodsClassId], references: [id], onDelete: Cascade)
+
+  @@unique([forwarderId, categoryId])
+  @@index([goodsClassId])
+}
+
+// One lane a forwarder sells: where it collects, how it travels, which Ghana
+// consolidation point it lands at, the currency it is quoted in and how long it
+// takes. Buyers choose between these at checkout, which is why the transit
+// window lives here — sea and air out of one warehouse are 35–45 days and 7–14,
+// and that is precisely the trade the buyer is making.
+model ForwarderRoute {
+  id            String           @id @default(cuid())
+  forwarderId   String
+  forwarder     FreightForwarder @relation(fields: [forwarderId], references: [id], onDelete: Cascade)
+  name          String           @default("")
+  originCountry String           @default("")
+  originCity    String           @default("")
+  // air | sea | road | express
+  mode          String           @default("sea")
+
+  destinationPointId String?
+  destinationPoint   ArrivalPoint? @relation("RouteDestination", fields: [destinationPointId], references: [id], onDelete: SetNull)
+
+  currency  String  @default("GHS")
+  minDays   Int     @default(21)
+  maxDays   Int     @default(45)
+  note      String  @default("")
+  isActive  Boolean @default(true)
+  // The route a listing is quoted on before a buyer chooses one.
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rates      ForwarderRouteRate[]
+  orderItems OrderItem[]
+
+  @@index([forwarderId])
+  @@index([destinationPointId])
+}
+
+// One price on one route, for one goods class. The row with no class is the
+// route's catch-all.
+model ForwarderRouteRate {
+  id           String               @id @default(cuid())
+  routeId      String
+  route        ForwarderRoute       @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  // Null = the price everything with no class row of its own is quoted at.
+  goodsClassId String?
+  goodsClass   ForwarderGoodsClass? @relation(fields: [goodsClassId], references: [id], onDelete: Cascade)
+
+  ratePerCbm Float  @default(0)
+  ratePerKg  Float  @default(0)
+  minCharge  Float  @default(0)
+  // How a quote sheet says "Normal Goods <1 CBM — $260": anything smaller is
+  // still billed as this many cubic metres.
+  minCbm     Float  @default(0)
+  note       String @default("")
+
+  // Scope uniqueness is a COALESCE index in db/migrations/0007 — NULL never
+  // equals NULL, so Prisma cannot express it.
+  @@index([routeId])
+  @@index([goodsClassId])
+}
+
+// An exchange rate, kept in one place.
+//
+// Freight abroad is quoted in dollars far more often than in cedis. Storing the
+// converted cedi figure would mean re-typing every rate on the day the cedi
+// moves; storing the quoted figure plus this means correcting one number.
+model Currency {
+  code      String   @id
+  name      String   @default("")
+  symbol    String   @default("")
+  /// What one unit of this currency is worth in GH₵.
+  rateToGhs Float    @default(1)
+  isActive  Boolean  @default(true)
+  updatedAt DateTime @updatedAt
 }
 
 // One forwarder, several prices. A forwarder who charges one rate per cubic
 // metre for clothing and another for electronics is ordinary, so the price list
 // is keyed on category; the row with no category prices everything else.
 model ForwarderRate {
-  id          String @id @default(cuid())
+  id          String           @id @default(cuid())
   forwarderId String
   forwarder   FreightForwarder @relation(fields: [forwarderId], references: [id], onDelete: Cascade)
   // Null = the catch-all price.
   categoryId  String?
-  category    Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category    Category?        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   label       String @default("")
   ratePerCbm  Float  @default(0)
@@ -676,40 +823,40 @@ model ForwarderRate {
 // per mode. Air is sold by the kilo and sea by the cubic metre, so a row can
 // carry both; minCharge is the floor under the sum.
 model ArrivalRate {
-  id             String @id @default(cuid())
+  id             String       @id @default(cuid())
   arrivalPointId String
   arrivalPoint   ArrivalPoint @relation(fields: [arrivalPointId], references: [id], onDelete: Cascade)
   // Origin country code (CN, AE, US, EU…), or "*" for any origin.
-  originCountry  String @default("*")
+  originCountry  String       @default("*")
   // air | sea | road | express, or "*" for any mode.
-  mode           String @default("sea")
-  ratePerCbm     Float  @default(0)
-  ratePerKg      Float  @default(0)
-  minCharge      Float  @default(0)
+  mode           String       @default("sea")
+  ratePerCbm     Float        @default(0)
+  ratePerKg      Float        @default(0)
+  minCharge      Float        @default(0)
   // Typical days in transit on this route, for the arrival estimate.
-  transitDays    Int    @default(21)
+  transitDays    Int          @default(21)
 
   @@unique([arrivalPointId, originCountry, mode])
   @@index([arrivalPointId])
 }
 
 model Shipment {
-  id               String    @id @default(cuid())
-  trackingNumber   String    @unique
+  id                  String        @id @default(cuid())
+  trackingNumber      String        @unique
   // Derived "furthest confirmed" stage: created | processing | in_transit |
   // out_for_delivery | delivered. Advanced only by role-based confirmations.
-  status           String    @default("created")
-  manualHold       Boolean   @default(false)
-  carrier          String    @default("NikiMart Freight")
-  origin           String
-  destination      String
-  eta              DateTime?
+  status              String        @default("created")
+  manualHold          Boolean       @default(false)
+  carrier             String        @default("NikiMart Freight")
+  origin              String
+  destination         String
+  eta                 DateTime?
   // Per-stage confirmation timestamps. A non-null value = that stage is
   // confirmed (ticked). Confirming a later stage back-fills earlier ones.
-  processingAt     DateTime?
-  transitAt        DateTime?
-  outForDeliveryAt DateTime?
-  deliveredAt      DateTime?
+  processingAt        DateTime?
+  transitAt           DateTime?
+  outForDeliveryAt    DateTime?
+  deliveredAt         DateTime?
   // Extra milestones for a consignment coming from abroad. A domestic order
   // goes prepared → in transit → out for delivery → delivered; an imported one
   // spends weeks between "the seller has ordered it" and "it is in the country",
@@ -720,10 +867,10 @@ model Shipment {
   forwarderReceivedAt DateTime?
   arrivedGhanaAt      DateTime?
   // The Ghana point this consignment lands at, when it comes from abroad.
-  arrivalPointId   String?
-  arrivalPoint     ArrivalPoint? @relation(fields: [arrivalPointId], references: [id], onDelete: SetNull)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  arrivalPointId      String?
+  arrivalPoint        ArrivalPoint? @relation(fields: [arrivalPointId], references: [id], onDelete: SetNull)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   orderId String @unique
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)

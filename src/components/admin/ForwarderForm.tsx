@@ -23,6 +23,7 @@ export function ForwarderForm({
   action,
   forwarder,
   points,
+  currencies,
   submitLabel,
   saved = false,
 }: {
@@ -33,11 +34,14 @@ export function ForwarderForm({
     originCountry: string;
     mode: string;
     consolidationPointId: string | null;
+    currency: string;
     allInclusive: boolean;
     note: string;
+    terms: string;
     isActive: boolean;
   };
   points: { id: string; label: string }[];
+  currencies: { code: string; name: string; symbol: string }[];
   submitLabel: string;
   saved?: boolean;
 }) {
@@ -64,7 +68,7 @@ export function ForwarderForm({
         </Field>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Collects in" htmlFor="originCountry" hint="The country they receive goods in.">
           <select id="originCountry" name="originCountry" defaultValue={f?.originCountry ?? ""} className={inputClass}>
             <option value="">Any country</option>
@@ -75,7 +79,11 @@ export function ForwarderForm({
             ))}
           </select>
         </Field>
-        <Field label="How they travel" htmlFor="mode" hint="Shown to buyers as the freight method.">
+        <Field
+          label="Usual mode"
+          htmlFor="mode"
+          hint="Their headline method. Each route sets its own, and the route’s wins."
+        >
           <select id="mode" name="mode" defaultValue={f?.mode ?? "sea"} className={inputClass}>
             {FREIGHT_MODES.map((m) => (
               <option key={m} value={m}>
@@ -85,9 +93,23 @@ export function ForwarderForm({
           </select>
         </Field>
         <Field
+          label="Quotes in"
+          htmlFor="currency"
+          hint="The currency their rate sheet is written in. Converted to cedis at the rate on the Currencies screen."
+        >
+          <select id="currency" name="currency" defaultValue={f?.currency ?? "GHS"} className={inputClass}>
+            {currencies.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.symbol ? `${c.symbol} ` : ""}
+                {c.code} — {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field
           label="Delivers into"
           htmlFor="consolidationPointId"
-          hint="The Ghana consolidation point their loads land at. The local run starts there."
+          hint="Their default Ghana point. Each route may land somewhere else."
         >
           <select
             id="consolidationPointId"
@@ -122,7 +144,15 @@ export function ForwarderForm({
         </span>
       </label>
 
-      <Field label="Note" htmlFor="note" hint="For your own reference. Not shown to buyers.">
+      <Field
+        label="Their standing notes"
+        htmlFor="terms"
+        hint="The levies and quirks that apply across their whole price list — “appliances carry a $10/CBM energy commission fee”. Shown to sellers; the priced ones belong on a goods class below."
+      >
+        <textarea id="terms" name="terms" rows={3} defaultValue={f?.terms} className={inputClass} />
+      </Field>
+
+      <Field label="Internal note" htmlFor="note" hint="For your own reference. Not shown to buyers.">
         <textarea id="note" name="note" rows={2} defaultValue={f?.note} className={inputClass} />
       </Field>
 

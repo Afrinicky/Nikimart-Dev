@@ -13,7 +13,6 @@ import { REFERRAL_COOKIE } from "@/lib/affiliate";
 import { resolveCommissionRate } from "@/lib/commission";
 import { affiliateLineCommission, resolveAffiliateRate } from "@/lib/affiliate-commission";
 import { releaseStockForOrder, tracksStock } from "@/lib/stock";
-import { resolveForwarderRate } from "@/lib/shipping";
 import { priceCart } from "@/lib/cart-pricing";
 import { amountDueNow, balanceAfter, type PaymentPlan } from "@/lib/cart-bill";
 import { isPaymentConfigured, initializeTransaction, toPesewas } from "@/lib/payments";
@@ -24,10 +23,18 @@ const payloadSchema = z.object({
     .array(
       z.object({
         productId: z.string().min(1),
-        quantity: z.number().int().min(1).max(99),
+        // A wholesale listing sold in cartons of 500 is ordinary, so the cap is
+        // generous; the minimum a listing will accept is its own MOQ, checked
+        // against the database below rather than taken from the browser.
+        quantity: z.number().int().min(1).max(9999),
       }),
     )
     .min(1, "Your cart is empty."),
+  // Which lane the buyer chose from each forwarder that carries something in
+  // this cart: forwarder id → route id. An id that names nothing, or a route
+  // belonging to another forwarder, falls back to that forwarder's default —
+  // the engine checks it against what exists rather than trusting it.
+  routeChoices: z.record(z.string(), z.string()).optional(),
   // Every order is collected at a Nickimart pickup point (no home delivery).
   pickupPointId: z.string().trim().min(1, "Please choose a pickup point."),
   // Whether the buyer ticked the shipped-from-abroad acknowledgement at
@@ -90,6 +97,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       productType: true,
       preorderInfo: true,
       stockQuantity: true,
+      moq: true,
       affiliateEnabled: true,
       affiliateEnrolledBy: true,
       affiliateCommissionRate: true,
@@ -106,7 +114,21 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   const pricing = await priceCart(
     data.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
     pickupPoint.id,
+    data.routeChoices ?? {},
   );
+
+  // A listing sold in cartons of twelve must not be ordered as one. The cart
+  // enforces this in the browser and the engine raised the quantity to the
+  // minimum when pricing, so refusing here — rather than silently charging for
+  // the larger order — is what keeps the number on the screen the number that
+  // is charged.
+  const short = pricing.lines.find((l) => l.belowMoq);
+  if (short) {
+    return {
+      ok: false,
+      error: `"${short.name}" is sold in minimum quantities of ${short.moq}. Please update your cart.`,
+    };
+  }
 
   // An imported item is money handed over for something that is still in
   // another country, on terms that vary per listing. Checkout shows those terms
@@ -255,11 +277,13 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   // absurd for one crossing an ocean, so an imported consignment takes the
   // transit time its route is configured with, plus the supplier's own lead
   // time, and the buyer sees a date they can plan around.
+  // The far end of the promised window, not the near one: a date the buyer can
+  // plan around has to be the one the goods will actually have arrived by.
   const etaDays = abroadLine
     ? Math.max(
         3,
         (abroadLine.terms?.processingDays ?? 0) +
-          (resolveForwarderRate(abroadLine.forwarder, abroadLine.categoryId)?.transitDays ?? 21),
+          (abroadLine.detail.transitMaxDays || abroadLine.detail.transitMinDays || 21),
       )
     : 2;
 
@@ -328,8 +352,14 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
                 clearingFee: i.priced!.detail.clearingFee,
                 ghanaTax: i.priced!.detail.tax,
                 domesticFreight: i.priced!.detail.localFreight,
-                freightMode: i.priced!.forwarder?.mode ?? "",
+                freightMode: i.priced!.route?.mode ?? i.priced!.forwarder?.mode ?? "",
                 freightIncluded: i.priced!.terms?.supplierDelivers ?? false,
+                // The lane the buyer chose and the window they were promised,
+                // snapshotted: somebody who paid for air freight keeps that
+                // record even if the listing later moves to sea.
+                freightRouteId: i.priced!.route?.id ?? null,
+                transitMinDays: i.priced!.detail.transitMinDays,
+                transitMaxDays: i.priced!.detail.transitMaxDays,
                 arrivalPointId: i.priced!.point?.id ?? null,
                 consolidationPointId: i.priced!.point?.id ?? null,
               })),

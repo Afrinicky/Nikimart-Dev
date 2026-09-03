@@ -16,7 +16,19 @@ export interface CartItem {
   weightKg?: number;
   /** Parcel volume in cm³ (L×W×H) for size-based delivery pricing. */
   volumeCm3?: number;
+  /**
+   * The seller's minimum order quantity. Held on the line so the cart can hold
+   * a buyer to it without asking the server on every tap; the server enforces
+   * it again when the order is placed, because this arrived from a browser.
+   */
+  moq?: number;
   quantity: number;
+}
+
+/** A listing's minimum, sanitised. Anything under one unit is one unit. */
+function minimumFor(item: { moq?: number }): number {
+  const n = Math.round(Number(item.moq ?? 1));
+  return Number.isFinite(n) && n > 1 ? n : 1;
 }
 
 interface CartContextValue {
@@ -69,21 +81,35 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       count,
       subtotal,
       ready,
-      addItem: (item, quantity = 1) =>
+      addItem: (item, quantity) => {
+        // The first add is a whole minimum order, not one unit of it. A carton
+        // of twelve added as a single bottle would be silently corrected at
+        // checkout, which is the moment a buyer least wants to be surprised.
+        const min = minimumFor(item);
+        const amount = Math.max(1, Math.round(quantity ?? min));
         setItems((prev) => {
           const existing = prev.find((i) => i.productId === item.productId);
           if (existing) {
             return prev.map((i) =>
-              i.productId === item.productId ? { ...i, quantity: i.quantity + quantity } : i,
+              i.productId === item.productId
+                ? { ...i, moq: item.moq ?? i.moq, quantity: i.quantity + amount }
+                : i,
             );
           }
-          return [...prev, { ...item, quantity }];
-        }),
+          return [...prev, { ...item, quantity: Math.max(amount, min) }];
+        });
+      },
       updateQuantity: (productId, quantity) =>
         setItems((prev) =>
-          quantity <= 0
-            ? prev.filter((i) => i.productId !== productId)
-            : prev.map((i) => (i.productId === productId ? { ...i, quantity } : i)),
+          prev.flatMap((i) => {
+            if (i.productId !== productId) return [i];
+            const min = minimumFor(i);
+            // Stepping below the minimum removes the line rather than parking
+            // it at a quantity the seller will not accept. Wanting fewer than
+            // the minimum means not wanting it.
+            if (quantity < min) return [];
+            return [{ ...i, quantity }];
+          }),
         ),
       removeItem: (productId) => setItems((prev) => prev.filter((i) => i.productId !== productId)),
       clear: () => setItems([]),

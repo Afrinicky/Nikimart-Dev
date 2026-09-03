@@ -95,6 +95,7 @@ idempotent, and records itself in `_prisma_migrations` so a later
 | CBM shipping routes (superseded by `0006`) | `nikimart-neon-shipping-cbm.sql` |
 | Shipped from Abroad (arrival points, rates, landed-cost columns) | `db/migrations/0005_shipped_from_abroad.sql` — applied automatically at build |
 | One shipping system (consolidation points, rules, forwarders) | `db/migrations/0006_shipping_hub.sql` — applied automatically at build |
+| Per-seller local fees, forwarder routes, currencies, MOQ | `db/migrations/0007_shipping_simplification.sql` — applied automatically at build |
 | Commission + seller payouts | `nikimart-neon-commission.sql` |
 | Affiliates (Finance console) | `nikimart-neon-affiliates.sql` |
 | Data bundle storefront | `nikimart-neon-data-bundles.sql` |
@@ -228,7 +229,8 @@ Shipping configuration used to live in three places — a rate matrix under
 Shipping, an Arrival points tab, and a slice of Settings — so nobody could see a
 fee's whole configuration at once and a rate set in one place could quietly
 contradict a rate set in another. It is all under **`/admin/shipping`** now, in
-four screens: Overview (the platform defaults), Points, Rates, and From abroad.
+five screens: Overview (the platform defaults), Points, Inside Ghana,
+Forwarders, and Currencies.
 
 ### The journey
 
@@ -248,22 +250,40 @@ and migrations here are additive by rule.
 
 ### Pricing the run inside Ghana
 
-Jumia's model, not a freight one: **billable weight**, the greater of what a
-parcel weighs and what its size says it weighs (L×W×H ÷ 5000 by default),
-rounded up to the next half kilo. Cubic metres are how sea freight is sold and
-not how a van crossing Ghana is — a seller listing a blender should not have to
-compute m³ to four decimals.
+**Base fee + increment, charged per seller.** One seller's goods are one
+consignment — one pickup, one van, one handover — so the base fee is charged once
+for that seller's whole order, and every item after the first adds only a small
+weight-and-volume increment. Ten bottles of spray from one shop are one delivery.
+Two shops in the same cart are two deliveries, and two base fees, which is also
+the truth.
+
+This replaces a per-line fee multiplied by the quantity, under which a GH₵35
+bottle of spray with GH₵10 shipping cost GH₵100 to deliver ten of — for one
+parcel, on one van, to one station. No courier prices like that and no buyer
+believes it.
 
 A **shipping rule** (`/admin/shipping/rates`) is a scope and a price. The scope
 is any combination of *from this point*, *to this station* and *for this
-category*, and every part is optional. The price is either a flat fee per item —
-"all blenders from Kumasi to Accra, GH₵50" — or a base plus a rate per kilogram.
-The most specific matching rule wins; anything no rule claims is priced by the
-platform defaults on the Overview screen.
+category*, and every part is optional. The price is the base fee and the
+increment. The most specific matching rule wins; anything no rule claims is
+priced by the platform defaults on the Overview screen.
 
 That is deliberately a list rather than a matrix. A matrix has a cell for every
 pair whether or not anybody has an opinion about it, no room for a category, and
 it grows as the square of the network.
+
+Rules written under the previous model keep pricing without a backfill: a flat
+per-item fee is read as the base fee (and stops multiplying), and a per-kilogram
+rate derives the increment from one unit's billable weight — the greater of what
+a parcel weighs and what its size says it weighs, L×W×H ÷ 5000 by default.
+
+### Minimum order quantity
+
+A listing sold by the carton says so on the listing (**Minimum order** on the
+product form), not in a description nothing enforces. The product page starts
+the stepper at the minimum and will not go below it, the cart drops a line rather
+than parking it under the minimum, and the order action refuses an order that
+asks for fewer — because a quantity that arrived from a browser is a claim.
 
 ### Goods from abroad
 
@@ -275,11 +295,49 @@ listing:
    consolidation point. Nothing is charged for the international leg and no
    border is billed again; the buyer pays only the local run from that point.
 2. **A forwarder carries it.** The supplier reaches a forwarder in their own
-   country (the buyer pays that hop), and the forwarder's rate per cubic metre
-   brings it the rest of the way. Forwarders are admin-owned
-   (`/admin/shipping/abroad`) and carry a **price list keyed by category**, since
-   a cubic metre of clothing and a cubic metre of electronics do not attract the
-   same duty. The row with no category is the catch-all.
+   country (the buyer pays that hop), and the forwarder's rate brings it the
+   rest of the way.
+
+Forwarders are admin-owned (`/admin/shipping/abroad`), and each holds their own
+rate sheet — shaped the way their real one is, because a forwarder does not have
+"a rate":
+
+```
+FreightForwarder            who they are, and the currency they quote in
+├── goods classes           theirs, not ours: Normal, Special, Heavy-Duty
+│   └── levy per CBM        rides on the class: energy commission, FDA
+├── category mapping        our categories → their classes, set once
+└── routes                  one lane each: origin, mode, Ghana point,
+    └── price per class     currency, transit window
+```
+
+So "China → Accra by sea: normal $260, special $280, heavy-duty $300; China →
+Kumasi: $280, $285, $350; air, 7–14 days, priced by the kilo" is four rows and
+two routes rather than something the model has to be argued with. A price may
+also carry a **minimum CBM**, which is how a quote sheet says "normal goods under
+1 CBM — $260".
+
+Their classes are deliberately not our categories: ours are what a shopper
+browses, theirs are what a container is priced by, and no amount of renaming
+"Fashion" makes it a thing a shipping line quotes.
+
+### Currencies
+
+Freight abroad is quoted in dollars far more often than in cedis, so rates are
+stored **as the forwarder quoted them** and converted at pricing time from the
+table under `/admin/shipping/currencies`. Correct one exchange rate and every
+route priced in that currency re-prices itself; storing converted cedi figures
+would mean retyping every rate on the day the cedi moved. A currency nobody has
+priced converts one-for-one — visibly wrong rather than invisibly zero — and the
+Overview says so.
+
+### Choosing a route
+
+Where a forwarder sells more than one lane, the **buyer** picks at checkout,
+because sea at 35–45 days and air at 7–14 are two different products and only
+they know which one they want. Each option shows what the whole cart's shipping
+comes to on that lane and how long it takes; the chosen route and its promised
+window are snapshotted onto the order line.
 
 A forwarder's rate normally covers the carriage, the port fees, the duty and the
 taxes up to their Ghana point — that is what **"their price covers everything to

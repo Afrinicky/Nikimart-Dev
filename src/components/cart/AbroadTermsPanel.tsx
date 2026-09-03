@@ -8,6 +8,7 @@ import {
   MapPin,
   Plane,
   RotateCcw,
+  Route,
   Store,
   Users,
 } from "lucide-react";
@@ -66,13 +67,16 @@ export function AbroadTermsPanel({
               <Term icon={MapPin} label="Ships from" value={item.terms.sourceLocation} />
               <Term icon={Store} label="Supplier" value={item.terms.supplierName} />
               <Term icon={Plane} label="Freight method" value={item.freightModeLabel} />
+              <Term icon={Route} label="Route" value={item.routeLabel} />
               <Term icon={Anchor} label="Gathered at" value={item.pointName} />
               <Term
                 icon={CalendarClock}
                 label="Estimated arrival"
                 value={
-                  item.terms.estimatedArrival ||
-                  (item.transitDays > 0 ? `about ${item.transitDays} days in transit` : "")
+                  // The route's own window first: it is the promise the buyer
+                  // just chose between, where the seller's sentence was written
+                  // once and never updated.
+                  item.transit ? `${item.transit} in transit` : item.terms.estimatedArrival
                 }
               />
               <Term icon={RotateCcw} label="Refunds" value={item.terms.refundPolicy} />

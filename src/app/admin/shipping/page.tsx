@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, Check, MapPin, Plane, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, Coins, MapPin, Plane, SlidersHorizontal } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { ExportButton } from "@/components/admin/ExportButton";
 import { ShippingDefaultsForm } from "@/components/admin/ShippingDefaultsForm";
@@ -48,14 +48,24 @@ export default async function AdminShippingPage() {
           : "Optional — the defaults below already price every route. Add a rule to fix a price for a route, a category, or both.",
     },
     {
-      done: health.forwardersWithRates > 0,
+      done: health.forwardersWithRoutes > 0,
       href: "/admin/shipping/abroad",
       icon: Plane,
       title: "Add the forwarders who bring goods in",
       body:
         health.forwarders > 0
-          ? `${health.forwarders} forwarder${health.forwarders === 1 ? "" : "s"}, ${health.forwardersWithRates} with a price list.`
-          : "Only needed for imports a supplier does not deliver to Ghana themselves.",
+          ? `${health.forwarders} forwarder${health.forwarders === 1 ? "" : "s"}, ${health.forwardersWithRoutes} with a priced route. ${health.routes} route${health.routes === 1 ? "" : "s"} in total.`
+          : "Only needed for imports a supplier does not deliver to Ghana themselves. Each keeps their own classes of goods, lanes and prices.",
+    },
+    {
+      done: health.unratedCurrencies.length === 0,
+      href: "/admin/shipping/currencies",
+      icon: Coins,
+      title: "Keep the exchange rates current",
+      body:
+        health.unratedCurrencies.length > 0
+          ? `${health.unratedCurrencies.join(", ")} still convert one-for-one, so freight quoted in ${health.unratedCurrencies.length === 1 ? "it" : "them"} is being charged at face value.`
+          : "Forwarders quote in their own currency; buyers pay cedis. Correct a rate here and every route priced in it moves with it.",
     },
   ];
 
@@ -63,10 +73,11 @@ export default async function AdminShippingPage() {
     <Container className="space-y-6 py-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="max-w-2xl text-sm text-niki-ink/65">
-          Every order is gathered at a consolidation point, checked, and couriered to the pickup
-          station the buyer chose. Goods from abroad have one leg in front of that: either the
-          supplier delivers them to Ghana, or a forwarder does. Buyers see the item price and one
-          shipping figure; the duty and taxes live inside it.
+          One seller&apos;s goods are one consignment: gathered at a consolidation point, checked,
+          and couriered to the pickup station the buyer chose — a base fee once, plus a small
+          increment for each extra item. Goods from abroad have one leg in front of that: either the
+          supplier delivers them to Ghana, or a forwarder carries them on a lane the buyer chooses.
+          Buyers see the item price and one shipping figure; the duty and taxes live inside it.
         </p>
         <ExportButton dataset="shipping" />
       </div>
@@ -91,12 +102,28 @@ export default async function AdminShippingPage() {
             {health.unpricedListings} imported listing{health.unpricedListings === 1 ? "" : "s"} name
             no forwarder and no supplier delivery, so freight into Ghana can&apos;t be quoted and
             they can&apos;t be bought. Assign a forwarder on the listing, or set a fallback rate per
-            CBM under <Link href="/admin/shipping/abroad" className="underline">From abroad</Link>.
+            CBM under <Link href="/admin/shipping/abroad" className="underline">Forwarders</Link>.
           </span>
         </p>
       ) : null}
 
-      <section className="grid gap-3 sm:grid-cols-3">
+      {health.forwardersOnLegacyRates > 0 ? (
+        <p className="flex items-start gap-2 rounded-2xl bg-niki-gold/15 px-4 py-3 text-sm text-amber-900">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {health.forwardersOnLegacyRates} forwarder
+            {health.forwardersOnLegacyRates === 1 ? " is" : "s are"} still on the old flat price
+            list. They keep quoting, but they cannot offer a buyer a choice of lane or a delivery
+            estimate until their routes are set up.{" "}
+            <Link href="/admin/shipping/abroad" className="font-semibold underline">
+              Move them over
+            </Link>
+            .
+          </span>
+        </p>
+      ) : null}
+
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {steps.map(({ done, href, icon: Icon, title, body }) => (
           <Link
             key={href}
