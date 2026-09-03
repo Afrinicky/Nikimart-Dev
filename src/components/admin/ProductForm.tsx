@@ -104,7 +104,7 @@ export function ProductForm({
         <textarea id="description" name="description" defaultValue={p?.description} required rows={3} className={inputClass} />
       </Field>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Price (GH₵)" htmlFor="price" hint={state.fieldErrors?.price}>
           <input
             id="price"
@@ -123,6 +123,21 @@ export function ProductForm({
         </Field>
         <Field label="Stock quantity" htmlFor="stockQuantity">
           <input id="stockQuantity" name="stockQuantity" type="number" min="0" defaultValue={p?.stockQuantity ?? 0} className={inputClass} />
+        </Field>
+        <Field
+          label="Minimum order"
+          htmlFor="moq"
+          hint="The fewest units a buyer may order. 1 for anything sold singly; a carton of 12 means 12."
+        >
+          <input
+            id="moq"
+            name="moq"
+            type="number"
+            min="1"
+            step="1"
+            defaultValue={p?.moq ?? 1}
+            className={inputClass}
+          />
         </Field>
       </div>
 

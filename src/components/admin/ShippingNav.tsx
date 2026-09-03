@@ -1,24 +1,25 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Gauge, MapPin, Plane, SlidersHorizontal } from "lucide-react";
+import { Coins, Gauge, MapPin, Plane, SlidersHorizontal } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { cn } from "@/lib/cn";
 
 /**
- * The four screens of the shipping console, in the order they are set up.
+ * The screens of the shipping console, in the order they are set up.
  *
  * Points first, because nothing else means anything without them: a rule is
- * from a point to a station, and a forwarder delivers into one. Then the rules
- * that price the run inside Ghana, then the forwarders that bring goods in,
- * then the numbers behind everything. An admin who works down this list once
- * has a working shipping system.
+ * from a point to a station, and a forwarder's route lands at one. Then the two
+ * halves of the bill — the run inside Ghana, and the forwarders who bring goods
+ * in — and finally the exchange rates the second of those is quoted in. An
+ * admin who works down this list once has a working shipping system.
  */
 const TABS = [
   { href: "/admin/shipping", label: "Overview", icon: Gauge, exact: true },
   { href: "/admin/shipping/points", label: "Points", icon: MapPin },
-  { href: "/admin/shipping/rates", label: "Rates", icon: SlidersHorizontal },
-  { href: "/admin/shipping/abroad", label: "From abroad", icon: Plane },
+  { href: "/admin/shipping/rates", label: "Inside Ghana", icon: SlidersHorizontal },
+  { href: "/admin/shipping/abroad", label: "Forwarders", icon: Plane },
+  { href: "/admin/shipping/currencies", label: "Currencies", icon: Coins },
 ];
 
 export function ShippingNav() {

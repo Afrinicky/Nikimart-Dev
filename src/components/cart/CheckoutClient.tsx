@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { CreditCard, MapPin, Plane, Scale } from "lucide-react";
+import { CreditCard, MapPin, Package, Plane, Scale } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useCart } from "@/components/providers/CartProvider";
 import { formatPrice } from "@/lib/format";
@@ -11,6 +11,7 @@ import { placeOrder } from "@/lib/order-actions";
 import { quoteCart, type CartQuote } from "@/lib/checkout-actions";
 import { emptyBill, type PaymentPlan } from "@/lib/cart-bill";
 import { AbroadTermsPanel } from "@/components/cart/AbroadTermsPanel";
+import { RouteChoice } from "@/components/cart/RouteChoice";
 import { CheckoutBill, PaymentPlanChoice } from "@/components/cart/CheckoutBill";
 
 /**
@@ -42,23 +43,41 @@ export function CheckoutClient({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [acceptedAbroad, setAcceptedAbroad] = useState(false);
+  // Which lane the buyer picked from each forwarder: forwarder id → route id.
+  // Empty means "whatever the forwarder's default is", which is what the server
+  // quotes until they choose.
+  const [routes, setRoutes] = useState<Record<string, string>>({});
 
-  // A stable key so the quote refetches only when the actual cart contents change.
+  // A stable key so the quote refetches only when something that moves the
+  // price changes: the cart, the chosen station, or the chosen routes.
   const itemsKey = useMemo(
     () => items.map((i) => `${i.productId}:${i.quantity}`).join("|"),
     [items],
   );
+  const routesKey = useMemo(
+    () =>
+      Object.entries(routes)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, v]) => `${k}=${v}`)
+        .join("|"),
+    [routes],
+  );
+  const quoteKey = `${itemsKey}::${pickupPointId}::${routesKey}`;
 
   useEffect(() => {
     // Nothing to quote for an empty cart, and nothing reads the quote either —
     // the empty-cart state renders before any of it is used.
     if (!ready || items.length === 0) return;
     let cancelled = false;
-    quoteCart({ items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })) })
+    quoteCart({
+      items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      routes,
+      destPickupId: pickupPointId,
+    })
       .then((q) => {
         if (cancelled) return;
         setQuote(q);
-        setQuotedFor(itemsKey);
+        setQuotedFor(quoteKey);
         setPickupPointId((prev) =>
           prev && q.points.some((p) => p.id === prev) ? prev : (q.points[0]?.id ?? ""),
         );
@@ -70,16 +89,16 @@ export function CheckoutClient({
       .catch(() => {
         if (cancelled) return;
         setQuote(null);
-        setQuotedFor(itemsKey);
+        setQuotedFor(quoteKey);
       });
     return () => {
       cancelled = true;
     };
-    // itemsKey captures the meaningful cart state.
+    // quoteKey captures the meaningful state: the cart, the station, the routes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemsKey, ready]);
+  }, [quoteKey, ready]);
 
-  const loadingQuote = quotedFor !== itemsKey;
+  const loadingQuote = quotedFor !== quoteKey;
   const points = quote?.points ?? [];
   const selected = points.find((p) => p.id === pickupPointId);
   // Before the first quote lands there is still a cart to show, so the goods
@@ -87,6 +106,9 @@ export function CheckoutClient({
   // supplemented, the moment the server answers.
   const bill = selected?.bill ?? emptyBill(subtotal, 0);
   const abroadItems = quote?.items ?? [];
+  const routeGroups = quote?.routeGroups ?? [];
+  const consignments = quote?.consignments ?? [];
+  const moqAdjustments = quote?.moqAdjustments ?? [];
   const dueNow = plan === "shipping_on_pickup" ? bill.goodsOnlyNow : bill.total;
 
   if (!ready) {
@@ -115,12 +137,17 @@ export function CheckoutClient({
       setError("Please read and accept the shipped-from-abroad terms before paying.");
       return;
     }
+    if (moqAdjustments.length > 0) {
+      setError("Some items are sold in minimum quantities. Please update your cart first.");
+      return;
+    }
     setPending(true);
     const res = await placeOrder({
       items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
       pickupPointId,
       acceptedAbroadTerms: acceptedAbroad,
       paymentPlan: plan,
+      routeChoices: routes,
     });
     if (res.ok) {
       if (res.authorizationUrl) {
@@ -144,6 +171,16 @@ export function CheckoutClient({
           <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{error}</p>
         ) : null}
 
+        {moqAdjustments.length > 0 ? (
+          // The server raised these to the seller's minimum when it priced the
+          // cart, and will refuse the order otherwise. Saying so here beats
+          // letting the buyer reach the button and be turned away.
+          <p className="rounded-xl bg-niki-gold/15 px-4 py-3 text-sm font-medium text-amber-900">
+            {moqAdjustments.map((m) => `${m.name} is sold in minimums of ${m.moq}`).join("; ")}.
+            Please update the quantities in your cart.
+          </p>
+        ) : null}
+
         {quote?.unpricedRoute ? (
           // A route nobody has priced would quote zero freight into Ghana.
           // Saying so here beats letting the buyer reach the button and be
@@ -160,9 +197,9 @@ export function CheckoutClient({
             <h2 className="font-display text-lg font-bold text-niki-ink">Choose a pickup point</h2>
           </div>
           <p className="mt-1 text-sm text-niki-ink/60">
-            Your items are brought together, checked, and couriered to the station you pick. The fee
-            depends on how much there is to move and how far it has to go — and it is nothing at all
-            when your items are already at the station you choose.
+            Each seller&apos;s items are brought together, checked, and couriered to the station you
+            pick. One seller&apos;s order is one delivery, however many items it has — and it costs
+            nothing at all when your items are already at the station you choose.
           </p>
 
           {quote?.hasAbroad ? (
@@ -220,6 +257,15 @@ export function CheckoutClient({
           </div>
         </div>
 
+        <RouteChoice
+          groups={routeGroups}
+          chosen={routes}
+          onChoose={(forwarderId, routeId) =>
+            setRoutes((prev) => ({ ...prev, [forwarderId]: routeId }))
+          }
+          disabled={loadingQuote}
+        />
+
         <AbroadTermsPanel
           items={abroadItems}
           accepted={acceptedAbroad}
@@ -265,6 +311,31 @@ export function CheckoutClient({
           ))}
         </ul>
 
+        {consignments.length > 1 ? (
+          // Why two base fees? Because two shops are handing over two loads.
+          // A buyer who cannot see that reads the total as a mistake.
+          <div className="mt-4 rounded-xl bg-niki-surface p-3 text-xs text-niki-ink/65 ring-1 ring-niki-edge">
+            <p className="flex items-center gap-1 font-semibold text-niki-ink">
+              <Package className="h-3.5 w-3.5" /> Shipping is per seller
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {consignments.map((c) => (
+                <li key={c.sellerName} className="flex justify-between gap-2">
+                  <span className="line-clamp-1">
+                    {c.sellerName}{" "}
+                    <span className="text-niki-ink/40">
+                      · {c.units} item{c.units === 1 ? "" : "s"}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-medium text-niki-ink">
+                    {c.collectedAtOrigin || c.fee === 0 ? "Free" : formatPrice(c.fee)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
         {quote && quote.totalWeightKg > 0 ? (
           <p className="mt-3 flex items-center gap-1 text-xs text-niki-ink/40">
             <Scale className="h-3 w-3" /> {quote.totalWeightKg} kg billable weight
@@ -283,6 +354,7 @@ export function CheckoutClient({
             loadingQuote ||
             !pickupPointId ||
             quote?.unpricedRoute ||
+            moqAdjustments.length > 0 ||
             (abroadItems.length > 0 && !acceptedAbroad)
           }
           className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-niki-orange px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light disabled:cursor-not-allowed disabled:opacity-60"

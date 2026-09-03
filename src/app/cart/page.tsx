@@ -64,7 +64,12 @@ export default function CartPage() {
                     >
                       {item.name}
                     </Link>
-                    <p className="mt-0.5 text-sm text-niki-ink/60">{formatPrice(item.price)}</p>
+                    <p className="mt-0.5 text-sm text-niki-ink/60">
+                      {formatPrice(item.price)}
+                      {(item.moq ?? 1) > 1 ? (
+                        <span className="text-niki-ink/45"> · minimum {item.moq}</span>
+                      ) : null}
+                    </p>
                   </div>
 
                   {/* Stepper, line total and remove. Together they need about
@@ -76,8 +81,15 @@ export default function CartPage() {
                       <button
                         type="button"
                         onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                        // Stepping below the seller's minimum removes the line
+                        // rather than parking it at a quantity they will not
+                        // accept, so the label says which of the two it does.
                         className="niki-focus flex h-7 w-7 items-center justify-center rounded-full text-niki-ink/70 transition-colors hover:bg-white"
-                        aria-label={`Decrease quantity of ${item.name}`}
+                        aria-label={
+                          item.quantity <= (item.moq ?? 1)
+                            ? `Remove ${item.name}`
+                            : `Decrease quantity of ${item.name}`
+                        }
                       >
                         <Minus className="h-3.5 w-3.5" />
                       </button>

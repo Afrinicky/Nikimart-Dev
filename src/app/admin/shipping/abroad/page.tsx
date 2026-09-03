@@ -4,34 +4,36 @@ import { Pencil, Plane, Plus } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { DeleteButton } from "@/components/admin/DeleteButton";
 import { ImportSettingsForm } from "@/components/admin/ImportSettingsForm";
-import { prisma } from "@/lib/prisma";
 import { freightModeLabel } from "@/lib/abroad";
 import { countryByCode } from "@/lib/countries";
 import { getSettings } from "@/lib/settings";
+import { getConsolidationPoints, getForwarders } from "@/lib/shipping-config";
 import { deleteForwarder } from "@/lib/shipping-admin-actions";
 
 export const metadata: Metadata = { title: "From abroad — Shipping — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 /**
- * Goods coming into Ghana: who carries them, and what the state takes.
+ * Goods coming into Ghana: who carries them, and on which lanes.
  *
  * Two arrangements, and only one of them needs anything on this screen. When a
  * supplier's price already reaches a Ghana consolidation point, there is
  * nothing to configure — the seller ticks a box on the listing and the local
- * system takes over. Forwarders are for the other case.
+ * system takes over. Forwarders are for the other case, and each of them holds
+ * their own rate sheet: their classes of goods, their routes, and a price per
+ * class per route. Open one to set it up.
  */
 export default async function ShippingAbroadPage() {
-  const [forwarders, settings] = await Promise.all([
-    prisma.freightForwarder.findMany({
-      orderBy: [{ isActive: "desc" }, { name: "asc" }],
-      include: {
-        consolidationPoint: { select: { name: true, city: true } },
-        _count: { select: { rates: true, products: true } },
-      },
-    }),
+  const [forwarders, points, settings] = await Promise.all([
+    getForwarders(),
+    getConsolidationPoints(),
     getSettings(),
   ]);
+
+  const pointName = (id: string | null) => {
+    const p = id ? points.find((x) => x.id === id) : null;
+    return p ? `${p.name}${p.city ? `, ${p.city}` : ""}` : "";
+  };
 
   return (
     <Container className="space-y-6 py-8">
@@ -41,7 +43,8 @@ export default async function ShippingAbroadPage() {
           <p className="mt-1 max-w-2xl text-sm text-niki-ink/60">
             When a supplier&apos;s price already reaches Ghana, nothing here applies — the seller
             ticks a box and the local rates take over from the consolidation point. Forwarders are
-            for the other case: the supplier only reaches them, and they bring the load in.
+            for the other case: the supplier only reaches them, and they bring the load in. Each one
+            keeps their own rate sheet — their classes of goods, their lanes, and a price for each.
           </p>
         </div>
         <Link
@@ -59,7 +62,7 @@ export default async function ShippingAbroadPage() {
           <p className="mt-3 font-semibold text-niki-ink">No forwarders yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-niki-ink/60">
             Sellers can still list imported goods whose supplier delivers to Ghana. Anything else
-            needs a forwarder and a price per cubic metre.
+            needs a forwarder with at least one priced route.
           </p>
         </div>
       ) : (
@@ -70,15 +73,19 @@ export default async function ShippingAbroadPage() {
                 <th className="px-5 py-3 font-semibold">Forwarder</th>
                 <th className="px-5 py-3 font-semibold">Collects in</th>
                 <th className="px-5 py-3 font-semibold">Delivers into</th>
+                <th className="px-5 py-3 font-semibold">Quotes in</th>
                 <th className="px-5 py-3 font-semibold">Their rate covers</th>
-                <th className="px-5 py-3 font-semibold">Prices</th>
-                <th className="px-5 py-3 font-semibold">Listings</th>
+                <th className="px-5 py-3 font-semibold">Routes</th>
                 <th className="px-5 py-3 text-right font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-niki-edge">
               {forwarders.map((f) => {
                 const country = countryByCode(f.originCountry);
+                // A route that nobody has priced cannot carry anything, so
+                // "3 routes" would be a comforting lie. Only priced ones count.
+                const priced = f.routes.filter((r) => r.isActive && r.rates.length > 0).length;
+                const legacy = f.routes.length === 0 && f.rates.length > 0;
                 return (
                   <tr key={f.id} className={f.isActive ? "" : "opacity-55"}>
                     <td className="px-5 py-3 font-medium text-niki-ink">
@@ -92,10 +99,9 @@ export default async function ShippingAbroadPage() {
                       {country ? `${country.flag} ${country.name}` : "Any country"}
                     </td>
                     <td className="px-5 py-3 text-niki-ink/70">
-                      {f.consolidationPoint
-                        ? `${f.consolidationPoint.name}${f.consolidationPoint.city ? `, ${f.consolidationPoint.city}` : ""}`
-                        : "Whatever the listing says"}
+                      {pointName(f.consolidationPointId) || "Whatever the listing says"}
                     </td>
+                    <td className="px-5 py-3 font-figures text-niki-ink/70">{f.currency}</td>
                     <td className="px-5 py-3">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
@@ -110,15 +116,20 @@ export default async function ShippingAbroadPage() {
                     <td className="px-5 py-3">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          f._count.rates > 0
+                          priced > 0
                             ? "bg-niki-black/5 text-niki-ink/70"
-                            : "bg-niki-danger/10 text-niki-danger"
+                            : legacy
+                              ? "bg-niki-gold/20 text-amber-900"
+                              : "bg-niki-danger/10 text-niki-danger"
                         }`}
                       >
-                        {f._count.rates > 0 ? `${f._count.rates} set` : "None — unquotable"}
+                        {priced > 0
+                          ? `${priced} priced`
+                          : legacy
+                            ? "On the old price list"
+                            : "None — unquotable"}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-niki-ink/70">{f._count.products}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <Link
@@ -126,13 +137,9 @@ export default async function ShippingAbroadPage() {
                           className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-niki-ink/70 hover:bg-niki-black/5"
                         >
                           <Pencil className="h-3.5 w-3.5" />
-                          Edit &amp; prices
+                          Rate sheet
                         </Link>
-                        <DeleteButton
-                          id={f.id}
-                          action={deleteForwarder}
-                          title={f._count.products > 0 ? "In use — will be retired, not deleted" : undefined}
-                        />
+                        <DeleteButton id={f.id} action={deleteForwarder} />
                       </div>
                     </td>
                   </tr>

@@ -32,8 +32,8 @@ export default async function ShippingRatesPage() {
     <Container className="py-8">
       <h1 className="font-display text-xl font-bold text-niki-ink">Rates inside Ghana</h1>
       <p className="mt-1 max-w-2xl text-sm text-niki-ink/60">
-        Goods are gathered at a consolidation point, checked, and couriered to the station the buyer
-        chose. This is what that run costs.
+        One seller&apos;s goods are gathered at a consolidation point, checked, and couriered to the
+        station the buyer chose. This is what that one run costs.
       </p>
 
       <div className="mt-6">
@@ -47,7 +47,7 @@ export default async function ShippingRatesPage() {
           categories={categories.map((c) => ({ id: c.id, label: c.name }))}
           defaults={{
             baseFee: defaults.baseFee,
-            perKgRate: defaults.perKgRate,
+            perUnitFee: defaults.perUnitFee,
             minFee: defaults.minFee,
           }}
         />

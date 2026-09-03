@@ -88,6 +88,7 @@ export function mapProduct(
     price: p.price,
     oldPrice: p.oldPrice ?? undefined,
     stockQuantity: p.stockQuantity,
+    moq: p.moq,
     productType: p.productType as ProductType,
     badges: parseJSON<BadgeKind[]>(p.badges, []),
     locationIds: parseJSON<string[]>(p.locationIds, []),

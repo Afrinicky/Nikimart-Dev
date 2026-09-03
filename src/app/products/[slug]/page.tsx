@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import {
+  Boxes,
   CalendarClock,
   Check,
   GraduationCap,
@@ -187,6 +188,17 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
               ) : null}
             </div>
 
+            {(product.moq ?? 1) > 1 ? (
+              // Beside the price, not buried in the description: the price of
+              // one unit and a minimum of twelve are one fact, and a buyer who
+              // meets the second of them at checkout feels misled by the first.
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-niki-black/5 px-3 py-1 text-xs font-semibold text-niki-ink/70">
+                <Boxes className="h-3.5 w-3.5 text-niki-orange" />
+                Minimum order: {product.moq} units ·{" "}
+                {formatPrice(product.price * (product.moq ?? 1))}
+              </p>
+            ) : null}
+
             <p className="mt-5 text-sm leading-relaxed text-niki-ink/70">{product.description}</p>
 
             {abroad && arrivalDate ? (
@@ -316,6 +328,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
             <div className="mt-7">
               <AddToCartButton
                 addLabel={product.productType === "service" ? "Book service" : "Add to cart"}
+                moq={product.moq ?? 1}
                 item={{
                   productId: product.id,
                   slug: product.slug,
@@ -328,6 +341,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
                   vendorId: product.vendorId,
                   weightKg: product.shippingWeightKg,
                   volumeCm3: (product.lengthCm || 0) * (product.widthCm || 0) * (product.heightCm || 0),
+                  moq: product.moq ?? 1,
                 }}
               />
             </div>

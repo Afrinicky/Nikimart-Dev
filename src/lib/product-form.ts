@@ -13,7 +13,7 @@ import {
   serialiseAbroadTerms,
   SHIPPED_FROM_ABROAD,
 } from "./abroad.ts";
-import { cbmFromDimensions, isShippingMethod } from "./shipping.ts";
+import { cbmFromDimensions, isShippingMethod, normaliseMoq } from "./shipping.ts";
 
 export function slugify(input: string): string {
   return input.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -249,6 +249,10 @@ export function buildProductData(fd: FormData, options: BuildProductOptions = {}
     price: num(fd, "price") ?? 0,
     oldPrice: num(fd, "oldPrice") ?? null,
     stockQuantity: num(fd, "stockQuantity") ?? 0,
+    // The minimum a buyer may order. Normalised rather than trusted: a zero or
+    // a fraction from a handcrafted submission would make "at least none" a
+    // rule the cart, the product page and checkout each had to interpret.
+    moq: normaliseMoq(num(fd, "moq")),
     // How it ships: the method, the size it is billed on, and — for an imported
     // listing — the columns mirrored out of its terms, `preorderInfo` included.
     // That column keeps its old name; see lib/abroad.
