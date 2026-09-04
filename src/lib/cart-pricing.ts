@@ -69,8 +69,8 @@ export interface PricedLine {
   forwarder: Forwarder | null;
   /** The route this line's freight was quoted on, when one carried it. */
   route: ForwarderRoute | null;
-  /** The forwarder's own class it was priced as. */
-  goodsClass: GoodsClass | null;
+  /** The forwarder's own classes it was priced as — every one of them. */
+  goodsClasses: GoodsClass[];
   method: ShippingMethod;
   categoryId: string;
   /** The full breakdown behind `shipping`. Never shown to a buyer. */
@@ -373,7 +373,7 @@ function priceWith(
       point: s.point,
       forwarder: s.forwarder,
       route: detail.route,
-      goodsClass: detail.goodsClass,
+      goodsClasses: detail.goodsClasses,
       method: s.method,
       categoryId: p.categoryId,
       detail,

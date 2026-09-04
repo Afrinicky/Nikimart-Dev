@@ -8,9 +8,9 @@ import {
   priceLine,
   quoteConsignments,
   quoteShipment,
-  resolveGoodsClass,
+  resolveGoodsClasses,
+  resolveLaneRate,
   resolveRoute,
-  resolveRouteRate,
   resolveRule,
   routesToPoint,
   SHIPPING_DEFAULTS,
@@ -63,8 +63,6 @@ const NORMAL = {
   id: "gc-normal",
   name: "Normal Goods",
   note: "",
-  levyCbm: 0,
-  levyLabel: "",
   sortOrder: 0,
   isDefault: true,
 };
@@ -73,19 +71,18 @@ const HEAVY = {
   id: "gc-heavy",
   name: "Heavy-Duty Goods",
   note: "",
-  levyCbm: 0,
-  levyLabel: "",
   sortOrder: 2,
   isDefault: false,
 };
 
-/** A class that carries a special levy, charged as extra cubic metres. */
+/**
+ * A levy class: not an alternative to Normal Goods but a surcharge on top of
+ * it, which is how a forwarder writes one. An appliance is in both rows.
+ */
 const APPLIANCE = {
   id: "gc-appliance",
   name: "Appliances",
   note: "",
-  levyCbm: 0.01,
-  levyLabel: "Energy commission",
   sortOrder: 1,
   isDefault: false,
 };
@@ -109,7 +106,7 @@ const SEA: ForwarderRoute = {
   rates: [
     { id: "rr-sea-normal", goodsClassId: NORMAL.id, ratePerCbm: 260, isAvailable: true, note: "" },
     { id: "rr-sea-heavy", goodsClassId: HEAVY.id, ratePerCbm: 300, isAvailable: true, note: "" },
-    { id: "rr-sea-appl", goodsClassId: APPLIANCE.id, ratePerCbm: 260, isAvailable: true, note: "" },
+    { id: "rr-sea-appl", goodsClassId: APPLIANCE.id, ratePerCbm: 10, isAvailable: true, note: "" },
     { id: "rr-sea-any", goodsClassId: null, ratePerCbm: 280, isAvailable: true, note: "" },
   ],
 };
@@ -133,6 +130,7 @@ const AIR: ForwarderRoute = {
   rates: [
     { id: "rr-air-normal", goodsClassId: NORMAL.id, ratePerCbm: 900, isAvailable: true, note: "" },
     { id: "rr-air-heavy", goodsClassId: HEAVY.id, ratePerCbm: 0, isAvailable: false, note: "" },
+    { id: "rr-air-appl", goodsClassId: APPLIANCE.id, ratePerCbm: 0, isAvailable: false, note: "" },
   ],
 };
 
@@ -153,7 +151,12 @@ const FORWARDER: Forwarder = {
   isActive: true,
   consolidations: [TEMA],
   goodsClasses: [NORMAL, APPLIANCE, HEAVY],
-  categoryMap: { "cat-home": NORMAL.id, "cat-appliances": APPLIANCE.id, "cat-machinery": HEAVY.id },
+  categoryMap: {
+    "cat-home": [NORMAL.id],
+    // A fridge is a normal good *and* an appliance. Both rows are charged.
+    "cat-appliances": [NORMAL.id, APPLIANCE.id],
+    "cat-machinery": [HEAVY.id],
+  },
   routes: [SEA, AIR],
 };
 
@@ -352,16 +355,41 @@ test("a supplier who delivers into the buyer's own station charges nothing", () 
 
 // --- Imported: routes, goods classes and currency ---------------------------
 
-test("a category maps to the forwarder's own class, else their default", () => {
-  assert.equal(resolveGoodsClass(FORWARDER, "cat-machinery")?.id, HEAVY.id);
-  assert.equal(resolveGoodsClass(FORWARDER, "cat-nothing")?.id, NORMAL.id);
-  assert.equal(resolveGoodsClass(null, "cat-home"), null);
+test("a category maps to every class it falls into, else their default", () => {
+  assert.deepEqual(
+    resolveGoodsClasses(FORWARDER, "cat-appliances").map((g) => g.id),
+    [NORMAL.id, APPLIANCE.id],
+  );
+  assert.deepEqual(
+    resolveGoodsClasses(FORWARDER, "cat-machinery").map((g) => g.id),
+    [HEAVY.id],
+  );
+  assert.deepEqual(
+    resolveGoodsClasses(FORWARDER, "cat-nothing").map((g) => g.id),
+    [NORMAL.id],
+  );
+  assert.deepEqual(resolveGoodsClasses(null, "cat-home"), []);
 });
 
-test("a cell for the class wins over the lane's catch-all", () => {
-  assert.equal(resolveRouteRate(SEA, HEAVY.id)?.ratePerCbm, 300);
-  assert.equal(resolveRouteRate(SEA, "gc-unknown")?.ratePerCbm, 280);
-  assert.equal(resolveRouteRate(null, NORMAL.id), null);
+test("the rates of every class an item is in are added together", () => {
+  const both = resolveLaneRate(SEA, [NORMAL, APPLIANCE]);
+  assert.equal(both.ratePerCbm, 270); // $260 for the goods, $10 because it plugs in
+  assert.equal(both.isAvailable, true);
+});
+
+test("one N/A cell refuses the whole line, whatever the other rows say", () => {
+  // Air takes normal goods at $900 and will not touch an appliance. A fridge is
+  // both, so it does not fly — the priced row must not quietly win.
+  const lane = resolveLaneRate(AIR, [NORMAL, APPLIANCE]);
+  assert.equal(lane.isAvailable, false);
+});
+
+test("the catch-all applies only when no class has a cell of its own", () => {
+  const unknown = { ...NORMAL, id: "gc-unknown" };
+  assert.equal(resolveLaneRate(SEA, [unknown]).ratePerCbm, 280);
+  // Never added on top of a real rate.
+  assert.equal(resolveLaneRate(SEA, [NORMAL]).ratePerCbm, 260);
+  assert.equal(resolveLaneRate(null, [NORMAL]).isAvailable, false);
 });
 
 test("the default lane is quoted when the listing names none", () => {
@@ -399,15 +427,54 @@ test("correcting the exchange rate re-prices every route that uses it", () => {
   assert.equal(priced.internationalFreight, 195); // 0.05 × $260 × 15
 });
 
-test("a class levy is charged as extra cubic metres, not a second price", () => {
+test("a levy raises the rate and never the volume", () => {
   const priced = priceLine(
     line({ originCountry: "CN", point: TEMA, forwarder: FORWARDER, categoryId: "cat-appliances", size: { cbm: 2 } }),
     "pp-accra",
     CONFIG,
   );
-  // (2 + 0.01 levy) CBM × $260 × 12, rounded to the pesewa.
-  assert.equal(priced.internationalFreight, 6271.2);
-  assert.equal(priced.goodsClass?.id, APPLIANCE.id);
+  // 2 m³ × ($260 + $10) × 12. The volume is what a tape measure says it is.
+  assert.equal(priced.cbm, 2);
+  assert.equal(priced.ratePerCbm, 270);
+  assert.equal(priced.internationalFreight, 6480);
+  assert.deepEqual(priced.goodsClasses.map((g) => g.id), [NORMAL.id, APPLIANCE.id]);
+});
+
+test("a $10 levy bills $10 a cubic metre, not ten cubic metres", () => {
+  // The bug this replaced: a levy typed as "10" was read as ten extra cubic
+  // metres, so a 0.125 m³ carton at $10/m³ came to GH₵1,215 instead of GH₵15.
+  const appliancesOnly: Forwarder = {
+    ...FORWARDER,
+    categoryMap: { ...FORWARDER.categoryMap, "cat-appliances": [APPLIANCE.id] },
+  };
+  const priced = priceLine(
+    line({
+      originCountry: "CN",
+      point: TEMA,
+      forwarder: appliancesOnly,
+      categoryId: "cat-appliances",
+      size: { cbm: 0.125 },
+    }),
+    "pp-accra",
+    CONFIG,
+  );
+  assert.equal(priced.internationalFreight, 15); // 0.125 × $10 × 12
+});
+
+test("a lane that refuses one of the classes leaves the line unpriced", () => {
+  const priced = priceLine(
+    line({
+      originCountry: "CN",
+      point: TEMA,
+      forwarder: FORWARDER,
+      categoryId: "cat-appliances",
+      routeId: AIR.id,
+    }),
+    "pp-accra",
+    CONFIG,
+  );
+  assert.equal(priced.unpricedRoute, true);
+  assert.equal(priced.internationalFreight, 0);
 });
 
 test("a different mode is a different price and a different window", () => {

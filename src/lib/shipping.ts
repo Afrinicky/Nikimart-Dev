@@ -26,9 +26,10 @@
  * A forwarder does not have "a rate". They have a grid, one per Ghana warehouse
  * they run: their **classes of goods** down the side, their **modes** across
  * the top, and a price per cubic metre in each cell — with cells left N/A for
- * the combinations they will not carry. A special levy rides on a class as
- * extra cubic metres rather than as a second price, which is how a forwarder
- * bills one.
+ * the combinations they will not carry. A special levy — appliances, diapers,
+ * whatever a customs office has taken an interest in — is a row of that grid
+ * like any other, and an item that falls in two rows is carried at both rates
+ * added together.
  *
  * That grid is the whole cost of the leg. No platform duty, VAT, clearing fee
  * or fallback rate is added on top of it: whatever the forwarder had to pay at
@@ -275,17 +276,20 @@ export function toGhs(amount: number, code: string, rates: CurrencyRates): numbe
  * One of the forwarder's own classes of goods — a row of their grid.
  *
  * Never one of our categories: ours are what a shopper browses, theirs are what
- * a container is priced by. `levyCbm` is the special levy, charged the way a
- * forwarder charges one — extra cubic metres added to the consignment before
- * the rate is applied.
+ * a container is priced by.
+ *
+ * A special levy is a class like any other. "All electrical appliances, $10 a
+ * cubic metre" is a row with a rate in it, and a category placed in both
+ * "Normal goods" and "All electrical appliances" is carried at the two rates
+ * added together. There is deliberately no second levy mechanism: a surcharge
+ * written as extra cubic metres and a surcharge written as a rate are the same
+ * idea twice, and the pair of them is how a $10 levy once billed a buyer for
+ * ten cubic metres of freight.
  */
 export interface GoodsClass {
   id: string;
   name: string;
   note: string;
-  /** Extra CBM per unit for this class. The special levy. */
-  levyCbm: number;
-  levyLabel: string;
   sortOrder: number;
   /** The class a category with no mapping of its own falls into. */
   isDefault: boolean;
@@ -369,8 +373,11 @@ export interface Forwarder {
   /** Their own consolidation points in Ghana. */
   consolidations: ConsolidationPoint[];
   goodsClasses: GoodsClass[];
-  /** Our category id → their goods class id. */
-  categoryMap: Record<string, string>;
+  /**
+   * Our category id → every one of their class ids it falls into. A category is
+   * commonly in two: its base class, and a levy class such as appliances.
+   */
+  categoryMap: Record<string, string[]>;
   routes: ForwarderRoute[];
 }
 
@@ -517,39 +524,63 @@ export function rulePricing(
 }
 
 /**
- * The goods class a category falls into for one forwarder.
+ * The goods classes a category falls into for one forwarder.
  *
- * Their explicit mapping first, then whichever class they marked as the
- * default, then their first class. Null when they have set no classes up.
+ * More than one, because one item is often more than one thing to a forwarder:
+ * a fridge is a normal good *and* an appliance, and they charge for both. Their
+ * explicit mapping first; a category they never placed falls to the class they
+ * marked as the default, then to their first class. Empty when they have set no
+ * classes up.
  */
-export function resolveGoodsClass(
+export function resolveGoodsClasses(
   forwarder: Pick<Forwarder, "goodsClasses" | "categoryMap"> | null,
   categoryId: string,
-): GoodsClass | null {
-  if (!forwarder || forwarder.goodsClasses.length === 0) return null;
-  const mapped = forwarder.categoryMap[categoryId];
-  return (
-    forwarder.goodsClasses.find((g) => g.id === mapped) ??
-    forwarder.goodsClasses.find((g) => g.isDefault) ??
-    forwarder.goodsClasses[0] ??
-    null
-  );
+): GoodsClass[] {
+  if (!forwarder || forwarder.goodsClasses.length === 0) return [];
+  const mapped = forwarder.categoryMap[categoryId] ?? [];
+  const chosen = forwarder.goodsClasses.filter((g) => mapped.includes(g.id));
+  if (chosen.length > 0) return chosen;
+  const fallback =
+    forwarder.goodsClasses.find((g) => g.isDefault) ?? forwarder.goodsClasses[0] ?? null;
+  return fallback ? [fallback] : [];
 }
 
 /**
- * The cell for a class on a lane: its own row, else the lane's catch-all row.
+ * What one lane charges per cubic metre for a line, across every class it is in.
  *
- * An N/A cell is returned as it is rather than skipped — "this lane will not
- * carry wigs" has to reach the caller, not quietly fall through to a price
- * meant for something else.
+ * The rates add up. A forwarder who prices normal goods at $285 and appliances
+ * at $10 is quoting $295 for a fridge, which is what they would write on an
+ * invoice — the levy row is a surcharge, not an alternative.
+ *
+ * One N/A cell settles it: a lane that refuses appliances refuses this fridge,
+ * whatever the other rows say. A class with no cell at all on the lane simply
+ * adds nothing; only when *none* of the classes has a cell does the lane's
+ * catch-all row apply, so a catch-all can never be added on top of a real rate.
  */
-export function resolveRouteRate(
+export function resolveLaneRate(
   route: ForwarderRoute | null,
-  goodsClassId: string | null,
-): RouteRate | null {
-  if (!route) return null;
-  const own = goodsClassId ? route.rates.find((r) => r.goodsClassId === goodsClassId) : undefined;
-  return own ?? route.rates.find((r) => !r.goodsClassId) ?? null;
+  classes: GoodsClass[],
+): { ratePerCbm: number; isAvailable: boolean; cells: RouteRate[] } {
+  if (!route) return { ratePerCbm: 0, isAvailable: false, cells: [] };
+
+  const cells = classes
+    .map((c) => route.rates.find((r) => r.goodsClassId === c.id))
+    .filter((r): r is RouteRate => Boolean(r));
+
+  if (cells.length === 0) {
+    const catchAll = route.rates.find((r) => !r.goodsClassId) ?? null;
+    return catchAll
+      ? {
+          ratePerCbm: Math.max(0, catchAll.ratePerCbm),
+          isAvailable: catchAll.isAvailable && catchAll.ratePerCbm > 0,
+          cells: [catchAll],
+        }
+      : { ratePerCbm: 0, isAvailable: false, cells: [] };
+  }
+
+  const ratePerCbm = round(cells.reduce((sum, c) => sum + Math.max(0, c.ratePerCbm), 0));
+  const isAvailable = cells.every((c) => c.isAvailable) && ratePerCbm > 0;
+  return { ratePerCbm, isAvailable, cells };
 }
 
 /** Every lane a seller could list on for this forwarder. */
@@ -671,8 +702,10 @@ export interface LineShipping {
   unpricedRoute: boolean;
   /** The lane this line was quoted on, when one carried it. */
   route: ForwarderRoute | null;
-  /** The forwarder's own class this line was priced as. */
-  goodsClass: GoodsClass | null;
+  /** The forwarder's own classes this line was priced as — every one of them. */
+  goodsClasses: GoodsClass[];
+  /** Their rates for those classes, added up. In the lane's currency. */
+  ratePerCbm: number;
   /** The delivery estimate promised. Zero when it never leaves Ghana. */
   transitMinDays: number;
   transitMaxDays: number;
@@ -688,7 +721,8 @@ const ZERO_LINE: Omit<LineShipping, "method"> = {
   collectedAtOrigin: false,
   unpricedRoute: false,
   route: null,
-  goodsClass: null,
+  goodsClasses: [],
+  ratePerCbm: 0,
   transitMinDays: 0,
   transitMaxDays: 0,
 };
@@ -709,18 +743,14 @@ export function collectedAtOrigin(line: ShipmentLine, destPickupId: string): boo
 /**
  * The cubic metres one consignment of this line is billed at.
  *
- * The item's own volume plus the class levy, per unit. A levy expressed in
- * cubic metres is a levy that scales with the order the way the freight does,
- * which is why forwarders write them that way.
+ * The goods' own volume, and nothing else. Every levy a forwarder charges is a
+ * rate on the other side of the multiplication — see `resolveLaneRate` — so
+ * nothing here may inflate the volume. A figure that quietly grew by ten cubic
+ * metres is a figure nobody can check against a tape measure.
  */
-export function billableCbm(
-  size: ItemSize,
-  quantity: number,
-  goodsClass: Pick<GoodsClass, "levyCbm"> | null,
-): number {
+export function billableCbm(size: ItemSize, quantity: number): number {
   const qty = Math.max(1, Math.round(quantity));
-  const perUnit = itemCbm(size) + Math.max(0, goodsClass?.levyCbm ?? 0);
-  return roundCbm(perUnit * qty);
+  return roundCbm(itemCbm(size) * qty);
 }
 
 /**
@@ -737,29 +767,31 @@ export function internationalLegFee(
 ): {
   fee: number;
   cbm: number;
+  ratePerCbm: number;
   route: ForwarderRoute | null;
-  goodsClass: GoodsClass | null;
+  goodsClasses: GoodsClass[];
   unpriced: boolean;
 } {
   const route = resolveRoute(line.forwarder, line.routeId);
-  const goodsClass = resolveGoodsClass(line.forwarder, line.categoryId);
-  const cbm = billableCbm(line.size, line.quantity, goodsClass);
+  const goodsClasses = resolveGoodsClasses(line.forwarder, line.categoryId);
+  const cbm = billableCbm(line.size, line.quantity);
 
-  const rate = resolveRouteRate(route, goodsClass?.id ?? null);
+  const lane = resolveLaneRate(route, goodsClasses);
 
   // No lane, no cell, an N/A cell, or a cell nobody put a number in. Saying so
   // lets checkout refuse the order; quoting zero would sell a sea container for
   // the price of the courier run at the other end.
-  if (!route || !rate || !rate.isAvailable || rate.ratePerCbm <= 0) {
-    return { fee: 0, cbm, route, goodsClass, unpriced: true };
+  if (!route || !lane.isAvailable) {
+    return { fee: 0, cbm, ratePerCbm: 0, route, goodsClasses, unpriced: true };
   }
 
   const currency = route.currency || line.forwarder?.currency || HOME_CURRENCY;
   return {
-    fee: round(toGhs(rate.ratePerCbm * cbm, currency, config.currencies)),
+    fee: round(toGhs(lane.ratePerCbm * cbm, currency, config.currencies)),
     cbm,
+    ratePerCbm: lane.ratePerCbm,
     route,
-    goodsClass,
+    goodsClasses,
     unpriced: false,
   };
 }
@@ -813,7 +845,7 @@ export function priceLine(
       ...ZERO_LINE,
       method: "auto",
       billableWeightKg: weight,
-      cbm: billableCbm(line.size, qty, null),
+      cbm: billableCbm(line.size, qty),
       collectedAtOrigin: atOrigin,
     };
   }
@@ -833,7 +865,8 @@ export function priceLine(
     collectedAtOrigin: atOrigin,
     unpricedRoute: leg.unpriced,
     route: leg.route,
-    goodsClass: leg.goodsClass,
+    goodsClasses: leg.goodsClasses,
+    ratePerCbm: leg.ratePerCbm,
     transitMinDays: leg.route?.minDays ?? 0,
     transitMaxDays: leg.route?.maxDays ?? 0,
   };
@@ -975,7 +1008,13 @@ export function quoteConsignments(
 export interface ShipmentQuote
   extends Omit<
     LineShipping,
-    "method" | "collectedAtOrigin" | "route" | "goodsClass" | "transitMinDays" | "transitMaxDays"
+    | "method"
+    | "collectedAtOrigin"
+    | "route"
+    | "goodsClasses"
+    | "ratePerCbm"
+    | "transitMinDays"
+    | "transitMaxDays"
   > {
   /** True when every line is already at the station the buyer chose. */
   allCollectedAtOrigin: boolean;

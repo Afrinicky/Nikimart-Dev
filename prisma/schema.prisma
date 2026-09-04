@@ -679,9 +679,10 @@ model ForwarderGoodsClass {
   forwarder   FreightForwarder @relation(fields: [forwarderId], references: [id], onDelete: Cascade)
   name        String
   note        String           @default("")
-  // A special levy, charged the way a forwarder actually charges one: extra
-  // cubic metres added to the consignment before their rate is applied. One
-  // currency, one rate, one multiplication.
+  // Retired. A special levy is now a class of its own with its own rate per
+  // cubic metre, so nothing reads these two. Kept because dropping a column is
+  // a deliberate exercise, not a deploy — see db/migrations/README.md. Saving a
+  // forwarder writes 0 and "" over whatever is in them.
   levyCbm     Float            @default(0)
   levyLabel   String           @default("")
   sortOrder   Int              @default(0)
@@ -705,7 +706,12 @@ model ForwarderCategoryMap {
   goodsClassId String
   goodsClass   ForwarderGoodsClass @relation(fields: [goodsClassId], references: [id], onDelete: Cascade)
 
-  @@unique([forwarderId, categoryId])
+  // One row per class a category falls into: a fridge is a normal good and an
+  // appliance, and the forwarder charges for both. Uniqueness is therefore on
+  // the three together — it was on the pair, which is what made a category
+  // pickable in exactly one class.
+  @@unique([forwarderId, categoryId, goodsClassId], map: "ForwarderCategoryMap_scope_key")
+  @@index([forwarderId, categoryId])
   @@index([goodsClassId])
 }
 

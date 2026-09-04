@@ -12,6 +12,7 @@ import {
   ORDER_FREQUENCIES,
   ORDER_FREQUENCY_LABELS,
   type Forwarder,
+  type FreightMode,
 } from "@/lib/shipping";
 import { saveForwarder, type ForwarderState } from "@/lib/forwarder-actions";
 import { FormFeedback } from "@/components/ui/FormFeedback";
@@ -67,8 +68,6 @@ interface ClassDraft {
   key: string;
   id?: string;
   name: string;
-  levyCbm: number;
-  levyLabel: string;
   isDefault: boolean;
 }
 
@@ -76,7 +75,7 @@ let counter = 0;
 const nextKey = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${counter++}`;
 
 function newClass(): ClassDraft {
-  return { key: nextKey("c"), name: "", levyCbm: 0, levyLabel: "", isDefault: false };
+  return { key: nextKey("c"), name: "", isDefault: false };
 }
 
 function newRoute(currency: string, classes: ClassDraft[]): RouteDraft {
@@ -118,8 +117,6 @@ function toDrafts(f: Forwarder | null, currency: string) {
     key: g.id,
     id: g.id,
     name: g.name,
-    levyCbm: g.levyCbm,
-    levyLabel: g.levyLabel,
     isDefault: g.isDefault,
   }));
   if (classes.length === 0) classes.push({ ...newClass(), isDefault: true });
@@ -200,17 +197,30 @@ export function ForwarderRegistrationForm({
   const [drafts] = useState(() => toDrafts(forwarder, forwarder?.currency || "USD"));
   const [classes, setClasses] = useState<ClassDraft[]>(drafts.classes);
   const [points, setPoints] = useState<PointDraft[]>(drafts.points);
-  const [categoryMap, setCategoryMap] = useState<Record<string, string>>(() => {
+  const [categoryMap, setCategoryMap] = useState<Record<string, string[]>>(() => {
     // An existing class's key is its id, so the stored mapping resolves; a
     // brand-new one has no mapping to resolve yet.
     const byId = new Map(drafts.classes.filter((c) => c.id).map((c) => [c.id!, c.key]));
-    const out: Record<string, string> = {};
-    for (const [categoryId, classId] of Object.entries(forwarder?.categoryMap ?? {})) {
-      const key = byId.get(classId);
-      if (key) out[categoryId] = key;
+    const out: Record<string, string[]> = {};
+    for (const [categoryId, classIds] of Object.entries(forwarder?.categoryMap ?? {})) {
+      const keys = classIds.map((id) => byId.get(id)).filter((k): k is string => Boolean(k));
+      if (keys.length > 0) out[categoryId] = keys;
     }
     return out;
   });
+
+  /** Put a category in one of their classes, or take it back out. */
+  const toggleMapping = (categoryId: string, classKey: string) =>
+    setCategoryMap((prev) => {
+      const current = prev[categoryId] ?? [];
+      const next = current.includes(classKey)
+        ? current.filter((k) => k !== classKey)
+        : [...current, classKey];
+      const out = { ...prev };
+      if (next.length > 0) out[categoryId] = next;
+      else delete out[categoryId];
+      return out;
+    });
 
   // A new forwarder lands on their own page once it exists, so the grid the
   // admin just filled in comes back with real ids behind it.
@@ -243,7 +253,11 @@ export function ForwarderRegistrationForm({
       })),
     );
     setCategoryMap((prev) =>
-      Object.fromEntries(Object.entries(prev).filter(([, v]) => v !== key)),
+      Object.fromEntries(
+        Object.entries(prev)
+          .map(([categoryId, keys]) => [categoryId, keys.filter((k) => k !== key)] as const)
+          .filter(([, keys]) => keys.length > 0),
+      ),
     );
   };
 
@@ -313,8 +327,6 @@ export function ForwarderRegistrationForm({
       key: c.key,
       id: c.id,
       name: c.name,
-      levyCbm: c.levyCbm,
-      levyLabel: c.levyLabel,
       isDefault: c.isDefault,
     })),
     points: points.map((p) => ({
@@ -342,6 +354,27 @@ export function ForwarderRegistrationForm({
     })),
     categoryMap,
   });
+
+  // The lane a category's rate is previewed against: the default one, else the
+  // first that exists. A preview beside the ticks is the whole point of this
+  // section — a levy typed into the wrong column shows up here, not on a bill.
+  const allRoutes = points.flatMap((p) => p.routes);
+  const previewRoute = allRoutes.find((r) => r.isDefault) ?? allRoutes[0] ?? null;
+
+  /** What the ticked classes come to per m³ on that lane. Null when it won't carry them. */
+  const previewRate = (categoryId: string): number | null => {
+    if (!previewRoute) return null;
+    const keys = categoryMap[categoryId] ?? [];
+    const chosen = keys.length > 0 ? keys : classes.filter((c) => c.isDefault).map((c) => c.key);
+    if (chosen.length === 0) return null;
+    let total = 0;
+    for (const key of chosen) {
+      const cell = previewRoute.rates[key];
+      if (cell === null || cell === undefined) return null; // N/A on this lane
+      total += cell;
+    }
+    return total > 0 ? Math.round(total * 100) / 100 : null;
+  };
 
   const symbol = currencies.find((c) => c.code === currency)?.symbol || currency;
   // What a typed rate comes to in cedis, at today's fetched exchange rate. The
@@ -472,15 +505,13 @@ export function ForwarderRegistrationForm({
       <Section
         icon={Layers}
         title="Classes of goods"
-        hint="Their own classes — the rows of every rate grid below. A special levy is charged as extra cubic metres, which is how a forwarder bills one."
+        hint="Their own classes — the rows of every rate grid below. A special levy is a class too: give “All electrical appliances” its own row and its own rate, then place the categories it applies to in that class as well as their normal one. The rates add up."
       >
         <div className="overflow-x-auto">
           <table className="w-full min-w-[680px] text-left text-sm">
             <thead className="text-xs uppercase tracking-wide text-niki-ink/50">
               <tr>
                 <th className="pb-2 pr-3 font-semibold">Class</th>
-                <th className="pb-2 pr-3 font-semibold">Special levy (CBM)</th>
-                <th className="pb-2 pr-3 font-semibold">Levy label</th>
                 <th className="pb-2 pr-3 font-semibold">Default</th>
                 <th className="pb-2" />
               </tr>
@@ -493,25 +524,6 @@ export function ForwarderRegistrationForm({
                       value={c.name}
                       onChange={(e) => patchClass(c.key, { name: e.target.value })}
                       placeholder="Class name"
-                      className={inputClass}
-                    />
-                  </td>
-                  <td className="py-1.5 pr-3">
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.0001"
-                      value={c.levyCbm || ""}
-                      onChange={(e) => patchClass(c.key, { levyCbm: Number(e.target.value) || 0 })}
-                      placeholder="0"
-                      className={inputClass}
-                    />
-                  </td>
-                  <td className="py-1.5 pr-3">
-                    <input
-                      value={c.levyLabel}
-                      onChange={(e) => patchClass(c.key, { levyLabel: e.target.value })}
-                      placeholder="What the levy is for"
                       className={inputClass}
                     />
                   </td>
@@ -760,11 +772,6 @@ export function ForwarderRegistrationForm({
                       <tr key={c.key}>
                         <th className="px-3 py-2 text-left text-sm font-medium text-niki-ink">
                           {c.name || "Unnamed class"}
-                          {c.levyCbm > 0 ? (
-                            <span className="block text-xs font-normal text-niki-ink/50">
-                              +{c.levyCbm} CBM levy
-                            </span>
-                          ) : null}
                         </th>
                         {p.routes.map((r) => (
                           <td key={r.key} className="px-3 py-2">
@@ -820,7 +827,7 @@ export function ForwarderRegistrationForm({
       <Section
         icon={Tags}
         title="Our categories in their classes"
-        hint="What a shopper browses is not what a container is priced by. Place each of our categories in one of their classes; anything left blank falls to their default."
+        hint="What a shopper browses is not what a container is priced by. Tick every class a category falls into — a fridge is a normal good and an appliance, and the forwarder charges for both, so the rates are added. A row left blank falls to their default class."
       >
         <div className="overflow-x-auto rounded-xl bg-white ring-1 ring-niki-edge">
           <table className="w-full text-left text-sm">
@@ -832,6 +839,14 @@ export function ForwarderRegistrationForm({
                     {c.name || "Unnamed"}
                   </th>
                 ))}
+                <th className="px-3 py-3 font-semibold">
+                  Charged at
+                  {previewRoute ? (
+                    <span className="block font-normal normal-case tracking-normal text-niki-ink/40">
+                      on {previewRoute.name.trim() || FREIGHT_MODE_LABELS[previewRoute.mode as FreightMode] || previewRoute.mode}
+                    </span>
+                  ) : null}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-niki-edge">
@@ -843,15 +858,29 @@ export function ForwarderRegistrationForm({
                   {classes.map((c) => (
                     <td key={c.key} className="px-3 py-2">
                       <input
-                        type="radio"
-                        name={`map-${cat.id}`}
-                        checked={categoryMap[cat.id] === c.key}
-                        onChange={() => setCategoryMap((prev) => ({ ...prev, [cat.id]: c.key }))}
-                        className="h-4 w-4"
+                        type="checkbox"
+                        checked={(categoryMap[cat.id] ?? []).includes(c.key)}
+                        onChange={() => toggleMapping(cat.id, c.key)}
+                        className="h-4 w-4 rounded"
                         aria-label={`${cat.label} → ${c.name}`}
                       />
                     </td>
                   ))}
+                  <td className="px-3 py-2 font-figures text-sm text-niki-ink/70">
+                    {(() => {
+                      const rate = previewRate(cat.id);
+                      if (rate === null) return <span className="text-niki-ink/35">N/A</span>;
+                      return (
+                        <>
+                          {symbol}
+                          {rate} / m³
+                          {currency !== "GHS" ? (
+                            <span className="block text-xs text-niki-ink/45">{inCedis(rate)}</span>
+                          ) : null}
+                        </>
+                      );
+                    })()}
+                  </td>
                 </tr>
               ))}
             </tbody>

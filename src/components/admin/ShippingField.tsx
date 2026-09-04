@@ -10,7 +10,6 @@ import {
   type AbroadTerms,
 } from "@/lib/abroad";
 import {
-  billableCbm,
   billableWeightKg,
   cbmFromDimensions,
   describePoint,
@@ -18,8 +17,8 @@ import {
   describeTransit,
   freightModeLabel,
   quoteShipment,
-  resolveGoodsClass,
-  resolveRouteRate,
+  resolveGoodsClasses,
+  resolveLaneRate,
   routesToPoint,
   SHIPPING_METHODS,
   SHIPPING_METHOD_HINTS,
@@ -113,16 +112,21 @@ export function ShippingField({
   const lanes = routesToPoint(forwarder, point?.id ?? null);
   const route = lanes.find((r) => r.id === terms.routeId) ?? null;
 
-  const goodsClass = resolveGoodsClass(forwarder, categoryId);
-  const cell = resolveRouteRate(route, goodsClass?.id ?? null);
-  const laneCarriesClass = Boolean(cell && cell.isAvailable && cell.ratePerCbm > 0);
+  // Every class this category falls into, and their rates added together. A
+  // fridge is a normal good and an appliance; the forwarder charges for both.
+  const goodsClasses = resolveGoodsClasses(forwarder, categoryId);
+  const lane = resolveLaneRate(route, goodsClasses);
+  const laneCarriesClass = lane.isAvailable;
+  const classNames = goodsClasses.map((g) => g.name).join(" + ");
+  const rateParts = goodsClasses
+    .map((g) => ({ name: g.name, cell: route?.rates.find((r) => r.goodsClassId === g.id) }))
+    .filter((x): x is { name: string; cell: NonNullable<typeof x.cell> } => Boolean(x.cell));
 
   // --- Size ------------------------------------------------------------------
   // The volume is worked out from the dimensions the moment all three are in.
   // A seller should never have to divide by a million.
   const derivedCbm = cbmFromDimensions(size.lengthCm, size.widthCm, size.heightCm);
   const perUnitCbm = size.cbm > 0 ? size.cbm : derivedCbm;
-  const billedCbm = billableCbm({ ...size, cbm: perUnitCbm }, 1, goodsClass);
   const weight = billableWeightKg(size, config.defaults.volumetricDivisor);
 
   // --- The estimate ----------------------------------------------------------
@@ -307,14 +311,6 @@ export function ShippingField({
                 {perUnitCbm.toFixed(4)} m³
               </span>{" "}
               per unit on the leg from abroad
-              {goodsClass && goodsClass.levyCbm > 0 ? (
-                <>
-                  {" "}
-                  — {billedCbm.toFixed(4)} m³ once{" "}
-                  {forwarder?.name ?? "the forwarder"}&apos;s {goodsClass.levyLabel || "levy"} of{" "}
-                  {goodsClass.levyCbm} m³ is added
-                </>
-              ) : null}
             </>
           ) : null}
           .
@@ -557,13 +553,16 @@ export function ShippingField({
                       <>
                         {forwarder?.name} carries this as{" "}
                         <span className="font-semibold text-niki-ink">
-                          {goodsClass?.name ?? "their standard class"}
+                          {classNames || "their standard class"}
                         </span>{" "}
                         by {freightModeLabel(route.mode).toLowerCase()} at{" "}
                         <span className="font-figures font-semibold text-niki-ink">
-                          {cell!.ratePerCbm} {route.currency}
+                          {lane.ratePerCbm} {route.currency}
                         </span>{" "}
                         per m³
+                        {rateParts.length > 1
+                          ? ` (${rateParts.map((x) => `${x.name} ${x.cell.ratePerCbm}`).join(" + ")})`
+                          : ""}
                         {route.maxDays > 0
                           ? `, ${describeTransit(route.minDays, route.maxDays)}`
                           : ""}
@@ -574,7 +573,7 @@ export function ShippingField({
                     ) : (
                       <>
                         {forwarder?.name} does not carry{" "}
-                        {goodsClass?.name ?? "this category"} by{" "}
+                        {classNames || "this category"} by{" "}
                         {freightModeLabel(route.mode).toLowerCase()} into that point, so this item
                         can&apos;t be bought on it. Choose another route or another forwarder.
                       </>
