@@ -7,10 +7,6 @@
     {
       "path": "/api/cron/data-bundles",
       "schedule": "0 7 * * *"
-    },
-    {
-      "path": "/api/cron/rates",
-      "schedule": "0 5 * * *"
     }
   ]
 }

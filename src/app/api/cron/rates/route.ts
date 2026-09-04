@@ -12,6 +12,11 @@ export const dynamic = "force-dynamic";
  * meant it was right the day it was typed and silently wrong afterwards — and
  * the wrongness only ever goes one way, because the cedi does.
  *
+ * The daily pull rides on `/api/cron/advance`, which runs on the same schedule
+ * — cron slots are limited and two jobs on one nightly tick is one job's worth
+ * of them. This route is the one to call by hand, from the currencies screen or
+ * from a terminal, on a day the cedi does not wait for the cron.
+ *
  * A failure is reported and changes nothing: yesterday's rates stand.
  */
 export async function GET(request: Request) {
