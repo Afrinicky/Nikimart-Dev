@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Container } from "@/components/ui/Container";
 import { ForwarderRegistrationForm } from "@/components/admin/ForwarderRegistrationForm";
 import { prisma } from "@/lib/prisma";
-import { getActiveCurrencies, getForwarders } from "@/lib/shipping-config";
+import { getActiveCurrencies, getCurrencies, getForwarders } from "@/lib/shipping-config";
 
 export const metadata: Metadata = { title: "Edit forwarder — Shipping — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -14,9 +14,10 @@ type Params = Promise<{ id: string }>;
 /** The same one window the forwarder was registered in, prefilled. */
 export default async function EditForwarderPage({ params }: { params: Params }) {
   const { id } = await params;
-  const [forwarders, currencies, pickupPoints, categories] = await Promise.all([
+  const [forwarders, currencies, allCurrencies, pickupPoints, categories] = await Promise.all([
     getForwarders(),
     getActiveCurrencies(),
+    getCurrencies(),
     prisma.pickupPoint.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
@@ -44,6 +45,7 @@ export default async function EditForwarderPage({ params }: { params: Params }) 
       <ForwarderRegistrationForm
         forwarder={forwarder}
         currencies={currencies.map((c) => ({ code: c.code, name: c.name, symbol: c.symbol }))}
+        rateToGhs={Object.fromEntries(allCurrencies.map((c) => [c.code, c.rateToGhs]))}
         pickupPoints={pickupPoints.map((p) => ({ id: p.id, label: `${p.name} — ${p.locationName}` }))}
         categories={categories.map((c) => ({ id: c.id, label: c.name }))}
         submitLabel="Save forwarder"

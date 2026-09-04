@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
 import { CurrencyForm } from "@/components/admin/CurrencyForm";
 import { getCurrencies, getForwarders } from "@/lib/shipping-config";
+import { lastRateRefresh } from "@/lib/fx";
 import { HOME_CURRENCY } from "@/lib/shipping";
 
 export const metadata: Metadata = { title: "Currencies — Shipping — Admin — Nickimart" };
@@ -17,7 +18,11 @@ export const dynamic = "force-dynamic";
  * so. The usage column is how that gets noticed.
  */
 export default async function ShippingCurrenciesPage() {
-  const [currencies, forwarders] = await Promise.all([getCurrencies(), getForwarders()]);
+  const [currencies, forwarders, refreshedAt] = await Promise.all([
+    getCurrencies(),
+    getForwarders(),
+    lastRateRefresh(),
+  ]);
 
   const usage: Record<string, number> = {};
   for (const f of forwarders) {
@@ -32,11 +37,20 @@ export default async function ShippingCurrenciesPage() {
       <h1 className="font-display text-xl font-bold text-niki-ink">Currencies</h1>
       <p className="mt-1 max-w-2xl text-sm text-niki-ink/60">
         Forwarders quote in their own currency and buyers pay in cedis. These rates are what turns
-        one into the other, everywhere, at once.
+        one into the other, everywhere, at once — fetched every morning so nobody has to remember
+        the day the cedi moved.
       </p>
 
       <div className="mt-6">
-        <CurrencyForm currencies={currencies} usage={usage} />
+        <CurrencyForm
+          currencies={currencies}
+          usage={usage}
+          lastRefresh={
+            refreshedAt
+              ? refreshedAt.toLocaleString("en-GH", { dateStyle: "medium", timeStyle: "short" })
+              : ""
+          }
+        />
       </div>
     </Container>
   );

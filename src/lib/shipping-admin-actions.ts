@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+import { refreshCurrencyRates } from "@/lib/fx";
 import type { CrudState } from "@/lib/admin-actions";
 
 /**
@@ -20,7 +21,13 @@ import type { CrudState } from "@/lib/admin-actions";
  * lists; only admins write them.
  */
 
-export type ShippingState = { ok?: boolean; error?: string; fieldErrors?: Record<string, string> };
+export type ShippingState = {
+  ok?: boolean;
+  error?: string;
+  /** What happened, when "Saved ✓" is not specific enough to be useful. */
+  message?: string;
+  fieldErrors?: Record<string, string>;
+};
 
 function str(fd: FormData, key: string): string {
   return String(fd.get(key) ?? "").trim();
@@ -324,6 +331,11 @@ export async function saveCurrency(_prev: ShippingState, fd: FormData): Promise<
     symbol: str(fd, "symbol").slice(0, 8),
     rateToGhs,
     isActive: !fd.has("isActive") || on(fd, "isActive"),
+    // A rate somebody typed is a rate somebody meant. The nightly refresh
+    // would otherwise overwrite it that same night, which reads as the form
+    // not having saved.
+    autoUpdate: on(fd, "autoUpdate"),
+    source: on(fd, "autoUpdate") ? "" : "manual",
   };
 
   try {
@@ -334,6 +346,49 @@ export async function saveCurrency(_prev: ShippingState, fd: FormData): Promise<
 
   revalidateShipping();
   return { ok: true };
+}
+
+/**
+ * Pull today's rates now, rather than waiting for the nightly refresh.
+ *
+ * The button exists because the cedi moves on a schedule of its own. A
+ * currency pinned by hand is left alone, and a failure changes nothing — the
+ * rates that were there stay there, and the screen says the fetch failed rather
+ * than quietly showing yesterday's figures as though they were today's.
+ *
+ * Takes nothing: `useActionState` calls it with the previous state and the form
+ * data, and there is no question to ask — the answer is always "every currency
+ * that has not been pinned".
+ */
+export async function refreshRatesNow(): Promise<ShippingState> {
+  await requireAdmin();
+  const result = await refreshCurrencyRates();
+  revalidateShipping();
+
+  if (!result.ok) return { error: `Couldn't reach the rates service — ${result.error}.` };
+  if (result.updated.length === 0) {
+    return { ok: true, message: "Rates checked — nothing has moved." };
+  }
+  return { ok: true, message: `Updated ${result.updated.join(", ")}.` };
+}
+
+/**
+ * Whether a currency's rate is fetched or held by hand.
+ *
+ * Pinning is for a rate somebody has a reason to hold: a contracted rate, or a
+ * currency the provider quotes badly. The refresh then never touches it.
+ */
+export async function toggleCurrencyAuto(fd: FormData): Promise<void> {
+  await requireAdmin();
+  const code = str(fd, "code").toUpperCase();
+  if (!code) return;
+  const row = await prisma.currency.findUnique({ where: { code }, select: { autoUpdate: true } });
+  if (!row) return;
+  await prisma.currency.update({
+    where: { code },
+    data: { autoUpdate: !row.autoUpdate, ...(row.autoUpdate ? { source: "manual" } : {}) },
+  });
+  revalidateShipping();
 }
 
 /** Remove a currency. Lanes quoting in it fall back to converting one-for-one. */

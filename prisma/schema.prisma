@@ -786,13 +786,17 @@ model ForwarderRouteRate {
 // converted cedi figure would mean re-typing every rate on the day the cedi
 // moves; storing the quoted figure plus this means correcting one number.
 model Currency {
-  code      String   @id
-  name      String   @default("")
-  symbol    String   @default("")
+  code      String @id
+  name      String @default("")
+  symbol    String @default("")
   /// What one unit of this currency is worth in GH₵.
-  rateToGhs Float    @default(1)
-  isActive  Boolean  @default(true)
-  updatedAt DateTime @updatedAt
+  rateToGhs Float  @default(1)
+  isActive  Boolean @default(true)
+  /// Whether the scheduled refresh may overwrite the rate. Off pins it by hand.
+  autoUpdate Boolean @default(true)
+  /// Where the current figure came from: a provider's host, or "manual".
+  source     String  @default("")
+  updatedAt  DateTime @updatedAt
 }
 
 // ---------------------------------------------------------------------------

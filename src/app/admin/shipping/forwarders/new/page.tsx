@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Container } from "@/components/ui/Container";
 import { ForwarderRegistrationForm } from "@/components/admin/ForwarderRegistrationForm";
 import { prisma } from "@/lib/prisma";
-import { getActiveCurrencies } from "@/lib/shipping-config";
+import { getActiveCurrencies, getCurrencies } from "@/lib/shipping-config";
 
 export const metadata: Metadata = { title: "New forwarder — Shipping — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -16,8 +16,9 @@ export const dynamic = "force-dynamic";
  * stopped halfway left a forwarder who could not quote.
  */
 export default async function NewForwarderPage() {
-  const [currencies, pickupPoints, categories] = await Promise.all([
+  const [currencies, allCurrencies, pickupPoints, categories] = await Promise.all([
     getActiveCurrencies(),
+    getCurrencies(),
     prisma.pickupPoint.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
@@ -41,6 +42,7 @@ export default async function NewForwarderPage() {
       <ForwarderRegistrationForm
         forwarder={null}
         currencies={currencies.map((c) => ({ code: c.code, name: c.name, symbol: c.symbol }))}
+        rateToGhs={Object.fromEntries(allCurrencies.map((c) => [c.code, c.rateToGhs]))}
         pickupPoints={pickupPoints.map((p) => ({ id: p.id, label: `${p.name} — ${p.locationName}` }))}
         categories={categories.map((c) => ({ id: c.id, label: c.name }))}
         submitLabel="Create forwarder"

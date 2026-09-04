@@ -158,8 +158,8 @@ const FORWARDER: Forwarder = {
 };
 
 const CURRENCIES: Currency[] = [
-  { code: "GHS", name: "Ghana Cedi", symbol: "GH₵", rateToGhs: 1, isActive: true },
-  { code: "USD", name: "US Dollar", symbol: "$", rateToGhs: 12, isActive: true },
+  { code: "GHS", name: "Ghana Cedi", symbol: "GH₵", rateToGhs: 1, isActive: true, autoUpdate: false, source: "" },
+  { code: "USD", name: "US Dollar", symbol: "$", rateToGhs: 12, isActive: true, autoUpdate: true, source: "" },
 ];
 
 const CONFIG: ShippingConfig = {

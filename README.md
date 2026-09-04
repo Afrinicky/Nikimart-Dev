@@ -97,6 +97,7 @@ idempotent, and records itself in `_prisma_migrations` so a later
 | One shipping system (consolidation points, rules, forwarders) | `db/migrations/0006_shipping_hub.sql` — applied automatically at build |
 | Per-seller local fees, forwarder routes, currencies, MOQ | `db/migrations/0007_shipping_simplification.sql` — applied automatically at build |
 | Forwarders rebuilt (their own Ghana points, rate grid, order placement) | `db/migrations/0008_freight_forwarder_rebuild.sql` — applied automatically at build |
+| Exchange rates that fetch themselves | `db/migrations/0009_currency_auto_rates.sql` — applied automatically at build |
 | Commission + seller payouts | `nikimart-neon-commission.sql` |
 | Affiliates (Finance console) | `nikimart-neon-affiliates.sql` |
 | Data bundle storefront | `nikimart-neon-data-bundles.sql` |
@@ -355,11 +356,29 @@ the code stayed taken and the warehouses stayed in the database.
 
 Freight abroad is quoted in dollars far more often than in cedis, so rates are
 stored **as the forwarder quoted them** and converted at pricing time from the
-table under `/admin/shipping/currencies`. Correct one exchange rate and every
-route priced in that currency re-prices itself; storing converted cedi figures
-would mean retyping every rate on the day the cedi moved. A currency nobody has
-priced converts one-for-one — visibly wrong rather than invisibly zero — and the
+table under `/admin/shipping/currencies`. One exchange rate moves every route
+priced in that currency; storing converted cedi figures would mean retyping
+every rate on the day the cedi moved.
+
+**The rates fetch themselves.** They used to be numbers somebody typed, which
+meant they were right on the day they were typed and silently wrong afterwards —
+and the wrongness only ever goes one way, because the cedi does. A cron
+(`/api/cron/rates`, 05:00) pulls the day's reference rates and applies them
+everywhere at once; the screen says when they last landed, and there is a button
+for the days the cedi does not wait for the cron.
+
+Three rules keep an outside service from doing damage: a currency can be
+**pinned by hand** and the fetch skips it (that is also what saving a rate on
+the form does); a figure that has moved by more than half is **skipped, not
+stored**, because real currencies do not do that overnight; and a failed fetch
+**changes nothing** — yesterday's rates stand and the screen says the fetch
+failed rather than showing them as today's. A currency nobody has priced
+converts one-for-one — visibly wrong rather than invisibly zero — and the
 Overview says so.
+
+On the forwarder's grid the conversion is shown as you type: the admin enters
+what the forwarder quoted and reads back what a buyer pays, which is the only
+figure either of them can check.
 
 ### Choosing a lane
 
@@ -464,6 +483,7 @@ when they are ready to collect.
 | Our points, the domestic rules, the defaults, the exchange rates | `src/lib/shipping-admin-actions.ts` |
 | A forwarder's whole profile, saved as one thing | `src/lib/forwarder-actions.ts` |
 | The order-placement queue and its purchases | `src/lib/purchasing.ts`, `src/lib/purchasing-actions.ts` |
+| Fetching the day's exchange rates | `src/lib/fx.ts`, `src/app/api/cron/rates/route.ts` |
 | Cart pricing, server-side | `src/lib/cart-pricing.ts` |
 | The bill's shape and the payment plans (pure, client-safe) | `src/lib/cart-bill.ts` |
 | Checkout's quote | `src/lib/checkout-actions.ts` |

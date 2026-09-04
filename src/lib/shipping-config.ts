@@ -163,6 +163,8 @@ export const getCurrencies = cache(async (): Promise<Currency[]> => {
           symbol: r.symbol,
           rateToGhs: r.rateToGhs,
           isActive: r.isActive,
+          autoUpdate: r.autoUpdate,
+          source: r.source,
         } satisfies Currency,
       ]),
     );

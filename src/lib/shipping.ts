@@ -224,18 +224,22 @@ export interface Currency {
   symbol: string;
   rateToGhs: number;
   isActive: boolean;
+  /** Whether the daily refresh may overwrite the rate. */
+  autoUpdate: boolean;
+  /** Where the current figure came from: a provider's host, or "manual". */
+  source: string;
 }
 
 /** The currencies a fresh install starts with. Rates are indicative, not live. */
 export const DEFAULT_CURRENCIES: Currency[] = [
-  { code: "GHS", name: "Ghana Cedi", symbol: "GH₵", rateToGhs: 1, isActive: true },
-  { code: "USD", name: "US Dollar", symbol: "$", rateToGhs: 12, isActive: true },
-  { code: "EUR", name: "Euro", symbol: "€", rateToGhs: 13, isActive: true },
-  { code: "GBP", name: "British Pound", symbol: "£", rateToGhs: 15, isActive: true },
-  { code: "CNY", name: "Chinese Yuan", symbol: "¥", rateToGhs: 1.7, isActive: true },
-  { code: "AED", name: "UAE Dirham", symbol: "د.إ", rateToGhs: 3.3, isActive: true },
-  { code: "TRY", name: "Turkish Lira", symbol: "₺", rateToGhs: 0.35, isActive: true },
-  { code: "ZAR", name: "South African Rand", symbol: "R", rateToGhs: 0.65, isActive: true },
+  { code: "GHS", name: "Ghana Cedi", symbol: "GH₵", rateToGhs: 1, isActive: true, autoUpdate: false, source: "" },
+  { code: "USD", name: "US Dollar", symbol: "$", rateToGhs: 12, isActive: true, autoUpdate: true, source: "" },
+  { code: "EUR", name: "Euro", symbol: "€", rateToGhs: 13, isActive: true, autoUpdate: true, source: "" },
+  { code: "GBP", name: "British Pound", symbol: "£", rateToGhs: 15, isActive: true, autoUpdate: true, source: "" },
+  { code: "CNY", name: "Chinese Yuan", symbol: "¥", rateToGhs: 1.7, isActive: true, autoUpdate: true, source: "" },
+  { code: "AED", name: "UAE Dirham", symbol: "د.إ", rateToGhs: 3.3, isActive: true, autoUpdate: true, source: "" },
+  { code: "TRY", name: "Turkish Lira", symbol: "₺", rateToGhs: 0.35, isActive: true, autoUpdate: true, source: "" },
+  { code: "ZAR", name: "South African Rand", symbol: "R", rateToGhs: 0.65, isActive: true, autoUpdate: true, source: "" },
 ];
 
 /** A code → GH₵-per-unit lookup, which is all the engine needs. */

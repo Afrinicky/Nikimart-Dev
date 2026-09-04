@@ -163,12 +163,15 @@ function toDrafts(f: Forwarder | null, currency: string) {
 export function ForwarderRegistrationForm({
   forwarder,
   currencies,
+  rateToGhs,
   pickupPoints,
   categories,
   submitLabel,
 }: {
   forwarder: Forwarder | null;
   currencies: { code: string; name: string; symbol: string }[];
+  /** Currency code → what one unit is worth in GH₵, kept current by the daily fetch. */
+  rateToGhs: Record<string, number>;
   pickupPoints: { id: string; label: string }[];
   categories: { id: string; label: string }[];
   submitLabel: string;
@@ -340,6 +343,15 @@ export function ForwarderRegistrationForm({
   });
 
   const symbol = currencies.find((c) => c.code === currency)?.symbol || currency;
+  // What a typed rate comes to in cedis, at today's fetched exchange rate. The
+  // admin types what the forwarder quoted and reads back what a buyer pays,
+  // which is the only figure either of them can sanity-check.
+  const fx = rateToGhs[currency] ?? 1;
+  const inCedis = (amount: number) =>
+    `GH₵${(Math.round(amount * fx * 100) / 100).toLocaleString("en-GH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
 
   return (
     <form action={formAction} className="space-y-6">
@@ -435,7 +447,15 @@ export function ForwarderRegistrationForm({
           />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Currency they quote in" htmlFor="f-currency" hint="Every rate below is typed in this currency and converted at the day's rate.">
+          <Field
+            label="Currency they quote in"
+            htmlFor="f-currency"
+            hint={
+              currency === "GHS"
+                ? "Every rate below is typed in this currency."
+                : `Every rate below is typed in ${currency} and converted at today's rate — 1 ${currency} = ${inCedis(1)}. Rates are fetched daily, so nothing here is retyped when the cedi moves.`
+            }
+          >
             <select id="f-currency" value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputClass}>
               {currencies.map((c) => (
                 <option key={c.code} value={c.code}>
@@ -780,6 +800,11 @@ export function ForwarderRegistrationForm({
                                 aria-label={`${c.name || "class"} rate per CBM`}
                               />
                             </div>
+                            {(r.rates[c.key] ?? 0) > 0 && currency !== "GHS" ? (
+                              <span className="mt-1 block font-figures text-xs text-niki-ink/50">
+                                = {inCedis(r.rates[c.key] as number)} / m³
+                              </span>
+                            ) : null}
                           </td>
                         ))}
                         <td />
