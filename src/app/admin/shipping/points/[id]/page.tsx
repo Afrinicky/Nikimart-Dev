@@ -14,7 +14,8 @@ type Params = Promise<{ id: string }>;
 export default async function EditConsolidationPointPage({ params }: { params: Params }) {
   const { id } = await params;
   const [point, pickupPoints] = await Promise.all([
-    prisma.arrivalPoint.findUnique({ where: { id } }),
+    // Ours only. A forwarder's warehouse is edited on their own page.
+    prisma.arrivalPoint.findFirst({ where: { id, forwarderId: null } }),
     prisma.pickupPoint.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },

@@ -7,45 +7,42 @@
  * ## Inside Ghana: one consignment per seller
  *
  * Goods are gathered at a **consolidation point** — a seller's Kumasi store, a
- * supplier's Accra depot, Tema Port — checked there, and couriered to the
- * **pickup point** the buyer chose.
+ * forwarder's Sunyani warehouse — checked there, and couriered to the **pickup
+ * point** the buyer chose.
  *
  * That run is priced the way a courier actually prices one: a **base fee** for
  * the consignment, plus a small **increment** for every unit after the first.
  * And it is charged **per seller**, because a consignment is exactly that —
  * what one shop hands over, moved together. One bottle of spray costs the base
  * fee; ten bottles cost the base fee plus nine increments, not ten base fees.
- * Two sellers in one cart are two consignments and two base fees, which is also
- * the truth: two vans, two pickups, two handovers.
  *
- * The old model multiplied a per-line fee by the quantity, so ten bottles of
- * GH₵35 spray attracted GH₵100 of shipping for one parcel. That is the bug this
- * shape exists to remove.
+ * The same rules price the hop out of a forwarder's Ghana warehouse: goods that
+ * land in Sunyani and are collected in Hwidiem are one domestic run from that
+ * point to that station, and if the buyer collects at the point itself there is
+ * nothing left to charge.
  *
- * ## From abroad: the forwarder's own quote sheet
+ * ## From abroad: the forwarder's own grid
  *
- * A forwarder does not have "a rate". They have a rate for *this lane* — China
- * to their Accra depot by sea — and within it a rate for *this class of goods*:
- * normal, special, heavy-duty. A fridge picks up an energy-commission levy per
- * cubic metre; a carton of wigs picks up an FDA one. Sea is 35–45 days, air is
- * 7–14, and the buyer chooses between them. All of it is quoted in dollars, and
- * when the cedi moves every one of those numbers moves with it.
+ * A forwarder does not have "a rate". They have a grid, one per Ghana warehouse
+ * they run: their **classes of goods** down the side, their **modes** across
+ * the top, and a price per cubic metre in each cell — with cells left N/A for
+ * the combinations they will not carry. A special levy rides on a class as
+ * extra cubic metres rather than as a second price, which is how a forwarder
+ * bills one.
  *
- * So the international leg is priced off a **route** (lane + mode + Ghana
- * destination + currency + transit window) and a **goods class** (the
- * forwarder's own, with our categories mapped onto it). Rates are held in the
- * currency they were quoted in and converted here, so correcting one exchange
- * rate re-prices everything that depends on it.
+ * That grid is the whole cost of the leg. No platform duty, VAT, clearing fee
+ * or fallback rate is added on top of it: whatever the forwarder had to pay at
+ * a port is already inside the number they quoted, and charging it again is the
+ * easiest way this engine could overcharge somebody.
  *
- * Two arrangements still exist and the bill differs:
+ * Two arrangements exist and the bill differs:
  *
  *   1. **The supplier delivers.** Their price already reaches a Ghana
  *      consolidation point. Nothing is charged for the international leg; the
  *      buyer pays the local run from there.
- *   2. **A forwarder carries it.** The supplier only reaches a forwarder in
- *      their own country (the buyer pays that hop), and the route's rate brings
- *      it the rest of the way — normally inclusive of port fees, duty and tax,
- *      which is why none of those is then charged again.
+ *   2. **A forwarder carries it.** The supplier only reaches the forwarder's
+ *      warehouse abroad (the buyer pays that hop), and the lane's rate per
+ *      cubic metre brings it the rest of the way.
  *
  * And some things no table should price: a car, a generator, anything fragile
  * enough to need its own arrangement. Those are quoted by hand at listing time.
@@ -55,11 +52,10 @@
  * **Same point, no fee.** If the goods are already consolidated at the station
  * the buyer picked, there is no journey left to charge for.
  *
- * **The buyer sees one number.** Duty, VAT, clearing, port fees and every
- * freight leg are computed here and kept here. What reaches the checkout is the
- * item price and one shipping figure. The components survive in the breakdown
- * for the admin console, the seller estimate, payouts and the finance reports —
- * they are just never a row on a buyer's bill.
+ * **The buyer sees one number.** Every leg is computed here and added together.
+ * The components survive in the breakdown for the admin console, the seller
+ * estimate, payouts and the finance reports — they are just never a row on a
+ * buyer's bill.
  *
  * The module is pure — no imports, no `server-only` — so the seller's live
  * estimate, the checkout quote and the order action all run this same code and
@@ -137,6 +133,26 @@ export function itemCbm(item: ItemSize): number {
 // The pieces an admin configures
 // ---------------------------------------------------------------------------
 
+/** How goods travel from abroad. */
+export type FreightMode = "air" | "sea" | "road" | "express";
+
+export const FREIGHT_MODES: FreightMode[] = ["sea", "air", "road", "express"];
+
+export const FREIGHT_MODE_LABELS: Record<FreightMode, string> = {
+  air: "Air freight",
+  sea: "Sea freight",
+  road: "Road freight",
+  express: "Express courier",
+};
+
+export function isFreightMode(value: string | null | undefined): value is FreightMode {
+  return value === "air" || value === "sea" || value === "road" || value === "express";
+}
+
+export function freightModeLabel(mode: string | null | undefined): string {
+  return FREIGHT_MODE_LABELS[(mode ?? "") as FreightMode] ?? "";
+}
+
 /** How a listing's shipping is priced. */
 export type ShippingMethod = "auto" | "free" | "manual";
 
@@ -149,7 +165,7 @@ export const SHIPPING_METHOD_LABELS: Record<ShippingMethod, string> = {
 };
 
 export const SHIPPING_METHOD_HINTS: Record<ShippingMethod, string> = {
-  auto: "Base fee for the first item, a small increment for each extra one. Freight from abroad is priced by the forwarder's route.",
+  auto: "Base fee for the first item, a small increment for each extra one. Freight from abroad is priced by the forwarder's grid.",
   free: "No shipping is charged to any pickup point. You absorb the cost.",
   manual: "For cars, generators, fragile or oversized goods — anything a rate table would price wrongly.",
 };
@@ -158,15 +174,8 @@ export function isShippingMethod(value: string | null | undefined): value is Shi
   return value === "auto" || value === "free" || value === "manual";
 }
 
-/** Whether a consolidation point gathers local goods or imported ones. */
+/** Whether a consolidation point is NikiMart's or a freight forwarder's. */
 export type PointKind = "local" | "international";
-
-export const POINT_KINDS: PointKind[] = ["local", "international"];
-
-export const POINT_KIND_LABELS: Record<PointKind, string> = {
-  local: "Local — goods from inside Ghana gather here",
-  international: "International — imported consignments land and clear here",
-};
 
 export function isPointKind(value: string | null | undefined): value is PointKind {
   return value === "local" || value === "international";
@@ -175,23 +184,25 @@ export function isPointKind(value: string | null | undefined): value is PointKin
 /**
  * A consolidation point: where a load is brought together and checked.
  *
- * `pickupPointId` is the join that makes the whole system click. When a
- * consolidation point sits at a pickup station, a buyer who collects there has
- * nothing to pay — the goods are already in the room — and the shipping fee is
- * zero without anybody configuring a zero.
+ * `pickupPointId` is the join that makes the whole system click. When a point
+ * sits at a pickup station, a buyer who collects there has nothing to pay — the
+ * goods are already in the room — and the fee is zero without anybody
+ * configuring a zero.
+ *
+ * `forwarderId` says whose point it is. A forwarder's Ghana warehouse belongs
+ * to them and to nobody else; a point with no forwarder is one of ours.
  */
 export interface ConsolidationPoint {
   id: string;
   name: string;
   code: string;
   city: string;
+  address: string;
   kind: PointKind;
+  /** The forwarder who owns this point. Null = a NikiMart local point. */
+  forwarderId: string | null;
   /** The pickup station this point sits at, when it is one. */
   pickupPointId: string | null;
-  /** Ghana import duty here, percent of the landed value. International only. */
-  dutyPercent: number;
-  /** Flat clearing / handling (GH₵) per imported line landing here. */
-  clearingFee: number;
   note: string;
   isActive: boolean;
 }
@@ -202,6 +213,9 @@ export interface ConsolidationPoint {
 
 /** The platform's own currency. Rates typed in it are never converted. */
 export const HOME_CURRENCY = "GHS";
+
+/** What forwarders quote in unless they say otherwise. */
+export const DEFAULT_FORWARDER_CURRENCY = "USD";
 
 /** An exchange rate: what one unit of `code` is worth in GH₵. */
 export interface Currency {
@@ -250,102 +264,110 @@ export function toGhs(amount: number, code: string, rates: CurrencyRates): numbe
 }
 
 // ---------------------------------------------------------------------------
-// Forwarders, their goods classes and their routes
+// Forwarders: their classes, their lanes and their grid
 // ---------------------------------------------------------------------------
 
 /**
- * One of the forwarder's own classes of goods.
+ * One of the forwarder's own classes of goods — a row of their grid.
  *
  * Never one of our categories: ours are what a shopper browses, theirs are what
- * a container is priced by. `surchargePerCbm` is the levy that rides on the
- * class whatever the route — the energy commission on appliances, the FDA
- * charge on diapers and wigs — quoted, like everything else, in the forwarder's
- * currency.
+ * a container is priced by. `levyCbm` is the special levy, charged the way a
+ * forwarder charges one — extra cubic metres added to the consignment before
+ * the rate is applied.
  */
 export interface GoodsClass {
   id: string;
   name: string;
   note: string;
-  surchargePerCbm: number;
-  surchargeLabel: string;
+  /** Extra CBM per unit for this class. The special levy. */
+  levyCbm: number;
+  levyLabel: string;
   sortOrder: number;
   /** The class a category with no mapping of its own falls into. */
   isDefault: boolean;
 }
 
-/** One price on one route, for one goods class. `goodsClassId` null = catch-all. */
+/** One cell: what a lane charges per cubic metre for one class. */
 export interface RouteRate {
   id: string;
+  /** Null = the price for everything with no row of its own. */
   goodsClassId: string | null;
   ratePerCbm: number;
-  ratePerKg: number;
-  minCharge: number;
-  /** "Normal goods under 1 CBM — $260": anything smaller still bills as this. */
-  minCbm: number;
+  /** False is the N/A cell: this lane does not carry this class. */
+  isAvailable: boolean;
   note: string;
 }
 
-/** One lane a forwarder sells, and what it costs on it. */
+/** How often purchases are placed on a lane. */
+export type OrderFrequency = "" | "weekly" | "biweekly" | "monthly" | "dates";
+
+export const ORDER_FREQUENCIES: Exclude<OrderFrequency, "">[] = [
+  "weekly",
+  "biweekly",
+  "monthly",
+  "dates",
+];
+
+export const ORDER_FREQUENCY_LABELS: Record<Exclude<OrderFrequency, "">, string> = {
+  weekly: "Weekly",
+  biweekly: "Every two weeks",
+  monthly: "Monthly",
+  dates: "Set dates",
+};
+
+/** One lane a forwarder sells: one mode into one of their Ghana points. */
 export interface ForwarderRoute {
   id: string;
   forwarderId: string;
+  /** The column heading. Blank falls back to the mode's own name. */
   name: string;
-  originCountry: string;
-  originCity: string;
   /** air | sea | road | express. */
   mode: string;
-  /** The Ghana consolidation point this lane lands at. */
+  /** The forwarder's Ghana point this lane lands at. */
   destinationPointId: string | null;
-  /** The currency every rate on this route is quoted in. */
+  /** The currency the rates on this lane are quoted in. */
   currency: string;
+  /** The delivery estimate for this mode. */
   minDays: number;
   maxDays: number;
+  /** The smallest consignment this lane accepts. Nothing under it ships. */
+  minCbm: number;
+  /** When purchases are actually placed on this lane. Internal. */
+  orderFrequency: string;
+  orderFrequencyDetail: string;
   note: string;
   isActive: boolean;
   isDefault: boolean;
   rates: RouteRate[];
 }
 
-/** One price on a forwarder's legacy list. `categoryId` null is their catch-all. */
-export interface ForwarderRate {
-  id: string;
-  categoryId: string | null;
-  label: string;
-  ratePerCbm: number;
-  ratePerKg: number;
-  minCharge: number;
-  transitDays: number;
-}
-
-/** A forwarder abroad, and what they charge to bring a load to Ghana. */
+/** A freight forwarder, and everything they charge for. */
 export interface Forwarder {
   id: string;
   name: string;
   code: string;
-  /** The country they collect in: CN, AE, US, EU… */
+  /** Basic information: where they are, and who to call. */
+  ghanaAddress: string;
+  contactName: string;
+  contactPhone: string;
+  contactEmail: string;
+  /** The country they collect in: CN, AE, US… */
   originCountry: string;
-  /** air | sea | road | express — their headline mode. Routes may differ. */
-  mode: string;
-  /** The Ghana consolidation point they deliver into by default. */
-  consolidationPointId: string | null;
-  /** The currency they quote in, unless a route says otherwise. */
+  /** Their warehouse abroad — where suppliers dispatch goods to. */
+  collectionAddress: string;
+  collectionCity: string;
+  /** The currency their whole grid is quoted in, unless a lane says otherwise. */
   currency: string;
-  /**
-   * True when the rate already covers port fees, duty and taxes to that point.
-   * This is how Ghana-bound consolidators actually quote, so it is the default;
-   * charging duty on top of such a rate bills the buyer twice for one thing.
-   */
-  allInclusive: boolean;
   note: string;
   /** Their standing notes: levies and quirks. Shown to people, never priced. */
   terms: string;
   isActive: boolean;
+  /** Their own consolidation points in Ghana. */
+  consolidations: ConsolidationPoint[];
   goodsClasses: GoodsClass[];
   /** Our category id → their goods class id. */
   categoryMap: Record<string, string>;
   routes: ForwarderRoute[];
-  /** The legacy flat price list, read only when there are no routes. */
-  rates: ForwarderRate[];
 }
 
 /**
@@ -353,13 +375,8 @@ export interface Forwarder {
  *
  * Every part of the scope is optional. A rule with nothing set prices whatever
  * no sharper rule claims; one with a category and a route is the "all blenders,
- * Kumasi to Accra" case.
- *
- * `baseFee` is what one consignment costs and `perUnitFee` is what each unit
- * after the first adds. The two legacy columns are read as fallbacks and never
- * written: `flatFee` stands in for a missing base, and `perKgRate` derives an
- * increment from a single unit's billable weight. Neither is multiplied by the
- * quantity any more — that multiplication is the thing this model removes.
+ * Kumasi to Accra" case. The origin may be a forwarder's Ghana warehouse, which
+ * is how the run from a landed consignment to a pickup station is priced.
  */
 export interface ShippingRule {
   id: string;
@@ -388,12 +405,6 @@ export interface ShippingDefaults {
   volumetricDivisor: number;
   /** No domestic leg is billed under this, once it is billed at all. */
   minFee: number;
-  /** Ghana VAT + levies (percent) on an imported line's landed value. */
-  importTaxRate: number;
-  /** Fallback import duty (percent) when a point sets none. */
-  importDutyPercent: number;
-  /** Fallback ₵/CBM from abroad when no route rate matches. */
-  fallbackRatePerCbm: number;
 }
 
 export const SHIPPING_DEFAULTS: ShippingDefaults = {
@@ -402,9 +413,6 @@ export const SHIPPING_DEFAULTS: ShippingDefaults = {
   perKgRate: 0,
   volumetricDivisor: DEFAULT_VOLUMETRIC_DIVISOR,
   minFee: 0,
-  importTaxRate: 21.9,
-  importDutyPercent: 20,
-  fallbackRatePerCbm: 0,
 };
 
 /** Everything the engine needs, loaded once per quote. */
@@ -428,15 +436,17 @@ function round(n: number): number {
   return Math.max(0, Math.round(n * 100) / 100);
 }
 
+/** Round a volume to the cubic centimetre, which is as fine as anyone quotes. */
+function roundCbm(n: number): number {
+  return Math.round(n * 1_000_000) / 1_000_000;
+}
+
 /**
  * The rule that governs one line's domestic leg, most specific first.
  *
  * A rule scores a point for each part of its scope that names something rather
  * than standing for "any", and the highest score wins. Ties go to the rule that
- * named the category, then the one that named the origin: given "anything from
- * Kumasi" and "blenders anywhere", a blender leaving Kumasi is more usefully a
- * blender — that is the rule somebody wrote on purpose about this kind of
- * goods, where the route rule is a default they set once and forgot.
+ * named the category, then the one that named the origin.
  *
  * Null when nothing matches, which is a real answer: the platform defaults
  * price it.
@@ -471,9 +481,8 @@ export function resolveRule(
  *
  * The rule's own numbers first, then its legacy ones, then the platform's. An
  * increment is only *derived* from the weight rate when nothing states one
- * directly: a rule written as "GH₵15 + GH₵4/kg" under the old system becomes
- * "GH₵15 for the first, GH₵4 × the unit's billable weight for each extra",
- * which is the same intent expressed in the shape that no longer multiplies.
+ * directly, which is the same intent expressed in the shape that no longer
+ * multiplies.
  */
 export function rulePricing(
   rule: ShippingRule | null,
@@ -507,8 +516,7 @@ export function rulePricing(
  * The goods class a category falls into for one forwarder.
  *
  * Their explicit mapping first, then whichever class they marked as the
- * default, then their first class. Null when they have not set any classes up —
- * which the route rates handle as "use the catch-all price".
+ * default, then their first class. Null when they have set no classes up.
  */
 export function resolveGoodsClass(
   forwarder: Pick<Forwarder, "goodsClasses" | "categoryMap"> | null,
@@ -524,47 +532,43 @@ export function resolveGoodsClass(
   );
 }
 
-/** The route rate for a goods class: its own row, else the route's catch-all. */
+/**
+ * The cell for a class on a lane: its own row, else the lane's catch-all row.
+ *
+ * An N/A cell is returned as it is rather than skipped — "this lane will not
+ * carry wigs" has to reach the caller, not quietly fall through to a price
+ * meant for something else.
+ */
 export function resolveRouteRate(
   route: ForwarderRoute | null,
   goodsClassId: string | null,
 ): RouteRate | null {
   if (!route) return null;
-  return (
-    (goodsClassId ? route.rates.find((r) => r.goodsClassId === goodsClassId) : undefined) ??
-    route.rates.find((r) => !r.goodsClassId) ??
-    null
-  );
+  const own = goodsClassId ? route.rates.find((r) => r.goodsClassId === goodsClassId) : undefined;
+  return own ?? route.rates.find((r) => !r.goodsClassId) ?? null;
 }
 
-/**
- * The forwarder's price for a category on their legacy list: their row for it,
- * else their catch-all. Only consulted for a forwarder with no routes.
- */
-export function resolveForwarderRate(
-  forwarder: Pick<Forwarder, "rates"> | null,
-  categoryId: string,
-): ForwarderRate | null {
-  if (!forwarder) return null;
-  return (
-    forwarder.rates.find((r) => r.categoryId && r.categoryId === categoryId) ??
-    forwarder.rates.find((r) => !r.categoryId) ??
-    null
-  );
-}
-
-/** Every route a buyer could be offered for this forwarder. */
+/** Every lane a seller could list on for this forwarder. */
 export function activeRoutes(forwarder: Pick<Forwarder, "routes"> | null): ForwarderRoute[] {
   return (forwarder?.routes ?? []).filter((r) => r.isActive);
 }
 
+/** The lanes this forwarder runs into one of their Ghana points. */
+export function routesToPoint(
+  forwarder: Pick<Forwarder, "routes"> | null,
+  pointId: string | null,
+): ForwarderRoute[] {
+  if (!pointId) return [];
+  return activeRoutes(forwarder).filter((r) => r.destinationPointId === pointId);
+}
+
 /**
- * The route a listing is quoted on when the buyer has not chosen one.
+ * The lane a listing is quoted on.
  *
- * A chosen route wins, provided it belongs to this forwarder and is live — the
- * choice arrives from a browser and a route id from a browser is a claim. Then
- * the one the admin marked default, then the first. Null when the forwarder
- * sells no lanes yet, which the caller reports as an unpriced route.
+ * The chosen lane wins, provided it belongs to this forwarder and is live — a
+ * route id from a browser is a claim. Then the one marked default, then the
+ * first. Null when the forwarder sells no lanes, which the caller reports as an
+ * unpriced route.
  */
 export function resolveRoute(
   forwarder: Pick<Forwarder, "routes"> | null,
@@ -579,20 +583,19 @@ export function resolveRoute(
   return routes.find((r) => r.isDefault) ?? routes[0];
 }
 
-/** A point's label for a picker: "Tema Port — Tema". */
+/** A point's label for a picker: "Sunyani Depot — Sunyani". */
 export function describePoint(point: Pick<ConsolidationPoint, "name" | "city">): string {
   return point.city ? `${point.name} — ${point.city}` : point.name;
 }
 
-/** A route's label for a picker: "China → Accra · Sea freight · 35–45 days". */
+/** A lane's label: its own name, else "Sea freight". */
 export function describeRoute(
-  route: Pick<ForwarderRoute, "name" | "originCity" | "originCountry" | "mode" | "minDays" | "maxDays">,
+  route: Pick<ForwarderRoute, "name" | "mode">,
   destinationName = "",
 ): string {
   if (route.name.trim()) return route.name.trim();
-  const from = route.originCity || route.originCountry || "Abroad";
-  const to = destinationName || "Ghana";
-  return `${from} → ${to}`;
+  const mode = freightModeLabel(route.mode) || route.mode;
+  return destinationName ? `${mode} → ${destinationName}` : mode;
 }
 
 /** "7–14 days", or "14 days" when the window has no spread. */
@@ -612,7 +615,7 @@ export interface ShipmentLine {
   /** Which seller this line belongs to. Consignments are grouped by it. */
   vendorId: string;
   quantity: number;
-  /** The listed price of one unit — the base for duty and origin tax. */
+  /** The listed price of one unit. */
   unitPrice: number;
   size: ItemSize;
   categoryId: string;
@@ -621,66 +624,52 @@ export interface ShipmentLine {
   manualFee: number;
   /** Origin country code. "GH" (or blank) is domestic. */
   originCountry: string;
-  /** Where this line's goods gather. Null falls back to the platform default. */
+  /** Where this line's goods gather in Ghana. */
   point: ConsolidationPoint | null;
   /** The forwarder carrying the international leg, when one does. */
   forwarder: Forwarder | null;
-  /** The route the buyer chose. Blank takes the forwarder's default route. */
+  /** The lane the listing was set up on, or the one the buyer chose. */
   routeId?: string | null;
   /** True when the supplier's price already reaches the Ghana point. */
   supplierDelivers: boolean;
-  /** Leg 1, GH₵ per unit: supplier → the forwarder abroad. The buyer pays it. */
+  /** Leg 1, GH₵ per unit: supplier → the forwarder's warehouse abroad. */
   supplierFreight: number;
-  /** Sales tax in the country of purchase, percent of the goods. */
-  originTaxRate: number;
-  /** Ghana VAT + levies, percent. Negative means "use the platform rate". */
-  taxRate: number;
-  /** True when duty and clearing are already covered by the price. */
-  dutyIncluded: boolean;
 }
 
 /**
  * What one line costs to ship, and what that figure is made of.
  *
  * `fee` is the only number a buyer ever sees. The rest exists so an admin can
- * answer "why is this GH₵240?", so a seller's estimate is honest about what
- * they are asking somebody to pay, and so the finance reports can tell a
- * courier run from a customs bill.
+ * answer "why is this GH₵240?", so a seller's estimate is honest, and so the
+ * finance reports can tell one leg from another.
  */
 export interface LineShipping {
   /** The one figure: everything below, added up. */
   fee: number;
-  /** Leg 1: supplier → forwarder abroad. */
+  /** Leg 1: supplier → the forwarder's warehouse abroad. */
   supplierFreight: number;
-  /** Leg 2: forwarder → the Ghana consolidation point. */
+  /** Leg 2: the forwarder's lane into their Ghana point. */
   internationalFreight: number;
-  /** Leg 3: the consolidation point → the buyer's pickup station. */
+  /** Leg 3: that point → the buyer's pickup station. */
   localFreight: number;
-  /** Ghana import duty on the landed value. */
-  importDuty: number;
-  /** Clearing and handling at the point. */
-  clearingFee: number;
-  /** Ghana VAT and levies. */
-  tax: number;
-  /** Sales tax in the country of purchase. */
-  originTax: number;
   /** The billable weight the line was measured at. */
   billableWeightKg: number;
-  /** The cubic metres the international leg was priced on. */
+  /** The cubic metres the international leg was priced on, levy included. */
   cbm: number;
   method: ShippingMethod;
   /** True when the goods already sit at the station the buyer chose. */
   collectedAtOrigin: boolean;
   /**
    * True when this line expects to be charged for freight into Ghana and
-   * nothing prices it. Checkout refuses the order rather than selling at a loss.
+   * nothing prices it — no lane, or a lane that will not carry this class.
+   * Checkout refuses the order rather than selling at a loss.
    */
   unpricedRoute: boolean;
-  /** The route this line was quoted on, when one carried it. */
+  /** The lane this line was quoted on, when one carried it. */
   route: ForwarderRoute | null;
   /** The forwarder's own class this line was priced as. */
   goodsClass: GoodsClass | null;
-  /** The transit window promised for this line. Zero when it never leaves Ghana. */
+  /** The delivery estimate promised. Zero when it never leaves Ghana. */
   transitMinDays: number;
   transitMaxDays: number;
 }
@@ -690,10 +679,6 @@ const ZERO_LINE: Omit<LineShipping, "method"> = {
   supplierFreight: 0,
   internationalFreight: 0,
   localFreight: 0,
-  importDuty: 0,
-  clearingFee: 0,
-  tax: 0,
-  originTax: 0,
   billableWeightKg: 0,
   cbm: 0,
   collectedAtOrigin: false,
@@ -718,13 +703,29 @@ export function collectedAtOrigin(line: ShipmentLine, destPickupId: string): boo
 }
 
 /**
+ * The cubic metres one consignment of this line is billed at.
+ *
+ * The item's own volume plus the class levy, per unit. A levy expressed in
+ * cubic metres is a levy that scales with the order the way the freight does,
+ * which is why forwarders write them that way.
+ */
+export function billableCbm(
+  size: ItemSize,
+  quantity: number,
+  goodsClass: Pick<GoodsClass, "levyCbm"> | null,
+): number {
+  const qty = Math.max(1, Math.round(quantity));
+  const perUnit = itemCbm(size) + Math.max(0, goodsClass?.levyCbm ?? 0);
+  return roundCbm(perUnit * qty);
+}
+
+/**
  * The international leg for one line, in GH₵, plus what it was priced on.
  *
- * Volume first, because that is how a forwarder invoices, floored at the rate's
- * minimum cubic metres — the "under 1 CBM still bills as one" line every quote
- * sheet has. The class surcharge (energy commission, FDA) rides on the same
- * volume. Everything is converted from the route's currency at the end, in one
- * place, so an exchange-rate correction moves the whole figure at once.
+ * The forwarder's grid and nothing else: their rate per cubic metre for this
+ * class on this lane, applied to the billable volume and converted from their
+ * currency at the end, in one place, so one exchange-rate correction moves
+ * every figure that depends on it.
  */
 export function internationalLegFee(
   line: ShipmentLine,
@@ -736,80 +737,35 @@ export function internationalLegFee(
   goodsClass: GoodsClass | null;
   unpriced: boolean;
 } {
-  const qty = Math.max(1, Math.round(line.quantity));
-  const cbm = Math.round(itemCbm(line.size) * qty * 1_000_000) / 1_000_000;
-  const weight = billableWeightKg(line.size, config.defaults.volumetricDivisor) * qty;
-
   const route = resolveRoute(line.forwarder, line.routeId);
   const goodsClass = resolveGoodsClass(line.forwarder, line.categoryId);
+  const cbm = billableCbm(line.size, line.quantity, goodsClass);
 
-  if (route) {
-    const rate = resolveRouteRate(route, goodsClass?.id ?? null);
-    if (rate) {
-      const billedCbm = Math.max(cbm, rate.minCbm > 0 ? rate.minCbm : 0);
-      const carriage = Math.max(
-        rate.ratePerCbm * billedCbm + rate.ratePerKg * weight,
-        rate.minCharge,
-      );
-      const surcharge = (goodsClass?.surchargePerCbm ?? 0) * billedCbm;
-      const currency = route.currency || line.forwarder?.currency || HOME_CURRENCY;
-      return {
-        fee: round(toGhs(carriage + surcharge, currency, config.currencies)),
-        cbm,
-        route,
-        goodsClass,
-        unpriced: false,
-      };
-    }
+  const rate = resolveRouteRate(route, goodsClass?.id ?? null);
+
+  // No lane, no cell, an N/A cell, or a cell nobody put a number in. Saying so
+  // lets checkout refuse the order; quoting zero would sell a sea container for
+  // the price of the courier run at the other end.
+  if (!route || !rate || !rate.isAvailable || rate.ratePerCbm <= 0) {
+    return { fee: 0, cbm, route, goodsClass, unpriced: true };
   }
 
-  // No routes yet: fall back to the forwarder's legacy flat list, so a
-  // forwarder configured under the previous system keeps quoting until
-  // somebody moves them onto routes. Nothing writes that list any more.
-  const legacy = resolveForwarderRate(line.forwarder, line.categoryId);
-  if (legacy) {
-    const carriage = Math.max(
-      legacy.ratePerCbm * cbm + legacy.ratePerKg * weight,
-      legacy.minCharge,
-    );
-    const currency = line.forwarder?.currency || HOME_CURRENCY;
-    return {
-      fee: round(toGhs(carriage, currency, config.currencies)),
-      cbm,
-      route: null,
-      goodsClass,
-      unpriced: false,
-    };
-  }
-
-  if (config.defaults.fallbackRatePerCbm > 0) {
-    return {
-      fee: round(config.defaults.fallbackRatePerCbm * cbm),
-      cbm,
-      route,
-      goodsClass,
-      unpriced: false,
-    };
-  }
-
-  // Nobody has priced this route. Saying so lets checkout refuse the order;
-  // quoting zero would sell a sea container for the price of the courier run
-  // at the other end.
-  return { fee: 0, cbm, route, goodsClass, unpriced: true };
+  const currency = route.currency || line.forwarder?.currency || HOME_CURRENCY;
+  return {
+    fee: round(toGhs(rate.ratePerCbm * cbm, currency, config.currencies)),
+    cbm,
+    route,
+    goodsClass,
+    unpriced: false,
+  };
 }
 
 /**
- * Price one line's *international* half, plus everything the state takes.
+ * Price one line's *international* half.
  *
  * The domestic leg is deliberately absent: it belongs to the consignment, not
  * to the line, and is added by `quoteShipment` once per seller. Callers who
  * want a whole-line figure use that.
- *
- * Duty and VAT follow customs practice rather than intuition: duty is assessed
- * on the landed value — the goods plus the freight that brought them here — and
- * VAT on that value plus the duty. Charging either on the goods alone
- * under-quotes, and a shortfall discovered at a customs desk with the item
- * already in the country is much worse than an over-quote.
  */
 export function priceLine(
   line: ShipmentLine,
@@ -846,22 +802,14 @@ export function priceLine(
     };
   }
 
-  // --- The international leg ------------------------------------------------
-  const goods = line.unitPrice * qty;
-  const originTax = round((goods * Math.max(0, line.originTaxRate)) / 100);
-
   // Arrangement 1: the supplier's price already reaches the Ghana point. There
-  // is no leg to charge and no border left to clear — the buyer paid for both
-  // inside the price, and billing either again would be a second charge for one
-  // journey.
+  // is no leg to charge — the buyer paid for it inside the item price.
   if (line.supplierDelivers) {
     return {
       ...ZERO_LINE,
       method: "auto",
-      fee: originTax,
-      originTax,
       billableWeightKg: weight,
-      cbm: Math.round(itemCbm(line.size) * qty * 1_000_000) / 1_000_000,
+      cbm: billableCbm(line.size, qty, null),
       collectedAtOrigin: atOrigin,
     };
   }
@@ -870,30 +818,11 @@ export function priceLine(
   const supplierFreight = round(line.supplierFreight * qty);
   const leg = internationalLegFee(line, config);
 
-  // An all-inclusive forwarder rate already contains the port fees, the duty
-  // and the taxes to their Ghana point. Assessing them again on top of it is
-  // the single easiest way this engine could overcharge somebody.
-  const allInclusive = line.forwarder?.allInclusive ?? false;
-  const settledAtBorder = allInclusive || line.dutyIncluded;
-
-  const landedValue = goods + supplierFreight + leg.fee;
-  const dutyPercent = line.point?.dutyPercent || config.defaults.importDutyPercent;
-  const importDuty = settledAtBorder ? 0 : round((landedValue * Math.max(0, dutyPercent)) / 100);
-  const clearingFee = settledAtBorder ? 0 : round(line.point?.clearingFee ?? 0);
-  const taxRate = line.taxRate >= 0 ? line.taxRate : Math.max(0, config.defaults.importTaxRate);
-  const tax = settledAtBorder ? 0 : round(((landedValue + importDuty) * taxRate) / 100);
-
-  const fee = round(supplierFreight + leg.fee + importDuty + clearingFee + tax + originTax);
-
   return {
-    fee,
+    ...ZERO_LINE,
+    fee: round(supplierFreight + leg.fee),
     supplierFreight,
     internationalFreight: leg.fee,
-    localFreight: 0,
-    importDuty,
-    clearingFee,
-    tax,
-    originTax,
     billableWeightKg: weight,
     cbm: leg.cbm,
     method: "auto",
@@ -930,9 +859,9 @@ export interface ConsignmentQuote {
 /** The key a consignment is grouped under. */
 function consignmentKey(line: ShipmentLine): string {
   // Seller first, because that is what a consignment is. The point is part of
-  // the key because a seller who gathers some goods in Kumasi and some in Accra
-  // is genuinely handing over two loads from two places, and charging one base
-  // fee for both would price a journey that nobody makes.
+  // the key because a seller whose goods gather in two places is genuinely
+  // handing over two loads, and one base fee for both would price a journey
+  // nobody makes.
   return `${line.vendorId}::${line.point?.id ?? ""}`;
 }
 
@@ -942,12 +871,7 @@ function consignmentKey(line: ShipmentLine): string {
  * The base fee is charged once per consignment, and it is the largest base any
  * line in it resolves to: a rule that says a fridge costs GH₵60 to move must
  * not be undercut by a phone case in the same box. Every unit after that first
- * one adds its own line's increment — so the fridge's ninth unit costs what a
- * fridge costs and the phone case's does not.
- *
- * Lines are handed back their share so an order line, a payout and a finance
- * report can each be honest about which seller's freight was whose: the lead
- * line carries the base, every line carries its own increments.
+ * one adds its own line's increment.
  */
 export function quoteConsignments(
   lines: ShipmentLine[],
@@ -958,8 +882,7 @@ export function quoteConsignments(
   const consignments: ConsignmentQuote[] = [];
 
   // Only "auto" lines take part. A free listing is free and a hand-quoted one
-  // already contains its whole journey; folding either into a shared base fee
-  // would charge for a run somebody already decided the price of.
+  // already contains its whole journey.
   const groups = new Map<string, number[]>();
   lines.forEach((line, index) => {
     if (line.method !== "auto") return;
@@ -997,12 +920,15 @@ export function quoteConsignments(
         destPickupId,
         categoryId: line.categoryId,
       });
-      return { index: i, qty: Math.max(1, Math.round(line.quantity)), ...rulePricing(rule, line.size, config.defaults) };
+      return {
+        index: i,
+        qty: Math.max(1, Math.round(line.quantity)),
+        ...rulePricing(rule, line.size, config.defaults),
+      };
     });
 
     // The base belongs to whichever line asks the most for it — and, where two
-    // ask the same, to the one whose extra units are dearest, so the unit that
-    // rides free on the base is the expensive one rather than the cheap one.
+    // ask the same, to the one whose extra units are dearest.
     const lead = priced.reduce((best, p) =>
       p.baseFee > best.baseFee || (p.baseFee === best.baseFee && p.perUnitFee > best.perUnitFee)
         ? p
@@ -1060,10 +986,6 @@ const EMPTY_QUOTE: ShipmentQuote = {
   supplierFreight: 0,
   internationalFreight: 0,
   localFreight: 0,
-  importDuty: 0,
-  clearingFee: 0,
-  tax: 0,
-  originTax: 0,
   billableWeightKg: 0,
   cbm: 0,
   unpricedRoute: false,
@@ -1085,10 +1007,6 @@ export function sumShipping(
       supplierFreight: round(acc.supplierFreight + l.supplierFreight),
       internationalFreight: round(acc.internationalFreight + l.internationalFreight),
       localFreight: round(acc.localFreight + l.localFreight),
-      importDuty: round(acc.importDuty + l.importDuty),
-      clearingFee: round(acc.clearingFee + l.clearingFee),
-      tax: round(acc.tax + l.tax),
-      originTax: round(acc.originTax + l.originTax),
       billableWeightKg: Math.round((acc.billableWeightKg + l.billableWeightKg) * 100) / 100,
       cbm: Math.round((acc.cbm + l.cbm) * 1000) / 1000,
       unpricedRoute: acc.unpricedRoute || l.unpricedRoute,
@@ -1104,10 +1022,10 @@ export function sumShipping(
 /**
  * Price a whole cart to one destination.
  *
- * The international half is priced per line, because a route and a customs
- * regime belong to the goods. The domestic half is priced per seller, because a
- * courier run belongs to the consignment. Each line is then handed its share of
- * its consignment so the parts still add up to the number on the screen.
+ * The international half is priced per line, because a lane belongs to the
+ * goods. The domestic half is priced per seller, because a courier run belongs
+ * to the consignment. Each line is then handed its share of its consignment so
+ * the parts still add up to the number on the screen.
  */
 export function quoteShipment(
   lines: ShipmentLine[],

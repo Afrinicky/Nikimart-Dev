@@ -11,7 +11,6 @@ import { placeOrder } from "@/lib/order-actions";
 import { quoteCart, type CartQuote } from "@/lib/checkout-actions";
 import { emptyBill, type PaymentPlan } from "@/lib/cart-bill";
 import { AbroadTermsPanel } from "@/components/cart/AbroadTermsPanel";
-import { RouteChoice } from "@/components/cart/RouteChoice";
 import { CheckoutBill, PaymentPlanChoice } from "@/components/cart/CheckoutBill";
 
 /**
@@ -43,26 +42,15 @@ export function CheckoutClient({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [acceptedAbroad, setAcceptedAbroad] = useState(false);
-  // Which lane the buyer picked from each forwarder: forwarder id → route id.
-  // Empty means "whatever the forwarder's default is", which is what the server
-  // quotes until they choose.
-  const [routes, setRoutes] = useState<Record<string, string>>({});
-
   // A stable key so the quote refetches only when something that moves the
-  // price changes: the cart, the chosen station, or the chosen routes.
+  // price changes: the cart, or the chosen station. The lane an imported item
+  // travels on is the seller's choice, made when they listed it, so there is
+  // nothing for a buyer to pick between here.
   const itemsKey = useMemo(
     () => items.map((i) => `${i.productId}:${i.quantity}`).join("|"),
     [items],
   );
-  const routesKey = useMemo(
-    () =>
-      Object.entries(routes)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([k, v]) => `${k}=${v}`)
-        .join("|"),
-    [routes],
-  );
-  const quoteKey = `${itemsKey}::${pickupPointId}::${routesKey}`;
+  const quoteKey = `${itemsKey}::${pickupPointId}`;
 
   useEffect(() => {
     // Nothing to quote for an empty cart, and nothing reads the quote either —
@@ -71,7 +59,6 @@ export function CheckoutClient({
     let cancelled = false;
     quoteCart({
       items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
-      routes,
       destPickupId: pickupPointId,
     })
       .then((q) => {
@@ -94,7 +81,7 @@ export function CheckoutClient({
     return () => {
       cancelled = true;
     };
-    // quoteKey captures the meaningful state: the cart, the station, the routes.
+    // quoteKey captures the meaningful state: the cart and the station.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quoteKey, ready]);
 
@@ -106,7 +93,6 @@ export function CheckoutClient({
   // supplemented, the moment the server answers.
   const bill = selected?.bill ?? emptyBill(subtotal, 0);
   const abroadItems = quote?.items ?? [];
-  const routeGroups = quote?.routeGroups ?? [];
   const consignments = quote?.consignments ?? [];
   const moqAdjustments = quote?.moqAdjustments ?? [];
   const dueNow = plan === "shipping_on_pickup" ? bill.goodsOnlyNow : bill.total;
@@ -147,7 +133,6 @@ export function CheckoutClient({
       pickupPointId,
       acceptedAbroadTerms: acceptedAbroad,
       paymentPlan: plan,
-      routeChoices: routes,
     });
     if (res.ok) {
       if (res.authorizationUrl) {
@@ -256,15 +241,6 @@ export function CheckoutClient({
             )}
           </div>
         </div>
-
-        <RouteChoice
-          groups={routeGroups}
-          chosen={routes}
-          onChoose={(forwarderId, routeId) =>
-            setRoutes((prev) => ({ ...prev, [forwarderId]: routeId }))
-          }
-          disabled={loadingQuote}
-        />
 
         <AbroadTermsPanel
           items={abroadItems}

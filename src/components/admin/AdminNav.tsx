@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { ActionLink } from "@/components/ui/motion";
 import {
+  ClipboardList,
   GalleryHorizontalEnd,
   HelpCircle,
   LayoutGrid,
@@ -38,6 +39,7 @@ const TABS = [
   { href: "/admin/locations", label: "Locations", icon: MapPin },
   { href: "/admin/pickup-points", label: "Pickup", icon: PackageCheck },
   { href: "/admin/shipping", label: "Shipping", icon: Truck },
+  { href: "/admin/purchasing", label: "Order placement", icon: ClipboardList },
   { href: "/admin/faqs", label: "FAQs", icon: HelpCircle },
   { href: "/admin/legal", label: "Policies", icon: Scale },
   { href: "/admin/settings", label: "Settings", icon: Settings },

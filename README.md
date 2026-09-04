@@ -96,6 +96,7 @@ idempotent, and records itself in `_prisma_migrations` so a later
 | Shipped from Abroad (arrival points, rates, landed-cost columns) | `db/migrations/0005_shipped_from_abroad.sql` — applied automatically at build |
 | One shipping system (consolidation points, rules, forwarders) | `db/migrations/0006_shipping_hub.sql` — applied automatically at build |
 | Per-seller local fees, forwarder routes, currencies, MOQ | `db/migrations/0007_shipping_simplification.sql` — applied automatically at build |
+| Forwarders rebuilt (their own Ghana points, rate grid, order placement) | `db/migrations/0008_freight_forwarder_rebuild.sql` — applied automatically at build |
 | Commission + seller payouts | `nikimart-neon-commission.sql` |
 | Affiliates (Finance console) | `nikimart-neon-affiliates.sql` |
 | Data bundle storefront | `nikimart-neon-data-bundles.sql` |
@@ -146,6 +147,8 @@ Signed in as an **Admin**, `/admin` is a full operator console (tabbed shell):
 - **Products / Shops / Categories / Users** — create, edit, delete; shops have
   verify/unverify; users have role assignment.
 - **Orders** — inline status changes.
+- **Order placement** — when to buy the imported goods, and the record of having
+  bought them (see below).
 - **Data** — the data bundle storefront: prices, orders, AFA (see below).
 - **Pages** — a section-based **page builder** (see below).
 
@@ -178,6 +181,10 @@ Deleting a record that carries money is refused or downgraded to an archive:
   orders cascade from `User`.
 - Orders can only be deleted once **cancelled**. Cancelling also returns the
   reserved stock.
+- A **freight forwarder** is the exception, and deliberately: deleting one
+  deletes their consolidation points, classes, lanes and rates too. Listings
+  that pointed at any of it keep their own record and are left pointing at
+  nothing, which the listing form then asks the seller to fix.
 
 ## Page builder
 
@@ -229,8 +236,9 @@ Shipping configuration used to live in three places — a rate matrix under
 Shipping, an Arrival points tab, and a slice of Settings — so nobody could see a
 fee's whole configuration at once and a rate set in one place could quietly
 contradict a rate set in another. It is all under **`/admin/shipping`** now, in
-five screens: Overview (the platform defaults), Points, Inside Ghana,
-Forwarders, and Currencies.
+five screens: Overview (the platform defaults), Local points, Inside Ghana,
+Forwarders, and Currencies. When to actually *buy* the imported goods is its own
+console: **`/admin/purchasing`**.
 
 ### The journey
 
@@ -242,11 +250,17 @@ A consolidation point may *sit at* a pickup station, and that link is the point
 of the whole model: when it does, a buyer collecting there pays **nothing**,
 because the goods are already in the room. Nobody configures a zero.
 
-Points are admin-owned (`/admin/shipping/points`) and come in two kinds: local,
-where goods that never left Ghana gather, and international, where imported
-consignments land and clear. The table behind them is still called
-`ArrivalPoint` — every listing, order line and shipment already points at it,
-and migrations here are additive by rule.
+Points come in two kinds, and the difference is **ownership**. A *local* point
+is NikiMart's, created under `/admin/shipping/points`. An *international* point
+is a freight forwarder's own warehouse in Ghana, created on their registration
+page and usable by nobody else — two forwarders sharing one was always a fiction,
+and it is what let a seller pick a landing point nobody was carrying goods to.
+
+The run out of a forwarder's warehouse is priced by exactly the same rules as
+any other: Sunyani to a Hwidiem pickup station is a row under Inside Ghana, and
+if the customer collects at the warehouse's own station it is free. The table
+behind all of this is still called `ArrivalPoint` — every listing, order line and
+shipment already points at it, and migrations here are additive by rule.
 
 ### Pricing the run inside Ghana
 
@@ -298,28 +312,44 @@ listing:
    country (the buyer pays that hop), and the forwarder's rate brings it the
    rest of the way.
 
-Forwarders are admin-owned (`/admin/shipping/abroad`), and each holds their own
-rate sheet — shaped the way their real one is, because a forwarder does not have
-"a rate":
+Forwarders are admin-owned (`/admin/shipping/forwarders`) and registered in one
+window, because their profile is one thing and half of it cannot quote. Each
+holds their own rate sheet, shaped the way their real one is:
 
 ```
-FreightForwarder            who they are, and the currency they quote in
-├── goods classes           theirs, not ours: Normal, Special, Heavy-Duty
-│   └── levy per CBM        rides on the class: energy commission, FDA
-├── category mapping        our categories → their classes, set once
-└── routes                  one lane each: origin, mode, Ghana point,
-    └── price per class     currency, transit window
+FreightForwarder            who they are, where they collect, where their
+│                           Ghana address is, the currency they quote in
+├── consolidation points    their own warehouses in Ghana. One grid each.
+├── goods classes           theirs, not ours — the rows of every grid
+│   └── levy in CBM         the special levy, as extra cubic metres
+├── category mapping        our categories → their classes, as a grid
+└── lanes                   one mode into one warehouse — the columns
+    ├── rate per CBM        the cell, or blank for "we don't carry that"
+    ├── delivery estimate   per mode, because sea and air are not the same
+    ├── minimum CBM         what they will not ship under
+    └── order frequency     when purchases actually go out. Internal.
 ```
 
-So "China → Accra by sea: normal $260, special $280, heavy-duty $300; China →
-Kumasi: $280, $285, $350; air, 7–14 days, priced by the kilo" is four rows and
-two routes rather than something the model has to be argued with. A price may
-also carry a **minimum CBM**, which is how a quote sheet says "normal goods under
-1 CBM — $260".
+So one grid is "origin → Sunyani": normal goods by sea in one cell, special in
+the next, heavy-duty in the third, with an air column beside them and blanks
+where that mode will not take that class. Another warehouse is another grid.
+Rows and columns are added as you go, and a blank cell is a real answer — the
+listing form refuses that combination rather than falling through to a price
+meant for something else.
 
 Their classes are deliberately not our categories: ours are what a shopper
 browses, theirs are what a container is priced by, and no amount of renaming
 "Fashion" makes it a thing a shipping line quotes.
+
+**The forwarder's rate is the whole leg.** No platform duty, VAT, clearing fee
+or fallback rate is added on top of it — whatever they paid at a port is already
+inside the number they quoted, and charging any of it again billed the buyer
+twice for one thing. A lane nobody has priced is **refused**, not quoted at
+zero.
+
+Deleting a forwarder deletes them: their warehouses, classes, lanes and prices
+go too. Deactivating instead was the old behaviour and it was the wrong one —
+the code stayed taken and the warehouses stayed in the database.
 
 ### Currencies
 
@@ -331,25 +361,23 @@ would mean retyping every rate on the day the cedi moved. A currency nobody has
 priced converts one-for-one — visibly wrong rather than invisibly zero — and the
 Overview says so.
 
-### Choosing a route
+### Choosing a lane
 
-Where a forwarder sells more than one lane, the **buyer** picks at checkout,
-because sea at 35–45 days and air at 7–14 are two different products and only
-they know which one they want. Each option shows what the whole cart's shipping
-comes to on that lane and how long it takes; the chosen route and its promised
-window are snapshotted onto the order line.
+The **seller** chooses, on the listing, in the order the goods travel: which
+forwarder, which of *their* Ghana warehouses, and which of the modes they run
+into it. The rate appears as soon as the category and the dimensions are in —
+the category decides the forwarder's class, the dimensions decide the cubic
+metres, and those two are the whole of their price. The cubic metres are worked
+out from L×W×H; a seller never divides by a million.
 
-A forwarder's rate normally covers the carriage, the port fees, the duty and the
-taxes up to their Ghana point — that is what **"their price covers everything to
-Ghana"** means on the forwarder form, and it is why nothing is added on top of
-it. Untick it and duty, clearing and Ghana VAT are assessed on the landed value
-instead (goods plus the freight that got them here; VAT on that plus the duty —
-customs practice, not intuition).
+The seller also enters what the supplier charges to reach the forwarder's
+warehouse abroad, so the estimate on the form is the whole journey: to the
+forwarder, into Ghana, and on to the buyer's station.
 
-A route nobody has priced is **refused**, not quoted at zero: an unpriced sea
-container sold at the price of the courier run at the other end is a loss nobody
-notices until the invoice arrives. An admin who prefers a guess to a refusal can
-set a fallback ₵/CBM.
+The lane and its promised window are snapshotted onto the order line. There is
+no buyer-side choice at checkout: the seller already made it, and offering sea
+for one carton and air for the next out of the same warehouse would be selling
+something nobody ships.
 
 ### Special shipments
 
@@ -362,14 +390,11 @@ shipping** is the third method, where the seller absorbs the cost.
 
 Two numbers: the item price, and the shipping to the station they chose.
 
-The freight legs, the import duty, the clearing and both tax jurisdictions are
+Three legs — to the forwarder abroad, into Ghana, and on to the station — are
 all real, all charged, and all **inside that second number**. They are kept
-itemised on the order and its lines — an admin has to be able to answer "why
-GH₵240?", a seller's payout must not be computed off freight they never charged,
-and the finance reports need to tell a courier run from a customs bill — but
-none of it is ever a row on a buyer's screen. An eight-row bill did not read as
-transparency; it read as a list of things being charged for, none of which a
-buyer can audit.
+itemised on the order and its lines, because an admin has to be able to answer
+"why GH₵240?" and a seller's payout must not be computed off freight they never
+charged, but none of it is ever a row on a buyer's screen.
 
 ### Paying
 
@@ -379,6 +404,34 @@ only when the platform allows it and every seller on the order has ticked *let
 buyers pay the shipping when they collect*. The buyer then carries any rate
 movement in between, which the checkout says plainly before they choose it. The
 order stores the plan, what was paid and what is outstanding.
+
+## Order placement
+
+**`/admin/purchasing`** answers the question nothing answered before: when is it
+time to place the international orders?
+
+A customer pays for one pair of shoes. No forwarder will ship one pair of shoes
+— they have a minimum consignment, and it is measured from the supplier. So the
+line waits, and what it waits for is *other lines going to the same supplier*: a
+supplier who sells shoes also sells bags and sandals, and everything bought from
+them on one day is packed into one parcel and consolidated once.
+
+One row in the queue is therefore one supplier, on one lane, for one seller —
+the parcel that will be shipped. It turns green when its volume clears that
+lane's **minimum CBM**, or when the lane's **order frequency** next comes round;
+either is a reason to buy, and neither of them is "somebody remembered". The
+supplier's link, name and contact are on the row, taken from the listing, so the
+admin placing the order goes straight to the item.
+
+Placing an order records a purchase with a reference and attaches the customer
+lines it covers, which is what takes them out of the queue. The attachment is
+scoped in the same query that writes it, so two admins working the queue at once
+cannot buy the same goods twice. Cancelling a purchase releases its lines back.
+
+**Only an admin places an order** — it spends the platform's money with a
+supplier abroad. Sellers see the same queue for their own shop at
+`/seller/purchasing`, read-only, so they can answer the question their customers
+keep asking without being able to buy.
 
 ## Shipped from Abroad
 
@@ -408,7 +461,9 @@ when they are ready to collect.
 | --- | --- |
 | The fee engine: weight, rules, forwarder rates, the free-at-origin rule (pure, unit-tested) | `src/lib/shipping.ts` |
 | Loading points, forwarders, rules and defaults | `src/lib/shipping-config.ts` |
-| Admin CRUD for all of it | `src/lib/shipping-admin-actions.ts` |
+| Our points, the domestic rules, the defaults, the exchange rates | `src/lib/shipping-admin-actions.ts` |
+| A forwarder's whole profile, saved as one thing | `src/lib/forwarder-actions.ts` |
+| The order-placement queue and its purchases | `src/lib/purchasing.ts`, `src/lib/purchasing-actions.ts` |
 | Cart pricing, server-side | `src/lib/cart-pricing.ts` |
 | The bill's shape and the payment plans (pure, client-safe) | `src/lib/cart-bill.ts` |
 | Checkout's quote | `src/lib/checkout-actions.ts` |

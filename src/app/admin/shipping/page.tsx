@@ -5,7 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { ExportButton } from "@/components/admin/ExportButton";
 import { ShippingDefaultsForm } from "@/components/admin/ShippingDefaultsForm";
 import { describePoint } from "@/lib/shipping";
-import { getConsolidationPoints, getShippingHealth } from "@/lib/shipping-config";
+import { getLocalConsolidationPoints, getShippingHealth } from "@/lib/shipping-config";
 import { getSettings } from "@/lib/settings";
 
 export const metadata: Metadata = { title: "Shipping — Admin — Nickimart" };
@@ -22,20 +22,20 @@ export const dynamic = "force-dynamic";
 export default async function AdminShippingPage() {
   const [health, points, settings] = await Promise.all([
     getShippingHealth(),
-    getConsolidationPoints(),
+    getLocalConsolidationPoints(),
     getSettings(),
   ]);
 
   const steps = [
     {
-      done: health.points > 0,
+      done: health.localPoints > 0,
       href: "/admin/shipping/points",
       icon: MapPin,
-      title: "Create your consolidation points",
+      title: "Create your local points",
       body:
-        health.points > 0
-          ? `${health.points} point${health.points === 1 ? "" : "s"} — ${health.localPoints} local, ${health.internationalPoints} international. ${health.pointsAtPickup} sit${health.pointsAtPickup === 1 ? "s" : ""} at a pickup station, so collecting there is free.`
-          : "Where goods are gathered and checked before a courier takes them to a buyer. Nothing else can be priced until these exist.",
+        health.localPoints > 0
+          ? `${health.localPoints} of our own, and ${health.forwarderPoints} belonging to forwarders. ${health.pointsAtPickup} sit${health.pointsAtPickup === 1 ? "s" : ""} at a pickup station, so collecting there is free.`
+          : "Where goods that never left Ghana are gathered and checked. A forwarder's own warehouses are created on their page, not here.",
     },
     {
       done: health.rules > 0,
@@ -45,17 +45,17 @@ export default async function AdminShippingPage() {
       body:
         health.rules > 0
           ? `${health.rules} rule${health.rules === 1 ? "" : "s"} on top of the defaults below.`
-          : "Optional — the defaults below already price every route. Add a rule to fix a price for a route, a category, or both.",
+          : "This is also the run out of a forwarder's warehouse: Sunyani to a Hwidiem pickup station is a rule here.",
     },
     {
-      done: health.forwardersWithRoutes > 0,
-      href: "/admin/shipping/abroad",
+      done: health.forwardersWithRates > 0,
+      href: "/admin/shipping/forwarders",
       icon: Plane,
-      title: "Add the forwarders who bring goods in",
+      title: "Register the forwarders who bring goods in",
       body:
         health.forwarders > 0
-          ? `${health.forwarders} forwarder${health.forwarders === 1 ? "" : "s"}, ${health.forwardersWithRoutes} with a priced route. ${health.routes} route${health.routes === 1 ? "" : "s"} in total.`
-          : "Only needed for imports a supplier does not deliver to Ghana themselves. Each keeps their own classes of goods, lanes and prices.",
+          ? `${health.forwarders} forwarder${health.forwarders === 1 ? "" : "s"}, ${health.forwardersWithRates} with a priced grid, ${health.routes} lane${health.routes === 1 ? "" : "s"} in total.`
+          : "Only needed for imports a supplier does not deliver to Ghana themselves. Each holds their own warehouses, classes of goods and rate grid.",
     },
     {
       done: health.unratedCurrencies.length === 0,
@@ -65,7 +65,7 @@ export default async function AdminShippingPage() {
       body:
         health.unratedCurrencies.length > 0
           ? `${health.unratedCurrencies.join(", ")} still convert one-for-one, so freight quoted in ${health.unratedCurrencies.length === 1 ? "it" : "them"} is being charged at face value.`
-          : "Forwarders quote in their own currency; buyers pay cedis. Correct a rate here and every route priced in it moves with it.",
+          : "Forwarders quote in their own currency; buyers pay cedis. Correct a rate here and every lane priced in it moves with it.",
     },
   ];
 
@@ -75,9 +75,9 @@ export default async function AdminShippingPage() {
         <p className="max-w-2xl text-sm text-niki-ink/65">
           One seller&apos;s goods are one consignment: gathered at a consolidation point, checked,
           and couriered to the pickup station the buyer chose — a base fee once, plus a small
-          increment for each extra item. Goods from abroad have one leg in front of that: either the
-          supplier delivers them to Ghana, or a forwarder carries them on a lane the buyer chooses.
-          Buyers see the item price and one shipping figure; the duty and taxes live inside it.
+          increment for each extra item. Goods from abroad have one leg in front of that: either
+          the supplier delivers them to Ghana, or a forwarder carries them to their own warehouse
+          here and their rate per cubic metre is the whole cost of it.
         </p>
         <ExportButton dataset="shipping" />
       </div>
@@ -101,24 +101,7 @@ export default async function AdminShippingPage() {
           <span>
             {health.unpricedListings} imported listing{health.unpricedListings === 1 ? "" : "s"} name
             no forwarder and no supplier delivery, so freight into Ghana can&apos;t be quoted and
-            they can&apos;t be bought. Assign a forwarder on the listing, or set a fallback rate per
-            CBM under <Link href="/admin/shipping/abroad" className="underline">Forwarders</Link>.
-          </span>
-        </p>
-      ) : null}
-
-      {health.forwardersOnLegacyRates > 0 ? (
-        <p className="flex items-start gap-2 rounded-2xl bg-niki-gold/15 px-4 py-3 text-sm text-amber-900">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            {health.forwardersOnLegacyRates} forwarder
-            {health.forwardersOnLegacyRates === 1 ? " is" : "s are"} still on the old flat price
-            list. They keep quoting, but they cannot offer a buyer a choice of lane or a delivery
-            estimate until their routes are set up.{" "}
-            <Link href="/admin/shipping/abroad" className="font-semibold underline">
-              Move them over
-            </Link>
-            .
+            they can&apos;t be bought. Assign a forwarder and a lane on the listing.
           </span>
         </p>
       ) : null}

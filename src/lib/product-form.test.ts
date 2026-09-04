@@ -150,7 +150,8 @@ test("switching away from shipped-from-abroad leaves no freight behind", () => {
   assert.equal(data.arrivalPointId, null);
   assert.equal(data.supplierFreight, 0);
   assert.equal(data.originCountry, "");
-  assert.equal(data.freightIncluded, false);
+  assert.equal(data.supplierDelivers, false);
+  assert.equal(data.forwarderRouteId, null);
   assert.equal(data.preorderInfo, null);
 });
 
@@ -167,10 +168,10 @@ test("the abroad columns are mirrored out of the submitted terms", () => {
         supplierName: "Shenzhen Kaiyuan",
         consolidationPointId: "cp-kia",
         forwarderId: "fw-gz",
+        routeId: "rt-sea",
         supplierDelivers: false,
         supplierFreight: 90,
-        originTaxRate: 13,
-        ghanaTaxRate: -1,
+        supplierContact: "+86 000 000 0000",
       }),
     }),
   );
@@ -179,12 +180,11 @@ test("the abroad columns are mirrored out of the submitted terms", () => {
   assert.equal(data.supplierName, "Shenzhen Kaiyuan");
   assert.equal(data.arrivalPointId, "cp-kia");
   assert.equal(data.forwarderId, "fw-gz");
+  // The lane, mirrored out too: it is what prices the leg into Ghana.
+  assert.equal(data.forwarderRouteId, "rt-sea");
   assert.equal(data.supplierDelivers, false);
   assert.equal(data.supplierFreight, 90);
-  assert.equal(data.originTaxRate, 13);
-  // A negative rate means "use the platform rate"; the column says so with
-  // null rather than storing a nonsense negative percentage.
-  assert.equal(data.ghanaTaxRate, null);
+  assert.equal(data.supplierContact, "+86 000 000 0000");
 });
 
 test("switching a listing off the abroad type leaves no freight behind", () => {

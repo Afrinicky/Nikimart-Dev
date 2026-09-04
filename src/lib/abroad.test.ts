@@ -21,6 +21,7 @@ import {
 const FULL: AbroadTerms = {
   sourceUrl: "https://www.alibaba.com/product-detail/widget",
   supplierName: "Shenzhen Kaiyuan Trading Co.",
+  supplierContact: "+86 000 000 0000",
   sourceLocation: "Guangzhou, China",
   originCountry: "CN",
   estimatedArrival: "4–6 weeks from order",
@@ -29,10 +30,8 @@ const FULL: AbroadTerms = {
   supplierDelivers: false,
   forwarderId: "fw-gz",
   consolidationPointId: "cp-tema",
+  routeId: "rt-sea",
   supplierFreight: 40,
-  originTaxRate: 13,
-  ghanaTaxRate: 21.9,
-  dutyIncluded: false,
   balanceInstruction: "Shipping settled when you collect in Accra.",
   refundPolicy: "Full refund if it has not arrived within 10 weeks.",
 };
@@ -79,8 +78,8 @@ test("a legacy preorder record still parses", () => {
   assert.equal(terms.supplierFreight, 0);
   assert.equal(terms.forwarderId, "");
   assert.equal(terms.consolidationPointId, "");
-  // No listing-level Ghana tax rate means "use the platform rate".
-  assert.equal(terms.ghanaTaxRate, -1);
+  // A lane nobody named is no lane: the listing form asks for one.
+  assert.equal(terms.routeId, "");
   assert.equal("closingDate" in terms, false);
 });
 

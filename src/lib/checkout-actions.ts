@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { freightModeLabel, type AbroadTerms } from "@/lib/abroad";
 import { describePoint, describeTransit } from "@/lib/shipping";
-import { priceCartAtPoints, routeOptionsFor, type RouteGroup } from "@/lib/cart-pricing";
+import { priceCartAtPoints } from "@/lib/cart-pricing";
 import type { CartBill } from "@/lib/cart-bill";
 
 /**
@@ -24,8 +24,6 @@ const schema = z.object({
   items: z
     .array(z.object({ productId: z.string().min(1), quantity: z.number().int().min(1).max(9999) }))
     .max(200),
-  /** forwarder id → the route the buyer picked for it. */
-  routes: z.record(z.string(), z.string()).optional(),
 });
 
 /** One imported line's promises, for the acceptance panel. */
@@ -78,8 +76,6 @@ export interface MoqWarning {
 export interface CartQuote {
   points: PickupQuote[];
   items: CartAbroadItem[];
-  /** The lanes on offer, per forwarder, priced and with their transit windows. */
-  routeGroups: RouteGroup[];
   /** How the courier run splits between sellers, at the selected station. */
   consignments: ConsignmentLine[];
   hasAbroad: boolean;
@@ -94,7 +90,6 @@ export interface CartQuote {
 const EMPTY: CartQuote = {
   points: [],
   items: [],
-  routeGroups: [],
   consignments: [],
   hasAbroad: false,
   payShippingOnPickup: false,
@@ -113,13 +108,11 @@ const EMPTY: CartQuote = {
  */
 export async function quoteCart(input: {
   items: { productId: string; quantity: number }[];
-  routes?: Record<string, string>;
   /** The station the buyer has selected, for the per-seller breakdown. */
   destPickupId?: string;
 }): Promise<CartQuote> {
   const parsed = schema.safeParse(input);
   if (!parsed.success || parsed.data.items.length === 0) return EMPTY;
-  const routes = parsed.data.routes ?? {};
 
   try {
     const points = await prisma.pickupPoint.findMany({
@@ -131,14 +124,10 @@ export async function quoteCart(input: {
     // Priced at every station in one pass. `base` is the same cart with no
     // destination — which lines are imported, what was promised, whether a
     // route is unpriced — none of which changes with the station.
-    const [{ base, byPoint }, routeGroups] = await Promise.all([
-      priceCartAtPoints(
-        parsed.data.items,
-        points.map((p) => p.id),
-        routes,
-      ),
-      routeOptionsFor(parsed.data.items, points[0]?.id ?? "", routes),
-    ]);
+    const { base, byPoint } = await priceCartAtPoints(
+      parsed.data.items,
+      points.map((p) => p.id),
+    );
 
     const items: CartAbroadItem[] = base.lines
       .filter((l) => l.abroad && l.terms)
@@ -148,7 +137,7 @@ export async function quoteCart(input: {
         quantity: l.quantity,
         terms: l.terms!,
         pointName: l.point ? describePoint(l.point) : "",
-        freightModeLabel: freightModeLabel(l.route?.mode ?? l.forwarder?.mode),
+        freightModeLabel: freightModeLabel(l.route?.mode),
         routeLabel: l.route?.name || "",
         transit: l.route ? describeTransit(l.route.minDays, l.route.maxDays) : "",
         unpricedRoute: l.unpricedRoute,
@@ -196,7 +185,6 @@ export async function quoteCart(input: {
     return {
       points: quoted,
       items,
-      routeGroups,
       consignments,
       hasAbroad: base.hasAbroad,
       payShippingOnPickup: base.payShippingOnPickup,

@@ -207,6 +207,54 @@ export function ShippingDefaultsForm({
         </div>
       </section>
 
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
+        <h2 className="font-display text-lg font-bold text-niki-ink">Paying for shipping</h2>
+        <p className="mt-1 max-w-3xl text-sm text-niki-ink/60">
+          Buyers always pay the full item price at checkout — that is money the seller spends as
+          soon as they fulfil the order. The shipping is the part that can wait, and each seller
+          decides per listing whether it does. This is the platform-wide switch.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Field label="Settle shipping at collection" htmlFor="shipPayOnPickupEnabled">
+            <select
+              id="shipPayOnPickupEnabled"
+              name="shipPayOnPickupEnabled"
+              defaultValue={settings.shipPayOnPickupEnabled}
+              className={inputClass}
+            >
+              <option value="1">Allowed — sellers choose per listing</option>
+              <option value="0">Off — everyone pays shipping at checkout</option>
+            </select>
+          </Field>
+        </div>
+      </section>
+
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
+        <h2 className="font-display text-lg font-bold text-niki-ink">The public page</h2>
+        <p className="mt-1 text-sm text-niki-ink/60">
+          The heading and blurb on <span className="font-medium">/shipped-from-abroad</span>.
+        </p>
+        <div className="mt-4 grid gap-4">
+          <Field label="Page heading" htmlFor="abroadPageTitle">
+            <input
+              id="abroadPageTitle"
+              name="abroadPageTitle"
+              defaultValue={settings.abroadPageTitle}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Page intro" htmlFor="abroadPageIntro">
+            <textarea
+              id="abroadPageIntro"
+              name="abroadPageIntro"
+              rows={2}
+              defaultValue={settings.abroadPageIntro}
+              className={inputClass}
+            />
+          </Field>
+        </div>
+      </section>
+
       <div className="flex items-center gap-3">
         <div className="w-44">
           <SubmitButton>Save</SubmitButton>

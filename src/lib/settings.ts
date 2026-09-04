@@ -90,11 +90,6 @@ export const SETTINGS_DEFAULTS = {
   socialTiktok: "",
   socialYoutube: "",
   socialWhatsapp: "",
-  // Overseas shipping lead times (days to arrive in Ghana), per origin.
-  leadDaysCN: "21",
-  leadDaysAE: "14",
-  leadDaysUS: "21",
-  leadDaysEU: "21",
   // --- Shipping: the domestic leg -------------------------------------------
   // Goods gather at a consolidation point, are checked, and are couriered to
   // the buyer's pickup station. One seller's goods are one consignment, and it
@@ -116,18 +111,9 @@ export const SETTINGS_DEFAULTS = {
   // The consolidation point a listing with none of its own falls back to.
   shipDefaultPointId: "",
   // --- Shipping: from abroad ------------------------------------------------
-  // Fallback GH₵ per CBM when a listing's route matches no forwarder price.
-  // Zero means "refuse to quote", which is the safe default: an unpriced sea
-  // container sold at the price of the courier run is a loss nobody notices
-  // until the invoice arrives.
-  shipFallbackRatePerCbm: "0",
-  // Ghana VAT + levies (percent) applied to the landed value plus duty of an
-  // imported order, when a listing doesn't set its own rate. 15% VAT plus the
-  // NHIL/GETFund/COVID levies is the usual standing figure.
-  ghanaImportTaxRate: "21.9",
-  // Fallback Ghana import duty (percent of CIF) for an arrival point that has
-  // not had its own duty set.
-  defaultImportDutyPercent: "20",
+  // Nothing platform-wide prices the leg from abroad any more. A forwarder's
+  // own grid does, in their own currency, and their lanes carry their own
+  // delivery estimates — so a default here could only contradict one of them.
   // Whether a buyer may settle the shipping when they collect instead of at
   // checkout. The goods are always paid for in full at checkout. "0" turns the
   // option off everywhere; a listing can still decline it on its own.
@@ -213,23 +199,12 @@ export async function getStaffNotifyChannel(): Promise<NotifyChannel> {
   return v === "sms" || v === "email" || v === "both" ? v : "both";
 }
 
-/** Configured overseas lead time (days) for an origin country code. */
-export async function getLeadDays(countryCode: string): Promise<number> {
-  const settings = await getSettings();
-  const key = `leadDays${countryCode}` as SettingKey;
-  const raw = key in settings ? Number(settings[key]) : NaN;
-  return Number.isFinite(raw) && raw >= 0 ? raw : 21;
-}
 
 // ---------------------------------------------------------------------------
 // Shipped from abroad
 // ---------------------------------------------------------------------------
 
 export interface AbroadConfig {
-  /** Ghana VAT + levies (percent) on the landed value plus duty. */
-  ghanaTaxRate: number;
-  /** Fallback import duty (percent of CIF) when an arrival point sets none. */
-  defaultDutyPercent: number;
   /** Whether shipping may be settled at collection rather than at checkout. */
   payOnPickupEnabled: boolean;
   /** The consolidation point a listing with none of its own falls back to. */
@@ -241,16 +216,7 @@ export interface AbroadConfig {
 /** Platform-level settings for the shipped-from-abroad system. */
 export async function getAbroadConfig(): Promise<AbroadConfig> {
   const settings = await getSettings();
-  const numOr = (raw: string, fallback: number) => {
-    const n = Number(raw);
-    return Number.isFinite(n) && n >= 0 && n <= 100 ? n : fallback;
-  };
   return {
-    ghanaTaxRate: numOr(settings.ghanaImportTaxRate, Number(SETTINGS_DEFAULTS.ghanaImportTaxRate)),
-    defaultDutyPercent: numOr(
-      settings.defaultImportDutyPercent,
-      Number(SETTINGS_DEFAULTS.defaultImportDutyPercent),
-    ),
     // Anything but an explicit off keeps the option available, so a half-written
     // value never quietly removes a payment plan buyers were relying on.
     payOnPickupEnabled: !["0", "off", "false", "no"].includes(

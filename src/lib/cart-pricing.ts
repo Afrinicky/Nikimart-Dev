@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { ABROAD_TYPES, parseAbroadTerms, type AbroadTerms } from "@/lib/abroad";
 import {
   clampToMoq,
-  describeRoute,
   isImported,
   isShippingMethod,
   normaliseMoq,
@@ -35,13 +34,11 @@ import { emptyBill, type CartBill } from "@/lib/cart-bill";
  * client never computes any of this; it renders what this returns.
  *
  * What a buyer sees is two numbers: what the goods cost and what it costs to
- * put them in their hands. The freight legs, the duty, the clearing and the two
- * tax jurisdictions are all real and all charged, and all of them are inside
- * that second number. They are kept, itemised, on the bill's `components` — an
- * admin has to be able to answer "why GH₵240?", a seller's payout must not be
- * computed off freight they never charged, and the finance reports need to tell
- * a courier run from a customs bill. None of it is ever a row on a buyer's
- * screen.
+ * put them in their hands. The three freight legs are all real and all charged,
+ * and all of them are inside that second number. They are kept, itemised, on
+ * the bill's `components` — an admin has to be able to answer "why GH₵240?",
+ * and a seller's payout must not be computed off freight they never charged.
+ * None of it is ever a row on a buyer's screen.
  *
  * The courier run is priced per seller, not per line: one shop's goods are one
  * consignment, one base fee and one increment per extra unit. See lib/shipping.
@@ -132,10 +129,9 @@ const PRODUCT_SELECT = {
   manualShippingFee: true,
   supplierDelivers: true,
   forwarderId: true,
+  forwarderRouteId: true,
   shippingOnPickup: true,
   supplierFreight: true,
-  originTaxRate: true,
-  ghanaTaxRate: true,
   vendor: {
     select: { originPickupId: true, originCountry: true, consolidationPointId: true },
   },
@@ -161,10 +157,9 @@ type PricedProduct = {
   manualShippingFee: number;
   supplierDelivers: boolean;
   forwarderId: string | null;
+  forwarderRouteId: string | null;
   shippingOnPickup: boolean;
   supplierFreight: number;
-  originTaxRate: number;
-  ghanaTaxRate: number | null;
   vendor: {
     originPickupId: string | null;
     originCountry: string;
@@ -203,17 +198,6 @@ const EMPTY_PRICING: CartPricing = {
   allCollectedAtOrigin: false,
   consignments: [],
 };
-
-/**
- * Which route the buyer picked for each forwarder.
- *
- * Keyed on the forwarder rather than the line, because goods that one forwarder
- * consolidates travel together: offering a buyer sea freight for one carton and
- * air for the next out of the same warehouse would be selling something nobody
- * ships. An unknown id falls back to the forwarder's default route, in the
- * engine, where the choice can be checked against what actually exists.
- */
-export type RouteChoices = Record<string, string>;
 
 /** Everything the maths needs, fetched once. */
 interface PricingContext {
@@ -254,12 +238,11 @@ async function loadContext(productIds: string[]): Promise<PricingContext> {
 export async function priceCart(
   items: PricedLineInput[],
   destPickupId: string,
-  routes: RouteChoices = {},
 ): Promise<CartPricing> {
   const wanted = items.filter((i) => i.productId && i.quantity > 0).slice(0, 200);
   if (wanted.length === 0) return EMPTY_PRICING;
   const ctx = await loadContext([...new Set(wanted.map((i) => i.productId))]);
-  return priceWith(ctx, wanted, destPickupId, routes);
+  return priceWith(ctx, wanted, destPickupId);
 }
 
 /**
@@ -274,48 +257,16 @@ export async function priceCart(
 export async function priceCartAtPoints(
   items: PricedLineInput[],
   destPickupIds: string[],
-  routes: RouteChoices = {},
 ): Promise<{ base: CartPricing; byPoint: Map<string, CartPricing> }> {
   const wanted = items.filter((i) => i.productId && i.quantity > 0).slice(0, 200);
   if (wanted.length === 0) return { base: EMPTY_PRICING, byPoint: new Map() };
 
   const ctx = await loadContext([...new Set(wanted.map((i) => i.productId))]);
   const byPoint = new Map<string, CartPricing>();
-  for (const id of destPickupIds) byPoint.set(id, priceWith(ctx, wanted, id, routes));
+  for (const id of destPickupIds) byPoint.set(id, priceWith(ctx, wanted, id));
   // Priced with no destination: what describes the cart itself, which does not
   // change with the pickup point.
-  return { base: priceWith(ctx, wanted, "", routes), byPoint };
-}
-
-/**
- * Every route a buyer could be offered for this cart, priced.
- *
- * One group per forwarder that actually carries something in the cart, with
- * what the whole cart costs on each of that forwarder's lanes. It is the
- * difference between "air or sea?" — a question nobody can answer — and "air,
- * 7–14 days, GH₵410; sea, 35–45 days, GH₵180", which anybody can.
- */
-export interface RouteOption {
-  routeId: string;
-  label: string;
-  mode: string;
-  minDays: number;
-  maxDays: number;
-  destinationName: string;
-  note: string;
-  /** What the whole cart's shipping comes to with this route chosen. */
-  fee: number;
-  /** True when this lane has no price for the goods in the cart. */
-  unpriced: boolean;
-}
-
-export interface RouteGroup {
-  forwarderId: string;
-  forwarderName: string;
-  /** The lines this forwarder carries, by name, for the picker's subtitle. */
-  itemNames: string[];
-  selectedRouteId: string;
-  options: RouteOption[];
+  return { base: priceWith(ctx, wanted, ""), byPoint };
 }
 
 /**
@@ -338,7 +289,6 @@ function resolvePoint(p: PricedProduct, terms: AbroadTerms | null, ctx: PricingC
 function buildLines(
   ctx: PricingContext,
   wanted: PricedLineInput[],
-  routes: RouteChoices,
 ): { shipment: ShipmentLine[]; meta: PricedProduct[]; requested: number[] } {
   const shipment: ShipmentLine[] = [];
   const meta: PricedProduct[] = [];
@@ -378,12 +328,12 @@ function buildLines(
       originCountry: origin,
       point,
       forwarder,
-      routeId: forwarderId ? (routes[forwarderId] ?? null) : null,
+      // The lane the seller set the listing up on. There is no buyer-side
+      // choice: the seller picked the forwarder, the warehouse and the mode
+      // when they listed, and that is what the item is quoted and shipped on.
+      routeId: terms?.routeId || p.forwarderRouteId || null,
       supplierDelivers: terms?.supplierDelivers ?? p.supplierDelivers,
       supplierFreight: terms?.supplierFreight ?? p.supplierFreight,
-      originTaxRate: terms?.originTaxRate ?? p.originTaxRate,
-      taxRate: terms?.ghanaTaxRate ?? (p.ghanaTaxRate ?? -1),
-      dutyIncluded: terms?.dutyIncluded ?? false,
     });
     meta.push(p);
     requested.push(asked);
@@ -396,9 +346,8 @@ function priceWith(
   ctx: PricingContext,
   wanted: PricedLineInput[],
   destPickupId: string,
-  routes: RouteChoices,
 ): CartPricing {
-  const { shipment, meta, requested } = buildLines(ctx, wanted, routes);
+  const { shipment, meta, requested } = buildLines(ctx, wanted);
   if (shipment.length === 0) return EMPTY_PRICING;
 
   const { quote, perLine } = quoteShipment(shipment, destPickupId, ctx.shipping);
@@ -458,10 +407,6 @@ function priceWith(
         supplierFreight: quote.supplierFreight,
         internationalFreight: quote.internationalFreight,
         localFreight: quote.localFreight,
-        importDuty: quote.importDuty,
-        clearingFee: quote.clearingFee,
-        tax: quote.tax,
-        originTax: quote.originTax,
       },
     },
     hasAbroad: abroadLines.length > 0,
@@ -473,77 +418,4 @@ function priceWith(
     allCollectedAtOrigin: lines.length > 0 && lines.every((l) => l.collectedAtOrigin),
     consignments: quote.consignments,
   };
-}
-
-/**
- * The routes on offer for this cart, each priced as a whole-cart shipping total.
- *
- * The comparison is deliberately whole-cart rather than per-line: it is the
- * figure the buyer is choosing between, and quoting a per-line delta would make
- * them do the addition themselves.
- */
-export async function routeOptionsFor(
-  items: PricedLineInput[],
-  destPickupId: string,
-  chosen: RouteChoices = {},
-): Promise<RouteGroup[]> {
-  const wanted = items.filter((i) => i.productId && i.quantity > 0).slice(0, 200);
-  if (wanted.length === 0) return [];
-  const ctx = await loadContext([...new Set(wanted.map((i) => i.productId))]);
-
-  const { shipment, meta } = buildLines(ctx, wanted, chosen);
-
-  // Only forwarders that actually carry something here, and only where the
-  // supplier is not already delivering — a listing whose price reaches Ghana
-  // has no lane to choose.
-  const carried = new Map<string, { forwarder: Forwarder; names: string[] }>();
-  shipment.forEach((line, i) => {
-    if (!line.forwarder || line.supplierDelivers || line.method !== "auto") return;
-    if (!isImported(line.originCountry)) return;
-    const entry = carried.get(line.forwarder.id);
-    if (entry) entry.names.push(meta[i].name);
-    else carried.set(line.forwarder.id, { forwarder: line.forwarder, names: [meta[i].name] });
-  });
-
-  const pointName = (id: string | null) =>
-    (id && ctx.points.get(id)?.name) || "";
-
-  const groups: RouteGroup[] = [];
-  for (const [forwarderId, { forwarder, names }] of carried) {
-    const routes = forwarder.routes.filter((r) => r.isActive);
-    // One lane is not a choice. Showing a picker with a single option asks the
-    // buyer to make a decision that has already been made for them.
-    if (routes.length < 2) continue;
-
-    const options: RouteOption[] = [];
-    for (const route of routes) {
-      const priced = priceWith(ctx, wanted, destPickupId, { ...chosen, [forwarderId]: route.id });
-      options.push({
-        routeId: route.id,
-        label: describeRoute(route, pointName(route.destinationPointId)),
-        mode: route.mode,
-        minDays: route.minDays,
-        maxDays: route.maxDays,
-        destinationName: pointName(route.destinationPointId),
-        note: route.note,
-        fee: priced.bill.shipping,
-        unpriced: priced.lines.some((l) => l.forwarder?.id === forwarderId && l.unpricedRoute),
-      });
-    }
-
-    const selectedRouteId =
-      options.find((o) => o.routeId === chosen[forwarderId])?.routeId ??
-      routes.find((r) => r.isDefault)?.id ??
-      routes[0].id;
-
-    groups.push({
-      forwarderId,
-      forwarderName: forwarder.name,
-      itemNames: names,
-      selectedRouteId,
-      options,
-    });
-  }
-
-  return groups;
 }

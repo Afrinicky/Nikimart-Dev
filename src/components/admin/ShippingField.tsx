@@ -10,14 +10,17 @@ import {
   type AbroadTerms,
 } from "@/lib/abroad";
 import {
+  billableCbm,
   billableWeightKg,
+  cbmFromDimensions,
   describePoint,
   describeRoute,
   describeTransit,
+  freightModeLabel,
   quoteShipment,
   resolveGoodsClass,
-  resolveRoute,
   resolveRouteRate,
+  routesToPoint,
   SHIPPING_METHODS,
   SHIPPING_METHOD_HINTS,
   SHIPPING_METHOD_LABELS,
@@ -32,19 +35,20 @@ import { formatPrice } from "@/lib/format";
 /**
  * Everything a seller says about getting one product to a buyer.
  *
- * It used to be three places on one form: size and weight up in the general
- * fields, a freight panel that only appeared for imports, and nothing at all
- * for a car nobody could price. A seller filling those in could not see what
- * any of it added up to, and the first honest number they saw was a complaint.
- *
- * So: one section, three questions, in the order a seller can actually answer
- * them. How is it shipped? How big is it? And, only if it comes from abroad,
- * how does it get here — which is two arrangements, not a form full of legs:
+ * One section, three questions, in the order a seller can actually answer them.
+ * How is it shipped? How big is it? And, only if it comes from abroad, how does
+ * it get here — which is two arrangements, not a form full of legs:
  *
  *   - the supplier's price already reaches Ghana, or
  *   - a forwarder brings it, and the seller pays to reach that forwarder.
  *
- * The estimate at the bottom runs the same `priceLine` the checkout and the
+ * For the second, the choice is made in the order the goods travel: which
+ * forwarder, which of *their* Ghana warehouses, and which of the modes they run
+ * into it. The rate appears the moment the category and the dimensions are in,
+ * because the category decides the forwarder's class and the dimensions decide
+ * the cubic metres — and those two are the whole of their price.
+ *
+ * The estimate at the bottom runs the same `quoteShipment` the checkout and the
  * order action run, so what a seller reads here is what a buyer is charged.
  */
 export function ShippingField({
@@ -96,37 +100,50 @@ export function ShippingField({
   // freight nothing on the page would then show.
   const serialised = isAbroad ? (serialiseAbroadTerms(terms) ?? "") : "";
 
-  const point = points.find((p) => p.id === terms.consolidationPointId) ?? null;
+  // --- The chain: forwarder → their warehouse → the mode into it -------------
   const forwarder = forwarders.find((f) => f.id === terms.forwarderId) ?? null;
+  const forwarderPoints = (forwarder?.consolidations ?? []).filter((p) => p.isActive);
+  const localPoints = points.filter((p) => !p.forwarderId);
+
+  const point =
+    (isAbroad && !terms.supplierDelivers
+      ? forwarderPoints.find((p) => p.id === terms.consolidationPointId)
+      : points.find((p) => p.id === terms.consolidationPointId)) ?? null;
+
+  const lanes = routesToPoint(forwarder, point?.id ?? null);
+  const route = lanes.find((r) => r.id === terms.routeId) ?? null;
+
   const goodsClass = resolveGoodsClass(forwarder, categoryId);
-  const route = resolveRoute(forwarder);
-  const rate = resolveRouteRate(route, goodsClass?.id ?? null);
+  const cell = resolveRouteRate(route, goodsClass?.id ?? null);
+  const laneCarriesClass = Boolean(cell && cell.isAvailable && cell.ratePerCbm > 0);
+
+  // --- Size ------------------------------------------------------------------
+  // The volume is worked out from the dimensions the moment all three are in.
+  // A seller should never have to divide by a million.
+  const derivedCbm = cbmFromDimensions(size.lengthCm, size.widthCm, size.heightCm);
+  const perUnitCbm = size.cbm > 0 ? size.cbm : derivedCbm;
+  const billedCbm = billableCbm({ ...size, cbm: perUnitCbm }, 1, goodsClass);
   const weight = billableWeightKg(size, config.defaults.volumetricDivisor);
 
+  // --- The estimate ----------------------------------------------------------
+  //
   // Not memoised: this is pure arithmetic on a handful of numbers, and the
   // dependency list a memo would need includes objects looked up from props on
-  // every render — so the cache would miss anyway while making the estimate
-  // look more expensive than it is.
-  //
-  // Quantities of one and two, because that difference is the whole point of
-  // the pricing model and a seller cannot see it from a single figure.
+  // every render — so the cache would miss anyway.
   const estimateLine = (quantity: number) => ({
     vendorId: "estimate",
     quantity,
     unitPrice: price || 0,
-    size,
+    size: { ...size, cbm: perUnitCbm },
     categoryId,
     method,
     manualFee,
-    originCountry: isAbroad ? terms.originCountry || "CN" : "GH",
+    originCountry: isAbroad ? terms.originCountry || forwarder?.originCountry || "CN" : "GH",
     point,
-    forwarder: isAbroad ? forwarder : null,
-    routeId: null,
+    forwarder: isAbroad && !terms.supplierDelivers ? forwarder : null,
+    routeId: terms.routeId || null,
     supplierDelivers: isAbroad ? terms.supplierDelivers : false,
     supplierFreight: isAbroad ? terms.supplierFreight : 0,
-    originTaxRate: isAbroad ? terms.originTaxRate : 0,
-    taxRate: isAbroad ? terms.ghanaTaxRate : -1,
-    dutyIncluded: isAbroad ? terms.dutyIncluded : false,
   });
 
   const one = quoteShipment([estimateLine(1)], sampleDestinationId, config);
@@ -134,13 +151,12 @@ export function ShippingField({
   const twoFee = quoteShipment([estimateLine(2)], sampleDestinationId, config).quote.fee;
 
   const badUrl = terms.sourceUrl.trim().length > 0 && !isSafeSourceUrl(terms.sourceUrl);
-  const unpriced =
-    isAbroad && !terms.supplierDelivers && !rate && config.defaults.fallbackRatePerCbm <= 0;
-  const routeCount = (forwarder?.routes ?? []).filter((r) => r.isActive).length;
+  const needsLane = isAbroad && method === "auto" && !terms.supplierDelivers;
 
   return (
     <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
       <input type="hidden" name="abroadTerms" value={serialised} />
+      <input type="hidden" name="freightMode" value={isAbroad ? (route?.mode ?? "") : ""} />
 
       <div className="flex items-center gap-2">
         <Truck className="h-5 w-5 text-niki-orange" />
@@ -198,36 +214,37 @@ export function ShippingField({
           <input type="hidden" name="manualShippingFee" value="0" />
         )}
 
-        <Field
-          label="Where your goods gather"
-          htmlFor="consolidationPointId"
-          hint={
-            points.length === 0
-              ? "No consolidation points are set up yet — ask an admin to add one."
-              : "The point this item is brought to and checked before a courier takes it onward. A buyer collecting at that same station pays nothing."
-          }
-        >
-          <select
-            id="consolidationPointId"
-            value={terms.consolidationPointId}
-            onChange={(e) => set("consolidationPointId", e.target.value)}
-            name={isAbroad ? undefined : "consolidationPointId"}
-            className={inputClass}
+        {/* An imported listing gathers at its forwarder's warehouse, chosen
+            below with the lane. Only a domestic one picks a point here. */}
+        {!isAbroad ? (
+          <Field
+            label="Where your goods gather"
+            htmlFor="consolidationPointId"
+            hint={
+              localPoints.length === 0
+                ? "No consolidation points are set up yet — ask an admin to add one."
+                : "The point this item is brought to and checked before a courier takes it onward. A buyer collecting at that same station pays nothing."
+            }
           >
-            <option value="">Use my shop&apos;s usual point</option>
-            {points.map((p) => (
-              <option key={p.id} value={p.id}>
-                {describePoint(p)}
-                {p.pickupPointId ? " · free to collect here" : ""}
-              </option>
-            ))}
-          </select>
-        </Field>
-        {/* An imported listing carries its point inside the terms; a local one
-            has no terms to carry it, so it posts the field directly. */}
-        {isAbroad ? (
+            <select
+              id="consolidationPointId"
+              name="consolidationPointId"
+              value={terms.consolidationPointId}
+              onChange={(e) => set("consolidationPointId", e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Use my shop&apos;s usual point</option>
+              {localPoints.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {describePoint(p)}
+                  {p.pickupPointId ? " · free to collect here" : ""}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : (
           <input type="hidden" name="consolidationPointId" value={terms.consolidationPointId} />
-        ) : null}
+        )}
 
         {payOnPickupEnabled && method !== "free" ? (
           <label className="flex items-start gap-3 rounded-xl bg-niki-surface p-4 ring-1 ring-niki-edge">
@@ -253,8 +270,8 @@ export function ShippingField({
       <Block icon={Boxes} title="How big is it?">
         <p className="text-sm text-niki-ink/65">
           Couriers charge for whatever is greater: what a parcel weighs, or what its size says it
-          weighs. Give both and the fee comes out right — a duvet and a dumbbell do not cost the
-          same to move.
+          weighs. Freight from abroad is charged on the volume. Give the three dimensions and the
+          cubic metres are worked out for you.
         </p>
         <div className="grid gap-4 sm:grid-cols-4">
           {(
@@ -279,26 +296,35 @@ export function ShippingField({
             </Field>
           ))}
         </div>
-        <p className="rounded-xl bg-niki-surface px-4 py-3 text-sm text-niki-ink/70 ring-1 ring-niki-edge">
-          Billed at <span className="font-figures font-semibold text-niki-ink">{weight} kg</span>
+
+        <div className="rounded-xl bg-niki-surface px-4 py-3 text-sm text-niki-ink/70 ring-1 ring-niki-edge">
+          Billed at <span className="font-figures font-semibold text-niki-ink">{weight} kg</span>{" "}
+          inside Ghana
           {isAbroad ? (
             <>
-              {" "}
-              inside Ghana, and{" "}
+              , and{" "}
               <span className="font-figures font-semibold text-niki-ink">
-                {estimate.cbm.toFixed(3)} m³
+                {perUnitCbm.toFixed(4)} m³
               </span>{" "}
-              on the leg from abroad, which is how forwarders invoice.
+              per unit on the leg from abroad
+              {goodsClass && goodsClass.levyCbm > 0 ? (
+                <>
+                  {" "}
+                  — {billedCbm.toFixed(4)} m³ once{" "}
+                  {forwarder?.name ?? "the forwarder"}&apos;s {goodsClass.levyLabel || "levy"} of{" "}
+                  {goodsClass.levyCbm} m³ is added
+                </>
+              ) : null}
             </>
-          ) : (
-            "."
-          )}
-        </p>
+          ) : null}
+          .
+        </div>
+
         {isAbroad ? (
           <Field
-            label="Shipping volume (CBM)"
+            label="Override the volume (CBM per unit)"
             htmlFor="cbm"
-            hint="Cubic metres per unit. Leave blank to work it out from the dimensions above."
+            hint="Leave blank to use the figure worked out from the dimensions above. Set it only when the supplier quotes a packed volume of their own."
           >
             <input
               id="cbm"
@@ -308,7 +334,7 @@ export function ShippingField({
               step="0.0001"
               value={size.cbm || ""}
               onChange={(e) => setSize((s) => ({ ...s, cbm: Number(e.target.value) || 0 }))}
-              placeholder="e.g. 0.045"
+              placeholder={derivedCbm > 0 ? derivedCbm.toFixed(4) : ""}
               className={inputClass}
             />
           </Field>
@@ -324,7 +350,7 @@ export function ShippingField({
             <Field
               label="Country of purchase"
               htmlFor="abroadOrigin"
-              hint="Sets the arrival estimate and which origin buyers find this under."
+              hint="Where the goods are bought. Buyers find this listing under it."
             >
               <select
                 id="abroadOrigin"
@@ -344,7 +370,7 @@ export function ShippingField({
             <div className="grid gap-2 sm:grid-cols-2">
               <button
                 type="button"
-                onClick={() => set("supplierDelivers", true)}
+                onClick={() => setTerms((t) => ({ ...t, supplierDelivers: true }))}
                 aria-pressed={terms.supplierDelivers}
                 className={`rounded-xl border p-4 text-left transition-colors ${
                   terms.supplierDelivers
@@ -356,13 +382,13 @@ export function ShippingField({
                   My supplier delivers to Ghana
                 </span>
                 <span className="mt-1 block text-xs leading-relaxed text-niki-ink/60">
-                  Their price already puts it at the consolidation point above. Nothing is charged
-                  to bring it in — the buyer pays only the run from there to their station.
+                  Their price already puts it at a consolidation point here. Nothing is charged to
+                  bring it in — the buyer pays only the run from there to their station.
                 </span>
               </button>
               <button
                 type="button"
-                onClick={() => set("supplierDelivers", false)}
+                onClick={() => setTerms((t) => ({ ...t, supplierDelivers: false }))}
                 aria-pressed={!terms.supplierDelivers}
                 className={`rounded-xl border p-4 text-left transition-colors ${
                   !terms.supplierDelivers
@@ -374,36 +400,57 @@ export function ShippingField({
                   A freight forwarder brings it
                 </span>
                 <span className="mt-1 block text-xs leading-relaxed text-niki-ink/60">
-                  The supplier only reaches the forwarder. Their rate per cubic metre carries it the
-                  rest of the way, port fees and duty included.
+                  You send it to their warehouse abroad; their rate per cubic metre carries it to
+                  their warehouse in Ghana.
                 </span>
               </button>
             </div>
 
-            {!terms.supplierDelivers ? (
+            {terms.supplierDelivers ? (
+              <Field
+                label="Where the supplier delivers to"
+                htmlFor="supplierPoint"
+                hint="The consolidation point their price already reaches."
+              >
+                <select
+                  id="supplierPoint"
+                  value={terms.consolidationPointId}
+                  onChange={(e) =>
+                    setTerms((t) => ({ ...t, consolidationPointId: e.target.value, routeId: "" }))
+                  }
+                  className={inputClass}
+                >
+                  <option value="">Choose…</option>
+                  {points.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {describePoint(p)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : (
               <>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-3">
                   <Field
                     label="Freight forwarder"
                     htmlFor="abroadForwarder"
                     hint={
                       forwarders.length === 0
-                        ? "None are set up yet — ask an admin to add one."
-                        : route
-                          ? `Quoted on ${describeRoute(route)}${
-                              goodsClass ? ` as ${goodsClass.name}` : ""
-                            }, ${describeTransit(route.minDays, route.maxDays)}.${
-                              routeCount > 1
-                                ? ` Buyers can choose between ${routeCount} routes at checkout.`
-                                : ""
-                            }`
-                          : "Pick the forwarder who consolidates your goods."
+                        ? "None are registered yet — ask an admin to add one."
+                        : "Who consolidates and carries your goods."
                     }
                   >
                     <select
                       id="abroadForwarder"
                       value={terms.forwarderId}
-                      onChange={(e) => set("forwarderId", e.target.value)}
+                      onChange={(e) =>
+                        setTerms((t) => ({
+                          ...t,
+                          forwarderId: e.target.value,
+                          consolidationPointId: "",
+                          routeId: "",
+                        }))
+                      }
                       className={inputClass}
                     >
                       <option value="">Choose…</option>
@@ -415,22 +462,130 @@ export function ShippingField({
                       ))}
                     </select>
                   </Field>
+
                   <Field
-                    label="Getting it to the forwarder (GH₵ per unit)"
-                    htmlFor="abroadSupplierFreight"
-                    hint="What the supplier charges to deliver one unit to your forwarder's warehouse abroad."
+                    label="Their consolidation point"
+                    htmlFor="abroadPoint"
+                    hint={
+                      forwarder && forwarderPoints.length === 0
+                        ? "This forwarder has no Ghana warehouse set up yet."
+                        : "Where your goods land in Ghana."
+                    }
                   >
-                    <input
-                      id="abroadSupplierFreight"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={terms.supplierFreight || ""}
-                      onChange={(e) => set("supplierFreight", Number(e.target.value) || 0)}
+                    <select
+                      id="abroadPoint"
+                      value={terms.consolidationPointId}
+                      onChange={(e) =>
+                        setTerms((t) => ({ ...t, consolidationPointId: e.target.value, routeId: "" }))
+                      }
+                      disabled={!forwarder}
                       className={inputClass}
-                    />
+                    >
+                      <option value="">Choose…</option>
+                      {forwarderPoints.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {describePoint(p)}
+                          {p.pickupPointId ? " · free to collect here" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field
+                    label="Route"
+                    htmlFor="abroadRoute"
+                    hint={
+                      point && lanes.length === 0
+                        ? "No modes run into that point yet."
+                        : "The mode this item travels on."
+                    }
+                  >
+                    <select
+                      id="abroadRoute"
+                      value={terms.routeId}
+                      onChange={(e) => set("routeId", e.target.value)}
+                      disabled={!point}
+                      className={inputClass}
+                    >
+                      <option value="">Choose…</option>
+                      {lanes.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {describeRoute(r)}
+                          {r.maxDays > 0 ? ` · ${describeTransit(r.minDays, r.maxDays)}` : ""}
+                        </option>
+                      ))}
+                    </select>
                   </Field>
                 </div>
+
+                {forwarder?.collectionAddress ? (
+                  <p className="rounded-xl bg-niki-surface px-4 py-3 text-sm text-niki-ink/70 ring-1 ring-niki-edge">
+                    <span className="font-medium text-niki-ink">
+                      Send the goods to {forwarder.name}:
+                    </span>{" "}
+                    {forwarder.collectionAddress}
+                    {forwarder.collectionCity ? `, ${forwarder.collectionCity}` : ""}
+                    {forwarder.contactPhone ? ` · ${forwarder.contactPhone}` : ""}
+                  </p>
+                ) : null}
+
+                <Field
+                  label="Getting it to the forwarder (GH₵ per unit)"
+                  htmlFor="abroadSupplierFreight"
+                  hint="What the supplier charges to deliver one unit to that warehouse abroad. The buyer pays it as part of the shipping."
+                >
+                  <input
+                    id="abroadSupplierFreight"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={terms.supplierFreight || ""}
+                    onChange={(e) => set("supplierFreight", Number(e.target.value) || 0)}
+                    className={inputClass}
+                  />
+                </Field>
+
+                {route ? (
+                  <div
+                    className={`rounded-xl px-4 py-3 text-sm ring-1 ${
+                      laneCarriesClass
+                        ? "bg-niki-success/5 text-niki-ink/75 ring-niki-success/20"
+                        : "bg-niki-danger/10 font-medium text-niki-danger ring-niki-danger/20"
+                    }`}
+                  >
+                    {laneCarriesClass ? (
+                      <>
+                        {forwarder?.name} carries this as{" "}
+                        <span className="font-semibold text-niki-ink">
+                          {goodsClass?.name ?? "their standard class"}
+                        </span>{" "}
+                        by {freightModeLabel(route.mode).toLowerCase()} at{" "}
+                        <span className="font-figures font-semibold text-niki-ink">
+                          {cell!.ratePerCbm} {route.currency}
+                        </span>{" "}
+                        per m³
+                        {route.maxDays > 0
+                          ? `, ${describeTransit(route.minDays, route.maxDays)}`
+                          : ""}
+                        {route.minCbm > 0
+                          ? `. They ship nothing under ${route.minCbm} m³, so orders are held until a batch reaches it.`
+                          : "."}
+                      </>
+                    ) : (
+                      <>
+                        {forwarder?.name} does not carry{" "}
+                        {goodsClass?.name ?? "this category"} by{" "}
+                        {freightModeLabel(route.mode).toLowerCase()} into that point, so this item
+                        can&apos;t be bought on it. Choose another route or another forwarder.
+                      </>
+                    )}
+                  </div>
+                ) : needsLane ? (
+                  <p className="rounded-xl bg-niki-gold/15 px-4 py-3 text-sm text-amber-900">
+                    Pick a forwarder, their consolidation point and a route. Until you do, nothing
+                    prices the leg into Ghana and buyers can&apos;t order this.
+                  </p>
+                ) : null}
 
                 {forwarder?.terms ? (
                   <p className="rounded-xl bg-niki-surface px-4 py-3 text-sm text-niki-ink/70 ring-1 ring-niki-edge">
@@ -438,16 +593,8 @@ export function ShippingField({
                     {forwarder.terms}
                   </p>
                 ) : null}
-
-                {unpriced ? (
-                  <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
-                    Nothing prices this route yet, so buyers can&apos;t be quoted for it and the item
-                    can&apos;t be bought. Pick a forwarder who has a price for this category, or ask
-                    an admin to add one.
-                  </p>
-                ) : null}
               </>
-            ) : null}
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
@@ -459,14 +606,13 @@ export function ShippingField({
                   id="abroadArrival"
                   value={terms.estimatedArrival}
                   onChange={(e) => set("estimatedArrival", e.target.value)}
-                  placeholder="4–6 weeks from order"
                   className={inputClass}
                 />
               </Field>
               <Field
                 label="Supplier lead time (days)"
                 htmlFor="abroadProcessing"
-                hint="How long the supplier needs before the goods are on their way."
+                hint="How long the supplier needs before the goods reach the forwarder."
               >
                 <input
                   id="abroadProcessing"
@@ -480,7 +626,11 @@ export function ShippingField({
             </div>
           </Block>
 
-          <Block icon={Link2} title="Where you are sourcing it">
+          <Block icon={Link2} title="Who you are buying from">
+            <p className="text-sm text-niki-ink/65">
+              These are what an admin uses to place the order when enough of it has sold, so the
+              link has to lead to the exact item.
+            </p>
             <Field
               label="Supplier link"
               htmlFor="abroadSourceUrl"
@@ -494,17 +644,23 @@ export function ShippingField({
                 id="abroadSourceUrl"
                 value={terms.sourceUrl}
                 onChange={(e) => set("sourceUrl", e.target.value)}
-                placeholder="https://www.alibaba.com/product-detail/..."
                 className={inputClass}
               />
             </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <Field label="Supplier name" htmlFor="abroadSupplier">
                 <input
                   id="abroadSupplier"
                   value={terms.supplierName}
                   onChange={(e) => set("supplierName", e.target.value)}
-                  placeholder="Shenzhen Kaiyuan Trading Co."
+                  className={inputClass}
+                />
+              </Field>
+              <Field label="Supplier contact" htmlFor="abroadSupplierContact" hint="Phone, WeChat or email.">
+                <input
+                  id="abroadSupplierContact"
+                  value={terms.supplierContact}
+                  onChange={(e) => set("supplierContact", e.target.value)}
                   className={inputClass}
                 />
               </Field>
@@ -513,7 +669,6 @@ export function ShippingField({
                   id="abroadSourceLocation"
                   value={terms.sourceLocation}
                   onChange={(e) => set("sourceLocation", e.target.value)}
-                  placeholder="Guangzhou, China"
                   className={inputClass}
                 />
               </Field>
@@ -531,7 +686,6 @@ export function ShippingField({
                 rows={2}
                 value={terms.refundPolicy}
                 onChange={(e) => set("refundPolicy", e.target.value)}
-                placeholder="Full refund if the item has not arrived within 10 weeks."
                 className={inputClass}
               />
             </Field>
@@ -546,7 +700,6 @@ export function ShippingField({
                   rows={2}
                   value={terms.balanceInstruction}
                   onChange={(e) => set("balanceInstruction", e.target.value)}
-                  placeholder="Pay the shipping in cash or MoMo at the pickup station."
                   className={inputClass}
                 />
               </Field>
@@ -554,7 +707,7 @@ export function ShippingField({
             <Field
               label="Minimum orders before you buy the batch"
               htmlFor="abroadMinimum"
-              hint="0 means you order it however few people buy."
+              hint="0 means it is bought whenever the forwarder's minimum volume is reached."
             >
               <input
                 id="abroadMinimum"
@@ -577,13 +730,24 @@ export function ShippingField({
         </div>
         <dl className="mt-4 space-y-1.5 text-sm">
           <Row label="Item price" value={price || 0} />
+          {isAbroad && method === "auto" && !terms.supplierDelivers ? (
+            <>
+              <Row label="To the forwarder abroad" value={estimate.supplierFreight} />
+              <Row
+                label={`Freight into ${point ? point.name : "Ghana"}`}
+                value={estimate.internationalFreight}
+              />
+            </>
+          ) : null}
           <Row
             label={
               method === "manual"
                 ? "Shipping — your fixed fee"
-                : "Shipping to a station away from your point"
+                : isAbroad
+                  ? "Inside Ghana, to a station away from that point"
+                  : "Shipping to a station away from your point"
             }
-            value={estimate.fee}
+            value={method === "manual" ? estimate.fee : estimate.localFreight}
           />
           <div className="flex justify-between border-t border-white/15 pt-2 font-bold">
             <dt>Total for one</dt>
@@ -596,16 +760,21 @@ export function ShippingField({
           <p className="mt-3 rounded-xl bg-white/10 px-3 py-2 text-xs leading-relaxed text-white/75">
             Buying two costs{" "}
             <span className="font-figures font-bold text-white">{formatPrice(twoFee)}</span> to ship,
-            not {formatPrice(estimate.fee * 2)} — the base fee is charged once per order from your
-            shop, and each extra item only adds the increment.
+            not {formatPrice(estimate.fee * 2)} — the base fee inside Ghana is charged once per
+            order from your shop.
+          </p>
+        ) : null}
+        {estimate.unpricedRoute ? (
+          <p className="mt-3 rounded-xl bg-niki-danger/25 px-3 py-2 text-xs font-medium text-white">
+            Nothing prices the leg into Ghana yet, so buyers can&apos;t order this.
           </p>
         ) : null}
         <p className="mt-3 text-xs leading-relaxed text-white/60">
           {method === "free"
             ? "You are absorbing the shipping, so buyers pay the item price wherever they collect."
             : point?.pickupPointId
-              ? "A buyer collecting at your consolidation point pays no shipping at all. Anywhere else costs the figure above."
-              : "The real figure moves with the station a buyer picks. Duty and taxes, where they apply, are already inside it — buyers never see them broken out."}
+              ? "A buyer collecting at that consolidation point pays nothing for the run inside Ghana. Anywhere else costs the figure above."
+              : "The run inside Ghana moves with the station a buyer picks."}
         </p>
       </div>
     </section>

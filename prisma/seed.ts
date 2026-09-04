@@ -133,10 +133,10 @@ async function main() {
       originCountry: p.preorderInfo?.originCountry ?? "",
       sourceUrl: p.preorderInfo?.sourceUrl ?? "",
       supplierName: p.preorderInfo?.supplierName ?? "",
+      supplierContact: p.preorderInfo?.supplierContact ?? "",
       supplierFreight: p.preorderInfo?.supplierFreight ?? 0,
       supplierDelivers: p.preorderInfo?.supplierDelivers ?? false,
       freightIncluded: p.preorderInfo?.supplierDelivers ?? false,
-      originTaxRate: p.preorderInfo?.originTaxRate ?? 0,
       categoryId: p.categoryId,
       vendorId: p.vendorId,
     };

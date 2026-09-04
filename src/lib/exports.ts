@@ -11,6 +11,7 @@ import {
 import { resolveAffiliateRate } from "@/lib/affiliate-commission";
 import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
 import { getCurrencies, getForwarders, getShippingDefaults } from "@/lib/shipping-config";
+import { freightModeLabel } from "@/lib/shipping";
 import { getAffiliateEarnings } from "@/lib/affiliate";
 import { getSellerEarnings } from "@/lib/seller";
 import { getFinanceOverview, getVendorSettlements } from "@/lib/finance";
@@ -663,18 +664,17 @@ async function shippingWorkbook(): Promise<Sheet[]> {
   ]);
 
   const pointNameById = new Map(points.map((p) => [p.id, `${p.name}${p.city ? `, ${p.city}` : ""}`]));
+  const forwarderNameById = new Map(forwarders.map((f) => [f.id, f.name]));
 
   const pointSheet: Sheet = {
     name: "Consolidation points",
-    columns: ["Name", "Code", "City", "Kind", "Sits at pickup station", "Duty %", "Clearing (GH₵)", "Status"],
+    columns: ["Name", "Code", "City", "Belongs to", "Sits at pickup station", "Status"],
     rows: points.map((p) => [
       p.name,
       p.code,
       p.city,
-      p.kind === "local" ? "Local" : "International",
+      p.forwarderId ? (forwarderNameById.get(p.forwarderId) ?? "A forwarder") : "NikiMart",
       p.hubPickup ? `${p.hubPickup.name} — ${p.hubPickup.locationName}` : "No — collection is never free here",
-      p.kind === "local" ? "" : p.dutyPercent,
-      p.kind === "local" ? "" : p.clearingFee,
       p.isActive ? "Active" : "Retired",
     ]),
   };
@@ -708,87 +708,64 @@ async function shippingWorkbook(): Promise<Sheet[]> {
     ],
   };
 
-  // One row per price a forwarder actually quotes: route × goods class. That is
-  // the shape their own rate sheet has, and the shape somebody reconciling this
-  // against an invoice six months from now will be holding.
+  // One row per cell of a forwarder's grid: lane × class. That is the shape
+  // their own rate sheet has, and the shape somebody reconciling this against
+  // an invoice six months from now will be holding.
   const forwarderSheet: Sheet = {
     name: "From abroad",
     columns: [
       "Forwarder",
-      "Route",
       "Collects in",
-      "Mode",
       "Lands at",
-      "Transit (days)",
-      "Rate covers",
+      "Lane",
+      "Mode",
+      "Delivery estimate (days)",
+      "Minimum CBM",
+      "Order frequency",
       "Goods class",
+      "Class levy (CBM)",
       "Currency",
       "Per CBM",
-      "Per kg",
-      "Min CBM",
-      "Minimum charge",
-      "Class levy per CBM",
       "In GH₵ per CBM",
       "Status",
     ],
     rows: forwarders.flatMap((f) => {
-      const covers = f.allInclusive ? "Everything to Ghana" : "Carriage only";
-      const tail = f.isActive ? "Active" : "Retired";
-      const rateFor = (code: string) =>
-        currencies.find((c) => c.code === code.toUpperCase())?.rateToGhs ?? 1;
+      const tail = f.isActive ? "Active" : "Inactive";
+      const rateFor = (c: string) =>
+        currencies.find((x) => x.code === c.toUpperCase())?.rateToGhs ?? 1;
 
       if (f.routes.length === 0) {
-        // A forwarder still on the old flat list, reported as what it is.
-        if (f.rates.length === 0) {
-          return [[f.name, "— no routes —", f.originCountry || "Any country", f.mode, "", "", covers, "", f.currency, "", "", "", "", "", "", tail]];
-        }
-        return f.rates.map((r) => [
-          f.name,
-          "Legacy price list",
-          f.originCountry || "Any country",
-          f.mode,
-          pointNameById.get(f.consolidationPointId ?? "") ?? "",
-          r.transitDays,
-          covers,
-          categories.find((c) => c.id === r.categoryId)?.name ?? "Everything else",
-          f.currency,
-          r.ratePerCbm,
-          r.ratePerKg,
-          "",
-          r.minCharge,
-          "",
-          Math.round(r.ratePerCbm * rateFor(f.currency) * 100) / 100,
-          tail,
-        ]);
+        return [[f.name, f.originCountry, "", "— no lanes —", "", "", "", "", "", "", f.currency, "", "", tail]];
       }
 
       return f.routes.flatMap((route) => {
         const code = route.currency || f.currency;
         const head = [
           f.name,
-          route.name || `${route.originCity || route.originCountry} → ${pointNameById.get(route.destinationPointId ?? "") ?? "Ghana"}`,
-          route.originCountry || "Any country",
-          route.mode,
+          f.originCountry,
           pointNameById.get(route.destinationPointId ?? "") ?? "",
-          `${route.minDays}–${route.maxDays}`,
-          covers,
+          route.name || freightModeLabel(route.mode) || route.mode,
+          route.mode,
+          route.maxDays > 0 ? `${route.minDays}–${route.maxDays}` : "",
+          route.minCbm || "",
+          route.orderFrequency
+            ? `${route.orderFrequency}${route.orderFrequencyDetail ? ` (${route.orderFrequencyDetail})` : ""}`
+            : "",
         ];
         const status = route.isActive ? tail : "Paused";
-        if (route.rates.length === 0) {
-          return [[...head, "— no prices set —", code, "", "", "", "", "", "", status]];
-        }
-        return route.rates.map((r) => {
-          const cls = f.goodsClasses.find((g) => g.id === r.goodsClassId);
+        // Every class, not only the ones with a row: a blank cell means the
+        // lane refuses that class, and a sheet that omitted it would read as
+        // though nobody had got round to pricing it.
+        return f.goodsClasses.map((cls) => {
+          const cell = route.rates.find((r) => r.goodsClassId === cls.id);
+          const priced = cell && cell.isAvailable && cell.ratePerCbm > 0;
           return [
             ...head,
-            cls?.name ?? "Everything else",
+            cls.name,
+            cls.levyCbm || "",
             code,
-            r.ratePerCbm,
-            r.ratePerKg,
-            r.minCbm,
-            r.minCharge,
-            cls?.surchargePerCbm ?? 0,
-            Math.round((r.ratePerCbm + (cls?.surchargePerCbm ?? 0)) * rateFor(code) * 100) / 100,
+            priced ? cell.ratePerCbm : "N/A",
+            priced ? Math.round(cell.ratePerCbm * rateFor(code) * 100) / 100 : "N/A",
             status,
           ];
         });
@@ -811,7 +788,22 @@ async function shippingWorkbook(): Promise<Sheet[]> {
     ]),
   };
 
-  return [pointSheet, ruleSheet, forwarderSheet, currencySheet];
+  // Which of our categories each forwarder prices as which of their classes.
+  // Without it the grid above cannot be read against the catalogue.
+  const mappingSheet: Sheet = {
+    name: "Category classes",
+    columns: ["Forwarder", "Our category", "Their class", "Levy (CBM)"],
+    rows: forwarders.flatMap((f) =>
+      categories.map((c) => {
+        const cls =
+          f.goodsClasses.find((g) => g.id === f.categoryMap[c.id]) ??
+          f.goodsClasses.find((g) => g.isDefault);
+        return [f.name, c.name, cls?.name ?? "— no classes —", cls?.levyCbm ?? 0];
+      }),
+    ),
+  };
+
+  return [pointSheet, ruleSheet, forwarderSheet, mappingSheet, currencySheet];
 }
 
 // ---------------------------------------------------------------------------
