@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import type { CrudState } from "@/lib/admin-actions";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 
 type Action = (prev: CrudState, fd: FormData) => Promise<CrudState>;
 
@@ -21,9 +22,6 @@ export function FaqForm({
 
   return (
     <form action={formAction} className="space-y-5" noValidate>
-      {state.error ? (
-        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
-      ) : null}
       <Field label="Question" htmlFor="question">
         <input id="question" name="question" defaultValue={faq?.question} required className={inputClass} />
       </Field>
@@ -33,6 +31,7 @@ export function FaqForm({
       <Field label="Order" htmlFor="order" hint="Lower numbers show first">
         <input id="order" name="order" type="number" defaultValue={faq?.order ?? 0} className={inputClass} />
       </Field>
+      <FormFeedback error={state.error} />
       <div className="flex items-center gap-3">
         <div className="w-40">
           <SubmitButton>{submitLabel}</SubmitButton>

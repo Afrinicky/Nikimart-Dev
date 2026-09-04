@@ -6,6 +6,7 @@ import { SubmitButton } from "@/components/auth/SubmitButton";
 import { AcceptTerms } from "@/components/ui/AcceptTerms";
 import { registerVendor, type VendorRegisterState } from "@/lib/seller-actions";
 import { SELLER_TYPE_LABELS, type SellerType } from "@/lib/types";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 
 const SELLER_TYPES = Object.entries(SELLER_TYPE_LABELS) as [SellerType, string][];
 
@@ -31,10 +32,6 @@ export function VendorRegisterForm({
 
   return (
     <form action={formAction} className="space-y-8" noValidate>
-      {state.error ? (
-        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
-      ) : null}
-
       {/* 1 — Business details */}
       <section className="space-y-5 rounded-3xl bg-white p-6 ring-1 ring-niki-edge sm:p-8">
         <div>
@@ -193,6 +190,7 @@ export function VendorRegisterForm({
         )}
       </section>
 
+      <FormFeedback error={state.error} />
       <div className="space-y-3">
         <AcceptTerms audience="seller" error={state.fieldErrors?.acceptTerms} />
 

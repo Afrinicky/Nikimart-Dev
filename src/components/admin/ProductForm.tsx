@@ -12,6 +12,7 @@ import { KeyAttributesField } from "@/components/admin/KeyAttributesField";
 import { AffiliateEnrolmentField } from "@/components/admin/AffiliateEnrolmentField";
 import type { CrudState } from "@/lib/admin-actions";
 import type { Product } from "@/lib/types";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 
 type Action = (prev: CrudState, fd: FormData) => Promise<CrudState>;
 
@@ -85,12 +86,6 @@ export function ProductForm({
 
   return (
     <form action={formAction} className="space-y-5" noValidate>
-      {state.error ? (
-        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
-          {state.error}
-        </p>
-      ) : null}
-
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Product name" htmlFor="name" hint={state.fieldErrors?.name}>
           <input id="name" name="name" defaultValue={p?.name} required className={inputClass} />
@@ -261,6 +256,7 @@ export function ProductForm({
 
       <input type="hidden" name="locationIds" value={product?.locationIds.join(",") ?? "any"} />
 
+      <FormFeedback error={state.error} />
       <div className="flex items-center gap-3">
         <div className="w-40">
           <SubmitButton>{submitLabel}</SubmitButton>

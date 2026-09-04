@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 import { Coins, RefreshCw, Trash2 } from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
@@ -69,16 +70,11 @@ export function CurrencyForm({
           </span>
         </div>
 
-        {refreshState.error ? (
-          <p role="alert" className="mt-3 rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
-            {refreshState.error} The rates below are unchanged.
-          </p>
-        ) : null}
-        {refreshState.ok ? (
-          <p className="mt-3 rounded-xl bg-niki-success/10 px-4 py-3 text-sm font-medium text-niki-success">
-            {refreshState.message}
-          </p>
-        ) : null}
+        <FormFeedback
+          className="mt-3"
+          error={refreshState.error ? `${refreshState.error} The rates below are unchanged.` : undefined}
+          success={refreshState.ok ? refreshState.message : undefined}
+        />
 
         <div className="mt-5 overflow-x-auto rounded-xl ring-1 ring-niki-edge">
           <table className="w-full min-w-[640px] text-left text-sm">
@@ -188,17 +184,6 @@ export function CurrencyForm({
           {editing ? `Update ${editing.code}` : "Add a currency"}
         </h3>
 
-        {state.error ? (
-          <p role="alert" className="mt-4 rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
-            {state.error}
-          </p>
-        ) : null}
-        {state.ok ? (
-          <p className="mt-4 rounded-xl bg-niki-success/10 px-4 py-3 text-sm font-medium text-niki-success">
-            {state.message ?? "Saved ✓ Every route quoted in this currency has re-priced."}
-          </p>
-        ) : null}
-
         <div className="mt-4 grid gap-4 sm:grid-cols-4">
           <Field label="Code" htmlFor="code" hint="Three letters: USD, CNY, AED.">
             <input
@@ -258,6 +243,16 @@ export function CurrencyForm({
             </span>
           </span>
         </label>
+
+        <FormFeedback
+          className="mt-5"
+          error={state.error}
+          success={
+            state.ok
+              ? (state.message ?? "Saved ✓ Every route quoted in this currency has re-priced.")
+              : undefined
+          }
+        />
 
         <div className="mt-5 flex items-center gap-3">
           <div className="w-44">

@@ -5,6 +5,7 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { updateSettings, type SettingsState } from "@/lib/settings-actions";
 import type { Settings } from "@/lib/settings";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 
 /**
  * Storefront settings for /data-bundles. It posts to the shared `updateSettings`
@@ -20,17 +21,6 @@ export function DataStoreSettingsForm({ settings }: { settings: Settings }) {
 
   return (
     <form action={formAction} className="space-y-6" noValidate>
-      {state.error ? (
-        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
-          {state.error}
-        </p>
-      ) : null}
-      {state.ok ? (
-        <p className="rounded-xl bg-niki-success/10 px-4 py-3 text-sm font-medium text-niki-success">
-          Saved.
-        </p>
-      ) : null}
-
       <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Storefront</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
@@ -257,6 +247,7 @@ export function DataStoreSettingsForm({ settings }: { settings: Settings }) {
         </div>
       </section>
 
+      <FormFeedback error={state.error} success={state.ok ? "Saved." : undefined} />
       <SubmitButton>Save data store settings</SubmitButton>
     </form>
   );

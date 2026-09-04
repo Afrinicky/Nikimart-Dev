@@ -5,6 +5,7 @@ import { Plus, Power, Trash2, Truck } from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { formatPrice } from "@/lib/format";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 import {
   deleteShippingRule,
   saveShippingRule,
@@ -204,17 +205,6 @@ export function ShippingRulesForm({
           two rules arguing about the same route.
         </p>
 
-        {state.error ? (
-          <p role="alert" className="mt-4 rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
-            {state.error}
-          </p>
-        ) : null}
-        {state.ok ? (
-          <p className="mt-4 rounded-xl bg-niki-success/10 px-4 py-3 text-sm font-medium text-niki-success">
-            Rule saved ✓
-          </p>
-        ) : null}
-
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           <Field
             label="From"
@@ -337,6 +327,7 @@ export function ShippingRulesForm({
           </Field>
         </div>
 
+        <FormFeedback error={state.error} success={state.ok ? "Rule saved ✓" : undefined} />
         <div className="mt-5 w-44">
           <SubmitButton>Save rule</SubmitButton>
         </div>

@@ -6,6 +6,7 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { COLLECTIONS, VENDOR_FILTERS, SECTION_ICONS, blockDef, type SectionConfig } from "@/lib/page-blocks";
 import type { CrudState } from "@/lib/admin-actions";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 
 type Action = (prev: CrudState, fd: FormData) => Promise<CrudState>;
 
@@ -38,10 +39,6 @@ export function SectionForm({
 
   return (
     <form action={formAction} className="space-y-5" noValidate>
-      {state.error ? (
-        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
-      ) : null}
-
       {def.fields.map((field) => {
         const value = config[field.name];
         if (field.type === "bool") {
@@ -91,6 +88,7 @@ export function SectionForm({
         );
       })}
 
+      <FormFeedback error={state.error} />
       <div className="flex items-center gap-3">
         <div className="w-40">
           <SubmitButton>Save section</SubmitButton>

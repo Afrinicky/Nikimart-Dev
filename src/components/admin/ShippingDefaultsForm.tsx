@@ -6,6 +6,7 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { formatPrice } from "@/lib/format";
 import { saveShippingDefaults, type ShippingState } from "@/lib/shipping-admin-actions";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 
 interface PointOption {
   id: string;
@@ -46,17 +47,6 @@ export function ShippingDefaultsForm({
 
   return (
     <form action={formAction} className="space-y-6">
-      {state.error ? (
-        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
-          {state.error}
-        </p>
-      ) : null}
-      {state.ok ? (
-        <p className="rounded-xl bg-niki-success/10 px-4 py-3 text-sm font-medium text-niki-success">
-          Saved ✓
-        </p>
-      ) : null}
-
       <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Inside Ghana</h2>
         <p className="mt-1 max-w-3xl text-sm text-niki-ink/60">
@@ -255,6 +245,7 @@ export function ShippingDefaultsForm({
         </div>
       </section>
 
+      <FormFeedback error={state.error} success={state.ok ? "Saved ✓" : undefined} />
       <div className="flex items-center gap-3">
         <div className="w-44">
           <SubmitButton>Save</SubmitButton>
