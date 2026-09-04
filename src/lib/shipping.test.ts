@@ -8,11 +8,11 @@ import {
   priceLine,
   quoteConsignments,
   quoteShipment,
-  resolveForwarderRate,
   resolveGoodsClass,
   resolveRoute,
   resolveRouteRate,
   resolveRule,
+  routesToPoint,
   SHIPPING_DEFAULTS,
   type ConsolidationPoint,
   type Currency,
@@ -28,7 +28,8 @@ import {
  * or undercharge somebody: that a second unit does not pay a second base fee,
  * that a second *seller* does, the free-at-origin rule, which arrangement adds
  * an international leg and which does not, that a dollar rate is converted
- * exactly once, and the double-charging an all-in forwarder rate invites.
+ * exactly once, and that a lane which will not carry a class says so instead of
+ * quoting somebody else's price.
  */
 
 const KUMASI: ConsolidationPoint = {
@@ -36,23 +37,24 @@ const KUMASI: ConsolidationPoint = {
   name: "Kumasi Depot",
   code: "KSI",
   city: "Kumasi",
+  address: "",
   kind: "local",
+  forwarderId: null,
   pickupPointId: "pp-kumasi",
-  dutyPercent: 0,
-  clearingFee: 0,
   note: "",
   isActive: true,
 };
 
+/** The forwarder's own warehouse in Ghana. */
 const TEMA: ConsolidationPoint = {
   id: "cp-tema",
-  name: "Tema Port",
+  name: "Tema Depot",
   code: "TEMA",
   city: "Tema",
+  address: "",
   kind: "international",
+  forwarderId: "fw-gz",
   pickupPointId: "pp-tema",
-  dutyPercent: 20,
-  clearingFee: 80,
   note: "",
   isActive: true,
 };
@@ -61,8 +63,8 @@ const NORMAL = {
   id: "gc-normal",
   name: "Normal Goods",
   note: "",
-  surchargePerCbm: 0,
-  surchargeLabel: "",
+  levyCbm: 0,
+  levyLabel: "",
   sortOrder: 0,
   isDefault: true,
 };
@@ -71,101 +73,97 @@ const HEAVY = {
   id: "gc-heavy",
   name: "Heavy-Duty Goods",
   note: "",
-  surchargePerCbm: 0,
-  surchargeLabel: "",
+  levyCbm: 0,
+  levyLabel: "",
   sortOrder: 2,
   isDefault: false,
 };
 
-/** Appliances: normal goods, plus an energy-commission levy per cubic metre. */
+/** A class that carries a special levy, charged as extra cubic metres. */
 const APPLIANCE = {
   id: "gc-appliance",
   name: "Appliances",
   note: "",
-  surchargePerCbm: 10,
-  surchargeLabel: "Energy commission",
+  levyCbm: 0.01,
+  levyLabel: "Energy commission",
   sortOrder: 1,
   isDefault: false,
 };
 
-const SEA_ACCRA: ForwarderRoute = {
-  id: "rt-sea-accra",
+/** The sea column of the forwarder's grid for their Tema warehouse. */
+const SEA: ForwarderRoute = {
+  id: "rt-sea",
   forwarderId: "fw-gz",
-  name: "China → Accra (Sea)",
-  originCountry: "CN",
-  originCity: "Guangzhou",
+  name: "",
   mode: "sea",
   destinationPointId: TEMA.id,
   currency: "USD",
   minDays: 35,
   maxDays: 45,
+  minCbm: 0.2,
+  orderFrequency: "weekly",
+  orderFrequencyDetail: "",
   note: "",
   isActive: true,
   isDefault: true,
   rates: [
-    { id: "rr-sea-normal", goodsClassId: NORMAL.id, ratePerCbm: 260, ratePerKg: 0, minCharge: 0, minCbm: 1, note: "" },
-    { id: "rr-sea-heavy", goodsClassId: HEAVY.id, ratePerCbm: 300, ratePerKg: 0, minCharge: 0, minCbm: 1, note: "" },
-    { id: "rr-sea-appl", goodsClassId: APPLIANCE.id, ratePerCbm: 260, ratePerKg: 0, minCharge: 0, minCbm: 1, note: "" },
-    { id: "rr-sea-any", goodsClassId: null, ratePerCbm: 280, ratePerKg: 0, minCharge: 0, minCbm: 1, note: "" },
+    { id: "rr-sea-normal", goodsClassId: NORMAL.id, ratePerCbm: 260, isAvailable: true, note: "" },
+    { id: "rr-sea-heavy", goodsClassId: HEAVY.id, ratePerCbm: 300, isAvailable: true, note: "" },
+    { id: "rr-sea-appl", goodsClassId: APPLIANCE.id, ratePerCbm: 260, isAvailable: true, note: "" },
+    { id: "rr-sea-any", goodsClassId: null, ratePerCbm: 280, isAvailable: true, note: "" },
   ],
 };
 
-const AIR_ACCRA: ForwarderRoute = {
-  id: "rt-air-accra",
+/** The air column: it takes normal goods and refuses everything heavy. */
+const AIR: ForwarderRoute = {
+  id: "rt-air",
   forwarderId: "fw-gz",
-  name: "China → Accra (Air)",
-  originCountry: "CN",
-  originCity: "Guangzhou",
+  name: "",
   mode: "air",
   destinationPointId: TEMA.id,
   currency: "USD",
   minDays: 7,
   maxDays: 14,
+  minCbm: 0,
+  orderFrequency: "",
+  orderFrequencyDetail: "",
   note: "",
   isActive: true,
   isDefault: false,
-  rates: [{ id: "rr-air-any", goodsClassId: null, ratePerCbm: 0, ratePerKg: 12, minCharge: 0, minCbm: 0, note: "" }],
+  rates: [
+    { id: "rr-air-normal", goodsClassId: NORMAL.id, ratePerCbm: 900, isAvailable: true, note: "" },
+    { id: "rr-air-heavy", goodsClassId: HEAVY.id, ratePerCbm: 0, isAvailable: false, note: "" },
+  ],
 };
 
 const FORWARDER: Forwarder = {
   id: "fw-gz",
   name: "Guangzhou Consolidators",
   code: "GZC",
+  ghanaAddress: "",
+  contactName: "",
+  contactPhone: "",
+  contactEmail: "",
   originCountry: "CN",
-  mode: "sea",
-  consolidationPointId: TEMA.id,
+  collectionAddress: "",
+  collectionCity: "Guangzhou",
   currency: "USD",
-  allInclusive: true,
   note: "",
   terms: "",
   isActive: true,
+  consolidations: [TEMA],
   goodsClasses: [NORMAL, APPLIANCE, HEAVY],
   categoryMap: { "cat-home": NORMAL.id, "cat-appliances": APPLIANCE.id, "cat-machinery": HEAVY.id },
-  routes: [SEA_ACCRA, AIR_ACCRA],
-  rates: [],
-};
-
-/** A forwarder still on the old flat list: no routes, one price per category. */
-const LEGACY_FORWARDER: Forwarder = {
-  ...FORWARDER,
-  id: "fw-legacy",
-  currency: "GHS",
-  goodsClasses: [],
-  categoryMap: {},
-  routes: [],
-  rates: [
-    { id: "r1", categoryId: null, label: "General", ratePerCbm: 3000, ratePerKg: 0, minCharge: 0, transitDays: 35 },
-    { id: "r2", categoryId: "cat-electronics", label: "Electronics", ratePerCbm: 4500, ratePerKg: 0, minCharge: 0, transitDays: 35 },
-  ],
+  routes: [SEA, AIR],
 };
 
 const CURRENCIES: Currency[] = [
-  { code: "GHS", name: "Ghana Cedi", symbol: "GH₵", rateToGhs: 1, isActive: true },
-  { code: "USD", name: "US Dollar", symbol: "$", rateToGhs: 12, isActive: true },
+  { code: "GHS", name: "Ghana Cedi", symbol: "GH₵", rateToGhs: 1, isActive: true, autoUpdate: false, source: "" },
+  { code: "USD", name: "US Dollar", symbol: "$", rateToGhs: 12, isActive: true, autoUpdate: true, source: "" },
 ];
 
 const CONFIG: ShippingConfig = {
-  defaults: { ...SHIPPING_DEFAULTS, baseFee: 10, perUnitFee: 1.5, perKgRate: 0, minFee: 0, fallbackRatePerCbm: 0 },
+  defaults: { ...SHIPPING_DEFAULTS, baseFee: 10, perUnitFee: 1.5, perKgRate: 0, minFee: 0 },
   rules: [],
   currencies: currencyRatesFrom(CURRENCIES),
 };
@@ -184,9 +182,6 @@ function line(over: Partial<ShipmentLine> = {}): ShipmentLine {
     forwarder: null,
     supplierDelivers: false,
     supplierFreight: 0,
-    originTaxRate: 0,
-    taxRate: -1,
-    dutyIncluded: false,
     ...over,
   };
 }
@@ -345,8 +340,6 @@ test("a supplier who delivers to Ghana adds no international charge", () => {
     CONFIG,
   );
   assert.equal(priced.internationalFreight, 0);
-  assert.equal(priced.importDuty, 0);
-  assert.equal(priced.tax, 0);
   assert.equal(priced.unpricedRoute, false);
   // Only the local run from Tema to the buyer's station, added by the cart.
   assert.equal(cartFee([line({ originCountry: "CN", supplierDelivers: true, point: TEMA })], "pp-accra"), 10);
@@ -365,17 +358,26 @@ test("a category maps to the forwarder's own class, else their default", () => {
   assert.equal(resolveGoodsClass(null, "cat-home"), null);
 });
 
-test("a route rate for the class wins over the route's catch-all", () => {
-  assert.equal(resolveRouteRate(SEA_ACCRA, HEAVY.id)?.ratePerCbm, 300);
-  assert.equal(resolveRouteRate(SEA_ACCRA, "gc-unknown")?.ratePerCbm, 280);
+test("a cell for the class wins over the lane's catch-all", () => {
+  assert.equal(resolveRouteRate(SEA, HEAVY.id)?.ratePerCbm, 300);
+  assert.equal(resolveRouteRate(SEA, "gc-unknown")?.ratePerCbm, 280);
   assert.equal(resolveRouteRate(null, NORMAL.id), null);
 });
 
-test("the default route is quoted until the buyer picks another", () => {
-  assert.equal(resolveRoute(FORWARDER)?.id, SEA_ACCRA.id);
-  assert.equal(resolveRoute(FORWARDER, AIR_ACCRA.id)?.id, AIR_ACCRA.id);
+test("the default lane is quoted when the listing names none", () => {
+  assert.equal(resolveRoute(FORWARDER)?.id, SEA.id);
+  assert.equal(resolveRoute(FORWARDER, AIR.id)?.id, AIR.id);
   // A route id that belongs to nobody is a claim from a browser, and loses.
-  assert.equal(resolveRoute(FORWARDER, "rt-invented")?.id, SEA_ACCRA.id);
+  assert.equal(resolveRoute(FORWARDER, "rt-invented")?.id, SEA.id);
+});
+
+test("only the lanes into a given warehouse are offered for it", () => {
+  assert.deepEqual(
+    routesToPoint(FORWARDER, TEMA.id).map((r) => r.id),
+    [SEA.id, AIR.id],
+  );
+  assert.deepEqual(routesToPoint(FORWARDER, "cp-elsewhere"), []);
+  assert.deepEqual(routesToPoint(FORWARDER, null), []);
 });
 
 test("a dollar rate is converted to cedis exactly once", () => {
@@ -384,8 +386,8 @@ test("a dollar rate is converted to cedis exactly once", () => {
     "pp-accra",
     CONFIG,
   );
-  // 0.05 CBM is under the route's 1 CBM minimum, so it bills as one: $260 → GH₵3,120.
-  assert.equal(priced.internationalFreight, 3120);
+  // 0.05 CBM × $260 × 12 = GH₵156. The forwarder's rate is the whole leg.
+  assert.equal(priced.internationalFreight, 156);
 });
 
 test("correcting the exchange rate re-prices every route that uses it", () => {
@@ -394,86 +396,72 @@ test("correcting the exchange rate re-prices every route that uses it", () => {
     currencies: currencyRatesFrom([...CURRENCIES.slice(0, 1), { ...CURRENCIES[1], rateToGhs: 15 }]),
   };
   const priced = priceLine(line({ originCountry: "CN", point: TEMA, forwarder: FORWARDER }), "pp-accra", config);
-  assert.equal(priced.internationalFreight, 3900); // $260 × 15
+  assert.equal(priced.internationalFreight, 195); // 0.05 × $260 × 15
 });
 
-test("a goods-class levy rides on the same cubic metres", () => {
+test("a class levy is charged as extra cubic metres, not a second price", () => {
   const priced = priceLine(
     line({ originCountry: "CN", point: TEMA, forwarder: FORWARDER, categoryId: "cat-appliances", size: { cbm: 2 } }),
     "pp-accra",
     CONFIG,
   );
-  // 2 CBM × ($260 + $10 energy commission) × 12.
-  assert.equal(priced.internationalFreight, 2 * 270 * 12);
+  // (2 + 0.01 levy) CBM × $260 × 12, rounded to the pesewa.
+  assert.equal(priced.internationalFreight, 6271.2);
   assert.equal(priced.goodsClass?.id, APPLIANCE.id);
 });
 
-test("choosing air changes both the price and the promised window", () => {
+test("a different mode is a different price and a different window", () => {
   const air = priceLine(
-    line({ originCountry: "CN", point: TEMA, forwarder: FORWARDER, routeId: AIR_ACCRA.id }),
+    line({ originCountry: "CN", point: TEMA, forwarder: FORWARDER, routeId: AIR.id }),
     "pp-accra",
     CONFIG,
   );
-  assert.equal(air.internationalFreight, 12 * 2 * 12); // $12/kg × 2 kg × 12
+  assert.equal(air.internationalFreight, 0.05 * 900 * 12);
   assert.equal(air.transitMinDays, 7);
   assert.equal(air.transitMaxDays, 14);
   assert.equal(describeTransit(air.transitMinDays, air.transitMaxDays), "7–14 days");
 });
 
-test("an all-inclusive forwarder rate is not dutied or taxed again", () => {
+test("the forwarder's rate is the whole leg — nothing is added to it", () => {
   const priced = priceLine(
     line({ originCountry: "CN", point: TEMA, forwarder: FORWARDER, supplierFreight: 40 }),
     "pp-accra",
     CONFIG,
   );
   assert.equal(priced.supplierFreight, 40);
-  assert.equal(priced.importDuty, 0);
-  assert.equal(priced.clearingFee, 0);
-  assert.equal(priced.tax, 0);
-  assert.equal(priced.fee, 3120 + 40);
+  // Leg 1 plus leg 2, and no duty, clearing or tax on top of either.
+  assert.equal(priced.fee, 156 + 40);
 });
 
-test("an itemised forwarder rate is dutied and taxed on the landed value", () => {
-  const itemised: Forwarder = { ...LEGACY_FORWARDER, allInclusive: false };
+test("a lane that will not carry a class refuses it rather than pricing it", () => {
+  // Heavy-duty goods by air: the cell is marked N/A, and the catch-all row for
+  // another class must not stand in for it.
   const priced = priceLine(
-    line({ originCountry: "CN", point: TEMA, forwarder: itemised, supplierFreight: 40, taxRate: 10 }),
+    line({ originCountry: "CN", point: TEMA, forwarder: FORWARDER, routeId: AIR.id, categoryId: "cat-machinery" }),
     "pp-accra",
     CONFIG,
   );
-  // Landed value: 400 goods + 40 leg 1 + 150 leg 2 (3000 × 0.05 CBM) = 590.
-  assert.equal(priced.internationalFreight, 150);
-  assert.equal(priced.importDuty, 118); // 20% of 590
-  assert.equal(priced.clearingFee, 80);
-  assert.equal(priced.tax, 70.8); // 10% of (590 + 118)
+  assert.equal(priced.unpricedRoute, true);
+  assert.equal(priced.internationalFreight, 0);
 });
 
-test("a forwarder still on the old flat list keeps quoting", () => {
-  assert.equal(resolveForwarderRate(LEGACY_FORWARDER, "cat-electronics")?.ratePerCbm, 4500);
-  assert.equal(resolveForwarderRate(LEGACY_FORWARDER, "cat-home")?.ratePerCbm, 3000);
-  assert.equal(resolveForwarderRate(null, "cat-home"), null);
-});
-
-test("an unpriced route is reported rather than quoted at zero", () => {
-  const bare: Forwarder = { ...FORWARDER, routes: [], rates: [] };
+test("an unpriced lane is reported rather than quoted at zero", () => {
+  const bare: Forwarder = { ...FORWARDER, routes: [] };
   const priced = priceLine(line({ originCountry: "CN", point: TEMA, forwarder: bare }), "pp-accra", CONFIG);
   assert.equal(priced.unpricedRoute, true);
   assert.equal(priced.internationalFreight, 0);
 });
 
-test("the platform fallback rate prices a route no forwarder covers", () => {
-  const config: ShippingConfig = {
-    ...CONFIG,
-    defaults: { ...CONFIG.defaults, fallbackRatePerCbm: 2000 },
-  };
-  const priced = priceLine(line({ originCountry: "CN", point: TEMA, forwarder: null }), "pp-accra", config);
-  assert.equal(priced.unpricedRoute, false);
-  assert.equal(priced.internationalFreight, 100); // 2000 × 0.05
+test("an imported listing with no forwarder at all cannot be quoted", () => {
+  const priced = priceLine(line({ originCountry: "CN", point: TEMA, forwarder: null }), "pp-accra", CONFIG);
+  assert.equal(priced.unpricedRoute, true);
+  assert.equal(priced.internationalFreight, 0);
 });
 
 // --- The whole cart ---------------------------------------------------------
 
 test("a cart adds its lines up and carries the unpriced flag", () => {
-  const bare: Forwarder = { ...FORWARDER, routes: [], rates: [] };
+  const bare: Forwarder = { ...FORWARDER, routes: [] };
   const { quote } = quoteShipment(
     [line(), line({ originCountry: "CN", point: TEMA, forwarder: bare, vendorId: "v-2" })],
     "pp-accra",

@@ -216,7 +216,11 @@ export function ShippingRulesForm({
         ) : null}
 
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <Field label="From" htmlFor="originPointId" hint="The consolidation point the goods leave.">
+          <Field
+            label="From"
+            htmlFor="originPointId"
+            hint="The consolidation point the goods leave — ours, or a forwarder's Ghana warehouse once an imported consignment has landed there."
+          >
             <select id="originPointId" name="originPointId" defaultValue="" className={inputClass}>
               <option value="">Any point</option>
               {points.map((p) => (

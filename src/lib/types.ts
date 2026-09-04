@@ -152,12 +152,13 @@ export interface AbroadInfo {
   consolidationPointId?: string;
   /** The forwarder carrying the leg into Ghana. */
   forwarderId?: string;
+  /** The forwarder's lane — mode into a Ghana warehouse — it travels on. */
+  routeId?: string;
   /** True when the supplier's price already reaches Ghana. */
   supplierDelivers?: boolean;
   supplierFreight?: number;
-  originTaxRate?: number;
-  ghanaTaxRate?: number;
-  dutyIncluded?: boolean;
+  /** How the supplier is reached: phone, WeChat, email. */
+  supplierContact?: string;
   processingDays?: number;
   abroadStatus?: AbroadStatus;
   minimumOrders?: number;
@@ -245,6 +246,8 @@ export interface Product {
   /** The supplier listing this was copied from (Alibaba, 1688, Amazon…). */
   sourceUrl?: string;
   supplierName?: string;
+  /** How the supplier is reached: phone, WeChat, email. */
+  supplierContact?: string;
   /** air | sea | road | express, for the abroad → Ghana leg. */
   freightMode?: string;
   /** The consolidation point this listing gathers at. */
@@ -253,6 +256,8 @@ export interface Product {
   freightIncluded?: boolean;
   /** The forwarder carrying the leg into Ghana, when one does. */
   forwarderId?: string | null;
+  /** The forwarder's lane the listing is quoted and shipped on. */
+  forwarderRouteId?: string | null;
   /** How this listing's shipping is priced: auto | free | manual. */
   shippingMethod?: string;
   /** The hand-quoted fee per unit, on the manual method. */

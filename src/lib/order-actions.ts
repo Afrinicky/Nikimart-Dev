@@ -34,7 +34,6 @@ const payloadSchema = z.object({
   // this cart: forwarder id → route id. An id that names nothing, or a route
   // belonging to another forwarder, falls back to that forwarder's default —
   // the engine checks it against what exists rather than trusting it.
-  routeChoices: z.record(z.string(), z.string()).optional(),
   // Every order is collected at a Nickimart pickup point (no home delivery).
   pickupPointId: z.string().trim().min(1, "Please choose a pickup point."),
   // Whether the buyer ticked the shipped-from-abroad acknowledgement at
@@ -107,14 +106,12 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   });
   const productById = new Map(products.map((p) => [p.id, p]));
 
-  // The landed bill, recomputed here from the database. Never trust a price,
-  // a CBM, a freight leg or a tax rate that arrived from a browser: the whole
-  // point of an eight-row bill is that a buyer can read it, and the only way
-  // that stays true is if the number they are charged is derived here.
+  // The landed bill, recomputed here from the database. Never trust a price, a
+  // CBM or a freight leg that arrived from a browser: the number a buyer is
+  // charged is derived here or it is not trustworthy at all.
   const pricing = await priceCart(
     data.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
     pickupPoint.id,
-    data.routeChoices ?? {},
   );
 
   // A listing sold in cartons of twelve must not be ordered as one. The cart
@@ -321,12 +318,8 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
             // The landed bill, snapshotted. Rates move; what somebody was
             // quoted and charged must not move with them.
             hasAbroadItems,
-            originTax: bill.components.originTax,
             supplierFreight: bill.components.supplierFreight,
             internationalFreight: bill.components.internationalFreight,
-            importDuty: bill.components.importDuty,
-            clearingFee: bill.components.clearingFee,
-            ghanaTax: bill.components.tax,
             paymentPlan: plan,
             amountPaid: collectPayment ? 0 : dueNow,
             balanceDue,
@@ -345,16 +338,11 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
                 shippingFee: i.priced!.shipping,
                 shippingMethod: i.priced!.method,
                 shippingDeferred: plan === "shipping_on_pickup",
-                originTax: i.priced!.detail.originTax,
                 supplierFreight: i.priced!.detail.supplierFreight,
                 internationalFreight: i.priced!.detail.internationalFreight,
-                importDuty: i.priced!.detail.importDuty,
-                clearingFee: i.priced!.detail.clearingFee,
-                ghanaTax: i.priced!.detail.tax,
                 domesticFreight: i.priced!.detail.localFreight,
-                freightMode: i.priced!.route?.mode ?? i.priced!.forwarder?.mode ?? "",
-                freightIncluded: i.priced!.terms?.supplierDelivers ?? false,
-                // The lane the buyer chose and the window they were promised,
+                freightMode: i.priced!.route?.mode ?? "",
+                // The lane it travels on and the window the buyer was promised,
                 // snapshotted: somebody who paid for air freight keeps that
                 // record even if the listing later moves to sea.
                 freightRouteId: i.priced!.route?.id ?? null,

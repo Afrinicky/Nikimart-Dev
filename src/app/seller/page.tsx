@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { BadgeCheck, Boxes, ClipboardList, Plus, Settings, Wallet } from "lucide-react";
+import { BadgeCheck, Boxes, ClipboardList, Plane, Plus, Settings, Wallet } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -19,6 +19,7 @@ const ACTIONS = [
   { icon: Plus, title: "Add a product", desc: "List a new product, an item shipped from abroad, or a service.", href: "/seller/products/new" },
   { icon: Boxes, title: "Manage products", desc: "Edit, restock, or remove your listings.", href: "/seller/products" },
   { icon: ClipboardList, title: "Orders", desc: "View and fulfil incoming orders.", href: "/seller/orders" },
+  { icon: Plane, title: "International orders", desc: "What your customers bought from abroad, and whether it has been ordered yet.", href: "/seller/purchasing" },
   { icon: Wallet, title: "Earnings & payouts", desc: "Track your sales, commission, and settlements.", href: "/seller/settlements" },
   { icon: Settings, title: "Shop settings", desc: "Update your shop profile and delivery options.", href: "/seller/settings" },
 ];

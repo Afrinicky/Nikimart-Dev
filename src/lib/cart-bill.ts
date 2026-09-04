@@ -12,25 +12,27 @@ function round(n: number): number {
   return Math.max(0, Math.round(n * 100) / 100);
 }
 
-/** The parts of a shipping charge. Admin, seller and finance only. */
+/**
+ * The parts of a shipping charge. Admin, seller and finance only.
+ *
+ * Three legs and nothing else. Duty, clearing and the two tax jurisdictions
+ * used to sit here too; they are gone because a forwarder's rate per cubic
+ * metre already contains whatever they paid at a port, and charging any of it
+ * again billed the buyer twice for one thing.
+ */
 export interface ShippingComponents {
+  /** Leg 1: supplier → the forwarder's warehouse abroad. */
   supplierFreight: number;
+  /** Leg 2: the forwarder's lane into their Ghana warehouse. */
   internationalFreight: number;
+  /** Leg 3: a consolidation point → the buyer's pickup station. */
   localFreight: number;
-  importDuty: number;
-  clearingFee: number;
-  tax: number;
-  originTax: number;
 }
 
 const ZERO_COMPONENTS: ShippingComponents = {
   supplierFreight: 0,
   internationalFreight: 0,
   localFreight: 0,
-  importDuty: 0,
-  clearingFee: 0,
-  tax: 0,
-  originTax: 0,
 };
 
 /** What a cart costs. Two numbers for the buyer, the rest for everyone else. */

@@ -16,9 +16,10 @@ export default async function NewConsolidationPointPage() {
 
   return (
     <Container className="max-w-2xl py-8">
-      <h1 className="font-display text-xl font-bold text-niki-ink">New consolidation point</h1>
+      <h1 className="font-display text-xl font-bold text-niki-ink">New local consolidation point</h1>
       <p className="mt-1 text-sm text-niki-ink/60">
-        Where a load is gathered and checked before it moves on.
+        Where goods that never left Ghana are gathered and checked before a courier takes them on.
+        A forwarder&apos;s Ghana warehouse is created on their own registration page.
       </p>
       <div className="mt-6 rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <ConsolidationPointForm

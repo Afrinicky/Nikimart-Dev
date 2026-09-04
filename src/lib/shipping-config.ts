@@ -5,8 +5,8 @@ import { getSettings } from "@/lib/settings";
 import {
   currencyRatesFrom,
   DEFAULT_CURRENCIES,
+  DEFAULT_FORWARDER_CURRENCY,
   HOME_CURRENCY,
-  isPointKind,
   SHIPPING_DEFAULTS,
   type ConsolidationPoint,
   type Currency,
@@ -41,9 +41,55 @@ export async function getShippingDefaults(): Promise<ShippingDefaults> {
     perKgRate: numOr(s.shipPerKgRate, SHIPPING_DEFAULTS.perKgRate),
     volumetricDivisor: numOr(s.shipVolumetricDivisor, SHIPPING_DEFAULTS.volumetricDivisor),
     minFee: numOr(s.shipMinFee, SHIPPING_DEFAULTS.minFee),
-    importTaxRate: numOr(s.ghanaImportTaxRate, SHIPPING_DEFAULTS.importTaxRate),
-    importDutyPercent: numOr(s.defaultImportDutyPercent, SHIPPING_DEFAULTS.importDutyPercent),
-    fallbackRatePerCbm: numOr(s.shipFallbackRatePerCbm, SHIPPING_DEFAULTS.fallbackRatePerCbm),
+  };
+}
+
+const POINT_SELECT = {
+  id: true,
+  name: true,
+  code: true,
+  city: true,
+  address: true,
+  kind: true,
+  forwarderId: true,
+  hubPickupId: true,
+  note: true,
+  isActive: true,
+} as const;
+
+type PointRow = {
+  id: string;
+  name: string;
+  code: string;
+  city: string;
+  address: string;
+  kind: string;
+  forwarderId: string | null;
+  hubPickupId: string | null;
+  note: string;
+  isActive: boolean;
+};
+
+/**
+ * The kind is derived, never trusted.
+ *
+ * A point that belongs to a forwarder is an international one whatever the
+ * stored string says, and one that belongs to nobody is ours. Keeping the two
+ * in step in code rather than in data is what stops a forwarder's warehouse
+ * from turning up in the local points list after somebody edits a row.
+ */
+function toPoint(p: PointRow): ConsolidationPoint {
+  return {
+    id: p.id,
+    name: p.name,
+    code: p.code,
+    city: p.city,
+    address: p.address,
+    kind: p.forwarderId ? "international" : "local",
+    forwarderId: p.forwarderId,
+    pickupPointId: p.hubPickupId,
+    note: p.note,
+    isActive: p.isActive,
   };
 }
 
@@ -51,28 +97,17 @@ export async function getShippingDefaults(): Promise<ShippingDefaults> {
  * Every consolidation point, active first.
  *
  * The table is still named `ArrivalPoint` — every listing, order line and
- * shipment already points at it, and migrations here are additive by rule. What
- * changed is what it means: not only where imports land, but anywhere a load is
- * gathered and checked. `hubPickupId` is the pickup station it sits at, and it
- * is what makes collection there free.
+ * shipment already points at it, and migrations here are additive by rule.
+ * `pickupPointId` is the station it sits at, and it is what makes collection
+ * there free.
  */
 export const getConsolidationPoints = cache(async (): Promise<ConsolidationPoint[]> => {
   try {
     const rows = await prisma.arrivalPoint.findMany({
       orderBy: [{ isActive: "desc" }, { name: "asc" }],
+      select: POINT_SELECT,
     });
-    return rows.map((p) => ({
-      id: p.id,
-      name: p.name,
-      code: p.code,
-      city: p.city,
-      kind: isPointKind(p.kind) ? p.kind : "international",
-      pickupPointId: p.hubPickupId,
-      dutyPercent: p.dutyPercent,
-      clearingFee: p.clearingFee,
-      note: p.note,
-      isActive: p.isActive,
-    }));
+    return rows.map(toPoint);
   } catch {
     return [];
   }
@@ -81,6 +116,11 @@ export const getConsolidationPoints = cache(async (): Promise<ConsolidationPoint
 /** Only the points a seller may choose. */
 export async function getActiveConsolidationPoints(): Promise<ConsolidationPoint[]> {
   return (await getConsolidationPoints()).filter((p) => p.isActive);
+}
+
+/** NikiMart's own points — the ones the consolidation-points screen owns. */
+export async function getLocalConsolidationPoints(): Promise<ConsolidationPoint[]> {
+  return (await getConsolidationPoints()).filter((p) => !p.forwarderId);
 }
 
 /**
@@ -123,6 +163,8 @@ export const getCurrencies = cache(async (): Promise<Currency[]> => {
           symbol: r.symbol,
           rateToGhs: r.rateToGhs,
           isActive: r.isActive,
+          autoUpdate: r.autoUpdate,
+          source: r.source,
         } satisfies Currency,
       ]),
     );
@@ -137,7 +179,7 @@ export const getCurrencies = cache(async (): Promise<Currency[]> => {
   }
 });
 
-/** Only the currencies an admin may quote a route in. */
+/** Only the currencies an admin may quote a lane in. */
 export async function getActiveCurrencies(): Promise<Currency[]> {
   return (await getCurrencies()).filter((c) => c.isActive);
 }
@@ -151,39 +193,43 @@ export async function getCurrencyRates(): Promise<CurrencyRates> {
 // Forwarders
 // ---------------------------------------------------------------------------
 
-/** Every freight forwarder with their classes, routes and prices. */
+/** Every freight forwarder with their points, classes, lanes and grid. */
 export const getForwarders = cache(async (): Promise<Forwarder[]> => {
   try {
     const rows = await prisma.freightForwarder.findMany({
       orderBy: [{ isActive: "desc" }, { name: "asc" }],
       include: {
+        consolidations: { orderBy: [{ name: "asc" }], select: POINT_SELECT },
         goodsClasses: { orderBy: [{ sortOrder: "asc" }, { name: "asc" }] },
         categoryMap: true,
         routes: {
           orderBy: [{ isDefault: "desc" }, { mode: "asc" }, { name: "asc" }],
           include: { rates: true },
         },
-        rates: { orderBy: [{ categoryId: "asc" }] },
       },
     });
     return rows.map((f) => ({
       id: f.id,
       name: f.name,
       code: f.code,
+      ghanaAddress: f.ghanaAddress,
+      contactName: f.contactName,
+      contactPhone: f.contactPhone,
+      contactEmail: f.contactEmail,
       originCountry: f.originCountry,
-      mode: f.mode,
-      consolidationPointId: f.consolidationPointId,
-      currency: f.currency || HOME_CURRENCY,
-      allInclusive: f.allInclusive,
+      collectionAddress: f.collectionAddress,
+      collectionCity: f.collectionCity,
+      currency: f.currency || DEFAULT_FORWARDER_CURRENCY,
       note: f.note,
       terms: f.terms,
       isActive: f.isActive,
+      consolidations: f.consolidations.map(toPoint),
       goodsClasses: f.goodsClasses.map((g) => ({
         id: g.id,
         name: g.name,
         note: g.note,
-        surchargePerCbm: g.surchargePerCbm,
-        surchargeLabel: g.surchargeLabel,
+        levyCbm: g.levyCbm,
+        levyLabel: g.levyLabel,
         sortOrder: g.sortOrder,
         isDefault: g.isDefault,
       })),
@@ -192,13 +238,14 @@ export const getForwarders = cache(async (): Promise<Forwarder[]> => {
         id: r.id,
         forwarderId: r.forwarderId,
         name: r.name,
-        originCountry: r.originCountry,
-        originCity: r.originCity,
         mode: r.mode,
         destinationPointId: r.destinationPointId,
-        currency: r.currency || f.currency || HOME_CURRENCY,
+        currency: r.currency || f.currency || DEFAULT_FORWARDER_CURRENCY,
         minDays: r.minDays,
         maxDays: r.maxDays,
+        minCbm: r.minCbm,
+        orderFrequency: r.orderFrequency,
+        orderFrequencyDetail: r.orderFrequencyDetail,
         note: r.note,
         isActive: r.isActive,
         isDefault: r.isDefault,
@@ -206,20 +253,9 @@ export const getForwarders = cache(async (): Promise<Forwarder[]> => {
           id: rr.id,
           goodsClassId: rr.goodsClassId,
           ratePerCbm: rr.ratePerCbm,
-          ratePerKg: rr.ratePerKg,
-          minCharge: rr.minCharge,
-          minCbm: rr.minCbm,
+          isAvailable: rr.isAvailable,
           note: rr.note,
         })),
-      })),
-      rates: f.rates.map((r) => ({
-        id: r.id,
-        categoryId: r.categoryId,
-        label: r.label,
-        ratePerCbm: r.ratePerCbm,
-        ratePerKg: r.ratePerKg,
-        minCharge: r.minCharge,
-        transitDays: r.transitDays,
       })),
     }));
   } catch {
@@ -277,22 +313,21 @@ export async function getShippingConfig(): Promise<ShippingConfig> {
  * until a buyer is charged to collect from the shelf the goods are sitting on.
  */
 export interface ShippingHealth {
-  points: number;
+  /** NikiMart's own points. */
   localPoints: number;
-  internationalPoints: number;
+  /** Points belonging to a forwarder. */
+  forwarderPoints: number;
   pointsAtPickup: number;
   pickupPoints: number;
   rules: number;
   forwarders: number;
-  /** Forwarders that can actually quote: at least one route with a price on it. */
-  forwardersWithRoutes: number;
+  /** Forwarders that can actually quote: a lane with at least one price on it. */
+  forwardersWithRates: number;
   routes: number;
-  /** Forwarders still on the legacy flat price list, with no routes yet. */
-  forwardersOnLegacyRates: number;
   currencies: number;
-  /** Currencies quoted by a route whose exchange rate is still at 1:1. */
+  /** Currencies quoted by a lane whose exchange rate is still at 1:1. */
   unratedCurrencies: string[];
-  /** Listings from abroad that no forwarder and no supplier delivery covers. */
+  /** Listings from abroad that no priced lane and no supplier delivery covers. */
   unpricedListings: number;
 }
 
@@ -318,52 +353,68 @@ export async function getShippingHealth(): Promise<ShippingHealth> {
       }),
     ]);
 
-    const quotableRoutes = (f: Forwarder) =>
-      f.routes.filter((r) => r.isActive && r.rates.length > 0);
+    const priced = (f: Forwarder) =>
+      f.routes.some((r) => r.isActive && r.rates.some((x) => x.isAvailable && x.ratePerCbm > 0));
 
-    // A route quoted in a currency nobody has priced converts one-for-one,
-    // which turns $260 into GH₵260. Worth saying out loud on the overview.
+    // A lane quoted in a currency nobody has priced converts one-for-one, which
+    // turns $260 into GH₵260. Worth saying out loud on the overview.
     const rateByCode = new Map(currencies.map((c) => [c.code, c.rateToGhs]));
     const unrated = new Set<string>();
     for (const f of forwarders) {
       for (const r of f.routes) {
-        const code = (r.currency || HOME_CURRENCY).toUpperCase();
+        const code = (r.currency || f.currency || HOME_CURRENCY).toUpperCase();
         if (code !== HOME_CURRENCY && (rateByCode.get(code) ?? 1) === 1) unrated.add(code);
       }
     }
 
     return {
-      points: points.length,
-      localPoints: points.filter((p) => p.kind === "local").length,
-      internationalPoints: points.filter((p) => p.kind === "international").length,
+      localPoints: points.filter((p) => !p.forwarderId).length,
+      forwarderPoints: points.filter((p) => p.forwarderId).length,
       pointsAtPickup: points.filter((p) => p.pickupPointId).length,
       pickupPoints,
       rules,
       forwarders: forwarders.length,
-      forwardersWithRoutes: forwarders.filter((f) => quotableRoutes(f).length > 0).length,
+      forwardersWithRates: forwarders.filter(priced).length,
       routes: forwarders.reduce((s, f) => s + f.routes.length, 0),
-      forwardersOnLegacyRates: forwarders.filter(
-        (f) => f.routes.length === 0 && f.rates.length > 0,
-      ).length,
       currencies: currencies.length,
       unratedCurrencies: [...unrated].sort(),
       unpricedListings: unpriced,
     };
   } catch {
     return {
-      points: 0,
       localPoints: 0,
-      internationalPoints: 0,
+      forwarderPoints: 0,
       pointsAtPickup: 0,
       pickupPoints: 0,
       rules: 0,
       forwarders: 0,
-      forwardersWithRoutes: 0,
+      forwardersWithRates: 0,
       routes: 0,
-      forwardersOnLegacyRates: 0,
       currencies: 0,
       unratedCurrencies: [],
       unpricedListings: 0,
     };
   }
+}
+
+/**
+ * How long goods from one country take to reach Ghana, in days.
+ *
+ * Read off the forwarders themselves — the longest delivery estimate on any
+ * live lane out of that country — rather than a platform setting somebody has
+ * to remember to keep in step with them. A country nobody collects in falls
+ * back to three weeks, which is what a shopper is shown while the first
+ * forwarder for it is being set up.
+ */
+export const DEFAULT_LEAD_DAYS = 21;
+
+export async function getLeadDays(countryCode: string): Promise<number> {
+  const code = (countryCode || "").toUpperCase();
+  if (!code) return DEFAULT_LEAD_DAYS;
+  const forwarders = await getActiveForwarders();
+  const days = forwarders
+    .filter((f) => f.originCountry.toUpperCase() === code)
+    .flatMap((f) => f.routes.filter((r) => r.isActive).map((r) => r.maxDays || r.minDays))
+    .filter((d) => d > 0);
+  return days.length > 0 ? Math.max(...days) : DEFAULT_LEAD_DAYS;
 }

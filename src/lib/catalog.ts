@@ -117,7 +117,7 @@ export function mapProduct(
     supplierName: p.supplierName || undefined,
     freightMode: p.freightMode || undefined,
     arrivalPointId: p.arrivalPointId ?? null,
-    freightIncluded: p.freightIncluded,
+    freightIncluded: p.supplierDelivers,
     forwarderId: p.forwarderId ?? null,
     shippingMethod: p.shippingMethod,
     manualShippingFee: p.manualShippingFee,

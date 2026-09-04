@@ -31,11 +31,10 @@ import {
 } from "@/lib/catalog";
 import { discountPercent, formatPrice } from "@/lib/format";
 import { countryByCode, estimatedArrival, isAbroad } from "@/lib/countries";
-import { getLeadDays } from "@/lib/settings";
 import { waChatLink } from "@/lib/whatsapp";
 import { freightModeLabel, hasAnyTerms, isAbroadType, toAbroadTerms } from "@/lib/abroad";
 import { describePoint } from "@/lib/shipping";
-import { getConsolidationPoint, getForwarders } from "@/lib/shipping-config";
+import { getConsolidationPoint, getForwarders, getLeadDays } from "@/lib/shipping-config";
 import { productBadges } from "@/lib/product-badges";
 
 type Params = Promise<{ slug: string }>;
@@ -95,6 +94,12 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         (f) => f.id === (abroadTerms.forwarderId || product.forwarderId),
       ) ?? null)
     : null;
+  // The lane the seller listed this on: it carries the mode and the delivery
+  // estimate the buyer is actually being promised.
+  const freightRoute =
+    forwarder?.routes.find(
+      (r) => r.id === (abroadTerms?.routeId || product.forwarderRouteId),
+    ) ?? null;
 
   const deliveryOptions = [
     product.sameDayDeliveryAvailable && { icon: Truck, label: "Same-day delivery available" },
@@ -259,7 +264,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
                     label="Arrives"
                     value={abroadTerms.estimatedArrival || (leadDays ? `about ${leadDays} days` : "")}
                   />
-                  <Fact label="Freight" value={freightModeLabel(forwarder?.mode)} />
+                  <Fact label="Freight" value={freightModeLabel(freightRoute?.mode)} />
                   <Fact
                     label="Collected in Ghana at"
                     value={consolidationPoint ? describePoint(consolidationPoint) : ""}

@@ -190,7 +190,6 @@ const abroad = (overrides: Partial<AbroadInfo>): AbroadInfo => ({
   originCountry: "AE",
   supplierDelivers: false,
   supplierFreight: 40,
-  originTaxRate: 5,
   processingDays: 5,
   abroadStatus: "open",
   ...overrides,

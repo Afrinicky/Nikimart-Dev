@@ -13,7 +13,7 @@ import {
   getVendorNameMap,
 } from "@/lib/catalog";
 import { countryByRegion, estimatedArrival, FOREIGN_COUNTRIES } from "@/lib/countries";
-import { getLeadDays } from "@/lib/settings";
+import { getLeadDays } from "@/lib/shipping-config";
 
 type Params = Promise<{ region: string }>;
 

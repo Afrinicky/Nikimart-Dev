@@ -193,14 +193,12 @@ function shippingFields(fd: FormData) {
       originCountry: "",
       sourceUrl: "",
       supplierName: "",
+      supplierContact: "",
       freightMode: "",
       supplierFreight: 0,
-      intlFreight: 0,
-      freightIncluded: false,
       supplierDelivers: false,
       forwarderId: null,
-      originTaxRate: 0,
-      ghanaTaxRate: null,
+      forwarderRouteId: null,
       // A local listing states its consolidation point directly; an imported
       // one carries it inside the terms.
       arrivalPointId: str(fd, "consolidationPointId") || null,
@@ -217,18 +215,14 @@ function shippingFields(fd: FormData) {
     originCountry: terms.originCountry,
     sourceUrl: terms.sourceUrl,
     supplierName: terms.supplierName,
-    freightMode: "",
+    supplierContact: terms.supplierContact,
+    // Mirrored from the lane the seller chose, so the order-placement queue and
+    // the storefront can filter on it without joining three tables.
+    freightMode: str(fd, "freightMode"),
     supplierFreight: terms.supplierFreight,
-    intlFreight: 0,
-    // The old column name for the same promise, kept in step so anything still
-    // reading it agrees with the terms.
-    freightIncluded: terms.supplierDelivers,
     supplierDelivers: terms.supplierDelivers,
     forwarderId: terms.forwarderId || null,
-    originTaxRate: terms.originTaxRate,
-    // A negative rate in the terms means "use the platform rate", which the
-    // column expresses as null rather than as a nonsense negative percentage.
-    ghanaTaxRate: terms.ghanaTaxRate >= 0 ? terms.ghanaTaxRate : null,
+    forwarderRouteId: terms.routeId || null,
     arrivalPointId: terms.consolidationPointId || null,
   };
 }
