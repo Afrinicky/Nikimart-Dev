@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import type { CrudState } from "@/lib/admin-actions";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 
 type Action = (prev: CrudState, fd: FormData) => Promise<CrudState>;
 
@@ -45,12 +46,6 @@ export function ConsolidationPointForm({
 
   return (
     <form action={formAction} className="space-y-5" noValidate>
-      {state.error ? (
-        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
-          {state.error}
-        </p>
-      ) : null}
-
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Name" htmlFor="name" hint="What sellers and buyers will see.">
           <input id="name" name="name" defaultValue={p?.name} required className={inputClass} />
@@ -93,6 +88,7 @@ export function ConsolidationPointForm({
         Active — sellers can choose this point
       </label>
 
+      <FormFeedback error={state.error} />
       <div className="flex items-center gap-3">
         <div className="w-40">
           <SubmitButton>{submitLabel}</SubmitButton>

@@ -6,16 +6,13 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { createAffiliate } from "@/lib/finance-actions";
 import type { CrudState } from "@/lib/admin-actions";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 
 export function AffiliateForm() {
   const [state, formAction] = useActionState<CrudState, FormData>(createAffiliate, {});
 
   return (
     <form action={formAction} className="space-y-5" noValidate>
-      {state.error ? (
-        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
-      ) : null}
-
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Name" htmlFor="name" hint={state.fieldErrors?.name}>
           <input id="name" name="name" required className={inputClass} />
@@ -35,6 +32,7 @@ export function AffiliateForm() {
         <textarea id="note" name="note" rows={2} className={inputClass} />
       </Field>
 
+      <FormFeedback error={state.error} />
       <div className="flex items-center gap-3">
         <div className="w-44">
           <SubmitButton>Add affiliate</SubmitButton>

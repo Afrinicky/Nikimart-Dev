@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { Check, KeyRound } from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { ActionLink, SubmitButton } from "@/components/ui/motion";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 import {
   completeAgentSetup,
   type SetupState,
@@ -49,15 +50,6 @@ export function AgentSetupForm({
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
-      {state.error ? (
-        <p
-          role="alert"
-          className="animate-fade-up rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger"
-        >
-          {state.error}
-        </p>
-      ) : null}
-
       <input type="hidden" name="token" value={token} />
 
       <div className="rounded-2xl bg-niki-surface p-4 text-sm">
@@ -110,6 +102,7 @@ export function AgentSetupForm({
         </Field>
       </div>
 
+      <FormFeedback error={state.error} />
       <SubmitButton
         pendingLabel="Opening your store…"
         icon={<KeyRound className="h-4 w-4" />}

@@ -13,6 +13,7 @@ import {
   type SlugCheck,
 } from "@/lib/data-bundles/agent-application-actions";
 import { cn } from "@/lib/cn";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 
 /**
  * Applying to become an agent.
@@ -76,15 +77,6 @@ export function ApplyAgentForm({ origin }: { origin: string }) {
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
-      {state.error ? (
-        <p
-          role="alert"
-          className="animate-fade-up rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger"
-        >
-          {state.error}
-        </p>
-      ) : null}
-
       <Field label="Full name" htmlFor="fullName">
         <input
           id="fullName"
@@ -192,6 +184,7 @@ export function ApplyAgentForm({ origin }: { origin: string }) {
 
       <AcceptTerms audience="agent" error={state.termsError} />
 
+      <FormFeedback error={state.error} />
       <SubmitButton
         pendingLabel="Sending…"
         icon={<Send className="h-4 w-4" />}

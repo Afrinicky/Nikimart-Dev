@@ -14,6 +14,7 @@ import {
   type Forwarder,
 } from "@/lib/shipping";
 import { saveForwarder, type ForwarderState } from "@/lib/forwarder-actions";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 
 /**
  * Registering a freight forwarder: one window, everything.
@@ -356,17 +357,6 @@ export function ForwarderRegistrationForm({
   return (
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="payload" value={payload} />
-
-      {state.error ? (
-        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
-          {state.error}
-        </p>
-      ) : null}
-      {state.ok ? (
-        <p className="rounded-xl bg-niki-success/10 px-4 py-3 text-sm font-medium text-niki-success">
-          Saved ✓
-        </p>
-      ) : null}
 
       {/* --- Basic information ---------------------------------------------- */}
       <Section icon={Building2} title="Basic information" hint="Who they are, and where to reach them in Ghana.">
@@ -879,6 +869,10 @@ export function ForwarderRegistrationForm({
           aria-label="Standing notes"
         />
       </Section>
+
+      {/* Beside the button, because this form is several screens long: a
+          result at the top is a result nobody scrolls back up to find. */}
+      <FormFeedback error={state.error} success={state.ok ? "Saved ✓" : undefined} />
 
       <div className="w-56">
         <SubmitButton>{submitLabel}</SubmitButton>

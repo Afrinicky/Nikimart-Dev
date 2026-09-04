@@ -6,6 +6,7 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import type { CrudState } from "@/lib/admin-actions";
 import { ROLES, ROLE_LABELS, type Role } from "@/lib/roles";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 
 type Action = (prev: CrudState, fd: FormData) => Promise<CrudState>;
 
@@ -24,10 +25,6 @@ export function UserForm({
 
   return (
     <form action={formAction} className="space-y-5" noValidate>
-      {state.error ? (
-        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
-      ) : null}
-
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Full name" htmlFor="name" hint={state.fieldErrors?.name}>
           <input id="name" name="name" defaultValue={u?.name ?? ""} required className={inputClass} />
@@ -67,6 +64,7 @@ export function UserForm({
         />
       </Field>
 
+      <FormFeedback error={state.error} />
       <div className="flex items-center gap-3">
         <div className="w-40">
           <SubmitButton>{submitLabel}</SubmitButton>

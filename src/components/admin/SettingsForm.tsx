@@ -9,6 +9,7 @@ import { HowItWorksField } from "@/components/admin/HowItWorksField";
 import { parseHowItWorksSteps } from "@/lib/how-it-works";
 import { updateSettings, type SettingsState } from "@/lib/settings-actions";
 import type { Settings } from "@/lib/settings";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 
 export function SettingsForm({ settings }: { settings: Settings }) {
   const [state, formAction] = useActionState<SettingsState, FormData>(updateSettings, {});
@@ -16,10 +17,6 @@ export function SettingsForm({ settings }: { settings: Settings }) {
 
   return (
     <form action={formAction} className="space-y-8" noValidate>
-      {state.error ? (
-        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
-      ) : null}
-
       <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Shipping</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
@@ -192,6 +189,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         </div>
       </section>
 
+      <FormFeedback error={state.error} />
       <div className="flex items-center gap-3">
         <div className="w-44">
           <SubmitButton>Save settings</SubmitButton>

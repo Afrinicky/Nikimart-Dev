@@ -5,6 +5,7 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { AcceptTerms } from "@/components/ui/AcceptTerms";
 import { registerAction, type AuthFormState } from "@/lib/auth-actions";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 
 export function RegisterForm({
   pickupPoints = [],
@@ -18,12 +19,6 @@ export function RegisterForm({
   return (
     <form action={formAction} className="mt-6 space-y-4" noValidate>
       {callbackUrl ? <input type="hidden" name="callbackUrl" value={callbackUrl} /> : null}
-      {state.error ? (
-        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
-          {state.error}
-        </p>
-      ) : null}
-
       <Field label="Full name" htmlFor="name" hint={state.fieldErrors?.name}>
         <input
           id="name"
@@ -107,6 +102,7 @@ export function RegisterForm({
 
       <AcceptTerms audience="customer" error={state.fieldErrors?.acceptTerms} />
 
+      <FormFeedback error={state.error} />
       <SubmitButton>Create account</SubmitButton>
     </form>
   );

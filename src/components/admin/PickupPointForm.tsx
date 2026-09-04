@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import type { CrudState } from "@/lib/admin-actions";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 
 type Action = (prev: CrudState, fd: FormData) => Promise<CrudState>;
 
@@ -33,10 +34,6 @@ export function PickupPointForm({
 
   return (
     <form action={formAction} className="space-y-5" noValidate>
-      {state.error ? (
-        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
-      ) : null}
-
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Name" htmlFor="name">
           <input id="name" name="name" defaultValue={p?.name} required className={inputClass} placeholder="Nickimart Pickup — Legon" />
@@ -84,6 +81,7 @@ export function PickupPointForm({
         Active (available at checkout)
       </label>
 
+      <FormFeedback error={state.error} />
       <div className="flex items-center gap-3">
         <div className="w-40">
           <SubmitButton>{submitLabel}</SubmitButton>

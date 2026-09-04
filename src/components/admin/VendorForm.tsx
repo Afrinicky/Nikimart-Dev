@@ -8,6 +8,7 @@ import { SingleImageField } from "@/components/admin/SingleImageField";
 import type { CrudState } from "@/lib/admin-actions";
 import type { Vendor } from "@/lib/types";
 import { COUNTRIES } from "@/lib/countries";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 
 type Action = (prev: CrudState, fd: FormData) => Promise<CrudState>;
 
@@ -33,10 +34,6 @@ export function VendorForm({
 
   return (
     <form action={formAction} className="space-y-5" noValidate>
-      {state.error ? (
-        <p role="alert" className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">{state.error}</p>
-      ) : null}
-
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Business name" htmlFor="businessName" hint={state.fieldErrors?.businessName}>
           <input id="businessName" name="businessName" defaultValue={v?.businessName} required className={inputClass} />
@@ -160,6 +157,7 @@ export function VendorForm({
 
       <input type="hidden" name="locationIds" value={vendor?.locationIds.join(",") ?? "any"} />
 
+      <FormFeedback error={state.error} />
       <div className="flex items-center gap-3">
         <div className="w-40">
           <SubmitButton>{submitLabel}</SubmitButton>
