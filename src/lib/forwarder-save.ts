@@ -49,7 +49,13 @@ export type SaveResult = { ok: true; id: string } | { ok: false; error: string }
 // Translating a failure into something a person can act on
 // ---------------------------------------------------------------------------
 
-/** Which table a Prisma constraint name belongs to, in words. */
+/**
+ * Which table a failed unique constraint belongs to, in words.
+ *
+ * Matched against whatever Prisma names in `meta.target` — the constraint on
+ * some drivers, the column list on others — so a pattern that has to fire for
+ * certain matches both.
+ */
 const CONSTRAINT_SUBJECTS: { match: RegExp; describe: (fields: string[]) => string }[] = [
   {
     match: /^FreightForwarder/,
@@ -64,6 +70,17 @@ const CONSTRAINT_SUBJECTS: { match: RegExp; describe: (fields: string[]) => stri
   {
     match: /^ForwarderGoodsClass/,
     describe: () => "Two classes of goods have the same name. Rename one.",
+  },
+  {
+    // Only reachable when the database still carries the old constraint, which
+    // allowed one class per category. The rows written here are deduplicated
+    // before they are sent, so nothing this code does can collide on its own.
+    // Matched on the field list as well as the name: Postgres hands Prisma the
+    // columns, not the index, so a name-only pattern would never fire. Anchored,
+    // so the three-column constraint that replaced it does not match.
+    match: /^(ForwarderCategoryMap|forwarderId,categoryId$)/,
+    describe: () =>
+      "This database still allows only one class per category — migration 0010 has not been applied to it. Nothing was saved. Deploy again, or run `npm run db:migrate:deploy` against it.",
   },
 ];
 
@@ -346,8 +363,14 @@ export async function writeForwarder(id: string, input: ForwarderInput): Promise
             return [...ids].map((goodsClassId) => ({ forwarderId: fid, categoryId, goodsClassId }));
           },
         );
+        // No `skipDuplicates`. The rows are already unique — one per class per
+        // category, deduplicated above — so the flag could never skip a real
+        // duplicate, and all it did was turn a database that still enforces the
+        // old one-class-per-category rule into silent data loss: two ticks went
+        // in, one row came back, and the save reported success. A save that
+        // cannot store what is on the screen has to say so.
         if (mappings.length > 0) {
-          await tx.forwarderCategoryMap.createMany({ data: mappings, skipDuplicates: true });
+          await tx.forwarderCategoryMap.createMany({ data: mappings });
         }
 
         return fid;
