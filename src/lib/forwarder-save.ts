@@ -197,8 +197,10 @@ export async function writeForwarder(id: string, input: ForwarderInput): Promise
           const data = {
             name: clean(c.name),
             note: clean(c.note).slice(0, LIMITS.note),
-            levyCbm: nonNegative(c.levyCbm),
-            levyLabel: clean(c.levyLabel).slice(0, 80),
+            // Retired columns, overwritten on every save so the old
+            // extra-cubic-metres levies cannot come back to life.
+            levyCbm: 0,
+            levyLabel: "",
             sortOrder: sortOrder++,
             isDefault: c.key === defaultKey,
           };
@@ -330,12 +332,20 @@ export async function writeForwarder(id: string, input: ForwarderInput): Promise
 
         // --- Our categories, placed in their classes --------------------------
         await tx.forwarderCategoryMap.deleteMany({ where: { forwarderId: fid } });
-        const mappings = Object.entries(input.categoryMap ?? {})
-          .map(([categoryId, classKey]) => {
-            const goodsClassId = classIdByKey.get(String(classKey));
-            return goodsClassId ? { forwarderId: fid, categoryId, goodsClassId } : null;
-          })
-          .filter((m): m is NonNullable<typeof m> => m !== null);
+        // One row per class the category falls into. A category in both
+        // "Normal goods" and "Appliances" is two rows, and the lane charges
+        // both rates.
+        const mappings = Object.entries(input.categoryMap ?? {}).flatMap(
+          ([categoryId, classKeys]) => {
+            const keys = Array.isArray(classKeys) ? classKeys : [classKeys];
+            const ids = new Set(
+              keys
+                .map((k) => classIdByKey.get(String(k)))
+                .filter((v): v is string => Boolean(v)),
+            );
+            return [...ids].map((goodsClassId) => ({ forwarderId: fid, categoryId, goodsClassId }));
+          },
+        );
         if (mappings.length > 0) {
           await tx.forwarderCategoryMap.createMany({ data: mappings, skipDuplicates: true });
         }

@@ -228,12 +228,15 @@ export const getForwarders = cache(async (): Promise<Forwarder[]> => {
         id: g.id,
         name: g.name,
         note: g.note,
-        levyCbm: g.levyCbm,
-        levyLabel: g.levyLabel,
         sortOrder: g.sortOrder,
         isDefault: g.isDefault,
       })),
-      categoryMap: Object.fromEntries(f.categoryMap.map((m) => [m.categoryId, m.goodsClassId])),
+      // One category, every class it falls into. Two rows for the same
+      // category is the normal case now, not a duplicate.
+      categoryMap: f.categoryMap.reduce<Record<string, string[]>>((acc, m) => {
+        (acc[m.categoryId] ??= []).push(m.goodsClassId);
+        return acc;
+      }, {}),
       routes: f.routes.map((r) => ({
         id: r.id,
         forwarderId: r.forwarderId,

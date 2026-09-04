@@ -11,7 +11,7 @@ import {
 import { resolveAffiliateRate } from "@/lib/affiliate-commission";
 import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
 import { getCurrencies, getForwarders, getShippingDefaults } from "@/lib/shipping-config";
-import { freightModeLabel } from "@/lib/shipping";
+import { freightModeLabel, resolveGoodsClasses, resolveLaneRate } from "@/lib/shipping";
 import { getAffiliateEarnings } from "@/lib/affiliate";
 import { getSellerEarnings } from "@/lib/seller";
 import { getFinanceOverview, getVendorSettlements } from "@/lib/finance";
@@ -762,7 +762,6 @@ async function shippingWorkbook(): Promise<Sheet[]> {
           return [
             ...head,
             cls.name,
-            cls.levyCbm || "",
             code,
             priced ? cell.ratePerCbm : "N/A",
             priced ? Math.round(cell.ratePerCbm * rateFor(code) * 100) / 100 : "N/A",
@@ -788,17 +787,26 @@ async function shippingWorkbook(): Promise<Sheet[]> {
     ]),
   };
 
-  // Which of our categories each forwarder prices as which of their classes.
-  // Without it the grid above cannot be read against the catalogue.
+  // Which of our categories each forwarder prices as which of their classes,
+  // and what that comes to per cubic metre. Without it the grid above cannot be
+  // read against the catalogue — and a category in two classes is charged at
+  // both rates, which is the column somebody will want to check.
   const mappingSheet: Sheet = {
     name: "Category classes",
-    columns: ["Forwarder", "Our category", "Their class", "Levy (CBM)"],
+    columns: ["Forwarder", "Our category", "Their classes", "Rates added up"],
     rows: forwarders.flatMap((f) =>
       categories.map((c) => {
-        const cls =
-          f.goodsClasses.find((g) => g.id === f.categoryMap[c.id]) ??
-          f.goodsClasses.find((g) => g.isDefault);
-        return [f.name, c.name, cls?.name ?? "— no classes —", cls?.levyCbm ?? 0];
+        const classes = resolveGoodsClasses(f, c.id);
+        const summed = f.routes
+          .filter((r) => r.isActive)
+          .map((r) => resolveLaneRate(r, classes))
+          .find((lane) => lane.isAvailable);
+        return [
+          f.name,
+          c.name,
+          classes.map((g) => g.name).join(" + ") || "— no classes —",
+          summed ? summed.ratePerCbm : "",
+        ];
       }),
     ),
   };

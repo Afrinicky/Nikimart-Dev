@@ -6,8 +6,6 @@ import {
   describeRoute,
   freightModeLabel,
   ORDER_FREQUENCY_LABELS,
-  resolveGoodsClass,
-  type Forwarder,
   type ForwarderRoute,
 } from "@/lib/shipping";
 
@@ -198,8 +196,6 @@ export async function getPurchaseQueue(vendorId?: string): Promise<QueueGroup[]>
 
   const forwarders = await prisma.freightForwarder.findMany({
     include: {
-      goodsClasses: true,
-      categoryMap: true,
       routes: { include: { destinationPoint: { select: { name: true, city: true } } } },
     },
   });
@@ -221,29 +217,10 @@ export async function getPurchaseQueue(vendorId?: string): Promise<QueueGroup[]>
     const routeId = item.freightRouteId || terms?.routeId || p.forwarderRouteId || null;
     const route = forwarder?.routes.find((r) => r.id === routeId) ?? null;
 
-    // The volume this line adds, with the forwarder's class levy in it — the
-    // same figure the freight was quoted on, so the threshold is measured in
-    // the units the forwarder actually bills.
-    const goodsClass = forwarder
-      ? resolveGoodsClass(
-          {
-            goodsClasses: forwarder.goodsClasses.map((g) => ({
-              id: g.id,
-              name: g.name,
-              note: g.note,
-              levyCbm: g.levyCbm,
-              levyLabel: g.levyLabel,
-              sortOrder: g.sortOrder,
-              isDefault: g.isDefault,
-            })),
-            categoryMap: Object.fromEntries(
-              forwarder.categoryMap.map((m) => [m.categoryId, m.goodsClassId]),
-            ),
-          } as Pick<Forwarder, "goodsClasses" | "categoryMap">,
-          p.categoryId,
-        )
-      : null;
-
+    // The volume this line adds — the same figure the freight was quoted on,
+    // so the threshold is measured in the units the forwarder actually bills.
+    // Levies live in the rate, not in the volume, so nothing about the classes
+    // this item falls into changes the cubic metres it takes up in a container.
     const cbm = billableCbm(
       {
         cbm: p.cbm,
@@ -253,7 +230,6 @@ export async function getPurchaseQueue(vendorId?: string): Promise<QueueGroup[]>
         shippingWeightKg: p.shippingWeightKg,
       },
       item.quantity,
-      goodsClass,
     );
 
     // One supplier, one lane, one seller: the unit that becomes one parcel.

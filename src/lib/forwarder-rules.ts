@@ -22,9 +22,6 @@ export interface GoodsClassInput {
   id?: string;
   name: string;
   note?: string;
-  /** The special levy: extra cubic metres added before the rate is applied. */
-  levyCbm?: number;
-  levyLabel?: string;
   isDefault?: boolean;
 }
 
@@ -82,8 +79,12 @@ export interface ForwarderInput {
   isActive?: boolean;
   classes: GoodsClassInput[];
   points: PointInput[];
-  /** Our category id → a class key. Blank means "use their default class". */
-  categoryMap: Record<string, string>;
+  /**
+   * Our category id → the class keys it falls into. More than one is normal: a
+   * base class and a levy class such as appliances, charged at both rates. An
+   * empty list means "use their default class".
+   */
+  categoryMap: Record<string, string[]>;
 }
 
 // ---------------------------------------------------------------------------
