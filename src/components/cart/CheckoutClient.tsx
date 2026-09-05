@@ -288,17 +288,19 @@ export function CheckoutClient({
         </ul>
 
         {consignments.length > 1 ? (
-          // Why two base fees? Because two shops are handing over two loads.
-          // A buyer who cannot see that reads the total as a mistake.
+          // Why two fees? Because the goods are in two places, and two places
+          // are two vans. A buyer who cannot see that reads the total as a
+          // mistake — and it also explains why a third shop sometimes adds
+          // nothing: its goods are already on one of the vans.
           <div className="mt-4 rounded-xl bg-niki-surface p-3 text-xs text-niki-ink/65 ring-1 ring-niki-edge">
             <p className="flex items-center gap-1 font-semibold text-niki-ink">
-              <Package className="h-3.5 w-3.5" /> Shipping is per seller
+              <Package className="h-3.5 w-3.5" /> Shipping is per load
             </p>
             <ul className="mt-1.5 space-y-1">
               {consignments.map((c) => (
-                <li key={c.sellerName} className="flex justify-between gap-2">
+                <li key={c.label} className="flex justify-between gap-2">
                   <span className="line-clamp-1">
-                    {c.sellerName}{" "}
+                    {c.label}{" "}
                     <span className="text-niki-ink/40">
                       · {c.units} item{c.units === 1 ? "" : "s"}
                     </span>

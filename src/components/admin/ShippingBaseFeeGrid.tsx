@@ -1,52 +1,52 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { Grid3x3, Ruler } from "lucide-react";
+import { Grid3x3, Layers, Ruler } from "lucide-react";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { FormFeedback } from "@/components/ui/FormFeedback";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { saveShippingLaneFees, type ShippingState } from "@/lib/shipping-admin-actions";
 
-/** A row of the grid: somewhere a consignment leaves from. */
-export interface GridOrigin {
-  id: string;
-  label: string;
-  /** Who owns the point — a forwarder's name, or blank for ours. */
-  owner: string;
-  /** The pickup station this point sits at, when it sits at one. */
-  atPickupId: string | null;
+/** A row and a column of the grid: one place goods pass through. */
+export interface GridLocation {
+  key: string;
+  name: string;
+  /** Town or campus. */
+  where: string;
+  /** The forwarder who owns it, blank when it is ours. */
+  ownerName: string;
+  /** True when goods can gather here — only such a place can start a run. */
+  isConsolidation: boolean;
+  /** True when buyers collect here — only such a place can end one. */
+  isPickup: boolean;
   isActive: boolean;
-}
-
-/** A column of the grid: a station a buyer collects from. */
-export interface GridStation {
-  id: string;
-  label: string;
 }
 
 /** A cell somebody has already priced. */
 export interface GridLane {
-  originPointId: string;
-  destPickupId: string;
+  originKey: string;
+  destKey: string;
   baseFee: number | null;
+  perUnitFee: number | null;
   largeRatePerCbm: number;
   largeMinFee: number;
   isActive: boolean;
 }
 
-type Layer = "base" | "large";
+type Layer = "base" | "unit" | "large";
 
-/** The three amounts one cell can carry, as typed. */
+/** The four amounts one cell can carry, as typed. */
 interface CellValue {
   base: string;
+  unit: string;
   cbm: string;
   min: string;
 }
 
-const EMPTY: CellValue = { base: "", cbm: "", min: "" };
+const EMPTY: CellValue = { base: "", unit: "", cbm: "", min: "" };
 
-const key = (originId: string, stationId: string) => `${originId}:${stationId}`;
+const cellKey = (originKey: string, destKey: string) => `${originKey}|${destKey}`;
 
 /** A stored amount as a form value. Zero is a real answer, null is an empty box. */
 function amount(n: number | null): string {
@@ -56,36 +56,45 @@ function amount(n: number | null): string {
 const cellInput =
   "w-full rounded-lg border border-niki-edge-strong bg-white px-2 py-1.5 text-center font-figures text-sm text-niki-ink outline-none transition-colors placeholder:font-sans placeholder:text-xs placeholder:text-niki-ink/30 focus:border-niki-orange focus:ring-2 focus:ring-niki-orange/20";
 
+const LAYERS = [
+  { id: "base" as const, label: "First item", icon: Grid3x3 },
+  { id: "unit" as const, label: "Each extra", icon: Layers },
+  { id: "large" as const, label: "Large items", icon: Ruler },
+];
+
 /**
- * The base fee, as a grid.
+ * Every run on the platform, priced in one table.
  *
- * One number for every journey on the platform was never going to be right for
- * more than one of them. Sunyani to Hwidiem is not Accra to Sunyani, and a
- * forwarder's Sunyani warehouse to the Nikimart station in the same town is
- * neither. Those are cells of a table, and a table is what an admin should be
- * looking at: origins down the side, stations across the top, and the price of
- * every run visible at once rather than spread over twenty saved rules.
+ * The rows and the columns are the same list — every location, ours and the
+ * forwarders' — because a run goes from somewhere to somewhere and both ends
+ * are places on the same map. An earlier version drew rows from the
+ * consolidation points and columns from the pickup stations, which are two
+ * different lists: the table was not square, and a journey between two places
+ * both visible on the screen could not be priced.
  *
- * Two things this screen is careful about:
+ * Nothing here is a fixed list. Locations come from the database, so a station
+ * or a depot created this morning is a row and a column this morning, priced by
+ * the platform defaults until somebody types in the cell.
+ *
+ * Three things this screen is careful about:
  *
  * **Empty is not zero.** A blank cell has no opinion and the journey is priced
- * by the rules and then the platform default. A typed zero is a decision — that
- * run is free. The placeholder in every empty box shows what it would fall back
- * to, so an admin is never guessing which of the two they are looking at.
+ * by the platform default; a typed zero is a decision — free, or no increment.
+ * The placeholder in every empty box shows what it would fall back to.
  *
- * **The increments are not here.** This screen only ever sets what the *first*
- * item costs. What each item after it adds is unchanged, and still lives on the
- * Inside Ghana screen and the platform defaults.
+ * **A place to itself is not a journey.** The diagonal is struck out: goods
+ * collected where they already sit have nothing left to charge for.
+ *
+ * **The whole cell is saved, not the visible layer.** The three layers are one
+ * form; switching tabs never drops what you typed on another.
  */
 export function ShippingBaseFeeGrid({
-  origins,
-  stations,
+  locations,
   lanes,
   defaults,
   large,
 }: {
-  origins: GridOrigin[];
-  stations: GridStation[];
+  locations: GridLocation[];
   lanes: GridLane[];
   defaults: { baseFee: number; perUnitFee: number; minFee: number };
   large: { enabled: boolean; ratePerCbm: number; extraPercent: number };
@@ -96,8 +105,9 @@ export function ShippingBaseFeeGrid({
   const initial = useMemo(() => {
     const map: Record<string, CellValue> = {};
     for (const l of lanes) {
-      map[key(l.originPointId, l.destPickupId)] = {
+      map[cellKey(l.originKey, l.destKey)] = {
         base: amount(l.baseFee),
+        unit: amount(l.perUnitFee),
         cbm: l.largeRatePerCbm ? String(l.largeRatePerCbm) : "",
         min: l.largeMinFee ? String(l.largeMinFee) : "",
       };
@@ -111,16 +121,23 @@ export function ShippingBaseFeeGrid({
   const set = (k: string, part: Partial<CellValue>) =>
     setCells((prev) => ({ ...prev, [k]: { ...(prev[k] ?? EMPTY), ...part } }));
 
-  // What the grid currently says, for the line under the table. Counted from
-  // the typed values rather than from the saved ones, so it moves as you edit.
-  const priced = Object.entries(cells).filter(([, v]) => v.base !== "" || v.cbm !== "").length;
+  // Every location against every other one. A place to itself is not a journey,
+  // and nothing else is excluded: a run can be priced before the place at
+  // either end plays the role that makes it live, and pricing ahead of the
+  // switch beats discovering on the day that the cell was never offered.
+  const journeys = locations.length * Math.max(0, locations.length - 1);
+  const priced = Object.entries(cells).filter(
+    ([, v]) => v.base !== "" || v.unit !== "" || v.cbm !== "",
+  ).length;
+  // A run the engine cannot route yet: goods never gather at the origin, or
+  // nobody collects at the destination. The cell is still editable — it is a
+  // price, not a promise — but it is shaded, and this says why.
+  const dormant = locations.some((o) => !o.isConsolidation) || locations.some((d) => !d.isPickup);
 
-  if (origins.length === 0 || stations.length === 0) {
+  if (locations.length < 2) {
     return (
       <p className="rounded-2xl bg-niki-gold/15 px-4 py-3 text-sm text-amber-900">
-        {origins.length === 0
-          ? "There are no consolidation points yet, so there are no journeys to price. Create one on the Local points screen — a forwarder's Ghana warehouse arrives with the forwarder."
-          : "There are no active pickup stations yet, so nothing can be collected and no journey has an end. Add one under Admin → Pickup points."}
+        A run needs two places. Add another location and this grid fills itself in.
       </p>
     );
   }
@@ -128,13 +145,8 @@ export function ShippingBaseFeeGrid({
   return (
     <form action={formAction} className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1.5">
-          {(
-            [
-              { id: "base" as const, label: "Base fees", icon: Grid3x3 },
-              { id: "large" as const, label: "Large items", icon: Ruler },
-            ]
-          ).map(({ id, label, icon: Icon }) => (
+        <div className="flex flex-wrap gap-1.5">
+          {LAYERS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               type="button"
@@ -153,7 +165,7 @@ export function ShippingBaseFeeGrid({
           ))}
         </div>
         <p className="text-sm text-niki-ink/55">
-          {priced} of {origins.length * stations.length} journeys priced here
+          {priced} of {journeys} journeys priced here
         </p>
       </div>
 
@@ -161,19 +173,24 @@ export function ShippingBaseFeeGrid({
         {layer === "base" ? (
           <>
             What the <span className="font-medium text-niki-ink">first item</span> costs on each
-            run, charged once per seller. Leave a cell empty to price it by the platform default of{" "}
-            {formatPrice(defaults.baseFee)}; type <span className="font-figures">0</span> to make
-            that run free. Every item after the first still adds the increment, which this screen
-            does not touch.
+            run, charged once for the load. Leave a cell empty to price it by the platform default
+            of {formatPrice(defaults.baseFee)}; type <span className="font-figures">0</span> to make
+            that run free.
+          </>
+        ) : layer === "unit" ? (
+          <>
+            What <span className="font-medium text-niki-ink">every item after the first</span> adds
+            on that run. One shop&apos;s ten bottles are one van: one first item, nine of these.
+            Empty falls back to {formatPrice(defaults.perUnitFee)}; zero means extra items ride
+            free.
           </>
         ) : (
           <>
             A fridge is not a base fee with a fridge in it. Goods that trip the large-item
             thresholds are priced by the space they take:{" "}
             <span className="font-medium text-niki-ink">GH₵ per cubic metre</span> on the run, with
-            a floor under it. The biggest one in a consignment sets the base and the rest are
-            increments at {large.extraPercent}% of their own size, so two fridges are one van and
-            not two deliveries. An empty cell falls back to{" "}
+            a floor under it. The biggest one in a load sets the base and the rest are increments at{" "}
+            {large.extraPercent}% of their own size. An empty cell falls back to{" "}
             {large.ratePerCbm > 0 ? `${formatPrice(large.ratePerCbm)} per m³` : "the flat base fee"}
             .
           </>
@@ -187,41 +204,44 @@ export function ShippingBaseFeeGrid({
               <th className="sticky left-0 z-10 min-w-[220px] bg-niki-surface px-4 py-3 text-xs font-semibold uppercase tracking-wide text-niki-ink/50">
                 From ↓ &nbsp; To →
               </th>
-              {stations.map((s) => (
+              {locations.map((d) => (
                 <th
-                  key={s.id}
-                  className="min-w-[130px] px-3 py-3 text-center text-xs font-semibold text-niki-ink/70"
+                  key={d.key}
+                  className="min-w-[132px] px-3 py-3 text-center text-xs font-semibold text-niki-ink/70"
                 >
-                  {s.label}
+                  {d.name}
+                  {d.where ? (
+                    <span className="block font-normal text-niki-ink/40">{d.where}</span>
+                  ) : null}
+                  {!d.isPickup ? (
+                    <span className="block font-normal text-niki-ink/40">no collection yet</span>
+                  ) : null}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-niki-edge">
-            {origins.map((o) => (
-              <tr key={o.id} className={o.isActive ? "" : "opacity-60"}>
+            {locations.map((o) => (
+              <tr key={o.key} className={o.isActive ? "" : "opacity-60"}>
                 <th
                   scope="row"
                   className="sticky left-0 z-10 bg-white px-4 py-2.5 text-left align-middle font-medium text-niki-ink"
                 >
-                  {o.label}
+                  {o.name}
                   <span className="block text-xs font-normal text-niki-ink/45">
-                    {o.owner ? o.owner : "Nikimart"}
+                    {o.ownerName || "Nikimart"}
+                    {o.where ? ` · ${o.where}` : ""}
                     {o.isActive ? "" : " · retired"}
                   </span>
                 </th>
 
-                {stations.map((s) => {
-                  const k = key(o.id, s.id);
-                  const v = valueAt(k);
-
+                {locations.map((d) => {
                   // The goods are already on the shelf the buyer is collecting
-                  // from. There is no journey here to price, and the engine
-                  // charges nothing for it whatever this grid says — so the
-                  // cell says so instead of inviting a number nobody will use.
-                  if (o.atPickupId === s.id) {
+                  // from. There is no journey to price, and the engine charges
+                  // nothing for it whatever this grid says.
+                  if (o.key === d.key) {
                     return (
-                      <td key={s.id} className="px-3 py-2.5 text-center">
+                      <td key={d.key} className="bg-niki-success/5 px-3 py-2.5 text-center">
                         <span className="text-xs font-semibold text-niki-success">
                           Collected here
                         </span>
@@ -229,60 +249,75 @@ export function ShippingBaseFeeGrid({
                     );
                   }
 
-                  if (layer === "base") {
-                    return (
-                      <td key={s.id} className="px-3 py-2.5">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          inputMode="decimal"
-                          name={`base:${k}`}
-                          aria-label={`Base fee from ${o.label} to ${s.label}`}
-                          value={v.base}
-                          onChange={(e) => set(k, { base: e.target.value })}
-                          placeholder={String(defaults.baseFee)}
-                          className={cellInput}
-                        />
-                        {/* The large-item figures for this cell travel with the
-                            save even while the other layer is on screen; a grid
-                            that quietly dropped the layer you were not looking
-                            at would be a data-loss bug wearing a tab. */}
-                        <input type="hidden" name={`cbm:${k}`} value={v.cbm} />
-                        <input type="hidden" name={`min:${k}`} value={v.min} />
-                      </td>
-                    );
-                  }
+                  const k = cellKey(o.key, d.key);
+                  const v = valueAt(k);
+                  const label = `from ${o.name} to ${d.name}`;
+                  // Priceable, but not yet routable: goods do not gather at the
+                  // origin, or nobody collects at the destination.
+                  const asleep = !o.isConsolidation || !d.isPickup;
+                  const why = !o.isConsolidation
+                    ? `Goods don't gather at ${o.name} yet, so nothing leaves it. The price is kept for when they do.`
+                    : `Buyers don't collect at ${d.name} yet, so no run ends there. The price is kept for when they do.`;
+
+                  // Whichever layer is on screen, the other two ride along as
+                  // hidden inputs: a grid that quietly dropped the layer you
+                  // were not looking at would be a data-loss bug wearing a tab.
+                  const hidden = (["base", "unit", "cbm", "min"] as const)
+                    .filter((f) => (layer === "large" ? f === "base" || f === "unit" : f !== layer))
+                    .map((f) => (
+                      <input key={f} type="hidden" name={`${f}|${k}`} value={v[f]} />
+                    ));
 
                   return (
-                    <td key={s.id} className="px-3 py-2.5">
-                      <div className="space-y-1">
+                    <td
+                      key={d.key}
+                      title={asleep ? why : undefined}
+                      className={cn("px-3 py-2.5", asleep && "bg-niki-surface/70")}
+                    >
+                      {layer === "large" ? (
+                        <div className="space-y-1">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            inputMode="decimal"
+                            name={`cbm|${k}`}
+                            aria-label={`Rate per cubic metre for large items ${label}`}
+                            value={v.cbm}
+                            onChange={(e) => set(k, { cbm: e.target.value })}
+                            placeholder="per m³"
+                            className={cellInput}
+                          />
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            inputMode="decimal"
+                            name={`min|${k}`}
+                            aria-label={`Minimum large-item fee ${label}`}
+                            value={v.min}
+                            onChange={(e) => set(k, { min: e.target.value })}
+                            placeholder="minimum"
+                            className={cellInput}
+                          />
+                        </div>
+                      ) : (
                         <input
                           type="number"
                           min="0"
                           step="0.01"
                           inputMode="decimal"
-                          name={`cbm:${k}`}
-                          aria-label={`Rate per cubic metre for large items from ${o.label} to ${s.label}`}
-                          value={v.cbm}
-                          onChange={(e) => set(k, { cbm: e.target.value })}
-                          placeholder="per m³"
+                          name={`${layer}|${k}`}
+                          aria-label={`${layer === "base" ? "First item" : "Each extra item"} ${label}`}
+                          value={layer === "base" ? v.base : v.unit}
+                          onChange={(e) =>
+                            set(k, layer === "base" ? { base: e.target.value } : { unit: e.target.value })
+                          }
+                          placeholder={String(layer === "base" ? defaults.baseFee : defaults.perUnitFee)}
                           className={cellInput}
                         />
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          inputMode="decimal"
-                          name={`min:${k}`}
-                          aria-label={`Minimum large-item fee from ${o.label} to ${s.label}`}
-                          value={v.min}
-                          onChange={(e) => set(k, { min: e.target.value })}
-                          placeholder="minimum"
-                          className={cellInput}
-                        />
-                      </div>
-                      <input type="hidden" name={`base:${k}`} value={v.base} />
+                      )}
+                      {hidden}
                     </td>
                   );
                 })}
@@ -291,6 +326,14 @@ export function ShippingBaseFeeGrid({
           </tbody>
         </table>
       </div>
+
+      {dormant ? (
+        <p className="text-xs text-niki-ink/55">
+          A shaded cell prices a run nothing travels on yet — goods don&apos;t gather at that
+          origin, or buyers don&apos;t collect at that destination. The price is saved and starts
+          applying the moment you tick that role on the Locations screen.
+        </p>
+      ) : null}
 
       {!large.enabled && layer === "large" ? (
         <p className="rounded-xl bg-niki-gold/15 px-4 py-3 text-sm text-amber-900">

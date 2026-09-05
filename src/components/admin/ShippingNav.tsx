@@ -1,26 +1,25 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Coins, Gauge, Grid3x3, MapPin, Plane, SlidersHorizontal } from "lucide-react";
+import { Coins, Gauge, Grid3x3, MapPin, Plane } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { cn } from "@/lib/cn";
 
 /**
  * The screens of the shipping console, in the order they are set up.
  *
- * Our own points first, because nothing else means anything without them. Then
- * the base fees: a grid of every point against every station, which is what one
- * run costs, plus the large goods that are priced by their size instead. Then
- * the rest of the run inside Ghana — the increments, and the per-category
- * overrides. Then the forwarders, who hold their own warehouses and their own
- * rate grids. Then the exchange rates their quotes are converted at. An admin
- * who works down this list once has a working system.
+ * The places first, because nothing else means anything without them: every
+ * station buyers collect at and every point goods gather at, in one list. Then
+ * the grid, which prices every run between them — the first item, each extra
+ * one, and the large goods that are priced by their size instead. Then the
+ * forwarders, who hold their own warehouses and their own rate grids. Then the
+ * exchange rates their quotes are converted at. An admin who works down this
+ * list once has a working system.
  */
 const TABS = [
   { href: "/admin/shipping", label: "Overview", icon: Gauge, exact: true },
-  { href: "/admin/shipping/points", label: "Local points", icon: MapPin },
+  { href: "/admin/shipping/locations", label: "Pickup points", icon: MapPin },
   { href: "/admin/shipping/lanes", label: "Base fees", icon: Grid3x3 },
-  { href: "/admin/shipping/rates", label: "Inside Ghana", icon: SlidersHorizontal },
   { href: "/admin/shipping/forwarders", label: "Forwarders", icon: Plane },
   { href: "/admin/shipping/currencies", label: "Currencies", icon: Coins },
 ];

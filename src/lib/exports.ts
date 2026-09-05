@@ -15,8 +15,15 @@ import {
   getForwarders,
   getLargeItemPolicy,
   getShippingDefaults,
+  getShippingLocations,
 } from "@/lib/shipping-config";
-import { freightModeLabel, resolveGoodsClasses, resolveLaneRate } from "@/lib/shipping";
+import {
+  freightModeLabel,
+  locationKeyForPickup,
+  locationKeyForPoint,
+  resolveGoodsClasses,
+  resolveLaneRate,
+} from "@/lib/shipping";
 import { getAffiliateEarnings } from "@/lib/affiliate";
 import { getSellerEarnings } from "@/lib/seller";
 import { getFinanceOverview, getVendorSettlements } from "@/lib/finance";
@@ -597,12 +604,31 @@ async function locationsWorkbook(): Promise<Sheet[]> {
 // Pickup points
 // ---------------------------------------------------------------------------
 
+/**
+ * The places, with the traffic through them.
+ *
+ * Two sheets, because a location plays two roles and the interesting figures
+ * differ: a station is judged on orders collected, a depot on the listings that
+ * gather there. Both are in one list on the console, and the second sheet is
+ * the places that are only ever a depot — a forwarder's warehouse, most often.
+ */
 async function pickupWorkbook(): Promise<Sheet[]> {
   const points = await prisma.pickupPoint.findMany({
     orderBy: { name: "asc" },
     include: {
       operator: { select: { name: true, email: true, phone: true } },
+      arrivalHubFor: { select: { name: true, forwarderId: true } },
       _count: { select: { orders: true, preferredByUsers: true, originVendors: true } },
+    },
+  });
+
+  // The depots that are only depots: everything else is a station above.
+  const depots = await prisma.arrivalPoint.findMany({
+    where: { hubPickupId: null },
+    orderBy: [{ isActive: "desc" }, { name: "asc" }],
+    include: {
+      forwarder: { select: { name: true } },
+      _count: { select: { products: true, laneFeesFrom: true } },
     },
   });
 
@@ -619,19 +645,37 @@ async function pickupWorkbook(): Promise<Sheet[]> {
     {
       name: "Pickup points",
       columns: [
-        "Name", "Code", "Location", "Address", "Active", "Operator", "Operator email",
-        "Operator phone", "Orders (all time)", "Paid orders", "Order value (GH₵)",
-        "Preferred by customers", "Seller hubs", "Created",
+        "Name", "Code", "Location", "Address", "Active", "Goods gather here", "Operator",
+        "Operator email", "Operator phone", "Orders (all time)", "Paid orders",
+        "Order value (GH₵)", "Preferred by customers", "Seller hubs", "Created",
       ],
       rows: points.map((p) => {
         const v = volumeByPoint.get(p.id);
         return [
           p.name, p.code, p.locationName, p.address, yesNo(p.isActive),
+          // A station where goods also gather is where collecting is free.
+          yesNo(p.arrivalHubFor.length > 0),
           p.operator?.name ?? "—", p.operator?.email ?? "—", p.operator?.phone ?? "—",
           p._count.orders, v?._count._all ?? 0, money(v?._sum.total ?? 0),
           p._count.preferredByUsers, p._count.originVendors, p.createdAt,
         ];
       }),
+    },
+    {
+      name: "Depots",
+      columns: [
+        "Name", "Code", "Where", "Belongs to", "Listings gathering here",
+        "Runs priced from here", "Active",
+      ],
+      rows: depots.map((d) => [
+        d.name,
+        d.code,
+        d.city,
+        d.forwarder?.name ?? "Nikimart",
+        d._count.products,
+        d._count.laneFeesFrom,
+        yesNo(d.isActive),
+      ]),
     },
   ];
 }
@@ -641,68 +685,68 @@ async function pickupWorkbook(): Promise<Sheet[]> {
 // ---------------------------------------------------------------------------
 
 /**
- * The whole shipping configuration, in four sheets.
+ * The whole shipping configuration, in three sheets before the forwarders'.
  *
- * Points first, then the base fee for every journey between them, then the
- * rules that add the increments and the exceptions, then the forwarders who
- * bring goods in. It mirrors the console's own order, so a spreadsheet somebody
- * opens six months from now reads the same way the screen they set it up on
- * did.
+ * The places first, then the price of every run between them, then the
+ * forwarders who bring goods in. It mirrors the console's own order, so a
+ * spreadsheet somebody opens six months from now reads the same way the screen
+ * they set it up on did.
  */
 async function shippingWorkbook(): Promise<Sheet[]> {
-  const [points, lanes, rules, forwarders, currencies, categories, defaults, large] =
-    await Promise.all([
-      prisma.arrivalPoint.findMany({
-        orderBy: [{ isActive: "desc" }, { name: "asc" }],
-        include: { hubPickup: { select: { name: true, locationName: true } } },
-      }),
-      prisma.shippingLaneFee.findMany({
-        orderBy: [{ originPointId: "asc" }, { destPickupId: "asc" }],
-        include: {
-          originPoint: { select: { name: true, city: true } },
-          destPickup: { select: { name: true, locationName: true } },
-        },
-      }),
-      prisma.shippingRule.findMany({
-        orderBy: { createdAt: "asc" },
-        include: {
-          originPoint: { select: { name: true, city: true } },
-          destPickup: { select: { name: true, locationName: true } },
-          category: { select: { name: true } },
-        },
-      }),
-      getForwarders(),
-      getCurrencies(),
-      prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-      getShippingDefaults(),
-      getLargeItemPolicy(),
-    ]);
+  const [locations, lanes, forwarders, currencies, categories, defaults, large] = await Promise.all([
+    getShippingLocations(),
+    prisma.shippingLaneFee.findMany({ orderBy: { createdAt: "asc" } }),
+    getForwarders(),
+    getCurrencies(),
+    prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    getShippingDefaults(),
+    getLargeItemPolicy(),
+  ]);
 
-  const pointNameById = new Map(points.map((p) => [p.id, `${p.name}${p.city ? `, ${p.city}` : ""}`]));
-  const forwarderNameById = new Map(forwarders.map((f) => [f.id, f.name]));
+  const byKey = new Map(locations.map((l) => [l.key, l]));
+  // A forwarder's lane lands at one of their own warehouses, which is a
+  // consolidation point whether or not it doubles as a station.
+  const pointNameById = new Map(
+    locations
+      .filter((l) => l.consolidationPointId)
+      .map((l) => [l.consolidationPointId as string, l.where ? `${l.name}, ${l.where}` : l.name]),
+  );
+  const nameOf = (key: string) => {
+    const l = byKey.get(key);
+    if (!l) return "(deleted)";
+    return l.where ? `${l.name} — ${l.where}` : l.name;
+  };
+  const keyOf = (pickupId: string | null, pointId: string | null) => {
+    if (pickupId) return locationKeyForPickup(pickupId);
+    if (!pointId) return "";
+    const at = locations.find((l) => l.consolidationPointId === pointId);
+    return at?.key ?? locationKeyForPoint({ id: pointId, pickupPointId: null });
+  };
 
-  const pointSheet: Sheet = {
-    name: "Consolidation points",
-    columns: ["Name", "Code", "City", "Belongs to", "Sits at pickup station", "Status"],
-    rows: points.map((p) => [
-      p.name,
-      p.code,
-      p.city,
-      p.forwarderId ? (forwarderNameById.get(p.forwarderId) ?? "A forwarder") : "NikiMart",
-      p.hubPickup ? `${p.hubPickup.name} — ${p.hubPickup.locationName}` : "No — collection is never free here",
-      p.isActive ? "Active" : "Retired",
+  const locationSheet: Sheet = {
+    name: "Locations",
+    columns: ["Name", "Code", "Where", "Buyers collect", "Goods gather", "Belongs to", "Status"],
+    rows: locations.map((l) => [
+      l.name,
+      l.code,
+      l.where,
+      l.isPickup ? "Yes" : "No",
+      l.isConsolidation ? "Yes" : "No",
+      l.ownerName || "Nikimart",
+      l.isActive ? "Active" : "Retired",
     ]),
   };
 
   // The grid, one row per priced journey. A cell nobody filled in is not a row
   // here, because it is not a price — it is the platform default, and that has
-  // its own row at the bottom of the next sheet.
+  // a row of its own at the bottom.
   const laneSheet: Sheet = {
     name: "Base fees",
     columns: [
       "From",
       "To",
       "First item (GH₵)",
+      "Each extra (GH₵)",
       "Large items: per m³ (GH₵)",
       "Large items: minimum (GH₵)",
       "Status",
@@ -710,55 +754,32 @@ async function shippingWorkbook(): Promise<Sheet[]> {
     ],
     rows: [
       ...lanes.map((l) => [
-        `${l.originPoint.name}${l.originPoint.city ? `, ${l.originPoint.city}` : ""}`,
-        `${l.destPickup.name} — ${l.destPickup.locationName}`,
-        // Null is "no base fee of its own"; zero is a journey quoted free, and
-        // a sheet that printed them the same way would hide a free lane.
+        nameOf(keyOf(l.originPickupId, l.originPointId)),
+        nameOf(keyOf(l.destPickupId, l.destPointId)),
+        // Null is "nothing of its own to say"; zero is a run quoted free, and a
+        // sheet that printed them the same way would hide a free lane.
         l.baseFee === null ? "Platform default" : l.baseFee,
-        l.largeRatePerCbm > 0 ? l.largeRatePerCbm : large.ratePerCbm > 0 ? `${large.ratePerCbm} (platform)` : "Flat base fee",
-        l.largeMinFee > 0 ? l.largeMinFee : large.minFee > 0 ? `${large.minFee} (platform)` : 0,
+        l.perUnitFee === null ? "Platform default" : l.perUnitFee,
+        l.largeRatePerCbm > 0
+          ? l.largeRatePerCbm
+          : large.ratePerCbm > 0
+            ? `${large.ratePerCbm} (platform)`
+            : "Flat base fee",
+        l.largeMinFee > 0 ? l.largeMinFee : large.minFee,
         l.isActive ? "Active" : "Paused",
         l.note,
       ]),
       [
         "Any other journey",
-        "Any station",
+        "Any location",
         defaults.baseFee,
+        defaults.perUnitFee,
         large.ratePerCbm > 0 ? large.ratePerCbm : "Flat base fee",
         large.minFee,
         "Platform default",
         large.enabled
-          ? `Large = longest side ≥ ${large.minLongestSideCm}cm, or ≥ ${large.minCbm} m³, or ≥ ${large.minWeightKg}kg; each additional large item ${large.extraPercent}% of its own size`
+          ? `Large = longest side ≥ ${large.minLongestSideCm}cm, or ≥ ${large.minCbm} m³, or ≥ ${large.minWeightKg}kg; each additional large item ${large.extraPercent}% of its own size${defaults.minFee > 0 ? `. Minimum charged run GH₵${defaults.minFee}` : ""}`
           : "Large-item pricing is switched off",
-      ],
-    ],
-  };
-
-  const ruleSheet: Sheet = {
-    name: "Inside Ghana",
-    columns: ["From", "To", "Category", "First item (GH₵)", "Each extra (GH₵)", "Status", "Note"],
-    rows: [
-      ...rules.map((r) => [
-        r.originPoint ? `${r.originPoint.name}${r.originPoint.city ? `, ${r.originPoint.city}` : ""}` : "Any point",
-        r.destPickup ? `${r.destPickup.name} — ${r.destPickup.locationName}` : "Any station",
-        r.category?.name ?? "Any category",
-        // The legacy flat fee reads as the base when no base is set — the same
-        // reconciliation the engine makes, so the sheet says what is charged.
-        r.baseFee > 0 ? r.baseFee : r.flatFee,
-        r.perUnitFee > 0 ? r.perUnitFee : r.perKgRate > 0 ? `${r.perKgRate} per kg` : 0,
-        r.isActive ? "Active" : "Paused",
-        r.note,
-      ]),
-      // The platform fallback, as its own row: a sheet of overrides with no
-      // baseline in it does not say what anything actually costs.
-      [
-        "Any point",
-        "Any station",
-        "Any category",
-        defaults.baseFee,
-        defaults.perUnitFee,
-        "Platform default",
-        `Charged once per seller per order${defaults.minFee > 0 ? `; minimum GH₵${defaults.minFee}` : ""}`,
       ],
     ],
   };
@@ -866,7 +887,7 @@ async function shippingWorkbook(): Promise<Sheet[]> {
     ),
   };
 
-  return [pointSheet, laneSheet, ruleSheet, forwarderSheet, mappingSheet, currencySheet];
+  return [locationSheet, laneSheet, forwarderSheet, mappingSheet, currencySheet];
 }
 
 // ---------------------------------------------------------------------------

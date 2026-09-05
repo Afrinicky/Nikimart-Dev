@@ -454,8 +454,14 @@ export async function removeForwarder(id: string): Promise<SaveResult> {
             where: { consolidationPointId: { in: pointIds } },
             data: { consolidationPointId: null },
           });
-          // Domestic rules priced out of a warehouse that no longer exists.
-          await tx.shippingRule.deleteMany({ where: { originPointId: { in: pointIds } } });
+          // Grid cells that priced a run out of a warehouse that no longer
+          // exists. The foreign keys cascade, but a warehouse can be a lane's
+          // destination as well as its origin, so both ends are cleared.
+          await tx.shippingLaneFee.deleteMany({
+            where: {
+              OR: [{ originPointId: { in: pointIds } }, { destPointId: { in: pointIds } }],
+            },
+          });
         }
         await tx.purchaseOrder.updateMany({
           where: { forwarderId: id },

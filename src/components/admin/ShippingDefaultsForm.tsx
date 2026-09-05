@@ -50,18 +50,17 @@ export function ShippingDefaultsForm({
       <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Inside Ghana</h2>
         <p className="mt-1 max-w-3xl text-sm text-niki-ink/60">
-          One seller&apos;s goods are one consignment — one pickup, one van, one handover — so the
-          base fee is charged once per seller and every item after the first adds only the
-          increment. These are the fallbacks: the base fee is the figure a journey with no cell in
-          the Base fees grid falls back to, and the increment is what applies when no rule on the
-          Inside Ghana screen says otherwise.
+          Everything leaving one place for one station is one load — one pickup, one van, one
+          handover — so the base fee is charged once for it and every item after the first adds only
+          the increment. These two figures are what an empty cell of the Base fees grid falls back
+          to; a cell that names a figure of its own always wins.
         </p>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field
             label="Base fee (GH₵)"
             htmlFor="shipBaseFee"
-            hint="The first item from a seller, on a journey the Base fees grid does not price. Charged once, however many they order."
+            hint="The first item in a load, on a journey the Base fees grid does not price. Charged once, however many are ordered."
           >
             <input
               id="shipBaseFee"
@@ -77,7 +76,7 @@ export function ShippingDefaultsForm({
           <Field
             label="Each additional item (GH₵)"
             htmlFor="shipPerUnitFee"
-            hint="The weight-and-volume increment for every unit after the first."
+            hint="Every unit after the first, on a journey the grid does not price."
           >
             <input
               id="shipPerUnitFee"
