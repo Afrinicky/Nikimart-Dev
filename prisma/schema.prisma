@@ -124,8 +124,9 @@ model Category {
   affiliateCommissionRate Float?
   products                Product[]
 
-  // Shipping prices that single this category out.
-  shippingRules    ShippingRule[]
+  // A forwarder's classes of goods this category falls into. Shipping inside
+  // Ghana no longer singles a category out — a run is priced by the journey and
+  // by the size of what is on the van, both of which are truer than a label.
   forwarderClasses ForwarderCategoryMap[]
 }
 
@@ -516,9 +517,8 @@ model PickupPoint {
   originVendors Vendor[]       @relation("VendorOrigin")
   // Ghana arrival points whose domestic leg starts from this point.
   arrivalHubFor ArrivalPoint[] @relation("ArrivalHub")
-  // Domestic shipping rules that end at this point.
-  rulesTo       ShippingRule[] @relation("RuleDest")
-  // The base-fee grid: every lane that ends at this station.
+  // The grid: every run that starts or ends at this station.
+  laneFeesFrom  ShippingLaneFee[] @relation("LaneOriginPickup")
   laneFeesTo    ShippingLaneFee[] @relation("LaneDest")
 }
 
@@ -566,10 +566,9 @@ model ArrivalPoint {
   orderItems OrderItem[]
   shipments  Shipment[]
 
-  // Domestic rules that start here, lanes that land here, shops and order
-  // lines that gather here.
-  rulesFrom      ShippingRule[]
-  laneFeesFrom   ShippingLaneFee[]
+  // The grid, lanes that land here, shops and order lines that gather here.
+  laneFeesFrom   ShippingLaneFee[] @relation("LaneOriginPoint")
+  laneFeesTo     ShippingLaneFee[] @relation("LaneDestPoint")
   routesInto     ForwarderRoute[] @relation("RouteDestination")
   vendors        Vendor[]         @relation("VendorConsolidation")
   consolidatedIn OrderItem[]      @relation("ItemConsolidation")
@@ -577,36 +576,47 @@ model ArrivalPoint {
   @@index([forwarderId])
 }
 
-// One lane of the base-fee grid: from one consolidation point, to one pickup
-// station, what the first item costs.
+// One cell of the shipping grid: what a run between two locations costs.
 //
 // A single platform-wide base fee could only ever be right for one journey.
 // Sunyani to Hwidiem, Accra to Sunyani and a forwarder's Sunyani warehouse to
 // the Nikimart station in the same town are three different runs with three
-// different costs, and the grid is where each of them is stated: origins down
-// the side, pickup stations across the top, one cell each.
+// different costs, and the grid is where each of them is stated: every location
+// down the side, the same locations across the top, one cell each.
 //
-// A row that exists is a decision, including a zero — that is a lane quoted
-// free. A lane with no row falls through to the rules table and then to the
-// platform default, which is what a fresh install has everywhere.
+// Both ends address a *location*, which is either a pickup station or a
+// consolidation point that sits at no station — one place, one identity. A
+// consolidation point that does sit at a station is that station (see
+// `locationKeyForPoint` in src/lib/shipping.ts), so the same building can never
+// appear twice in the grid with two different prices. Hence two nullable
+// foreign keys per end rather than one: exactly one of each pair is set.
+//
+// A row that exists is a decision, including a zero — that is a run quoted
+// free. A journey with no row falls back to the platform defaults, which is
+// what every journey does on a fresh install.
 model ShippingLaneFee {
   id String @id @default(cuid())
 
-  // Both ends are required: a cell of a grid is never "anywhere".
-  originPointId String
-  originPoint   ArrivalPoint @relation(fields: [originPointId], references: [id], onDelete: Cascade)
-  destPickupId  String
-  destPickup    PickupPoint  @relation("LaneDest", fields: [destPickupId], references: [id], onDelete: Cascade)
+  // Where the goods leave. Exactly one of the two is set.
+  originPickupId String?
+  originPickup   PickupPoint?  @relation("LaneOriginPickup", fields: [originPickupId], references: [id], onDelete: Cascade)
+  originPointId  String?
+  originPoint    ArrivalPoint? @relation("LaneOriginPoint", fields: [originPointId], references: [id], onDelete: Cascade)
 
-  // What one consignment on this lane costs, before the increments. The
-  // increments themselves are untouched by the grid — they stay on the rules
-  // table and the platform defaults.
+  // Where the buyer collects. Exactly one of the two is set.
+  destPickupId String?
+  destPickup   PickupPoint?  @relation("LaneDest", fields: [destPickupId], references: [id], onDelete: Cascade)
+  destPointId  String?
+  destPoint    ArrivalPoint? @relation("LaneDestPoint", fields: [destPointId], references: [id], onDelete: Cascade)
+
+  // What the first item costs, and what each one after it adds.
   //
-  // Nullable, and the distinction matters: NULL is "this lane has no base fee
-  // of its own", which falls through to the rules and then to the platform
-  // default. Zero is a decision — this lane is free. A cell that holds only a
+  // Both nullable, and the distinction matters: NULL is "this lane has nothing
+  // of its own to say", which falls back to the platform default, while zero is
+  // a decision — free, or no increment at all. A cell that carries only a
   // large-item rate is the case that needs the difference.
-  baseFee Float?
+  baseFee    Float?
+  perUnitFee Float?
 
   // Large items — a fridge, a chest freezer, a double oven — are not priced by
   // a flat base at all: they are priced by the space they take. This is GH₵ per
@@ -621,58 +631,26 @@ model ShippingLaneFee {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // One cell per lane. Both columns are NOT NULL, so unlike the rules table
-  // this really is expressible as a unique constraint.
-  @@unique([originPointId, destPickupId])
-  @@index([destPickupId])
-}
-
-// What the domestic leg costs: one scope, one price.
-//
-// The scope is any combination of "from this consolidation point", "to this
-// pickup point" and "for this category", and every part is optional — a rule
-// with none set prices everything that no sharper rule claims. The price is
-// either a flat fee per item ("blenders, Kumasi to Accra, GH₵50") or a base
-// plus a rate on the billable weight, which is Jumia's shape and the one a
-// seller can reason about without computing cubic metres.
-//
-// Resolution is most-specific-first, in src/lib/shipping.ts.
-model ShippingRule {
-  id String @id @default(cuid())
-
-  // Null on any of the three means "any".
-  originPointId String?
-  originPoint   ArrivalPoint? @relation(fields: [originPointId], references: [id], onDelete: Cascade)
-  destPickupId  String?
-  destPickup    PickupPoint?  @relation("RuleDest", fields: [destPickupId], references: [id], onDelete: Cascade)
-  categoryId    String?
-  category      Category?     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-
-  // What one consignment from one seller costs on this route.
-  baseFee    Float @default(0)
-  // What each unit after the first adds. Zero falls back to the weight rate
-  // below (per billable kilogram of a single unit), then to the platform
-  // default — so rules written before the base+increment model still price.
-  perUnitFee Float @default(0)
-  // Legacy: a flat price per item. Read as the base fee when no base is set,
-  // never multiplied by the quantity any more — that multiplication is the bug
-  // this model exists to remove.
-  flatFee    Float @default(0)
-  // Legacy: GH₵ per billable kilogram, now used only to derive an increment.
-  perKgRate  Float @default(0)
-
-  note      String   @default("")
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Scope uniqueness is a COALESCE index in db/migrations/0006, which Prisma
-  // cannot express: NULL never equals NULL, so a plain @@unique would let the
-  // same scope be stored twice.
+  // One cell per journey. All four columns are nullable, so — as with the old
+  // rules table — uniqueness is a COALESCE index in db/migrations, which Prisma
+  // cannot express: NULL never equals NULL.
+  @@index([originPickupId])
   @@index([originPointId])
   @@index([destPickupId])
-  @@index([categoryId])
+  @@index([destPointId])
 }
+
+// The ShippingRule table is gone from the application.
+//
+// It priced a domestic run by a scope — this point, that station, that category
+// — resolved most-specific-first, and it sat beside the grid above answering
+// the same question. Two tables that can disagree about one journey is how a
+// fee comes to depend on which screen somebody edited last, so the grid is now
+// the only thing that prices a run: one journey, one cell.
+//
+// The table itself is left in the database, unread. Migrations here are
+// additive by rule (see db/migrations/README.md), and dropping it is a separate
+// deliberate exercise once nobody wants the old numbers back.
 
 // A freight forwarder: who collects a load abroad, consolidates it, and brings
 // it to their own warehouse in Ghana.

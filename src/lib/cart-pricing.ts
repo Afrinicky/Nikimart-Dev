@@ -40,8 +40,9 @@ import { emptyBill, type CartBill } from "@/lib/cart-bill";
  * and a seller's payout must not be computed off freight they never charged.
  * None of it is ever a row on a buyer's screen.
  *
- * The courier run is priced per seller, not per line: one shop's goods are one
- * consignment, one base fee and one increment per extra unit. See lib/shipping.
+ * The courier run is priced per load, not per line: everything gathering in one
+ * place travels together, whoever sold it, for one base fee and one increment
+ * per extra unit. See lib/shipping.
  */
 
 export interface PricedLineInput {
@@ -100,7 +101,7 @@ export interface CartPricing {
   totalCbm: number;
   /** True when nothing has to move — the whole cart is already at the station. */
   allCollectedAtOrigin: boolean;
-  /** One entry per seller consignment: the base fee and the increments. */
+  /** One entry per load: the base fee and the increments. */
   consignments: ConsignmentQuote[];
 }
 

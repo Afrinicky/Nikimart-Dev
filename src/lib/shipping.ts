@@ -4,7 +4,7 @@
  * One module answers one question: what does it cost to put this cart in this
  * buyer's hands at the station they picked?
  *
- * ## Inside Ghana: one consignment per seller
+ * ## Inside Ghana: one consignment per load
  *
  * Goods are gathered at a **consolidation point** — a seller's Kumasi store, a
  * forwarder's Sunyani warehouse — checked there, and couriered to the **pickup
@@ -12,28 +12,32 @@
  *
  * That run is priced the way a courier actually prices one: a **base fee** for
  * the consignment, plus a small **increment** for every unit after the first.
- * And it is charged **per seller**, because a consignment is exactly that —
- * what one shop hands over, moved together. One bottle of spray costs the base
- * fee; ten bottles cost the base fee plus nine increments, not ten base fees.
+ * One bottle of spray costs the base fee; ten bottles cost the base fee plus
+ * nine increments, not ten base fees.
  *
  * The same rules price the hop out of a forwarder's Ghana warehouse: goods that
  * land in Sunyani and are collected in Hwidiem are one domestic run from that
  * point to that station, and if the buyer collects at the point itself there is
  * nothing left to charge.
  *
- * ### The base fee is a grid, not a number
+ * ### One grid prices every journey
  *
  * There is no such thing as *the* base fee. Nikimart's Sunyani pickup to
  * Hwidiem, Accra to the Sunyani station, CSL's Sunyani consolidation point to
- * the Nikimart station in the same town: three journeys, three costs. So the
- * base fee is a **grid** — consolidation points down the side, pickup stations
- * across the top, one cell each — and `resolveLaneFee` reads the cell for the
- * journey being priced. An empty cell falls through to the rules table and then
- * to the platform default, so a platform that has filled none of it in prices
- * exactly as it did before the grid existed.
+ * the Nikimart station in the same town: three journeys, three costs. So a run
+ * is priced by a **grid** — every location down the side, the same locations
+ * across the top, and each cell holding what that run costs: the base fee for
+ * the first item, and the increment for each one after it.
  *
- * The increments are not part of the grid and are not touched by it. What each
- * item after the first adds is still the rule's increment, then the platform's.
+ * The grid is the only place a run is priced. There is no second table of rules
+ * competing with it: a cell, then the platform defaults behind every empty
+ * cell, and nothing else. Two tables that could disagree about one journey is
+ * how a fee ends up depending on which screen somebody edited last.
+ *
+ * A **location** is one place, however many roles it plays. A pickup station
+ * where goods also gather is one row, not two — `locationKeyForPoint` folds a
+ * consolidation point that sits at a station into that station's identity, so
+ * the same place cannot appear twice with two different prices.
  *
  * ### Large items are priced by size, not by a flat fee
  *
@@ -51,6 +55,15 @@
  * A large item whose lane has priced no cubic metre, and for which the platform
  * has set no rate either, falls back to the flat base fee. It is never quoted at
  * nothing because somebody left a rate blank.
+ *
+ * ## A consignment is a load, not a shop
+ *
+ * Everything leaving one location for one station on one run is one
+ * consignment, whoever sold it. Two shops that both consolidate in Sunyani are
+ * one van and one base fee — the dearest item in the load sets the base and
+ * everything else adds its own increment. Charging a second base fee because a
+ * second shop's name is on one of the boxes would be charging for a journey
+ * nobody makes.
  *
  * ## From abroad: the forwarder's own grid
  *
@@ -431,53 +444,75 @@ export interface Forwarder {
 }
 
 /**
- * One domestic price, and the scope it applies to.
+ * A location: one place goods pass through, whatever roles it plays.
  *
- * Every part of the scope is optional. A rule with nothing set prices whatever
- * no sharper rule claims; one with a category and a route is the "all blenders,
- * Kumasi to Accra" case. The origin may be a forwarder's Ghana warehouse, which
- * is how the run from a landed consignment to a pickup station is priced.
+ * The system keeps two tables of places for good historical reasons — a pickup
+ * station is where a buyer collects, a consolidation point is where goods
+ * gather — and one real building is very often both. Nikimart's Sunyani pickup
+ * is a station buyers collect at *and* the point sellers consolidate at.
+ *
+ * A location key folds that back into one identity. A consolidation point that
+ * sits at a station takes that station's key, so the grid has one row for the
+ * place rather than two rows that could be given two different prices for the
+ * same journey. A point that sits at no station — a forwarder's warehouse, most
+ * often — keeps its own.
+ *
+ * The prefixes are what make two id spaces safe to mix in one string.
  */
-export interface ShippingRule {
-  id: string;
-  originPointId: string | null;
-  destPickupId: string | null;
-  categoryId: string | null;
-  baseFee: number;
-  perUnitFee: number;
-  /** Legacy. Read as the base fee when no base is set. */
-  flatFee: number;
-  /** Legacy. Read as GH₵ per billable kg of one unit, to derive an increment. */
-  perKgRate: number;
-  note: string;
-  isActive: boolean;
+export const PICKUP_KEY_PREFIX = "pp";
+export const POINT_KEY_PREFIX = "cp";
+
+/** The key for a pickup station. */
+export function locationKeyForPickup(pickupPointId: string): string {
+  return `${PICKUP_KEY_PREFIX}:${pickupPointId}`;
+}
+
+/** The key for a consolidation point — its station's, when it sits at one. */
+export function locationKeyForPoint(
+  point: Pick<ConsolidationPoint, "id" | "pickupPointId"> | null | undefined,
+): string {
+  if (!point) return "";
+  return point.pickupPointId
+    ? locationKeyForPickup(point.pickupPointId)
+    : `${POINT_KEY_PREFIX}:${point.id}`;
+}
+
+/** Split a key back into the table it addresses and the row's id. */
+export function parseLocationKey(key: string): { kind: "pickup" | "point"; id: string } | null {
+  const [prefix, id] = (key || "").split(":");
+  if (!id) return null;
+  if (prefix === PICKUP_KEY_PREFIX) return { kind: "pickup", id };
+  if (prefix === POINT_KEY_PREFIX) return { kind: "point", id };
+  return null;
 }
 
 /**
- * One cell of the base-fee grid: what the first item costs on one journey.
+ * One cell of the grid: what a run between two locations costs.
  *
- * Both ends are named, always. A cell is a journey — this consolidation point,
- * that pickup station — and "from anywhere" is not a journey; that is what the
- * platform default is for.
+ * Both ends are named, always. A cell is a journey — this location, that one —
+ * and "from anywhere" is not a journey; that is what the platform defaults are
+ * for.
  *
- * A cell that exists is a decision, a zero included: that is a lane quoted
- * free. A journey with no cell falls through to the rules table and then to the
- * platform default, which is what every journey does on a fresh install.
+ * A cell that exists is a decision, a zero included: that is a run quoted free.
+ * A journey with no cell is priced by the platform defaults, which is what every
+ * journey does on a fresh install.
  */
 export interface LaneFee {
   id: string;
-  /** The consolidation point the goods leave — ours, or a forwarder's. */
-  originPointId: string;
-  /** The pickup station the buyer collects from. */
-  destPickupId: string;
+  /** Where the goods leave, as a location key. */
+  originKey: string;
+  /** Where the buyer collects, as a location key. */
+  destKey: string;
   /**
-   * What one consignment on this lane costs, before the increments.
+   * What the first item costs — the base fee, charged once for the load.
    *
-   * Null is "this lane has no base fee of its own" and falls through; zero is a
-   * lane quoted free. A cell holding only a large-item rate is why the two are
-   * not the same value.
+   * Null is "this lane has no base fee of its own" and falls back to the
+   * platform default; zero is a run quoted free. A cell holding only a
+   * large-item rate is why the two are not the same value.
    */
   baseFee: number | null;
+  /** What every item after the first adds. Null falls back to the default. */
+  perUnitFee: number | null;
   /** GH₵ per cubic metre for a large item here. Zero = this lane has not said. */
   largeRatePerCbm: number;
   /** No large item on this lane is billed under this. */
@@ -530,7 +565,7 @@ export const LARGE_ITEM_DEFAULTS: LargeItemPolicy = {
   extraPercent: 60,
 };
 
-/** The platform-wide numbers behind every rule. */
+/** The platform-wide numbers behind every empty cell. */
 export interface ShippingDefaults {
   /** What one consignment from one seller costs, before the increments. */
   baseFee: number;
@@ -555,8 +590,7 @@ export const SHIPPING_DEFAULTS: ShippingDefaults = {
 /** Everything the engine needs, loaded once per quote. */
 export interface ShippingConfig {
   defaults: ShippingDefaults;
-  rules: ShippingRule[];
-  /** The base-fee grid: one entry per priced journey. */
+  /** The grid: one entry per priced journey. The only table that prices a run. */
   lanes: LaneFee[];
   /** When an item is large, and what a cubic metre of it costs. */
   large: LargeItemPolicy;
@@ -568,7 +602,6 @@ export interface ShippingConfig {
 export function emptyShippingConfig(): ShippingConfig {
   return {
     defaults: { ...SHIPPING_DEFAULTS },
-    rules: [],
     lanes: [],
     large: { ...LARGE_ITEM_DEFAULTS },
     currencies: { [HOME_CURRENCY]: 1 },
@@ -589,93 +622,20 @@ function roundCbm(n: number): number {
 }
 
 /**
- * The rule that governs one line's domestic leg, most specific first.
- *
- * A rule scores a point for each part of its scope that names something rather
- * than standing for "any", and the highest score wins. Ties go to the rule that
- * named the category, then the one that named the origin.
- *
- * Null when nothing matches, which is a real answer: the platform defaults
- * price it.
- */
-export function resolveRule(
-  rules: ShippingRule[],
-  scope: { originPointId: string | null; destPickupId: string; categoryId: string },
-): ShippingRule | null {
-  const matches = rules.filter(
-    (r) =>
-      r.isActive &&
-      (r.originPointId === null || r.originPointId === scope.originPointId) &&
-      (r.destPickupId === null || r.destPickupId === scope.destPickupId) &&
-      (r.categoryId === null || r.categoryId === scope.categoryId),
-  );
-  if (matches.length === 0) return null;
-
-  const score = (r: ShippingRule) =>
-    (r.originPointId ? 1 : 0) + (r.destPickupId ? 1 : 0) + (r.categoryId ? 1 : 0);
-
-  return matches.reduce((best, r) => {
-    const d = score(r) - score(best);
-    if (d !== 0) return d > 0 ? r : best;
-    if (Boolean(r.categoryId) !== Boolean(best.categoryId)) return r.categoryId ? r : best;
-    if (Boolean(r.originPointId) !== Boolean(best.originPointId)) return r.originPointId ? r : best;
-    return best;
-  });
-}
-
-/**
- * What one consignment costs and what each extra unit adds, for one line.
- *
- * The rule's own numbers first, then its legacy ones, then the platform's. An
- * increment is only *derived* from the weight rate when nothing states one
- * directly, which is the same intent expressed in the shape that no longer
- * multiplies.
- */
-export function rulePricing(
-  rule: ShippingRule | null,
-  size: ItemSize,
-  defaults: ShippingDefaults,
-): { baseFee: number; perUnitFee: number } {
-  const unitWeight = billableWeightKg(size, defaults.volumetricDivisor);
-
-  const baseFee = rule
-    ? rule.baseFee > 0
-      ? rule.baseFee
-      : rule.flatFee > 0
-        ? rule.flatFee
-        : 0
-    : defaults.baseFee;
-
-  const perUnitFee = rule
-    ? rule.perUnitFee > 0
-      ? rule.perUnitFee
-      : rule.perKgRate > 0
-        ? rule.perKgRate * unitWeight
-        : 0
-    : defaults.perUnitFee > 0
-      ? defaults.perUnitFee
-      : defaults.perKgRate * unitWeight;
-
-  return { baseFee: round(baseFee), perUnitFee: round(perUnitFee) };
-}
-
-/**
  * The grid cell for one journey, or null.
  *
  * No scoring and no fallback: a cell is either there or it is not. That is the
  * whole point of a grid — an admin reading the screen can see what a lane costs
- * without working out which of four rules the resolver would have preferred.
+ * without working out which of several rules a resolver would have preferred.
  */
 export function resolveLaneFee(
   lanes: LaneFee[],
-  originPointId: string | null,
-  destPickupId: string,
+  originKey: string,
+  destKey: string,
 ): LaneFee | null {
-  if (!originPointId || !destPickupId) return null;
+  if (!originKey || !destKey) return null;
   return (
-    lanes.find(
-      (l) => l.isActive && l.originPointId === originPointId && l.destPickupId === destPickupId,
-    ) ?? null
+    lanes.find((l) => l.isActive && l.originKey === originKey && l.destKey === destKey) ?? null
   );
 }
 
@@ -735,43 +695,40 @@ export function largeItemPricing(
 /**
  * What one line asks of its consignment's domestic leg.
  *
- * Three sources, in this order:
+ * Two sources, and no third:
  *
  *   1. **Its size**, when it is a large item and somebody has priced a cubic
  *      metre for it. A fridge is not a base fee with a fridge in it.
- *   2. **The grid cell** for the journey, for the base fee — unless a rule
- *      names this line's category, which is sharper than a lane and keeps its
- *      own base. "All appliances, GH₵60" is a statement about the goods; a
- *      grid cell is a statement about the road.
- *   3. **The platform default**, for a journey the grid does not cover and no
- *      rule claims.
+ *   2. **The grid cell** for the journey — its base fee, its increment, or
+ *      either one on its own, with the platform default filling whichever the
+ *      cell leaves empty.
  *
- * The increment is the rules table's and the platform's throughout, exactly as
- * it was before the grid existed — `rulePricing` still decides it, and the grid
- * has no opinion about it at all.
+ * There is deliberately no rules table behind this any more. One journey, one
+ * cell, one price: a second table that could disagree with the grid is how a
+ * fee comes to depend on which screen was edited last.
  */
 export function domesticPricing(
-  line: Pick<ShipmentLine, "size" | "categoryId" | "point">,
+  line: Pick<ShipmentLine, "size" | "point">,
   destPickupId: string,
   config: ShippingConfig,
 ): LinePricing {
-  const originPointId = line.point?.id ?? null;
-  const lane = resolveLaneFee(config.lanes, originPointId, destPickupId);
+  const lane = resolveLaneFee(
+    config.lanes,
+    locationKeyForPoint(line.point),
+    locationKeyForPickup(destPickupId),
+  );
 
   if (isLargeItem(line.size, config.large)) {
     const bySize = largeItemPricing(line.size, lane, config.large);
     if (bySize) return bySize;
   }
 
-  const rule = resolveRule(config.rules, {
-    originPointId,
-    destPickupId,
-    categoryId: line.categoryId,
-  });
-  const flat = rulePricing(rule, line.size, config.defaults);
-  // `??`, not `||`: a lane priced at zero is free, and must not read as unset.
-  const baseFee = rule?.categoryId ? flat.baseFee : (lane?.baseFee ?? flat.baseFee);
-  return { baseFee: round(baseFee), perUnitFee: flat.perUnitFee, byDimensions: false };
+  // `??`, not `||`: a cell priced at zero is free, and must not read as unset.
+  return {
+    baseFee: round(lane?.baseFee ?? config.defaults.baseFee),
+    perUnitFee: round(lane?.perUnitFee ?? config.defaults.perUnitFee),
+    byDimensions: false,
+  };
 }
 
 /**
@@ -1054,7 +1011,7 @@ export function internationalLegFee(
  * Price one line's *international* half.
  *
  * The domestic leg is deliberately absent: it belongs to the consignment, not
- * to the line, and is added by `quoteShipment` once per seller. Callers who
+ * to the line, and is added by `quoteShipment` once per load. Callers who
  * want a whole-line figure use that.
  */
 export function priceLine(
@@ -1134,12 +1091,13 @@ export function priceLine(
 }
 
 // ---------------------------------------------------------------------------
-// The domestic leg: one consignment per seller
+// The domestic leg: one consignment per load
 // ---------------------------------------------------------------------------
 
-/** What one seller's consignment costs to bring to the buyer's station. */
+/** What one load costs to bring from where it gathers to the buyer's station. */
 export interface ConsignmentQuote {
-  vendorId: string;
+  /** Every seller with goods in this load. One van can carry several shops'. */
+  vendorIds: string[];
   /** The consolidation point it leaves from. */
   pointId: string | null;
   /** Total units in the consignment. */
@@ -1158,28 +1116,36 @@ export interface ConsignmentQuote {
   largeUnits: number;
 }
 
-/** The key a consignment is grouped under. */
+/**
+ * The key a consignment is grouped under: where the goods gather.
+ *
+ * The seller is deliberately not part of it. A consignment is a load on a van,
+ * and what decides whether two things travel together is whether they are in
+ * the same place — not whose name is on the box. Two shops that both
+ * consolidate in Sunyani are one run to Hwidiem, so they are one base fee, and
+ * charging a second would be charging for a journey nobody makes.
+ *
+ * The point still is part of it: one seller whose goods gather in two places is
+ * genuinely handing over two loads, and those are two runs.
+ */
 function consignmentKey(line: ShipmentLine): string {
-  // Seller first, because that is what a consignment is. The point is part of
-  // the key because a seller whose goods gather in two places is genuinely
-  // handing over two loads, and one base fee for both would price a journey
-  // nobody makes.
-  return `${line.vendorId}::${line.point?.id ?? ""}`;
+  return line.point?.id ?? "";
 }
 
 /**
- * Price every seller's consignment, and hand each line its share.
+ * Price every load, and hand each line its share.
  *
  * The base fee is charged once per consignment, and it is the largest base any
- * line in it resolves to: a rule that says a fridge costs GH₵60 to move must
- * not be undercut by a phone case in the same box. Every unit after that first
- * one adds its own line's increment.
+ * line in it asks for: a cell that says a fridge costs GH₵60 to move must not
+ * be undercut by a phone case in the same box. Every unit after that first one
+ * adds its own line's increment.
  *
- * That single rule is also what handles a cart with two fridges in it. Each
- * large line's base is its own volume priced on the lane, so the largest of
- * them wins the base by arithmetic rather than by a special case, and the
- * others fall to their own size-based increments — the ordinary shape,
- * measured in cubic metres.
+ * That single principle is what handles the two cases that used to need special
+ * pleading. A cart with two fridges: each large line's base is its own volume
+ * priced on the lane, so the biggest wins the base by arithmetic and the others
+ * fall to their own size-based increments. And a cart from two shops that
+ * consolidate in the same place: one load, so the dearest item sets the base and
+ * everything else — whoever sold it — increments.
  */
 export function quoteConsignments(
   lines: ShipmentLine[],
@@ -1200,6 +1166,9 @@ export function quoteConsignments(
     else groups.set(key, [index]);
   });
 
+  /** Every shop with goods in one load, in the order they appear in the cart. */
+  const sellersIn = (indexes: number[]) => [...new Set(indexes.map((i) => lines[i].vendorId))];
+
   for (const indexes of groups.values()) {
     const first = lines[indexes[0]];
     const atOrigin = collectedAtOrigin(first, destPickupId);
@@ -1210,7 +1179,7 @@ export function quoteConsignments(
     // costs before it knows where it is going.
     if (atOrigin || !destPickupId) {
       consignments.push({
-        vendorId: first.vendorId,
+        vendorIds: sellersIn(indexes),
         pointId: first.point?.id ?? null,
         units,
         baseFee: 0,
@@ -1257,7 +1226,7 @@ export function quoteConsignments(
     perLineLocal[lead.index] = round(perLineLocal[lead.index] + lead.baseFee + (fee - raw));
 
     consignments.push({
-      vendorId: first.vendorId,
+      vendorIds: sellersIn(indexes),
       pointId: first.point?.id ?? null,
       units,
       baseFee: lead.baseFee,
@@ -1294,7 +1263,7 @@ export interface ShipmentQuote
   hasImported: boolean;
   /** True when any line is a large item, however it ended up being priced. */
   hasLargeItems: boolean;
-  /** One entry per seller consignment, for the breakdown. */
+  /** One entry per load, for the breakdown. */
   consignments: ConsignmentQuote[];
 }
 
@@ -1342,8 +1311,8 @@ export function sumShipping(
  * Price a whole cart to one destination.
  *
  * The international half is priced per line, because a lane belongs to the
- * goods. The domestic half is priced per seller, because a courier run belongs
- * to the consignment. Each line is then handed its share of its consignment so
+ * goods. The domestic half is priced per load, because a courier run belongs to
+ * the consignment and a consignment is what leaves one place together. Each line is then handed its share of its consignment so
  * the parts still add up to the number on the screen.
  */
 export function quoteShipment(

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { freightModeLabel, type AbroadTerms } from "@/lib/abroad";
 import { describePoint, describeTransit } from "@/lib/shipping";
+import { getConsolidationPointMap } from "@/lib/shipping-config";
 import { priceCartAtPoints } from "@/lib/cart-pricing";
 import type { CartBill } from "@/lib/cart-bill";
 
@@ -56,9 +57,10 @@ export interface PickupQuote {
   collectedHere: boolean;
 }
 
-/** One seller's consignment, so the buyer can see why the fee is what it is. */
+/** One load, so the buyer can see why the fee is what it is. */
 export interface ConsignmentLine {
-  sellerName: string;
+  /** Where the load leaves from, and whose goods are in it. */
+  label: string;
   units: number;
   baseFee: number;
   incrementFee: number;
@@ -162,19 +164,28 @@ export async function quoteCart(input: {
       (input.destPickupId ? byPoint.get(input.destPickupId) : undefined) ??
       byPoint.get(points[0]?.id ?? "") ??
       base;
-    const vendorIds = [...new Set(selected.consignments.map((c) => c.vendorId))];
-    const vendorNames = new Map(
-      (
-        await prisma.vendor.findMany({
-          where: { id: { in: vendorIds } },
-          select: { id: true, businessName: true },
-        })
-      ).map((v) => [v.id, v.businessName] as const),
-    );
+    const vendorIds = [...new Set(selected.consignments.flatMap((c) => c.vendorIds))];
+    const [vendors, pointsById] = await Promise.all([
+      prisma.vendor.findMany({
+        where: { id: { in: vendorIds } },
+        select: { id: true, businessName: true },
+      }),
+      getConsolidationPointMap(),
+    ]);
+    const vendorNames = new Map(vendors.map((v) => [v.id, v.businessName] as const));
+
+    // A load is named by where it leaves from, because that is what decides it
+    // is one load: two shops consolidating in Sunyani travel on one van and pay
+    // one fee, and a line that named only a seller could not explain that.
     const consignments: ConsignmentLine[] = selected.consignments
       .filter((c) => c.fee > 0 || c.collectedAtOrigin)
       .map((c) => ({
-        sellerName: vendorNames.get(c.vendorId) ?? "Seller",
+        // `||`, not `??`: a load with no shops named would join to an empty
+        // string, and a blank line on a bill explains nothing.
+        label:
+          pointsById.get(c.pointId ?? "")?.name ||
+          c.vendorIds.map((id) => vendorNames.get(id) ?? "Seller").join(", ") ||
+          "One load",
         units: c.units,
         baseFee: c.baseFee,
         incrementFee: c.incrementFee,

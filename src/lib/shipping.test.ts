@@ -13,8 +13,9 @@ import {
   resolveGoodsClasses,
   resolveLaneRate,
   resolveRoute,
+  locationKeyForPickup,
+  locationKeyForPoint,
   resolveLaneFee,
-  resolveRule,
   routesToPoint,
   SHIPPING_DEFAULTS,
   type ConsolidationPoint,
@@ -24,7 +25,6 @@ import {
   type LaneFee,
   type ShipmentLine,
   type ShippingConfig,
-  type ShippingRule,
 } from "./shipping.ts";
 
 /**
@@ -171,7 +171,6 @@ const CURRENCIES: Currency[] = [
 
 const CONFIG: ShippingConfig = {
   defaults: { ...SHIPPING_DEFAULTS, baseFee: 10, perUnitFee: 1.5, perKgRate: 0, minFee: 0 },
-  rules: [],
   lanes: [],
   // Large-item pricing is on, and unpriced: the state a platform is in the
   // moment it upgrades. Nothing may be quoted differently because of it until
@@ -239,8 +238,20 @@ test("two lines from one seller share a single base fee", () => {
   assert.equal(fee, 10 + 1.5 * 4);
 });
 
-test("two sellers are two consignments and two base fees", () => {
+test("two sellers gathering in the same place are one load and one base fee", () => {
+  // What decides whether two things travel together is whether they are in the
+  // same place, not whose name is on the box. One van, one base fee, and the
+  // second shop's goods increment.
   const fee = cartFee([line({ vendorId: "v-1" }), line({ vendorId: "v-2" })], "pp-accra");
+  assert.equal(fee, 10 + 1.5);
+});
+
+test("two sellers gathering in different places are two loads and two base fees", () => {
+  const elsewhere: ConsolidationPoint = { ...KUMASI, id: "cp-tamale", pickupPointId: "pp-tamale" };
+  const fee = cartFee(
+    [line({ vendorId: "v-1" }), line({ vendorId: "v-2", point: elsewhere })],
+    "pp-accra",
+  );
   assert.equal(fee, 20);
 });
 
@@ -251,26 +262,20 @@ test("one seller gathering at two points is two consignments", () => {
   assert.equal(cartFee([line(), line({ point: elsewhere })], "pp-accra"), 20);
 });
 
-test("the base fee is the dearest in the consignment, charged once", () => {
-  const rules: ShippingRule[] = [
-    {
-      id: "fridges",
-      originPointId: null,
-      destPickupId: null,
-      categoryId: "cat-appliances",
-      baseFee: 60,
-      perUnitFee: 20,
-      flatFee: 0,
-      perKgRate: 0,
-      note: "",
-      isActive: true,
-    },
-  ];
-  const config: ShippingConfig = { ...CONFIG, rules };
-  // A fridge and a phone case in one handover: the fridge sets the base, and
-  // the case adds its own small increment rather than riding free.
-  const fee = cartFee([line({ categoryId: "cat-appliances" }), line({ categoryId: "cat-phones" })], "pp-accra", config);
-  assert.equal(fee, 60 + 1.5);
+test("the base fee is the dearest in the load, charged once", () => {
+  // A fridge and a phone case in one handover: the fridge sets the base — by
+  // its size, since a flat fee is the wrong shape for it — and the case adds
+  // its own small increment rather than riding free.
+  const config: ShippingConfig = {
+    ...CONFIG,
+    lanes: [lane({ destKey: locationKeyForPickup("pp-accra"), largeRatePerCbm: 60 })],
+  };
+  const fee = cartFee(
+    [line({ size: { lengthCm: 180, widthCm: 70, heightCm: 85, shippingWeightKg: 90 } }), line()],
+    "pp-accra",
+    config,
+  );
+  assert.equal(fee, 64.26 + 1.5); // 1.071 m³ × 60, then the ordinary increment
 });
 
 test("the per-line split adds back up to the consignment fee", () => {
@@ -299,67 +304,43 @@ test("free shipping is free even from abroad", () => {
   assert.equal(priced.unpricedRoute, false);
 });
 
-// --- Rules ------------------------------------------------------------------
+// --- The grid ---------------------------------------------------------------
 
-const RULES: ShippingRule[] = [
-  { id: "any", originPointId: null, destPickupId: null, categoryId: null, baseFee: 10, perUnitFee: 2, flatFee: 0, perKgRate: 0, note: "", isActive: true },
-  { id: "blenders", originPointId: KUMASI.id, destPickupId: "pp-accra", categoryId: "cat-home", baseFee: 50, perUnitFee: 5, flatFee: 0, perKgRate: 0, note: "", isActive: true },
-  { id: "route", originPointId: KUMASI.id, destPickupId: "pp-accra", categoryId: null, baseFee: 25, perUnitFee: 3, flatFee: 0, perKgRate: 0, note: "", isActive: true },
-];
-
-test("the most specific rule wins", () => {
-  const scope = { originPointId: KUMASI.id, destPickupId: "pp-accra", categoryId: "cat-home" };
-  assert.equal(resolveRule(RULES, scope)?.id, "blenders");
-  assert.equal(resolveRule(RULES, { ...scope, categoryId: "cat-phones" })?.id, "route");
-  assert.equal(resolveRule(RULES, { ...scope, destPickupId: "pp-tamale" })?.id, "any");
-});
-
-test("an inactive rule is not consulted", () => {
-  const off = RULES.map((r) => (r.id === "blenders" ? { ...r, isActive: false } : r));
-  assert.equal(
-    resolveRule(off, { originPointId: KUMASI.id, destPickupId: "pp-accra", categoryId: "cat-home" })?.id,
-    "route",
-  );
-});
-
-test("a legacy flat rule becomes the base fee and stops multiplying", () => {
-  // Written under the old system as "GH₵50 per item"; three items used to cost
-  // GH₵150 for one parcel. It is now the consignment's base fee, and the
-  // increment is derived from the weight rate on the same rule.
-  const legacy: ShippingRule[] = [
-    { id: "legacy", originPointId: null, destPickupId: null, categoryId: null, baseFee: 0, perUnitFee: 0, flatFee: 50, perKgRate: 4, note: "", isActive: true },
-  ];
-  const config: ShippingConfig = { ...CONFIG, rules: legacy };
-  // 50 base + 2 extra units × (GH₵4 × 2 kg billable).
-  assert.equal(cartFee([line({ quantity: 3 })], "pp-accra", config), 50 + 16);
-});
-
-// --- The base-fee grid ------------------------------------------------------
+/** A cell, with everything unstated left to the platform defaults. */
+function lane(over: Partial<LaneFee> = {}): LaneFee {
+  return {
+    id: `lane-${over.originKey ?? "o"}-${over.destKey ?? "d"}`,
+    originKey: locationKeyForPoint(KUMASI),
+    destKey: locationKeyForPickup("pp-accra"),
+    baseFee: null,
+    perUnitFee: null,
+    largeRatePerCbm: 0,
+    largeMinFee: 0,
+    note: "",
+    isActive: true,
+    ...over,
+  };
+}
 
 const LANES: LaneFee[] = [
-  {
-    id: "ksi-accra",
-    originPointId: KUMASI.id,
-    destPickupId: "pp-accra",
-    baseFee: 35,
-    largeRatePerCbm: 0,
-    largeMinFee: 0,
-    note: "",
-    isActive: true,
-  },
-  {
-    id: "ksi-tamale",
-    originPointId: KUMASI.id,
-    destPickupId: "pp-tamale",
-    baseFee: 0,
-    largeRatePerCbm: 0,
-    largeMinFee: 0,
-    note: "",
-    isActive: true,
-  },
+  lane({ id: "ksi-accra", destKey: locationKeyForPickup("pp-accra"), baseFee: 35 }),
+  lane({ id: "ksi-tamale", destKey: locationKeyForPickup("pp-tamale"), baseFee: 0 }),
 ];
 
 const GRID: ShippingConfig = { ...CONFIG, lanes: LANES };
+
+test("a consolidation point at a station is the same location as the station", () => {
+  // KUMASI sits at pp-kumasi, so a cell written against either addresses one
+  // place. Two rows for one building is how the same journey ends up with two
+  // prices.
+  assert.equal(locationKeyForPoint(KUMASI), locationKeyForPickup("pp-kumasi"));
+  // A depot at no station keeps its own identity.
+  assert.equal(locationKeyForPoint(TEMA), locationKeyForPickup("pp-tema"));
+  assert.equal(
+    locationKeyForPoint({ id: "cp-lonely", pickupPointId: null }),
+    "cp:cp-lonely",
+  );
+});
 
 test("each journey charges its own base fee", () => {
   // The same seller, the same goods, two stations, two prices — which is the
@@ -371,8 +352,29 @@ test("each journey charges its own base fee", () => {
 });
 
 test("a lane priced at zero is free, not unset", () => {
-  assert.equal(resolveLaneFee(LANES, KUMASI.id, "pp-tamale")?.baseFee, 0);
-  assert.equal(cartFee([line({ quantity: 3 })], "pp-tamale", GRID), 3);  // 0 + 2 increments
+  const cell = resolveLaneFee(LANES, locationKeyForPoint(KUMASI), locationKeyForPickup("pp-tamale"));
+  assert.equal(cell?.baseFee, 0);
+  assert.equal(cartFee([line({ quantity: 3 })], "pp-tamale", GRID), 3); // 0 + 2 increments
+});
+
+test("a cell's own increment beats the platform's, and zero means extras ride free", () => {
+  const config: ShippingConfig = {
+    ...CONFIG,
+    lanes: [
+      lane({ destKey: locationKeyForPickup("pp-accra"), baseFee: 20, perUnitFee: 6 }),
+      lane({ id: "flat", destKey: locationKeyForPickup("pp-tamale"), baseFee: 40, perUnitFee: 0 }),
+    ],
+  };
+  assert.equal(cartFee([line({ quantity: 3 })], "pp-accra", config), 20 + 12);
+  assert.equal(cartFee([line({ quantity: 9 })], "pp-tamale", config), 40);
+});
+
+test("a cell may price only the increment and leave the base to the default", () => {
+  const config: ShippingConfig = {
+    ...CONFIG,
+    lanes: [lane({ destKey: locationKeyForPickup("pp-accra"), perUnitFee: 4 })],
+  };
+  assert.equal(cartFee([line({ quantity: 2 })], "pp-accra", config), 10 + 4);
 });
 
 test("the lane's base fee is charged once, and the increments are untouched by it", () => {
@@ -382,28 +384,59 @@ test("the lane's base fee is charged once, and the increments are untouched by i
 
 test("a paused lane falls back rather than pricing", () => {
   const paused = { ...GRID, lanes: LANES.map((l) => ({ ...l, isActive: false })) };
-  assert.equal(resolveLaneFee(paused.lanes, KUMASI.id, "pp-accra"), null);
+  assert.equal(
+    resolveLaneFee(paused.lanes, locationKeyForPoint(KUMASI), locationKeyForPickup("pp-accra")),
+    null,
+  );
   assert.equal(cartFee([line()], "pp-accra", paused), 10);
 });
 
-test("a grid cell beats a route rule, and a category rule beats the grid", () => {
-  const rules: ShippingRule[] = [
-    { id: "route", originPointId: KUMASI.id, destPickupId: "pp-accra", categoryId: null, baseFee: 25, perUnitFee: 3, flatFee: 0, perKgRate: 0, note: "", isActive: true },
-    { id: "fridges", originPointId: null, destPickupId: null, categoryId: "cat-appliances", baseFee: 90, perUnitFee: 20, flatFee: 0, perKgRate: 0, note: "", isActive: true },
+test("a consolidation point and the station it sits at share one cell", () => {
+  // The cell is written against the station; the goods leave a point that sits
+  // there. One place, one price — this is the bug the merged identity fixes.
+  const byStation: LaneFee[] = [
+    lane({
+      originKey: locationKeyForPickup("pp-kumasi"),
+      destKey: locationKeyForPickup("pp-accra"),
+      baseFee: 42,
+    }),
   ];
-  const config: ShippingConfig = { ...GRID, rules };
-  // The road is the grid's business: GH₵35, not the rule's GH₵25 — but the
-  // increment on that same rule still applies, because the grid has no opinion
-  // about what a second item costs.
-  assert.equal(cartFee([line({ quantity: 2 })], "pp-accra", config), 35 + 3);
-  // The goods are the rule's business: where the appliance rule is the one that
-  // resolves, its base fee wins — over the grid's cell, and over the fact that
-  // this lane is otherwise free.
-  assert.equal(cartFee([line({ categoryId: "cat-appliances" })], "pp-tamale", config), 90);
-  // And the sharper route rule still outranks the category one where both
-  // match, exactly as it did before the grid existed. Its base then comes from
-  // the grid, because that rule names no category.
-  assert.equal(cartFee([line({ categoryId: "cat-appliances" })], "pp-accra", config), 35);
+  assert.equal(cartFee([line()], "pp-accra", { ...CONFIG, lanes: byStation }), 42);
+});
+
+test("a depot at no station is a location in its own right", () => {
+  const depot: ConsolidationPoint = { ...KUMASI, id: "cp-csl", pickupPointId: null };
+  const config: ShippingConfig = {
+    ...CONFIG,
+    lanes: [lane({ originKey: "cp:cp-csl", destKey: locationKeyForPickup("pp-accra"), baseFee: 18 })],
+  };
+  assert.equal(cartFee([line({ point: depot })], "pp-accra", config), 18);
+  // And that cell prices nothing leaving anywhere else.
+  assert.equal(cartFee([line()], "pp-accra", config), 10);
+});
+
+test("two shops in one place share the dearest base and increment the rest", () => {
+  const config: ShippingConfig = {
+    ...CONFIG,
+    lanes: [lane({ destKey: locationKeyForPickup("pp-accra"), baseFee: 30, perUnitFee: 4 })],
+  };
+  const fee = cartFee(
+    [line({ vendorId: "v-1", quantity: 2 }), line({ vendorId: "v-2", quantity: 3 })],
+    "pp-accra",
+    config,
+  );
+  // One van: one base fee, four increments — not two base fees.
+  assert.equal(fee, 30 + 4 * 4);
+});
+
+test("the consignment names every shop with goods in it", () => {
+  const { consignments } = quoteConsignments(
+    [line({ vendorId: "v-1" }), line({ vendorId: "v-2" }), line({ vendorId: "v-1" })],
+    "pp-accra",
+    GRID,
+  );
+  assert.equal(consignments.length, 1);
+  assert.deepEqual(consignments[0].vendorIds, ["v-1", "v-2"]);
 });
 
 // --- Large items ------------------------------------------------------------
@@ -413,11 +446,11 @@ const FREEZER = { shippingWeightKg: 90, lengthCm: 180, widthCm: 70, heightCm: 85
 /** A microwave: large by nothing, and half a cubic metre smaller. */
 const MICROWAVE = { shippingWeightKg: 15, lengthCm: 50, widthCm: 40, heightCm: 30 };
 
+const ACCRA = locationKeyForPickup("pp-accra");
+
 const BY_SIZE: ShippingConfig = {
   ...GRID,
-  lanes: LANES.map((l) =>
-    l.destPickupId === "pp-accra" ? { ...l, largeRatePerCbm: 100, largeMinFee: 0 } : l,
-  ),
+  lanes: LANES.map((l) => (l.destKey === ACCRA ? { ...l, largeRatePerCbm: 100 } : l)),
   large: { ...LARGE_ITEM_DEFAULTS, extraPercent: 60 },
 };
 
@@ -486,7 +519,7 @@ test("a lane's own rate beats the platform's, and its minimum floors the price",
   const config: ShippingConfig = {
     ...GRID,
     lanes: LANES.map((l) =>
-      l.destPickupId === "pp-accra" ? { ...l, largeRatePerCbm: 100, largeMinFee: 250 } : l,
+      l.destKey === ACCRA ? { ...l, largeRatePerCbm: 100, largeMinFee: 250 } : l,
     ),
     large: { ...LARGE_ITEM_DEFAULTS, ratePerCbm: 80 },
   };

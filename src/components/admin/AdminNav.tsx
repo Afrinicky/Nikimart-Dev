@@ -37,7 +37,7 @@ const TABS = [
   { href: "/admin/pages", label: "Pages", icon: LayoutTemplate },
   { href: "/admin/banners", label: "Carousel", icon: GalleryHorizontalEnd },
   { href: "/admin/locations", label: "Locations", icon: MapPin },
-  { href: "/admin/pickup-points", label: "Pickup", icon: PackageCheck },
+  { href: "/admin/shipping/locations", label: "Pickup", icon: PackageCheck },
   { href: "/admin/shipping", label: "Shipping", icon: Truck },
   { href: "/admin/purchasing", label: "Order placement", icon: ClipboardList },
   { href: "/admin/faqs", label: "FAQs", icon: HelpCircle },

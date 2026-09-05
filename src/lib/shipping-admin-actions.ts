@@ -1,11 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 import { refreshCurrencyRates } from "@/lib/fx";
-import type { CrudState } from "@/lib/admin-actions";
+import { parseLocationKey } from "@/lib/shipping";
+import { getRawShippingLaneFees, type RawLaneFee } from "@/lib/shipping-config";
 
 /**
  * Everything an admin can change about shipping *inside Ghana*, in one module.
@@ -13,12 +13,16 @@ import type { CrudState } from "@/lib/admin-actions";
  * The forwarders are not here. A forwarder is a company with a rate sheet, and
  * their whole profile — warehouses, classes, lanes and prices — is saved as one
  * thing by `lib/forwarder-actions`. What is left in this module is the part of
- * the system NikiMart owns: our own consolidation points, the rules that price
- * the run from any point to a pickup station, the platform defaults, and the
- * exchange rates the forwarders' quotes are converted at.
+ * the system NikiMart owns: the grid that prices every run between two places,
+ * the platform defaults behind its empty cells, and the exchange rates the
+ * forwarders' quotes are converted at.
  *
  * All of it is admin-only, and deliberately so. Sellers choose from these
  * lists; only admins write them.
+ *
+ * The places themselves — every station buyers collect at, every point goods
+ * gather at, and the many that are both — are one merged concern and live in
+ * `lib/shipping-location-actions`.
  */
 
 export type ShippingState = {
@@ -31,10 +35,6 @@ export type ShippingState = {
 
 function str(fd: FormData, key: string): string {
   return String(fd.get(key) ?? "").trim();
-}
-
-function optId(fd: FormData, key: string): string | null {
-  return str(fd, key) || null;
 }
 
 function num(fd: FormData, key: string, fallback = 0): number {
@@ -158,178 +158,15 @@ export async function saveShippingDefaults(
 }
 
 // ---------------------------------------------------------------------------
-// Our own consolidation points
-// ---------------------------------------------------------------------------
-
-/**
- * A NikiMart consolidation point.
- *
- * Only ours. A forwarder's warehouse in Ghana belongs to that forwarder and is
- * created on their registration page, which is why there is no "kind" to choose
- * here and no duty to set: nothing clears customs at one of our points.
- */
-function pointData(fd: FormData) {
-  return {
-    name: str(fd, "name"),
-    code: str(fd, "code").toUpperCase().replace(/\s+/g, "-"),
-    city: str(fd, "city"),
-    address: str(fd, "address"),
-    note: str(fd, "note"),
-    kind: "local",
-    isActive: on(fd, "isActive"),
-    // The pickup station this point sits at. Setting it is what makes
-    // collection there free, which is the single most useful thing on the form.
-    hubPickupId: optId(fd, "hubPickupId"),
-  };
-}
-
-export async function createConsolidationPoint(_prev: CrudState, fd: FormData): Promise<CrudState> {
-  await requireAdmin();
-  const data = pointData(fd);
-  if (data.name.length < 2 || data.code.length < 2) {
-    return { error: "Name and code are required." };
-  }
-  const clash = await prisma.arrivalPoint.findUnique({ where: { code: data.code } });
-  if (clash) return { error: "Code already in use.", fieldErrors: { code: "Already exists." } };
-
-  try {
-    await prisma.arrivalPoint.create({ data });
-  } catch {
-    return { error: "Couldn't create the point — its code may already be in use." };
-  }
-  revalidateShipping();
-  redirect("/admin/shipping/points");
-}
-
-export async function updateConsolidationPoint(
-  id: string,
-  _prev: CrudState,
-  fd: FormData,
-): Promise<CrudState> {
-  await requireAdmin();
-  const data = pointData(fd);
-  if (data.name.length < 2 || data.code.length < 2) {
-    return { error: "Name and code are required." };
-  }
-  const clash = await prisma.arrivalPoint.findFirst({ where: { code: data.code, NOT: { id } } });
-  if (clash) return { error: "Code already in use.", fieldErrors: { code: "Already exists." } };
-
-  try {
-    // Scoped to our own points: a forwarder's warehouse is not editable here.
-    await prisma.arrivalPoint.updateMany({ where: { id, forwarderId: null }, data });
-  } catch {
-    return { error: "Couldn't save the point — its code may already be in use." };
-  }
-  revalidateShipping();
-  redirect("/admin/shipping/points");
-}
-
-/**
- * Delete one of our consolidation points.
- *
- * Listings, order lines and shops that referred to it are left pointing at
- * nothing rather than at a point that no longer exists; the listing form then
- * asks the seller to choose again. That is the honest outcome, and it is what
- * an admin who presses delete is asking for.
- */
-export async function deleteConsolidationPoint(fd: FormData): Promise<void> {
-  await requireAdmin();
-  const id = str(fd, "id");
-  if (!id) return;
-  await prisma.arrivalPoint.deleteMany({ where: { id, forwarderId: null } }).catch(() => {});
-  revalidateShipping();
-}
-
-// ---------------------------------------------------------------------------
-// Domestic shipping rules
-// ---------------------------------------------------------------------------
-
-/**
- * Write one rule: a scope, and what it costs.
- *
- * The origin may be one of our points or a forwarder's Ghana warehouse, and
- * that second case is the whole run from a landed consignment to the station a
- * buyer collects at — Sunyani to Hwidiem, priced here.
- *
- * Upsert on the scope rather than create, because an admin correcting a price
- * means to replace it, not to stack a second rule the resolver would then be
- * choosing between arbitrarily. The scope's uniqueness cannot be expressed as a
- * Prisma `@@unique` — NULL never equals NULL — so the match is made here and
- * the database backs it with a COALESCE index (db/migrations/0006).
- */
-export async function saveShippingRule(_prev: ShippingState, fd: FormData): Promise<ShippingState> {
-  await requireAdmin();
-
-  const scope = {
-    originPointId: optId(fd, "originPointId"),
-    destPickupId: optId(fd, "destPickupId"),
-    categoryId: optId(fd, "categoryId"),
-  };
-  const values = {
-    baseFee: num(fd, "baseFee"),
-    perUnitFee: num(fd, "perUnitFee"),
-    // The legacy columns are cleared on every save. A rule edited on this
-    // screen is a rule expressed in the current model, and leaving an old flat
-    // fee behind it would have the engine read a price nobody can see.
-    flatFee: 0,
-    perKgRate: 0,
-    note: str(fd, "note"),
-    isActive: !fd.has("isActive") || on(fd, "isActive"),
-  };
-
-  // A rule that charges nothing by any measure is not a price; it is a route
-  // quoted free, which an admin should say on purpose rather than by leaving
-  // two boxes empty.
-  if (values.baseFee === 0 && values.perUnitFee === 0 && !fd.has("allowZero")) {
-    return {
-      error:
-        "Set a base fee, and an amount for each additional item. To make a route genuinely free, tick “Free route”.",
-    };
-  }
-
-  try {
-    const existing = await prisma.shippingRule.findFirst({ where: scope, select: { id: true } });
-    if (existing) {
-      await prisma.shippingRule.update({ where: { id: existing.id }, data: values });
-    } else {
-      await prisma.shippingRule.create({ data: { ...scope, ...values } });
-    }
-  } catch {
-    return { error: "Couldn't save that rule." };
-  }
-
-  revalidateShipping();
-  return { ok: true };
-}
-
-export async function deleteShippingRule(fd: FormData): Promise<void> {
-  await requireAdmin();
-  const id = str(fd, "id");
-  if (!id) return;
-  await prisma.shippingRule.delete({ where: { id } }).catch(() => {});
-  revalidateShipping();
-}
-
-export async function toggleShippingRule(fd: FormData): Promise<void> {
-  await requireAdmin();
-  const id = str(fd, "id");
-  if (!id) return;
-  const rule = await prisma.shippingRule.findUnique({ where: { id }, select: { isActive: true } });
-  if (!rule) return;
-  await prisma.shippingRule.update({ where: { id }, data: { isActive: !rule.isActive } });
-  revalidateShipping();
-}
-
-// ---------------------------------------------------------------------------
-// The base-fee grid
+// The grid
 // ---------------------------------------------------------------------------
 
 /**
  * One optional amount from a grid cell.
  *
  * The empty string is not zero here and the difference is the whole design: a
- * blank cell has no opinion and falls through to the rules and the platform
- * default, while a typed zero says this journey is free.
+ * blank cell has no opinion and falls back to the platform default, while a
+ * typed zero says this journey is free, or adds nothing per extra item.
  */
 function cell(fd: FormData, key: string): number | null {
   const raw = str(fd, key);
@@ -338,17 +175,37 @@ function cell(fd: FormData, key: string): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+/** The four columns that address one lane, from its two location keys. */
+interface LaneColumns {
+  originPickupId: string | null;
+  originPointId: string | null;
+  destPickupId: string | null;
+  destPointId: string | null;
+}
+
+function laneColumns(originKey: string, destKey: string): LaneColumns | null {
+  const origin = parseLocationKey(originKey);
+  const dest = parseLocationKey(destKey);
+  if (!origin || !dest) return null;
+  return {
+    originPickupId: origin.kind === "pickup" ? origin.id : null,
+    originPointId: origin.kind === "point" ? origin.id : null,
+    destPickupId: dest.kind === "pickup" ? dest.id : null,
+    destPointId: dest.kind === "point" ? dest.id : null,
+  };
+}
+
 /**
- * Save the whole base-fee grid in one go.
+ * Save the whole grid in one go.
  *
  * A grid is edited as a grid: an admin fills in a column of stations, presses
  * save once, and every cell they touched is written together. Saving cell by
- * cell would mean twenty round trips to price one new pickup station, and a
+ * cell would mean twenty round trips to price one new location, and a
  * half-finished grid whenever one of them failed.
  *
  * A cell emptied of everything is deleted rather than stored as a row of
- * zeroes, because a row of zeroes is a lane quoted free — the opposite of what
- * clearing a cell means.
+ * zeroes, because a row of zeroes is a journey quoted free — the opposite of
+ * what clearing a cell means.
  */
 export async function saveShippingLaneFees(
   _prev: ShippingState,
@@ -358,36 +215,56 @@ export async function saveShippingLaneFees(
 
   // The cells the form actually rendered. Reading the pairs off the base-fee
   // inputs rather than off a submitted list of ids keeps the two in step: a
-  // station added since the page loaded simply is not in this save.
-  const pairs: { originPointId: string; destPickupId: string }[] = [];
-  for (const key of fd.keys()) {
-    if (!key.startsWith("base:")) continue;
-    const [, originPointId, destPickupId] = key.split(":");
-    if (originPointId && destPickupId) pairs.push({ originPointId, destPickupId });
+  // location added since the page loaded simply is not in this save.
+  const pairs: { originKey: string; destKey: string }[] = [];
+  for (const field of fd.keys()) {
+    if (!field.startsWith("base|")) continue;
+    const [, originKey, destKey] = field.split("|");
+    if (originKey && destKey) pairs.push({ originKey, destKey });
   }
   if (pairs.length === 0) return { error: "Nothing to save — the grid had no cells." };
 
-  const existing = await prisma.shippingLaneFee.findMany();
-  const stored = new Map(existing.map((r) => [`${r.originPointId}:${r.destPickupId}`, r]));
+  // Keyed by the journey each row actually addresses, not by the columns it
+  // happens to use: a cell written before locations were merged names its
+  // origin as the depot, a newer one names the station it sits at, and those
+  // are the same run. Both land in the same bucket here, and the save keeps one.
+  const existing = await getRawShippingLaneFees();
+  const stored = new Map<string, RawLaneFee[]>();
+  for (const row of existing) {
+    const k = `${row.originKey}|${row.destKey}`;
+    stored.set(k, [...(stored.get(k) ?? []), row]);
+  }
 
-  // Only the cells that actually moved are written. A grid of twenty stations
+  // Only the cells that actually moved are written. A grid of twenty locations
   // is four hundred cells and an admin edits three of them; sending four
   // hundred writes for that would make one corrected fee a slow, risky save.
   const writes = [];
   let changed = 0;
   let cleared = 0;
 
-  for (const { originPointId, destPickupId } of pairs) {
-    const suffix = `${originPointId}:${destPickupId}`;
-    const row = stored.get(suffix);
-    const baseFee = cell(fd, `base:${suffix}`);
-    const largeRatePerCbm = cell(fd, `cbm:${suffix}`) ?? 0;
-    const largeMinFee = cell(fd, `min:${suffix}`) ?? 0;
+  for (const { originKey, destKey } of pairs) {
+    const columns = laneColumns(originKey, destKey);
+    if (!columns) continue;
+
+    const suffix = `${originKey}|${destKey}`;
+    // The row that answers for this journey today, and any older ones saying
+    // the same thing differently. Saving heals the duplication: one row is
+    // kept and the rest go, so nothing is left for a future read to choose
+    // between.
+    const [row, ...duplicates] = [...(stored.get(suffix) ?? [])].reverse();
+    for (const extra of duplicates) {
+      writes.push(prisma.shippingLaneFee.delete({ where: { id: extra.id } }));
+    }
+
+    const baseFee = cell(fd, `base|${suffix}`);
+    const perUnitFee = cell(fd, `unit|${suffix}`);
+    const largeRatePerCbm = cell(fd, `cbm|${suffix}`) ?? 0;
+    const largeMinFee = cell(fd, `min|${suffix}`) ?? 0;
 
     // Emptied of everything: the cell goes, rather than being stored as a row
-    // of zeroes — which would be this lane quoted free, the opposite of what
+    // of zeroes — which would be this journey quoted free, the opposite of what
     // clearing a cell means.
-    if (baseFee === null && largeRatePerCbm === 0 && largeMinFee === 0) {
+    if (baseFee === null && perUnitFee === null && largeRatePerCbm === 0 && largeMinFee === 0) {
       if (!row) continue;
       cleared += 1;
       writes.push(prisma.shippingLaneFee.delete({ where: { id: row.id } }));
@@ -396,7 +273,9 @@ export async function saveShippingLaneFees(
 
     if (
       row &&
+      duplicates.length === 0 &&
       row.baseFee === baseFee &&
+      row.perUnitFee === perUnitFee &&
       row.largeRatePerCbm === largeRatePerCbm &&
       row.largeMinFee === largeMinFee
     ) {
@@ -408,10 +287,13 @@ export async function saveShippingLaneFees(
       row
         ? prisma.shippingLaneFee.update({
             where: { id: row.id },
-            data: { baseFee, largeRatePerCbm, largeMinFee },
+            // The columns too: a row that named its origin the old way is
+            // rewritten the canonical way, so it stops being a duplicate
+            // waiting to happen.
+            data: { ...columns, baseFee, perUnitFee, largeRatePerCbm, largeMinFee },
           })
         : prisma.shippingLaneFee.create({
-            data: { originPointId, destPickupId, baseFee, largeRatePerCbm, largeMinFee },
+            data: { ...columns, baseFee, perUnitFee, largeRatePerCbm, largeMinFee },
           }),
     );
   }
@@ -426,21 +308,10 @@ export async function saveShippingLaneFees(
 
   revalidateShipping();
   const parts = [
-    changed > 0 ? `${changed} lane${changed === 1 ? "" : "s"} priced` : "",
+    changed > 0 ? `${changed} journey${changed === 1 ? "" : "s"} priced` : "",
     cleared > 0 ? `${cleared} left to the default` : "",
   ].filter(Boolean);
   return { ok: true, message: `${parts.join(", ")}.` };
-}
-
-/** Pause or resume one lane, without losing the price somebody typed. */
-export async function toggleShippingLaneFee(fd: FormData): Promise<void> {
-  await requireAdmin();
-  const id = str(fd, "id");
-  if (!id) return;
-  const lane = await prisma.shippingLaneFee.findUnique({ where: { id }, select: { isActive: true } });
-  if (!lane) return;
-  await prisma.shippingLaneFee.update({ where: { id }, data: { isActive: !lane.isActive } });
-  revalidateShipping();
 }
 
 // ---------------------------------------------------------------------------

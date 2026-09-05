@@ -10,5 +10,5 @@ import { permanentRedirect } from "next/navigation";
  * actually live.
  */
 export default function RetiredArrivalPointsPage(): never {
-  permanentRedirect("/admin/shipping/points");
+  permanentRedirect("/admin/shipping/locations");
 }

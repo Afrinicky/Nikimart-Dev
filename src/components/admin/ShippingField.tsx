@@ -759,8 +759,8 @@ export function ShippingField({
           <p className="mt-3 rounded-xl bg-white/10 px-3 py-2 text-xs leading-relaxed text-white/75">
             Buying two costs{" "}
             <span className="font-figures font-bold text-white">{formatPrice(twoFee)}</span> to ship,
-            not {formatPrice(estimate.fee * 2)} — the base fee inside Ghana is charged once per
-            order from your shop.
+            not {formatPrice(estimate.fee * 2)} — the base fee inside Ghana is charged once for the
+            whole load leaving your consolidation point.
           </p>
         ) : null}
         {estimate.largeItem && method === "auto" ? (

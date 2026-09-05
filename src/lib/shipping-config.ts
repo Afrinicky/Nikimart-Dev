@@ -13,11 +13,12 @@ import {
   type Currency,
   type CurrencyRates,
   type Forwarder,
+  locationKeyForPickup,
+  locationKeyForPoint,
   type LaneFee,
   type LargeItemPolicy,
   type ShippingConfig,
   type ShippingDefaults,
-  type ShippingRule,
 } from "@/lib/shipping";
 
 /**
@@ -279,53 +280,186 @@ export async function getForwarderMap(): Promise<Map<string, Forwarder>> {
   return new Map((await getForwarders()).map((f) => [f.id, f]));
 }
 
-/** Every domestic shipping rule. Resolution order is the engine's business. */
-export const getShippingRules = cache(async (): Promise<ShippingRule[]> => {
+// ---------------------------------------------------------------------------
+// Locations: the rows and columns of the grid
+// ---------------------------------------------------------------------------
+
+/**
+ * One place goods pass through, and the roles it plays.
+ *
+ * The two tables behind this are a historical split, not a real one: a pickup
+ * station is where a buyer collects, a consolidation point is where goods
+ * gather, and one building is usually both. This is the merged view — one entry
+ * per place — and it is what the grid's rows and columns are drawn from, so a
+ * new station or a new depot becomes a row and a column the moment it is
+ * created, with nothing to configure and nothing hardcoded.
+ */
+export interface ShippingLocation {
+  /** The engine's key for this place: "pp:<id>" or "cp:<id>". */
+  key: string;
+  name: string;
+  code: string;
+  /** Town or campus, when the record carries one. */
+  where: string;
+  /** True when buyers can collect here. */
+  isPickup: boolean;
+  /** True when goods gather here. */
+  isConsolidation: boolean;
+  /** The forwarder who owns it, when it is theirs rather than ours. */
+  ownerName: string;
+  /** The PickupPoint row, when this place is one. */
+  pickupPointId: string | null;
+  /** The ArrivalPoint row, when this place is one. */
+  consolidationPointId: string | null;
+  isActive: boolean;
+}
+
+/**
+ * Every location, merged, active first and then alphabetical.
+ *
+ * A consolidation point that sits at a pickup station is folded into that
+ * station rather than listed beside it: one place, one row, one price for a run
+ * out of it. A point that sits at no station keeps its own entry, which is how a
+ * forwarder's warehouse comes to be a row of the grid.
+ */
+export const getShippingLocations = cache(async (): Promise<ShippingLocation[]> => {
   try {
-    const rows = await prisma.shippingRule.findMany({ orderBy: { createdAt: "asc" } });
-    return rows.map((r) => ({
-      id: r.id,
-      originPointId: r.originPointId,
-      destPickupId: r.destPickupId,
-      categoryId: r.categoryId,
-      baseFee: r.baseFee,
-      perUnitFee: r.perUnitFee,
-      flatFee: r.flatFee,
-      perKgRate: r.perKgRate,
-      note: r.note,
-      isActive: r.isActive,
-    }));
+    const [pickups, points, forwarders] = await Promise.all([
+      prisma.pickupPoint.findMany({
+        orderBy: [{ isActive: "desc" }, { name: "asc" }],
+        select: { id: true, name: true, code: true, locationName: true, isActive: true },
+      }),
+      getConsolidationPoints(),
+      prisma.freightForwarder.findMany({ select: { id: true, name: true } }),
+    ]);
+
+    const forwarderName = new Map(forwarders.map((f) => [f.id, f.name]));
+    const atStation = new Map(
+      points.filter((p) => p.pickupPointId).map((p) => [p.pickupPointId as string, p]),
+    );
+
+    const fromPickups: ShippingLocation[] = pickups.map((s) => {
+      const point = atStation.get(s.id) ?? null;
+      return {
+        key: locationKeyForPickup(s.id),
+        name: s.name,
+        code: s.code,
+        where: s.locationName,
+        isPickup: true,
+        isConsolidation: Boolean(point),
+        ownerName: point?.forwarderId ? (forwarderName.get(point.forwarderId) ?? "A forwarder") : "",
+        pickupPointId: s.id,
+        consolidationPointId: point?.id ?? null,
+        // A station whose depot is retired still takes collections, so the
+        // station's own status is the one that counts.
+        isActive: s.isActive,
+      };
+    });
+
+    const standalone: ShippingLocation[] = points
+      .filter((p) => !p.pickupPointId)
+      .map((p) => ({
+        key: locationKeyForPoint(p),
+        name: p.name,
+        code: p.code,
+        where: p.city,
+        isPickup: false,
+        isConsolidation: true,
+        ownerName: p.forwarderId ? (forwarderName.get(p.forwarderId) ?? "A forwarder") : "",
+        pickupPointId: null,
+        consolidationPointId: p.id,
+        isActive: p.isActive,
+      }));
+
+    return [...fromPickups, ...standalone].sort(
+      (a, b) => Number(b.isActive) - Number(a.isActive) || a.name.localeCompare(b.name),
+    );
+  } catch {
+    return [];
+  }
+});
+
+/** A location by key. */
+export async function getShippingLocation(key: string): Promise<ShippingLocation | null> {
+  return (await getShippingLocations()).find((l) => l.key === key) ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// The grid
+// ---------------------------------------------------------------------------
+
+/** A stored cell, with both ends resolved to the location they address. */
+export interface RawLaneFee extends LaneFee {
+  /** When it was last written. Used to settle two rows naming one journey. */
+  updatedAt: Date;
+}
+
+/**
+ * Every stored cell, canonical keys attached, duplicates and all.
+ *
+ * Two rows can name one journey without the database noticing. A cell written
+ * before locations were merged addresses "the depot at Sunyani station"; one
+ * written after addresses "Sunyani station" — different columns, so the unique
+ * index sees two different lanes, and they are the same run. Only the
+ * application knows that, so only the application can settle it.
+ *
+ * This is the unsettled list, which the grid's save needs so it can clear the
+ * losers. Everything else wants `getShippingLaneFees`.
+ */
+export const getRawShippingLaneFees = cache(async (): Promise<RawLaneFee[]> => {
+  try {
+    const [rows, points] = await Promise.all([
+      prisma.shippingLaneFee.findMany({ orderBy: [{ updatedAt: "asc" }, { createdAt: "asc" }] }),
+      getConsolidationPoints(),
+    ]);
+    const pointById = new Map(points.map((p) => [p.id, p]));
+
+    const keyOf = (pickupId: string | null, pointId: string | null): string => {
+      if (pickupId) return locationKeyForPickup(pickupId);
+      if (!pointId) return "";
+      // A point we cannot find is still a point: address it by its own id
+      // rather than dropping the price somebody typed.
+      return locationKeyForPoint(pointById.get(pointId) ?? { id: pointId, pickupPointId: null });
+    };
+
+    return rows
+      .map((r) => ({
+        id: r.id,
+        originKey: keyOf(r.originPickupId, r.originPointId),
+        destKey: keyOf(r.destPickupId, r.destPointId),
+        baseFee: r.baseFee,
+        perUnitFee: r.perUnitFee,
+        largeRatePerCbm: r.largeRatePerCbm,
+        largeMinFee: r.largeMinFee,
+        note: r.note,
+        isActive: r.isActive,
+        updatedAt: r.updatedAt,
+      }))
+      .filter((l) => l.originKey && l.destKey);
   } catch {
     return [];
   }
 });
 
 /**
- * The base-fee grid: every priced journey, in one list.
+ * The grid: one cell per journey.
  *
- * The whole table, not the active rows only — the engine skips a paused lane
+ * Where two stored rows name the same run — see above — the most recently
+ * written one wins, because that is the number the admin last looked at and
+ * meant. Saving that journey again clears the loser for good.
+ *
+ * The whole table, not the active rows only: the engine skips a paused lane
  * itself, and the admin grid needs the paused ones to draw the cell somebody
  * typed a number into.
  */
-export const getShippingLaneFees = cache(async (): Promise<LaneFee[]> => {
-  try {
-    const rows = await prisma.shippingLaneFee.findMany({
-      orderBy: [{ originPointId: "asc" }, { destPickupId: "asc" }],
-    });
-    return rows.map((r) => ({
-      id: r.id,
-      originPointId: r.originPointId,
-      destPickupId: r.destPickupId,
-      baseFee: r.baseFee,
-      largeRatePerCbm: r.largeRatePerCbm,
-      largeMinFee: r.largeMinFee,
-      note: r.note,
-      isActive: r.isActive,
-    }));
-  } catch {
-    return [];
+export async function getShippingLaneFees(): Promise<LaneFee[]> {
+  const settled = new Map<string, LaneFee>();
+  // Oldest first, so a later write replaces an earlier one for the same run.
+  for (const lane of await getRawShippingLaneFees()) {
+    settled.set(`${lane.originKey}|${lane.destKey}`, lane);
   }
-});
+  return [...settled.values()];
+}
 
 /**
  * When an item counts as large, and what a cubic metre of it costs.
@@ -348,16 +482,15 @@ export async function getLargeItemPolicy(): Promise<LargeItemPolicy> {
   };
 }
 
-/** The defaults, the grid, the rules and the exchange rates — what the engine takes. */
+/** The defaults, the grid and the exchange rates — what the engine takes. */
 export async function getShippingConfig(): Promise<ShippingConfig> {
-  const [defaults, rules, lanes, large, currencies] = await Promise.all([
+  const [defaults, lanes, large, currencies] = await Promise.all([
     getShippingDefaults(),
-    getShippingRules(),
     getShippingLaneFees(),
     getLargeItemPolicy(),
     getCurrencyRates(),
   ]);
-  return { defaults, rules, lanes, large, currencies };
+  return { defaults, lanes, large, currencies };
 }
 
 /**
@@ -375,11 +508,12 @@ export interface ShippingHealth {
   forwarderPoints: number;
   pointsAtPickup: number;
   pickupPoints: number;
-  /** Cells of the base-fee grid that carry a price. */
+  /** Places on the grid: stations, depots, and the buildings that are both. */
+  locations: number;
+  /** Cells of the grid that carry a price. */
   laneFees: number;
-  /** Journeys the grid could price and nobody has: origins × stations, less the cells. */
+  /** Journeys the grid could price and nobody has. */
   unpricedLanes: number;
-  rules: number;
   forwarders: number;
   /** Forwarders that can actually quote: a lane with at least one price on it. */
   forwardersWithRates: number;
@@ -393,12 +527,12 @@ export interface ShippingHealth {
 
 export async function getShippingHealth(): Promise<ShippingHealth> {
   try {
-    const [points, forwarders, currencies, rules, laneFees, pickupPoints, unpriced] =
+    const [points, forwarders, currencies, locations, laneFees, pickupPoints, unpriced] =
       await Promise.all([
         getConsolidationPoints(),
         getForwarders(),
         getCurrencies(),
-        prisma.shippingRule.count(),
+        getShippingLocations(),
         getShippingLaneFees(),
         prisma.pickupPoint.count({ where: { isActive: true } }),
         prisma.product.count({
@@ -429,20 +563,19 @@ export async function getShippingHealth(): Promise<ShippingHealth> {
       }
     }
 
-    // A journey is one active point to one active station, minus the one that
-    // needs no journey: collecting where the goods already sit.
-    const activePoints = points.filter((p) => p.isActive);
-    const atStation = activePoints.filter((p) => p.pickupPointId).length;
-    const journeys = Math.max(0, activePoints.length * pickupPoints - atStation);
+    // Every live location to every other one. A place to itself is not a
+    // journey — that is collecting where the goods already sit, which is free.
+    const live = locations.filter((l) => l.isActive);
+    const journeys = live.length * Math.max(0, live.length - 1);
 
     return {
       localPoints: points.filter((p) => !p.forwarderId).length,
       forwarderPoints: points.filter((p) => p.forwarderId).length,
       pointsAtPickup: points.filter((p) => p.pickupPointId).length,
       pickupPoints,
+      locations: locations.length,
       laneFees: laneFees.length,
       unpricedLanes: Math.max(0, journeys - laneFees.filter((l) => l.isActive).length),
-      rules,
       forwarders: forwarders.length,
       forwardersWithRates: forwarders.filter(priced).length,
       routes: forwarders.reduce((s, f) => s + f.routes.length, 0),
@@ -456,9 +589,9 @@ export async function getShippingHealth(): Promise<ShippingHealth> {
       forwarderPoints: 0,
       pointsAtPickup: 0,
       pickupPoints: 0,
+      locations: 0,
       laneFees: 0,
       unpricedLanes: 0,
-      rules: 0,
       forwarders: 0,
       forwardersWithRates: 0,
       routes: 0,

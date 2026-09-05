@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, Check, Coins, Grid3x3, MapPin, Plane, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, Coins, Grid3x3, MapPin, Plane } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { ExportButton } from "@/components/admin/ExportButton";
 import { ShippingDefaultsForm } from "@/components/admin/ShippingDefaultsForm";
@@ -28,34 +28,24 @@ export default async function AdminShippingPage() {
 
   const steps = [
     {
-      done: health.localPoints > 0,
-      href: "/admin/shipping/points",
+      done: health.locations > 0,
+      href: "/admin/shipping/locations",
       icon: MapPin,
-      title: "Create your local points",
+      title: "List the places goods pass through",
       body:
-        health.localPoints > 0
-          ? `${health.localPoints} of our own, and ${health.forwarderPoints} belonging to forwarders. ${health.pointsAtPickup} sit${health.pointsAtPickup === 1 ? "s" : ""} at a pickup station, so collecting there is free.`
-          : "Where goods that never left Ghana are gathered and checked. A forwarder's own warehouses are created on their page, not here.",
+        health.locations > 0
+          ? `${health.locations} location${health.locations === 1 ? "" : "s"}: ${health.pickupPoints} buyers collect at, ${health.pointsAtPickup} of which goods also gather at — so collecting there is free.`
+          : "Every station buyers collect at and every point goods gather at, in one list. Most places are both.",
     },
     {
       done: health.laneFees > 0,
       href: "/admin/shipping/lanes",
       icon: Grid3x3,
-      title: "Fill in the base-fee grid",
+      title: "Price every run on the grid",
       body:
         health.laneFees > 0
-          ? `${health.laneFees} journey${health.laneFees === 1 ? "" : "s"} priced${health.unpricedLanes > 0 ? `, ${health.unpricedLanes} still on the default` : " — every one of them"}.`
-          : "Every point against every station: Sunyani to Hwidiem is not Accra to Sunyani, and a forwarder's depot to the station in the same town is neither.",
-    },
-    {
-      done: health.rules > 0,
-      href: "/admin/shipping/rates",
-      icon: SlidersHorizontal,
-      title: "Set the increments and the exceptions",
-      body:
-        health.rules > 0
-          ? `${health.rules} rule${health.rules === 1 ? "" : "s"} on top of the defaults below.`
-          : "What each item after the first adds, and the categories that need a price of their own.",
+          ? `${health.laneFees} journey${health.laneFees === 1 ? "" : "s"} priced${health.unpricedLanes > 0 ? `, ${health.unpricedLanes} still on the defaults below` : " — every one of them"}.`
+          : "Every location against every other: Sunyani to Hwidiem is not Accra to Sunyani, and a forwarder's depot to the station in the same town is neither.",
     },
     {
       done: health.forwardersWithRates > 0,
@@ -83,11 +73,11 @@ export default async function AdminShippingPage() {
     <Container className="space-y-6 py-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="max-w-2xl text-sm text-niki-ink/65">
-          One seller&apos;s goods are one consignment: gathered at a consolidation point, checked,
+          Everything leaving one place for one station is one consignment: gathered there, checked,
           and couriered to the pickup station the buyer chose — a base fee once, plus a small
-          increment for each extra item. The base fee belongs to the journey, so it is a grid of
-          every point against every station, and goods too big for a flat fee are priced by the
-          space they take. Goods from abroad have one leg in front of that: either
+          increment for each extra item. Both belong to the journey, so both are cells of one grid —
+          every location against every other — and goods too big for a flat fee are priced by the
+          space they take instead. Goods from abroad have one leg in front of that: either
           the supplier delivers them to Ghana, or a forwarder carries them to their own warehouse
           here and their rate per cubic metre is the whole cost of it.
         </p>
@@ -99,7 +89,7 @@ export default async function AdminShippingPage() {
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
             There are no active pickup points, so nothing can be collected.{" "}
-            <Link href="/admin/pickup-points" className="font-semibold underline">
+            <Link href="/admin/shipping/locations" className="font-semibold underline">
               Add one first
             </Link>
             .
@@ -118,7 +108,7 @@ export default async function AdminShippingPage() {
         </p>
       ) : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {steps.map(({ done, href, icon: Icon, title, body }) => (
           <Link
             key={href}
