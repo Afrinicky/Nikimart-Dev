@@ -93,14 +93,22 @@ export function ShippingRulesForm({
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-white/60">
           Collecting where the goods already sit is always free — rule or no rule.
         </p>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-white/60">
+          The base fee for a plain journey lives on the{" "}
+          <span className="font-semibold text-white">Base fees</span> grid now — a cell per point
+          per station — and a grid cell beats the base fee on a rule that names no category. What
+          these rules are for is the increment, and the goods that need a price of their own
+          wherever they are going: name a category and this rule&apos;s base fee wins again.
+        </p>
       </section>
 
       <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Rules</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
-          The most specific rule wins. Anything no rule claims is priced by the defaults on the
-          Overview screen: {formatPrice(defaults.baseFee)} for the first item, then{" "}
-          {formatPrice(defaults.perUnitFee)} each
+          The most specific rule wins. Anything no rule claims takes its base fee from the Base fees
+          grid, and its increment from the defaults on the Overview screen:{" "}
+          {formatPrice(defaults.baseFee)} for the first item, then {formatPrice(defaults.perUnitFee)}{" "}
+          each
           {defaults.minFee > 0 ? `, never under ${formatPrice(defaults.minFee)}` : ""}.
         </p>
 
@@ -268,7 +276,7 @@ export function ShippingRulesForm({
             <Field
               label="First item (GH₵)"
               htmlFor="baseFee"
-              hint="The base fee, charged once per seller on this route."
+              hint="The base fee, charged once per seller. On a rule that names no category the Base fees grid overrides this; name one and it wins."
             >
               <input
                 id="baseFee"

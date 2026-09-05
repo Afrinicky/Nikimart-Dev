@@ -7,11 +7,14 @@ import {
   DEFAULT_CURRENCIES,
   DEFAULT_FORWARDER_CURRENCY,
   HOME_CURRENCY,
+  LARGE_ITEM_DEFAULTS,
   SHIPPING_DEFAULTS,
   type ConsolidationPoint,
   type Currency,
   type CurrencyRates,
   type Forwarder,
+  type LaneFee,
+  type LargeItemPolicy,
   type ShippingConfig,
   type ShippingDefaults,
   type ShippingRule,
@@ -297,14 +300,64 @@ export const getShippingRules = cache(async (): Promise<ShippingRule[]> => {
   }
 });
 
-/** The defaults, the rules and the exchange rates — what the engine takes. */
+/**
+ * The base-fee grid: every priced journey, in one list.
+ *
+ * The whole table, not the active rows only — the engine skips a paused lane
+ * itself, and the admin grid needs the paused ones to draw the cell somebody
+ * typed a number into.
+ */
+export const getShippingLaneFees = cache(async (): Promise<LaneFee[]> => {
+  try {
+    const rows = await prisma.shippingLaneFee.findMany({
+      orderBy: [{ originPointId: "asc" }, { destPickupId: "asc" }],
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      originPointId: r.originPointId,
+      destPickupId: r.destPickupId,
+      baseFee: r.baseFee,
+      largeRatePerCbm: r.largeRatePerCbm,
+      largeMinFee: r.largeMinFee,
+      note: r.note,
+      isActive: r.isActive,
+    }));
+  } catch {
+    return [];
+  }
+});
+
+/**
+ * When an item counts as large, and what a cubic metre of it costs.
+ *
+ * `shipLargeRatePerCbm` deliberately falls back to zero rather than to a
+ * guessed rate: an unpriced policy leaves large goods on the ordinary flat base
+ * fee, which is wrong by a little, where a made-up rate per cubic metre would
+ * be wrong by whatever a fridge happens to measure.
+ */
+export async function getLargeItemPolicy(): Promise<LargeItemPolicy> {
+  const s = await getSettings();
+  return {
+    enabled: !["0", "off", "false", "no"].includes(s.shipLargeEnabled.trim().toLowerCase()),
+    minLongestSideCm: numOr(s.shipLargeMinLongestCm, LARGE_ITEM_DEFAULTS.minLongestSideCm),
+    minCbm: numOr(s.shipLargeMinCbm, LARGE_ITEM_DEFAULTS.minCbm),
+    minWeightKg: numOr(s.shipLargeMinWeightKg, LARGE_ITEM_DEFAULTS.minWeightKg),
+    ratePerCbm: numOr(s.shipLargeRatePerCbm, 0),
+    minFee: numOr(s.shipLargeMinFee, 0),
+    extraPercent: Math.min(numOr(s.shipLargeExtraPercent, LARGE_ITEM_DEFAULTS.extraPercent), 100),
+  };
+}
+
+/** The defaults, the grid, the rules and the exchange rates — what the engine takes. */
 export async function getShippingConfig(): Promise<ShippingConfig> {
-  const [defaults, rules, currencies] = await Promise.all([
+  const [defaults, rules, lanes, large, currencies] = await Promise.all([
     getShippingDefaults(),
     getShippingRules(),
+    getShippingLaneFees(),
+    getLargeItemPolicy(),
     getCurrencyRates(),
   ]);
-  return { defaults, rules, currencies };
+  return { defaults, rules, lanes, large, currencies };
 }
 
 /**
@@ -322,6 +375,10 @@ export interface ShippingHealth {
   forwarderPoints: number;
   pointsAtPickup: number;
   pickupPoints: number;
+  /** Cells of the base-fee grid that carry a price. */
+  laneFees: number;
+  /** Journeys the grid could price and nobody has: origins × stations, less the cells. */
+  unpricedLanes: number;
   rules: number;
   forwarders: number;
   /** Forwarders that can actually quote: a lane with at least one price on it. */
@@ -336,25 +393,27 @@ export interface ShippingHealth {
 
 export async function getShippingHealth(): Promise<ShippingHealth> {
   try {
-    const [points, forwarders, currencies, rules, pickupPoints, unpriced] = await Promise.all([
-      getConsolidationPoints(),
-      getForwarders(),
-      getCurrencies(),
-      prisma.shippingRule.count(),
-      prisma.pickupPoint.count({ where: { isActive: true } }),
-      prisma.product.count({
-        where: {
-          isArchived: false,
-          shippingMethod: "auto",
-          supplierDelivers: false,
-          forwarderId: null,
-          // Imported, by the listing's own origin. `notIn` rather than a `NOT`
-          // list: Prisma reads `NOT: [a, b]` as NOT (a AND b), which every row
-          // satisfies and which would report every listing as unpriced.
-          originCountry: { notIn: ["", "GH"] },
-        },
-      }),
-    ]);
+    const [points, forwarders, currencies, rules, laneFees, pickupPoints, unpriced] =
+      await Promise.all([
+        getConsolidationPoints(),
+        getForwarders(),
+        getCurrencies(),
+        prisma.shippingRule.count(),
+        getShippingLaneFees(),
+        prisma.pickupPoint.count({ where: { isActive: true } }),
+        prisma.product.count({
+          where: {
+            isArchived: false,
+            shippingMethod: "auto",
+            supplierDelivers: false,
+            forwarderId: null,
+            // Imported, by the listing's own origin. `notIn` rather than a `NOT`
+            // list: Prisma reads `NOT: [a, b]` as NOT (a AND b), which every row
+            // satisfies and which would report every listing as unpriced.
+            originCountry: { notIn: ["", "GH"] },
+          },
+        }),
+      ]);
 
     const priced = (f: Forwarder) =>
       f.routes.some((r) => r.isActive && r.rates.some((x) => x.isAvailable && x.ratePerCbm > 0));
@@ -370,11 +429,19 @@ export async function getShippingHealth(): Promise<ShippingHealth> {
       }
     }
 
+    // A journey is one active point to one active station, minus the one that
+    // needs no journey: collecting where the goods already sit.
+    const activePoints = points.filter((p) => p.isActive);
+    const atStation = activePoints.filter((p) => p.pickupPointId).length;
+    const journeys = Math.max(0, activePoints.length * pickupPoints - atStation);
+
     return {
       localPoints: points.filter((p) => !p.forwarderId).length,
       forwarderPoints: points.filter((p) => p.forwarderId).length,
       pointsAtPickup: points.filter((p) => p.pickupPointId).length,
       pickupPoints,
+      laneFees: laneFees.length,
+      unpricedLanes: Math.max(0, journeys - laneFees.filter((l) => l.isActive).length),
       rules,
       forwarders: forwarders.length,
       forwardersWithRates: forwarders.filter(priced).length,
@@ -389,6 +456,8 @@ export async function getShippingHealth(): Promise<ShippingHealth> {
       forwarderPoints: 0,
       pointsAtPickup: 0,
       pickupPoints: 0,
+      laneFees: 0,
+      unpricedLanes: 0,
       rules: 0,
       forwarders: 0,
       forwardersWithRates: 0,

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, Check, Coins, MapPin, Plane, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, Coins, Grid3x3, MapPin, Plane, SlidersHorizontal } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { ExportButton } from "@/components/admin/ExportButton";
 import { ShippingDefaultsForm } from "@/components/admin/ShippingDefaultsForm";
@@ -38,14 +38,24 @@ export default async function AdminShippingPage() {
           : "Where goods that never left Ghana are gathered and checked. A forwarder's own warehouses are created on their page, not here.",
     },
     {
+      done: health.laneFees > 0,
+      href: "/admin/shipping/lanes",
+      icon: Grid3x3,
+      title: "Fill in the base-fee grid",
+      body:
+        health.laneFees > 0
+          ? `${health.laneFees} journey${health.laneFees === 1 ? "" : "s"} priced${health.unpricedLanes > 0 ? `, ${health.unpricedLanes} still on the default` : " — every one of them"}.`
+          : "Every point against every station: Sunyani to Hwidiem is not Accra to Sunyani, and a forwarder's depot to the station in the same town is neither.",
+    },
+    {
       done: health.rules > 0,
       href: "/admin/shipping/rates",
       icon: SlidersHorizontal,
-      title: "Price the run inside Ghana",
+      title: "Set the increments and the exceptions",
       body:
         health.rules > 0
           ? `${health.rules} rule${health.rules === 1 ? "" : "s"} on top of the defaults below.`
-          : "This is also the run out of a forwarder's warehouse: Sunyani to a Hwidiem pickup station is a rule here.",
+          : "What each item after the first adds, and the categories that need a price of their own.",
     },
     {
       done: health.forwardersWithRates > 0,
@@ -75,7 +85,9 @@ export default async function AdminShippingPage() {
         <p className="max-w-2xl text-sm text-niki-ink/65">
           One seller&apos;s goods are one consignment: gathered at a consolidation point, checked,
           and couriered to the pickup station the buyer chose — a base fee once, plus a small
-          increment for each extra item. Goods from abroad have one leg in front of that: either
+          increment for each extra item. The base fee belongs to the journey, so it is a grid of
+          every point against every station, and goods too big for a flat fee are priced by the
+          space they take. Goods from abroad have one leg in front of that: either
           the supplier delivers them to Ghana, or a forwarder carries them to their own warehouse
           here and their rate per cubic metre is the whole cost of it.
         </p>
@@ -106,7 +118,7 @@ export default async function AdminShippingPage() {
         </p>
       ) : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {steps.map(({ done, href, icon: Icon, title, body }) => (
           <Link
             key={href}

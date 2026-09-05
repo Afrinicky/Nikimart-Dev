@@ -763,6 +763,14 @@ export function ShippingField({
             order from your shop.
           </p>
         ) : null}
+        {estimate.largeItem && method === "auto" ? (
+          <p className="mt-3 rounded-xl bg-white/10 px-3 py-2 text-xs leading-relaxed text-white/75">
+            These measurements make this a{" "}
+            <span className="font-semibold text-white">large item</span>, so the run inside Ghana is
+            priced by the space it takes rather than by the flat base fee. A second one of them is
+            an increment on the same delivery, not a second base fee.
+          </p>
+        ) : null}
         {estimate.unpricedRoute ? (
           <p className="mt-3 rounded-xl bg-niki-danger/25 px-3 py-2 text-xs font-medium text-white">
             Nothing prices the leg into Ghana yet, so buyers can&apos;t order this.

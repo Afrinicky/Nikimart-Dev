@@ -21,6 +21,37 @@
  * point to that station, and if the buyer collects at the point itself there is
  * nothing left to charge.
  *
+ * ### The base fee is a grid, not a number
+ *
+ * There is no such thing as *the* base fee. Nikimart's Sunyani pickup to
+ * Hwidiem, Accra to the Sunyani station, CSL's Sunyani consolidation point to
+ * the Nikimart station in the same town: three journeys, three costs. So the
+ * base fee is a **grid** — consolidation points down the side, pickup stations
+ * across the top, one cell each — and `resolveLaneFee` reads the cell for the
+ * journey being priced. An empty cell falls through to the rules table and then
+ * to the platform default, so a platform that has filled none of it in prices
+ * exactly as it did before the grid existed.
+ *
+ * The increments are not part of the grid and are not touched by it. What each
+ * item after the first adds is still the rule's increment, then the platform's.
+ *
+ * ### Large items are priced by size, not by a flat fee
+ *
+ * A fridge, a chest freezer, a double oven: a flat base fee is the wrong shape
+ * for them, because what they cost to move is the space they take. An admin
+ * sets the thresholds that make an item large — longest side, volume, weight,
+ * any of them — and a large item is then priced **per cubic metre** on its
+ * lane instead of at that lane's flat base.
+ *
+ * Two of them in one consignment is still one van: the largest sets the base,
+ * and every other one adds an increment — by *its own* dimensions, so a second
+ * fridge adds more than a second microwave does. That is the ordinary
+ * base-plus-increments shape, measured in cubic metres rather than in units.
+ *
+ * A large item whose lane has priced no cubic metre, and for which the platform
+ * has set no rate either, falls back to the flat base fee. It is never quoted at
+ * nothing because somebody left a rate blank.
+ *
  * ## From abroad: the forwarder's own grid
  *
  * A forwarder does not have "a rate". They have a grid, one per Ghana warehouse
@@ -128,6 +159,24 @@ export function itemCbm(item: ItemSize): number {
   if (typeof item.cbm === "number" && item.cbm > 0) return item.cbm;
   const derived = cbmFromDimensions(item.lengthCm ?? 0, item.widthCm ?? 0, item.heightCm ?? 0);
   return derived > 0 ? derived : DEFAULT_ITEM_CBM;
+}
+
+/**
+ * The volume actually recorded for an item, or zero.
+ *
+ * `itemCbm` invents five litres for an item nobody measured, which is the right
+ * answer when a container has to be filled and the wrong one when the question
+ * is "is this a fridge?". Deciding that a listing is oversized — or pricing one
+ * by the cubic metre — may only ever use a figure a person typed in.
+ */
+export function knownCbm(item: ItemSize): number {
+  if (typeof item.cbm === "number" && item.cbm > 0) return item.cbm;
+  return cbmFromDimensions(item.lengthCm ?? 0, item.widthCm ?? 0, item.heightCm ?? 0);
+}
+
+/** The longest of an item's three sides, in cm. Zero when it has no dimensions. */
+export function itemLongestSideCm(item: ItemSize): number {
+  return Math.max(item.lengthCm ?? 0, item.widthCm ?? 0, item.heightCm ?? 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -404,6 +453,83 @@ export interface ShippingRule {
   isActive: boolean;
 }
 
+/**
+ * One cell of the base-fee grid: what the first item costs on one journey.
+ *
+ * Both ends are named, always. A cell is a journey — this consolidation point,
+ * that pickup station — and "from anywhere" is not a journey; that is what the
+ * platform default is for.
+ *
+ * A cell that exists is a decision, a zero included: that is a lane quoted
+ * free. A journey with no cell falls through to the rules table and then to the
+ * platform default, which is what every journey does on a fresh install.
+ */
+export interface LaneFee {
+  id: string;
+  /** The consolidation point the goods leave — ours, or a forwarder's. */
+  originPointId: string;
+  /** The pickup station the buyer collects from. */
+  destPickupId: string;
+  /**
+   * What one consignment on this lane costs, before the increments.
+   *
+   * Null is "this lane has no base fee of its own" and falls through; zero is a
+   * lane quoted free. A cell holding only a large-item rate is why the two are
+   * not the same value.
+   */
+  baseFee: number | null;
+  /** GH₵ per cubic metre for a large item here. Zero = this lane has not said. */
+  largeRatePerCbm: number;
+  /** No large item on this lane is billed under this. */
+  largeMinFee: number;
+  note: string;
+  isActive: boolean;
+}
+
+/**
+ * When an item is too big for a flat fee, and what a cubic metre of it costs.
+ *
+ * The thresholds are separate on purpose, and a zero is not a test at all: a
+ * platform can flag by size alone, by weight alone, or by any of the three. An
+ * item that trips any of them is large.
+ *
+ * `ratePerCbm` is the fallback for a lane that has priced no large goods of its
+ * own. When neither the lane nor this has a rate, large items are priced at the
+ * ordinary flat base fee — the one thing that must never happen is a fridge
+ * quoted at nothing because a box was left empty.
+ */
+export interface LargeItemPolicy {
+  enabled: boolean;
+  /** Longest side, cm. */
+  minLongestSideCm: number;
+  /** Volume, m³. */
+  minCbm: number;
+  /** What it actually weighs, kg. Volumetric weight is the volume test's job. */
+  minWeightKg: number;
+  /** GH₵ per m³ when the lane has not priced large goods. */
+  ratePerCbm: number;
+  /** The floor under a size-priced item. */
+  minFee: number;
+  /**
+   * What a second large item adds, as a percentage of its own size-based price.
+   * The largest item in a consignment sets the base; the rest are increments,
+   * and an increment measured in cubic metres is still an increment.
+   */
+  extraPercent: number;
+}
+
+export const LARGE_ITEM_DEFAULTS: LargeItemPolicy = {
+  enabled: true,
+  minLongestSideCm: 120,
+  minCbm: 0.5,
+  minWeightKg: 50,
+  // Nothing is priced by size until an admin says what a cubic metre costs.
+  // Enabled-but-unpriced is inert, not free.
+  ratePerCbm: 0,
+  minFee: 0,
+  extraPercent: 60,
+};
+
 /** The platform-wide numbers behind every rule. */
 export interface ShippingDefaults {
   /** What one consignment from one seller costs, before the increments. */
@@ -430,13 +556,23 @@ export const SHIPPING_DEFAULTS: ShippingDefaults = {
 export interface ShippingConfig {
   defaults: ShippingDefaults;
   rules: ShippingRule[];
+  /** The base-fee grid: one entry per priced journey. */
+  lanes: LaneFee[];
+  /** When an item is large, and what a cubic metre of it costs. */
+  large: LargeItemPolicy;
   /** Code → GH₵ per unit. Missing codes convert one-for-one. */
   currencies: CurrencyRates;
 }
 
 /** A config with nothing configured — the shape the client forms start from. */
 export function emptyShippingConfig(): ShippingConfig {
-  return { defaults: { ...SHIPPING_DEFAULTS }, rules: [], currencies: { [HOME_CURRENCY]: 1 } };
+  return {
+    defaults: { ...SHIPPING_DEFAULTS },
+    rules: [],
+    lanes: [],
+    large: { ...LARGE_ITEM_DEFAULTS },
+    currencies: { [HOME_CURRENCY]: 1 },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -521,6 +657,121 @@ export function rulePricing(
       : defaults.perKgRate * unitWeight;
 
   return { baseFee: round(baseFee), perUnitFee: round(perUnitFee) };
+}
+
+/**
+ * The grid cell for one journey, or null.
+ *
+ * No scoring and no fallback: a cell is either there or it is not. That is the
+ * whole point of a grid — an admin reading the screen can see what a lane costs
+ * without working out which of four rules the resolver would have preferred.
+ */
+export function resolveLaneFee(
+  lanes: LaneFee[],
+  originPointId: string | null,
+  destPickupId: string,
+): LaneFee | null {
+  if (!originPointId || !destPickupId) return null;
+  return (
+    lanes.find(
+      (l) => l.isActive && l.originPointId === originPointId && l.destPickupId === destPickupId,
+    ) ?? null
+  );
+}
+
+/** Whether an item is big enough that a flat fee prices it wrongly. */
+export function isLargeItem(item: ItemSize, policy: LargeItemPolicy): boolean {
+  if (!policy.enabled) return false;
+  // A threshold of zero is not a threshold everything clears — it is a test the
+  // admin did not set. An item with no dimensions recorded trips nothing.
+  return (
+    (policy.minLongestSideCm > 0 && itemLongestSideCm(item) >= policy.minLongestSideCm) ||
+    (policy.minCbm > 0 && knownCbm(item) >= policy.minCbm) ||
+    (policy.minWeightKg > 0 && (item.shippingWeightKg ?? 0) >= policy.minWeightKg)
+  );
+}
+
+/** What one line contributes to its consignment: a base, and what each extra unit adds. */
+export interface LinePricing {
+  /** What this line would charge for the consignment, if it carries the base. */
+  baseFee: number;
+  /** What every unit of this line after the base one adds. */
+  perUnitFee: number;
+  /** True when both figures came from the item's size rather than a flat fee. */
+  byDimensions: boolean;
+}
+
+/**
+ * A large item, priced by the space it takes.
+ *
+ * Its cubic metres times the rate on its lane, floored at that lane's minimum
+ * — and the increment is a share of that same figure, so a second fridge in the
+ * consignment adds more than a second microwave does. The base and the
+ * increment come out of one number, which is what stops the two from being
+ * configured into disagreement.
+ *
+ * Null is a real answer and the important one: nobody has priced a cubic metre
+ * on this lane or on the platform, or the item has no measurements. The caller
+ * then charges the ordinary flat base fee. A fridge quoted free because a rate
+ * box was left empty is the failure this return value exists to prevent.
+ */
+export function largeItemPricing(
+  item: ItemSize,
+  lane: LaneFee | null,
+  policy: LargeItemPolicy,
+): LinePricing | null {
+  if (!policy.enabled) return null;
+
+  const rate = lane && lane.largeRatePerCbm > 0 ? lane.largeRatePerCbm : policy.ratePerCbm;
+  const cbm = knownCbm(item);
+  if (!(rate > 0) || !(cbm > 0)) return null;
+
+  const floor = lane && lane.largeMinFee > 0 ? lane.largeMinFee : policy.minFee;
+  const price = round(Math.max(cbm * rate, floor));
+  const share = Math.min(Math.max(policy.extraPercent, 0), 100) / 100;
+  return { baseFee: price, perUnitFee: round(price * share), byDimensions: true };
+}
+
+/**
+ * What one line asks of its consignment's domestic leg.
+ *
+ * Three sources, in this order:
+ *
+ *   1. **Its size**, when it is a large item and somebody has priced a cubic
+ *      metre for it. A fridge is not a base fee with a fridge in it.
+ *   2. **The grid cell** for the journey, for the base fee — unless a rule
+ *      names this line's category, which is sharper than a lane and keeps its
+ *      own base. "All appliances, GH₵60" is a statement about the goods; a
+ *      grid cell is a statement about the road.
+ *   3. **The platform default**, for a journey the grid does not cover and no
+ *      rule claims.
+ *
+ * The increment is the rules table's and the platform's throughout, exactly as
+ * it was before the grid existed — `rulePricing` still decides it, and the grid
+ * has no opinion about it at all.
+ */
+export function domesticPricing(
+  line: Pick<ShipmentLine, "size" | "categoryId" | "point">,
+  destPickupId: string,
+  config: ShippingConfig,
+): LinePricing {
+  const originPointId = line.point?.id ?? null;
+  const lane = resolveLaneFee(config.lanes, originPointId, destPickupId);
+
+  if (isLargeItem(line.size, config.large)) {
+    const bySize = largeItemPricing(line.size, lane, config.large);
+    if (bySize) return bySize;
+  }
+
+  const rule = resolveRule(config.rules, {
+    originPointId,
+    destPickupId,
+    categoryId: line.categoryId,
+  });
+  const flat = rulePricing(rule, line.size, config.defaults);
+  // `??`, not `||`: a lane priced at zero is free, and must not read as unset.
+  const baseFee = rule?.categoryId ? flat.baseFee : (lane?.baseFee ?? flat.baseFee);
+  return { baseFee: round(baseFee), perUnitFee: flat.perUnitFee, byDimensions: false };
 }
 
 /**
@@ -692,6 +943,8 @@ export interface LineShipping {
   /** The cubic metres the international leg was priced on, levy included. */
   cbm: number;
   method: ShippingMethod;
+  /** True when the item trips the platform's large-item thresholds. */
+  largeItem: boolean;
   /** True when the goods already sit at the station the buyer chose. */
   collectedAtOrigin: boolean;
   /**
@@ -718,6 +971,7 @@ const ZERO_LINE: Omit<LineShipping, "method"> = {
   localFreight: 0,
   billableWeightKg: 0,
   cbm: 0,
+  largeItem: false,
   collectedAtOrigin: false,
   unpricedRoute: false,
   route: null,
@@ -811,9 +1065,12 @@ export function priceLine(
   const qty = Math.max(1, Math.round(line.quantity));
   const weight = billableWeightKg(line.size, config.defaults.volumetricDivisor) * qty;
   const atOrigin = collectedAtOrigin(line, destPickupId);
+  // Reported on every path, including the free and hand-quoted ones: "is this a
+  // large item?" is a fact about the goods, not about how they were priced.
+  const largeItem = isLargeItem(line.size, config.large);
 
   if (line.method === "free") {
-    return { ...ZERO_LINE, method: "free", collectedAtOrigin: atOrigin };
+    return { ...ZERO_LINE, method: "free", largeItem, collectedAtOrigin: atOrigin };
   }
 
   // A special shipment was quoted by a person who looked at the actual thing.
@@ -825,6 +1082,7 @@ export function priceLine(
       method: "manual",
       fee: round(line.manualFee * qty),
       billableWeightKg: weight,
+      largeItem,
       collectedAtOrigin: atOrigin,
     };
   }
@@ -834,6 +1092,7 @@ export function priceLine(
       ...ZERO_LINE,
       method: "auto",
       billableWeightKg: weight,
+      largeItem,
       collectedAtOrigin: atOrigin,
     };
   }
@@ -846,6 +1105,7 @@ export function priceLine(
       method: "auto",
       billableWeightKg: weight,
       cbm: billableCbm(line.size, qty),
+      largeItem,
       collectedAtOrigin: atOrigin,
     };
   }
@@ -862,6 +1122,7 @@ export function priceLine(
     billableWeightKg: weight,
     cbm: leg.cbm,
     method: "auto",
+    largeItem,
     collectedAtOrigin: atOrigin,
     unpricedRoute: leg.unpriced,
     route: leg.route,
@@ -891,6 +1152,10 @@ export interface ConsignmentQuote {
   fee: number;
   /** True when the goods already sit at the station the buyer chose. */
   collectedAtOrigin: boolean;
+  /** True when the base came from a large item's dimensions, not a flat fee. */
+  byDimensions: boolean;
+  /** How many units in this consignment are large items. */
+  largeUnits: number;
 }
 
 /** The key a consignment is grouped under. */
@@ -909,6 +1174,12 @@ function consignmentKey(line: ShipmentLine): string {
  * line in it resolves to: a rule that says a fridge costs GH₵60 to move must
  * not be undercut by a phone case in the same box. Every unit after that first
  * one adds its own line's increment.
+ *
+ * That single rule is also what handles a cart with two fridges in it. Each
+ * large line's base is its own volume priced on the lane, so the largest of
+ * them wins the base by arithmetic rather than by a special case, and the
+ * others fall to their own size-based increments — the ordinary shape,
+ * measured in cubic metres.
  */
 export function quoteConsignments(
   lines: ShipmentLine[],
@@ -946,21 +1217,19 @@ export function quoteConsignments(
         incrementFee: 0,
         fee: 0,
         collectedAtOrigin: atOrigin,
+        byDimensions: false,
+        largeUnits: 0,
       });
       continue;
     }
 
     const priced = indexes.map((i) => {
       const line = lines[i];
-      const rule = resolveRule(config.rules, {
-        originPointId: line.point?.id ?? null,
-        destPickupId,
-        categoryId: line.categoryId,
-      });
       return {
         index: i,
         qty: Math.max(1, Math.round(line.quantity)),
-        ...rulePricing(rule, line.size, config.defaults),
+        large: isLargeItem(line.size, config.large),
+        ...domesticPricing(line, destPickupId, config),
       };
     });
 
@@ -995,6 +1264,8 @@ export function quoteConsignments(
       incrementFee,
       fee,
       collectedAtOrigin: false,
+      byDimensions: lead.byDimensions,
+      largeUnits: priced.reduce((n, p) => n + (p.large ? p.qty : 0), 0),
     });
   }
 
@@ -1009,6 +1280,7 @@ export interface ShipmentQuote
   extends Omit<
     LineShipping,
     | "method"
+    | "largeItem"
     | "collectedAtOrigin"
     | "route"
     | "goodsClasses"
@@ -1020,6 +1292,8 @@ export interface ShipmentQuote
   allCollectedAtOrigin: boolean;
   /** True when any line is imported. */
   hasImported: boolean;
+  /** True when any line is a large item, however it ended up being priced. */
+  hasLargeItems: boolean;
   /** One entry per seller consignment, for the breakdown. */
   consignments: ConsignmentQuote[];
 }
@@ -1034,6 +1308,7 @@ const EMPTY_QUOTE: ShipmentQuote = {
   unpricedRoute: false,
   allCollectedAtOrigin: false,
   hasImported: false,
+  hasLargeItems: false,
   consignments: [],
 };
 
@@ -1055,6 +1330,7 @@ export function sumShipping(
       unpricedRoute: acc.unpricedRoute || l.unpricedRoute,
       allCollectedAtOrigin: acc.allCollectedAtOrigin && l.collectedAtOrigin,
       hasImported: acc.hasImported,
+      hasLargeItems: acc.hasLargeItems || l.largeItem,
       consignments: acc.consignments,
     }),
     { ...EMPTY_QUOTE, allCollectedAtOrigin: true, consignments },

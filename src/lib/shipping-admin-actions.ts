@@ -82,6 +82,13 @@ const DEFAULT_KEYS = [
   "shipMinFee",
   "shipDefaultPointId",
   "shipPayOnPickupEnabled",
+  "shipLargeEnabled",
+  "shipLargeMinLongestCm",
+  "shipLargeMinCbm",
+  "shipLargeMinWeightKg",
+  "shipLargeRatePerCbm",
+  "shipLargeMinFee",
+  "shipLargeExtraPercent",
   "abroadPageTitle",
   "abroadPageIntro",
 ] as const;
@@ -92,6 +99,12 @@ const AMOUNT_KEYS: Record<string, string> = {
   shipPerKgRate: "Per-kg rate",
   shipVolumetricDivisor: "Volumetric divisor",
   shipMinFee: "Minimum fee",
+  shipLargeMinLongestCm: "Large-item longest side",
+  shipLargeMinCbm: "Large-item volume",
+  shipLargeMinWeightKg: "Large-item weight",
+  shipLargeRatePerCbm: "Large-item rate per m³",
+  shipLargeMinFee: "Large-item minimum fee",
+  shipLargeExtraPercent: "Each additional large item",
 };
 
 /**
@@ -121,6 +134,16 @@ export async function saveShippingDefaults(
     return {
       error: "The volumetric divisor must be greater than zero (couriers use 5000).",
       fieldErrors: { shipVolumetricDivisor: "Must be above zero." },
+    };
+  }
+
+  // A share above 100% would charge a second fridge more than a first one,
+  // which is the opposite of what an increment is.
+  const share = str(fd, "shipLargeExtraPercent");
+  if (share && Number(share) > 100) {
+    return {
+      error: "Each additional large item is a share of its own size-based price — 100% at most.",
+      fieldErrors: { shipLargeExtraPercent: "100 or less." },
     };
   }
 
@@ -294,6 +317,129 @@ export async function toggleShippingRule(fd: FormData): Promise<void> {
   const rule = await prisma.shippingRule.findUnique({ where: { id }, select: { isActive: true } });
   if (!rule) return;
   await prisma.shippingRule.update({ where: { id }, data: { isActive: !rule.isActive } });
+  revalidateShipping();
+}
+
+// ---------------------------------------------------------------------------
+// The base-fee grid
+// ---------------------------------------------------------------------------
+
+/**
+ * One optional amount from a grid cell.
+ *
+ * The empty string is not zero here and the difference is the whole design: a
+ * blank cell has no opinion and falls through to the rules and the platform
+ * default, while a typed zero says this journey is free.
+ */
+function cell(fd: FormData, key: string): number | null {
+  const raw = str(fd, key);
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/**
+ * Save the whole base-fee grid in one go.
+ *
+ * A grid is edited as a grid: an admin fills in a column of stations, presses
+ * save once, and every cell they touched is written together. Saving cell by
+ * cell would mean twenty round trips to price one new pickup station, and a
+ * half-finished grid whenever one of them failed.
+ *
+ * A cell emptied of everything is deleted rather than stored as a row of
+ * zeroes, because a row of zeroes is a lane quoted free — the opposite of what
+ * clearing a cell means.
+ */
+export async function saveShippingLaneFees(
+  _prev: ShippingState,
+  fd: FormData,
+): Promise<ShippingState> {
+  await requireAdmin();
+
+  // The cells the form actually rendered. Reading the pairs off the base-fee
+  // inputs rather than off a submitted list of ids keeps the two in step: a
+  // station added since the page loaded simply is not in this save.
+  const pairs: { originPointId: string; destPickupId: string }[] = [];
+  for (const key of fd.keys()) {
+    if (!key.startsWith("base:")) continue;
+    const [, originPointId, destPickupId] = key.split(":");
+    if (originPointId && destPickupId) pairs.push({ originPointId, destPickupId });
+  }
+  if (pairs.length === 0) return { error: "Nothing to save — the grid had no cells." };
+
+  const existing = await prisma.shippingLaneFee.findMany();
+  const stored = new Map(existing.map((r) => [`${r.originPointId}:${r.destPickupId}`, r]));
+
+  // Only the cells that actually moved are written. A grid of twenty stations
+  // is four hundred cells and an admin edits three of them; sending four
+  // hundred writes for that would make one corrected fee a slow, risky save.
+  const writes = [];
+  let changed = 0;
+  let cleared = 0;
+
+  for (const { originPointId, destPickupId } of pairs) {
+    const suffix = `${originPointId}:${destPickupId}`;
+    const row = stored.get(suffix);
+    const baseFee = cell(fd, `base:${suffix}`);
+    const largeRatePerCbm = cell(fd, `cbm:${suffix}`) ?? 0;
+    const largeMinFee = cell(fd, `min:${suffix}`) ?? 0;
+
+    // Emptied of everything: the cell goes, rather than being stored as a row
+    // of zeroes — which would be this lane quoted free, the opposite of what
+    // clearing a cell means.
+    if (baseFee === null && largeRatePerCbm === 0 && largeMinFee === 0) {
+      if (!row) continue;
+      cleared += 1;
+      writes.push(prisma.shippingLaneFee.delete({ where: { id: row.id } }));
+      continue;
+    }
+
+    if (
+      row &&
+      row.baseFee === baseFee &&
+      row.largeRatePerCbm === largeRatePerCbm &&
+      row.largeMinFee === largeMinFee
+    ) {
+      continue;
+    }
+
+    changed += 1;
+    writes.push(
+      row
+        ? prisma.shippingLaneFee.update({
+            where: { id: row.id },
+            data: { baseFee, largeRatePerCbm, largeMinFee },
+          })
+        : prisma.shippingLaneFee.create({
+            data: { originPointId, destPickupId, baseFee, largeRatePerCbm, largeMinFee },
+          }),
+    );
+  }
+
+  if (writes.length === 0) return { ok: true, message: "Nothing had changed." };
+
+  try {
+    await prisma.$transaction(writes);
+  } catch {
+    return { error: "Couldn't save the grid. Nothing was changed." };
+  }
+
+  revalidateShipping();
+  const parts = [
+    changed > 0 ? `${changed} lane${changed === 1 ? "" : "s"} priced` : "",
+    cleared > 0 ? `${cleared} left to the default` : "",
+  ].filter(Boolean);
+  return { ok: true, message: `${parts.join(", ")}.` };
+}
+
+/** Pause or resume one lane, without losing the price somebody typed. */
+export async function toggleShippingLaneFee(fd: FormData): Promise<void> {
+  await requireAdmin();
+  const id = str(fd, "id");
+  if (!id) return;
+  const lane = await prisma.shippingLaneFee.findUnique({ where: { id }, select: { isActive: true } });
+  if (!lane) return;
+  await prisma.shippingLaneFee.update({ where: { id }, data: { isActive: !lane.isActive } });
   revalidateShipping();
 }
 

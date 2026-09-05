@@ -52,14 +52,16 @@ export function ShippingDefaultsForm({
         <p className="mt-1 max-w-3xl text-sm text-niki-ink/60">
           One seller&apos;s goods are one consignment — one pickup, one van, one handover — so the
           base fee is charged once per seller and every item after the first adds only the
-          increment. These apply when no rule on the Inside Ghana screen says otherwise.
+          increment. These are the fallbacks: the base fee is the figure a journey with no cell in
+          the Base fees grid falls back to, and the increment is what applies when no rule on the
+          Inside Ghana screen says otherwise.
         </p>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field
             label="Base fee (GH₵)"
             htmlFor="shipBaseFee"
-            hint="The first item from a seller. Charged once, however many they order."
+            hint="The first item from a seller, on a journey the Base fees grid does not price. Charged once, however many they order."
           >
             <input
               id="shipBaseFee"

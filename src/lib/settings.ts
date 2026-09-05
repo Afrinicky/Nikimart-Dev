@@ -110,6 +110,31 @@ export const SETTINGS_DEFAULTS = {
   shipMinFee: "0",
   // The consolidation point a listing with none of its own falls back to.
   shipDefaultPointId: "",
+  // --- Shipping: large items ------------------------------------------------
+  // Some goods a flat base fee prices wrongly: a fridge, a chest freezer, a
+  // double oven. What they cost to move is the space they take. These say when
+  // an item is one of those, and what a cubic metre of it costs when the lane
+  // in the base-fee grid has not said. A threshold of "0" is not a test at all,
+  // so an admin can flag by size alone, by weight alone, or by any of them.
+  shipLargeEnabled: "1",
+  // The longest side, in cm.
+  shipLargeMinLongestCm: "120",
+  // The volume, in cubic metres.
+  shipLargeMinCbm: "0.5",
+  // What it actually weighs, in kg. Volumetric weight is not consulted here —
+  // that is what the volume threshold above is for.
+  shipLargeMinWeightKg: "50",
+  // GH₵ per cubic metre for a large item, when its lane has not priced one.
+  // Zero means large goods fall back to the ordinary flat base fee, which is
+  // what a platform that has not set this up yet should do — never free.
+  shipLargeRatePerCbm: "0",
+  // No large item is billed under this, once it is billed by size at all.
+  shipLargeMinFee: "0",
+  // A second large item in the same consignment is an increment, not a second
+  // base fee — and its increment is a share of its own size-based price, so a
+  // second fridge costs more to add than a second microwave. 100 would charge
+  // it in full; 0 would carry it free.
+  shipLargeExtraPercent: "60",
   // --- Shipping: from abroad ------------------------------------------------
   // Nothing platform-wide prices the leg from abroad any more. A forwarder's
   // own grid does, in their own currency, and their lanes carry their own
