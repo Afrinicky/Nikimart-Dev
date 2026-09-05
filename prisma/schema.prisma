@@ -518,6 +518,8 @@ model PickupPoint {
   arrivalHubFor ArrivalPoint[] @relation("ArrivalHub")
   // Domestic shipping rules that end at this point.
   rulesTo       ShippingRule[] @relation("RuleDest")
+  // The base-fee grid: every lane that ends at this station.
+  laneFeesTo    ShippingLaneFee[] @relation("LaneDest")
 }
 
 // ---------------------------------------------------------------------------
@@ -567,11 +569,62 @@ model ArrivalPoint {
   // Domestic rules that start here, lanes that land here, shops and order
   // lines that gather here.
   rulesFrom      ShippingRule[]
+  laneFeesFrom   ShippingLaneFee[]
   routesInto     ForwarderRoute[] @relation("RouteDestination")
   vendors        Vendor[]         @relation("VendorConsolidation")
   consolidatedIn OrderItem[]      @relation("ItemConsolidation")
 
   @@index([forwarderId])
+}
+
+// One lane of the base-fee grid: from one consolidation point, to one pickup
+// station, what the first item costs.
+//
+// A single platform-wide base fee could only ever be right for one journey.
+// Sunyani to Hwidiem, Accra to Sunyani and a forwarder's Sunyani warehouse to
+// the Nikimart station in the same town are three different runs with three
+// different costs, and the grid is where each of them is stated: origins down
+// the side, pickup stations across the top, one cell each.
+//
+// A row that exists is a decision, including a zero — that is a lane quoted
+// free. A lane with no row falls through to the rules table and then to the
+// platform default, which is what a fresh install has everywhere.
+model ShippingLaneFee {
+  id String @id @default(cuid())
+
+  // Both ends are required: a cell of a grid is never "anywhere".
+  originPointId String
+  originPoint   ArrivalPoint @relation(fields: [originPointId], references: [id], onDelete: Cascade)
+  destPickupId  String
+  destPickup    PickupPoint  @relation("LaneDest", fields: [destPickupId], references: [id], onDelete: Cascade)
+
+  // What one consignment on this lane costs, before the increments. The
+  // increments themselves are untouched by the grid — they stay on the rules
+  // table and the platform defaults.
+  //
+  // Nullable, and the distinction matters: NULL is "this lane has no base fee
+  // of its own", which falls through to the rules and then to the platform
+  // default. Zero is a decision — this lane is free. A cell that holds only a
+  // large-item rate is the case that needs the difference.
+  baseFee Float?
+
+  // Large items — a fridge, a chest freezer, a double oven — are not priced by
+  // a flat base at all: they are priced by the space they take. This is GH₵ per
+  // cubic metre on this lane, and `largeMinFee` is the floor under it. Zero
+  // means this lane has not priced large goods, and they fall back to the
+  // platform figure, then to the flat base fee — never to nothing.
+  largeRatePerCbm Float @default(0)
+  largeMinFee     Float @default(0)
+
+  note      String   @default("")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One cell per lane. Both columns are NOT NULL, so unlike the rules table
+  // this really is expressible as a unique constraint.
+  @@unique([originPointId, destPickupId])
+  @@index([destPickupId])
 }
 
 // What the domestic leg costs: one scope, one price.

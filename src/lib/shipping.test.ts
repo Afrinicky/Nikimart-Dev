@@ -5,12 +5,15 @@ import {
   clampToMoq,
   currencyRatesFrom,
   describeTransit,
+  isLargeItem,
+  LARGE_ITEM_DEFAULTS,
   priceLine,
   quoteConsignments,
   quoteShipment,
   resolveGoodsClasses,
   resolveLaneRate,
   resolveRoute,
+  resolveLaneFee,
   resolveRule,
   routesToPoint,
   SHIPPING_DEFAULTS,
@@ -18,6 +21,7 @@ import {
   type Currency,
   type Forwarder,
   type ForwarderRoute,
+  type LaneFee,
   type ShipmentLine,
   type ShippingConfig,
   type ShippingRule,
@@ -168,6 +172,11 @@ const CURRENCIES: Currency[] = [
 const CONFIG: ShippingConfig = {
   defaults: { ...SHIPPING_DEFAULTS, baseFee: 10, perUnitFee: 1.5, perKgRate: 0, minFee: 0 },
   rules: [],
+  lanes: [],
+  // Large-item pricing is on, and unpriced: the state a platform is in the
+  // moment it upgrades. Nothing may be quoted differently because of it until
+  // somebody says what a cubic metre costs.
+  large: { ...LARGE_ITEM_DEFAULTS },
   currencies: currencyRatesFrom(CURRENCIES),
 };
 
@@ -323,6 +332,174 @@ test("a legacy flat rule becomes the base fee and stops multiplying", () => {
   const config: ShippingConfig = { ...CONFIG, rules: legacy };
   // 50 base + 2 extra units × (GH₵4 × 2 kg billable).
   assert.equal(cartFee([line({ quantity: 3 })], "pp-accra", config), 50 + 16);
+});
+
+// --- The base-fee grid ------------------------------------------------------
+
+const LANES: LaneFee[] = [
+  {
+    id: "ksi-accra",
+    originPointId: KUMASI.id,
+    destPickupId: "pp-accra",
+    baseFee: 35,
+    largeRatePerCbm: 0,
+    largeMinFee: 0,
+    note: "",
+    isActive: true,
+  },
+  {
+    id: "ksi-tamale",
+    originPointId: KUMASI.id,
+    destPickupId: "pp-tamale",
+    baseFee: 0,
+    largeRatePerCbm: 0,
+    largeMinFee: 0,
+    note: "",
+    isActive: true,
+  },
+];
+
+const GRID: ShippingConfig = { ...CONFIG, lanes: LANES };
+
+test("each journey charges its own base fee", () => {
+  // The same seller, the same goods, two stations, two prices — which is the
+  // whole reason the grid exists.
+  assert.equal(cartFee([line()], "pp-accra", GRID), 35);
+  assert.equal(cartFee([line()], "pp-tamale", GRID), 0);
+  // A journey with no cell still falls to the platform default.
+  assert.equal(cartFee([line()], "pp-elsewhere", GRID), 10);
+});
+
+test("a lane priced at zero is free, not unset", () => {
+  assert.equal(resolveLaneFee(LANES, KUMASI.id, "pp-tamale")?.baseFee, 0);
+  assert.equal(cartFee([line({ quantity: 3 })], "pp-tamale", GRID), 3);  // 0 + 2 increments
+});
+
+test("the lane's base fee is charged once, and the increments are untouched by it", () => {
+  // Ten bottles from one shop: one van, one base fee, nine increments.
+  assert.equal(cartFee([line({ quantity: 10 })], "pp-accra", GRID), 35 + 9 * 1.5);
+});
+
+test("a paused lane falls back rather than pricing", () => {
+  const paused = { ...GRID, lanes: LANES.map((l) => ({ ...l, isActive: false })) };
+  assert.equal(resolveLaneFee(paused.lanes, KUMASI.id, "pp-accra"), null);
+  assert.equal(cartFee([line()], "pp-accra", paused), 10);
+});
+
+test("a grid cell beats a route rule, and a category rule beats the grid", () => {
+  const rules: ShippingRule[] = [
+    { id: "route", originPointId: KUMASI.id, destPickupId: "pp-accra", categoryId: null, baseFee: 25, perUnitFee: 3, flatFee: 0, perKgRate: 0, note: "", isActive: true },
+    { id: "fridges", originPointId: null, destPickupId: null, categoryId: "cat-appliances", baseFee: 90, perUnitFee: 20, flatFee: 0, perKgRate: 0, note: "", isActive: true },
+  ];
+  const config: ShippingConfig = { ...GRID, rules };
+  // The road is the grid's business: GH₵35, not the rule's GH₵25 — but the
+  // increment on that same rule still applies, because the grid has no opinion
+  // about what a second item costs.
+  assert.equal(cartFee([line({ quantity: 2 })], "pp-accra", config), 35 + 3);
+  // The goods are the rule's business: where the appliance rule is the one that
+  // resolves, its base fee wins — over the grid's cell, and over the fact that
+  // this lane is otherwise free.
+  assert.equal(cartFee([line({ categoryId: "cat-appliances" })], "pp-tamale", config), 90);
+  // And the sharper route rule still outranks the category one where both
+  // match, exactly as it did before the grid existed. Its base then comes from
+  // the grid, because that rule names no category.
+  assert.equal(cartFee([line({ categoryId: "cat-appliances" })], "pp-accra", config), 35);
+});
+
+// --- Large items ------------------------------------------------------------
+
+/** A chest freezer: 1.8 × 0.7 × 0.85 m, which is 1.071 m³. */
+const FREEZER = { shippingWeightKg: 90, lengthCm: 180, widthCm: 70, heightCm: 85 };
+/** A microwave: large by nothing, and half a cubic metre smaller. */
+const MICROWAVE = { shippingWeightKg: 15, lengthCm: 50, widthCm: 40, heightCm: 30 };
+
+const BY_SIZE: ShippingConfig = {
+  ...GRID,
+  lanes: LANES.map((l) =>
+    l.destPickupId === "pp-accra" ? { ...l, largeRatePerCbm: 100, largeMinFee: 0 } : l,
+  ),
+  large: { ...LARGE_ITEM_DEFAULTS, extraPercent: 60 },
+};
+
+test("the thresholds decide what is large, and a zero is not a test", () => {
+  const policy = { ...LARGE_ITEM_DEFAULTS };
+  assert.equal(isLargeItem(FREEZER, policy), true);
+  assert.equal(isLargeItem(MICROWAVE, policy), false);
+  // Nothing measured trips nothing — the engine's five-litre default volume is
+  // for filling containers, not for deciding that a listing is a fridge.
+  assert.equal(isLargeItem({ shippingWeightKg: 2 }, policy), false);
+  // Weight alone is enough, and so is size alone.
+  assert.equal(isLargeItem({ shippingWeightKg: 60 }, policy), true);
+  assert.equal(isLargeItem(FREEZER, { ...policy, minLongestSideCm: 0, minCbm: 0, minWeightKg: 0 }), false);
+  assert.equal(isLargeItem(FREEZER, { ...policy, enabled: false }), false);
+});
+
+test("a large item is priced by its dimensions, not by the lane's flat fee", () => {
+  // 1.071 m³ × GH₵100. The lane's flat GH₵35 does not apply to a freezer.
+  assert.equal(cartFee([line({ size: FREEZER })], "pp-accra", BY_SIZE), 107.1);
+});
+
+test("two large items: the largest is the base, the rest are increments by size", () => {
+  const fee = cartFee(
+    [line({ size: FREEZER }), line({ size: { ...FREEZER, lengthCm: 90 } })],
+    "pp-accra",
+    BY_SIZE,
+  );
+  // The freezer sets the base at 107.1; the half-length one adds 60% of its own
+  // 0.5355 m³ × 100 = 32.13. A second base fee is never charged.
+  assert.equal(fee, 107.1 + 32.13);
+});
+
+test("two of the same large item still travel on one van", () => {
+  const fee = cartFee([line({ size: FREEZER, quantity: 2 })], "pp-accra", BY_SIZE);
+  assert.equal(fee, 107.1 + 64.26);
+  // And that is less than paying twice, which is the point of an increment.
+  assert.ok(fee < 107.1 * 2);
+});
+
+test("a large item beside a small one takes the base, and the small one increments", () => {
+  const fee = cartFee(
+    [line({ size: FREEZER }), line({ size: MICROWAVE, quantity: 2 })],
+    "pp-accra",
+    BY_SIZE,
+  );
+  // The freezer's 107.1 is the largest base in the consignment; the two
+  // microwaves add the ordinary GH₵1.50 increment each.
+  assert.equal(fee, 107.1 + 3);
+});
+
+test("a large item nobody has priced by size falls back to the flat fee, never to free", () => {
+  // Enabled, thresholds set, and no rate per cubic metre anywhere.
+  assert.equal(cartFee([line({ size: FREEZER })], "pp-accra", GRID), 35);
+  assert.equal(cartFee([line({ size: FREEZER })], "pp-elsewhere", GRID), 10);
+});
+
+test("the platform rate per m³ covers a lane that has not priced large goods", () => {
+  const config: ShippingConfig = {
+    ...GRID,
+    large: { ...LARGE_ITEM_DEFAULTS, ratePerCbm: 80 },
+  };
+  assert.equal(cartFee([line({ size: FREEZER })], "pp-accra", config), 85.68); // 1.071 × 80
+});
+
+test("a lane's own rate beats the platform's, and its minimum floors the price", () => {
+  const config: ShippingConfig = {
+    ...GRID,
+    lanes: LANES.map((l) =>
+      l.destPickupId === "pp-accra" ? { ...l, largeRatePerCbm: 100, largeMinFee: 250 } : l,
+    ),
+    large: { ...LARGE_ITEM_DEFAULTS, ratePerCbm: 80 },
+  };
+  assert.equal(cartFee([line({ size: FREEZER })], "pp-accra", config), 250);
+});
+
+test("switching large-item pricing off puts fridges back on the flat base fee", () => {
+  const off: ShippingConfig = { ...BY_SIZE, large: { ...BY_SIZE.large, enabled: false } };
+  assert.equal(cartFee([line({ size: FREEZER })], "pp-accra", off), 35);
+});
+
+test("collecting where a large item already sits is still free", () => {
+  assert.equal(cartFee([line({ size: FREEZER })], "pp-kumasi", BY_SIZE), 0);
 });
 
 // --- Minimum order quantity -------------------------------------------------
