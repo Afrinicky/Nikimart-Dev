@@ -23,6 +23,8 @@ import {
   type AgentAccount,
 } from "@/lib/data-bundles/agents";
 import { maxWithdrawal, priceAtMarkup } from "@/lib/data-bundles/agent-pricing";
+import { teamCommissionFor } from "@/lib/data-bundles/referrals";
+import { startRegistrationFeePayment } from "@/lib/data-bundles/registration-fee";
 
 /**
  * Everything an agent can do to their own account: rename their store, set
@@ -340,6 +342,40 @@ export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): 
 }
 
 // ---------------------------------------------------------------------------
+// The registration fee
+// ---------------------------------------------------------------------------
+
+export type PayFeeResult =
+  | { ok: true; reference: string; authorizationUrl?: string }
+  | { ok: false; error: string };
+
+/**
+ * Pay the registration fee, for an agent who chose to settle it up front rather
+ * than out of their commission.
+ *
+ * The agent is read from the session, never from the browser, so one agent can
+ * never start a payment against another's fee — and since the fee is the thing
+ * that releases their recruiter's referral reward, paying somebody else's would
+ * be a way to mint one.
+ */
+export async function payRegistrationFee(): Promise<PayFeeResult> {
+  const { agent, user, error } = await currentAgent();
+  if (!agent) return { ok: false, error };
+
+  const limit = await rateLimit(`agent-fee:${agent.id}`, 10, 60 * 60_000);
+  if (!limit.ok) {
+    return { ok: false, error: `Too many attempts. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
+  }
+
+  const result = await startRegistrationFeePayment(
+    agent,
+    user.email ?? `${agent.code.toLowerCase()}@agent.nikimart.app`,
+  );
+  if (result.ok) revalidatePath("/agent/wallet");
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Support
 // ---------------------------------------------------------------------------
 
@@ -468,6 +504,19 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
   const collectPayment = isPaymentConfigured("data");
   const email = data.email?.trim() || null;
 
+  // A walk-in served from the dashboard is still a sale the agent made, so it
+  // still earns their recruiter a team commission. The agent's own commission
+  // on it is zero by design — whatever they charged in cash is between them and
+  // their customer — so an admin who does not want these counted sets a minimum
+  // qualifying commission above zero and they drop out.
+  const team = await teamCommissionFor({
+    sellingAgentId: agent.id,
+    salePrice: row.agentPrice,
+    sellerCommission: 0,
+    network: row.network,
+    sizeGb: row.sizeGb,
+  });
+
   for (let attempt = 0; attempt < 5; attempt++) {
     const reference = newDataReference();
     try {
@@ -490,6 +539,9 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
           agentCost: row.agentPrice,
           agentCommission: 0,
           commissionStatus: "void",
+          teamAgentId: team.teamAgentId,
+          teamCommission: team.teamCommission,
+          teamCommissionStatus: team.teamCommission > 0 ? "pending" : "void",
         },
       });
 

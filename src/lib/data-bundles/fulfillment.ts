@@ -25,6 +25,11 @@ import {
   creditAgentCommission,
   voidAgentCommission,
 } from "@/lib/data-bundles/agent-ledger";
+import {
+  creditTeamCommission,
+  releaseReferralRewards,
+  voidTeamCommission,
+} from "@/lib/data-bundles/referrals";
 
 /**
  * Payment settlement and provider dispatch for bundle purchases.
@@ -167,6 +172,7 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
     after(async () => {
       await notifyDataOrderFailed(orderId);
       await voidAgentCommission(orderId);
+      await voidTeamCommission(orderId);
     });
     return { ok: false, message: res.message };
   }
@@ -191,7 +197,7 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
     await notifyDataOrderDispatched(orderId);
     // A provider that completes on the spot still owes the selling agent their
     // commission — applyProviderStatus never runs for that order.
-    if (status === "completed") await creditAgentCommission(orderId);
+    if (status === "completed") await settleOrderCommissions(orderId);
   });
   return { ok: true, message: res.message };
 }
@@ -230,15 +236,38 @@ export async function applyProviderStatus(
       await notifyDataOrderCompleted(orderId);
       // Commission is earned on delivery, never on payment — a bundle that
       // never lands is a sale the agent was never owed for.
-      await creditAgentCommission(orderId);
+      await settleOrderCommissions(orderId);
     });
   } else if (next === "failed") {
     after(async () => {
       await notifyDataOrderFailed(orderId);
       await voidAgentCommission(orderId);
+      await voidTeamCommission(orderId);
     });
   }
   return next;
+}
+
+/**
+ * Everything one delivered order owes, in the order it is owed.
+ *
+ * The selling agent is paid first, because their commission is what clears
+ * their own registration fee — and clearing it is what makes *their* recruiter's
+ * referral reward payable. Releasing the rewards afterwards means an agent whose
+ * very first sale settles their fee pays their upline the same day, rather than
+ * waiting for a sweep to notice.
+ *
+ * Each step is separately idempotent, so a retry of the whole thing pays
+ * nothing twice.
+ */
+async function settleOrderCommissions(orderId: string): Promise<void> {
+  await creditAgentCommission(orderId);
+  await creditTeamCommission(orderId);
+
+  const order = await dataDb.dataOrder
+    .findUnique({ where: { id: orderId }, select: { agentId: true } })
+    .catch(() => null);
+  if (order?.agentId) await releaseReferralRewards(order.agentId);
 }
 
 /** Re-read an order from the provider and apply whatever it says. */

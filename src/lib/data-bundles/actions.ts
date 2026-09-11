@@ -16,6 +16,7 @@ import {
   getAgentBySlug,
 } from "@/lib/data-bundles/agents";
 import { commissionOn } from "@/lib/data-bundles/agent-pricing";
+import { teamCommissionFor } from "@/lib/data-bundles/referrals";
 import { NETWORKS, bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
 import { checkRecipient, parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import {
@@ -114,6 +115,19 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
   const agentCommission = agent ? commissionOn(bundle.price, agentCost) : 0;
   const costPrice = "costPrice" in bundle ? bundle.costPrice : 0;
 
+  // If the selling agent was recruited by somebody, that somebody earns a
+  // team-sales commission on this order. Worked out now and snapshotted with
+  // the rest, so a rate change tomorrow never rewrites what today's sale paid.
+  const team = agent
+    ? await teamCommissionFor({
+        sellingAgentId: agent.id,
+        salePrice: bundle.price,
+        sellerCommission: agentCommission,
+        network: bundle.network,
+        sizeGb: bundle.sizeGb,
+      })
+    : { teamAgentId: null, teamCommission: 0 };
+
   const session = await auth();
   const userId = session?.user?.id ?? null;
   const buyerEmail = data.buyerEmail?.trim() || null;
@@ -142,6 +156,11 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
           agentCost,
           agentCommission,
           commissionStatus: agent ? "pending" : "void",
+          teamAgentId: team.teamAgentId,
+          teamCommission: team.teamCommission,
+          // Nothing to pay is settled now rather than left pending for a sweep
+          // that would only ever close it.
+          teamCommissionStatus: team.teamCommission > 0 ? "pending" : "void",
         },
       });
 

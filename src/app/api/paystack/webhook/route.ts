@@ -10,6 +10,12 @@ import {
   settleAfaRegistration,
   settleDataOrder,
 } from "@/lib/data-bundles/fulfillment";
+import { isRegistrationReference } from "@/lib/data-bundles/reference";
+import {
+  agentIdFromMetadata,
+  registrationPaymentCovers,
+  settleRegistrationFee,
+} from "@/lib/data-bundles/registration-fee";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,8 +34,9 @@ export const dynamic = "force-dynamic";
  * the charge.
  *
  * Then the important part: that account has to be the one that *owns* the
- * reference. "ND-"/"NA-" are bundle and AFA references and belong to the data
- * account; anything else is a mall order and belongs to retail. Without that
+ * reference. "ND-"/"NA-"/"NR-" are bundle orders, AFA registrations and agent
+ * registration fees, and belong to the data account; anything else is a mall
+ * order and belongs to retail. Without that
  * check, anyone holding one account's key could sign an event naming an order
  * in the other's ledger and have it settled unpaid — which is a way to take
  * goods for free, not a theoretical concern about tidiness.
@@ -60,7 +67,13 @@ export async function POST(req: Request) {
 
   let event: {
     event?: string;
-    data?: { reference?: string; status?: string; amount?: number; currency?: string };
+    data?: {
+      reference?: string;
+      status?: string;
+      amount?: number;
+      currency?: string;
+      metadata?: Record<string, unknown>;
+    };
   };
   try {
     event = JSON.parse(raw);
@@ -73,14 +86,20 @@ export async function POST(req: Request) {
     const amount = event.data.amount ?? 0;
     const currency = event.data.currency ?? "GHS";
 
+    const isRegistration = isRegistrationReference(reference);
     const belongsTo: PaymentAccount =
-      isDataReference(reference) || isAfaReference(reference) ? "data" : "retail";
+      isDataReference(reference) || isAfaReference(reference) || isRegistration ? "data" : "retail";
     if (belongsTo !== signedBy) {
       console.warn(
         `[paystack] ${signedBy} account signed a charge for ${reference}, which belongs to ${belongsTo}. Ignored.`,
       );
       return NextResponse.json({ ok: true });
     }
+
+    // A registration fee is found by the agent id in its metadata rather than
+    // by the reference: a retry mints a new reference, and an agent who pays an
+    // abandoned link still has to be credited.
+    const agentId = isRegistration ? agentIdFromMetadata(event.data.metadata) : null;
 
     // A signed event still has to pay for the order it names, in the right
     // currency, before we settle it.
@@ -90,11 +109,14 @@ export async function POST(req: Request) {
         ? await dataPaymentCovers(reference, amount)
         : isAfaReference(reference)
           ? await afaPaymentCovers(reference, amount)
-          : await paymentCoversOrder(reference, amount));
+          : isRegistration
+            ? await registrationPaymentCovers(reference, amount, agentId)
+            : await paymentCoversOrder(reference, amount));
 
     if (covered) {
       if (isDataReference(reference)) await settleDataOrder(reference);
       else if (isAfaReference(reference)) await settleAfaRegistration(reference);
+      else if (isRegistration) await settleRegistrationFee(agentId, reference);
       else await markOrderPaid(reference);
     } else {
       console.warn(`[paystack] underpaid or mismatched charge for ${reference}: ${amount} ${currency}`);

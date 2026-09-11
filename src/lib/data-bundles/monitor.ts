@@ -8,6 +8,7 @@ import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { getProviderBalance, isDataProviderConfigured } from "@/lib/data-bundles/provider";
 import { dispatchAfaRegistration, dispatchDataOrder, refreshDataOrder } from "@/lib/data-bundles/fulfillment";
 import { sweepAgentCommissions } from "@/lib/data-bundles/agent-ledger";
+import { sweepReferralEarnings } from "@/lib/data-bundles/referrals";
 import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
 
 /**
@@ -40,6 +41,10 @@ export interface SweepResult {
   afaDispatched: number;
   /** Delivered agent orders whose commission had never been credited. */
   commissionsCredited: number;
+  /** Referral rewards released for recruits whose registration fee had cleared. */
+  referralRewards: number;
+  /** Team-sales commissions credited to the sellers' recruiters. */
+  teamCommissions: number;
   notes: string[];
 }
 
@@ -70,6 +75,8 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
     refreshed: 0,
     afaDispatched: 0,
     commissionsCredited: 0,
+    referralRewards: 0,
+    teamCommissions: 0,
     notes: [],
   };
 
@@ -175,6 +182,15 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
   // a callback that arrived while the ledger was briefly down, or an agent
   // reactivated after their order landed. Catch those up here.
   result.commissionsCredited = await sweepAgentCommissions();
+
+  // The referral programme needs the same safety net, and one more thing the
+  // selling agent's commission doesn't: a reward can be owed for a registration
+  // fee that cleared on an order nobody was watching, or one that hit the daily
+  // cap yesterday and is payable today. Both are found by re-checking, which is
+  // free when there is nothing to do.
+  const referrals = await sweepReferralEarnings();
+  result.referralRewards = referrals.rewards;
+  result.teamCommissions = referrals.team;
 
   return result;
 }

@@ -11,13 +11,18 @@ import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { notify, sendSms } from "@/lib/notifications";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
-import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
+import { getAgentProgramConfig, getReferralConfig } from "@/lib/data-bundles/settings";
 import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import { termsAccepted, TERMS_REQUIRED_MESSAGE } from "@/lib/terms";
 import { normaliseSlugClient } from "@/lib/data-bundles/slug";
 import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { generateAgentCode, slugProblem } from "@/lib/data-bundles/agents";
 import { userIdForEmail } from "@/lib/data-bundles/user-link";
+import {
+  checkReferralLink,
+  releaseReferralRewards,
+  resolveReferralCode,
+} from "@/lib/data-bundles/referrals";
 
 /**
  * Becoming an agent, from application to a working account.
@@ -145,6 +150,15 @@ const applySchema = z.object({
   email: z.string().trim().email("Enter a valid email address."),
   storeName: z.string().trim().min(2, "Enter the store name you want."),
   note: z.string().trim().max(400).optional(),
+  /** The agent code of whoever recruited them. Optional — most people have none. */
+  referralCode: z.string().trim().max(20).optional(),
+  /**
+   * How they want to settle the registration fee. BALANCE is the original
+   * behaviour: it is debited on approval and clears out of their commission, so
+   * there is nothing to pay before they start. UPFRONT means they pay it
+   * through Paystack once their account exists.
+   */
+  feeMethod: z.enum(["BALANCE", "UPFRONT"]).optional(),
 });
 
 export async function applyToBeAgent(
@@ -164,6 +178,8 @@ export async function applyToBeAgent(
     email: fd.get("email"),
     storeName: fd.get("storeName"),
     note: fd.get("note") ?? undefined,
+    referralCode: fd.get("referralCode") ?? undefined,
+    feeMethod: fd.get("feeMethod") ?? undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Please check the form and try again." };
@@ -190,6 +206,25 @@ export async function applyToBeAgent(
   if (slugCheck.state === "taken") return { error: slugCheck.message };
   if (slugCheck.state === "idle") return { error: "Enter the store name you want." };
   const desiredSlug = slugCheck.slug;
+
+  // A referral code is optional, but a wrong one is not: someone typing their
+  // recruiter's code and getting silently dropped would find out weeks later,
+  // when the reward never arrived. The code is resolved now and refused if it
+  // is not real — and resolved *again* at approval, because the agent it names
+  // can be suspended in between.
+  const referral = await getReferralConfig();
+  let referrerId: string | null = null;
+  const referralCode = (data.referralCode ?? "").trim().toUpperCase();
+  if (referralCode) {
+    if (!referral.enabled) {
+      return { error: "The referral programme is closed at the moment — leave the referral code blank." };
+    }
+    const resolved = await resolveReferralCode(referralCode);
+    if (!resolved.ok) return { error: resolved.message };
+    referrerId = resolved.agentId;
+  }
+
+  const feeMethod = data.feeMethod === "UPFRONT" && config.setupFee > 0 ? "UPFRONT" : "BALANCE";
 
   try {
     // Someone already trading doesn't need to apply again. The email belongs to
@@ -223,6 +258,9 @@ export async function applyToBeAgent(
         storeName: data.storeName,
         desiredSlug,
         note: data.note ?? "",
+        referralCode,
+        referrerId,
+        feeMethod,
         termsAcceptedAt: new Date(),
       },
     });
@@ -318,6 +356,31 @@ export async function approveApplication(
         data: { email, name: application.fullName, phone: application.phone, role: "CUSTOMER" },
       }));
 
+    // Who recruited them, re-resolved now rather than trusted from the
+    // application: the code was checked when it was typed, and the agent it
+    // names may have been suspended in the days since. A code that no longer
+    // works is not a reason to refuse the application — the applicant did
+    // nothing wrong — so it is dropped and the approval goes ahead.
+    const referralConfig = await getReferralConfig();
+    let referrerId: string | null = null;
+    if (referralConfig.enabled && application.referralCode) {
+      const resolved = await resolveReferralCode(application.referralCode);
+      if (resolved.ok) {
+        const allowed = await checkReferralLink({
+          referrerId: resolved.agentId,
+          recruitUserId: user.id,
+          recruitEmail: email,
+          recruitPhone: application.phone,
+        });
+        if (allowed.ok) referrerId = allowed.referrerId;
+      }
+    }
+
+    // A fee of zero is a waiver however it came about, and a waiver pays no
+    // referral reward — that is the whole point of tying the reward to the fee.
+    const feeMethod =
+      config.setupFee <= 0 ? "WAIVED" : application.feeMethod === "UPFRONT" ? "UPFRONT" : "BALANCE";
+
     const agentId = await dataDb.$transaction(async (tx) => {
       const already = await tx.dataAgent.findUnique({ where: { userId: user.id } });
       if (already) throw new Error("ALREADY_AGENT");
@@ -333,6 +396,12 @@ export async function approveApplication(
           whatsappGroup: config.whatsappGroup,
           setupFee: config.setupFee,
           balance: 0,
+          setupFeeMethod: feeMethod,
+          // The relationship is recorded with the account and locked at the
+          // same moment. There is no window in which it exists without a
+          // referrer and could be given a different one.
+          referredById: referrerId,
+          referralLockedAt: referrerId ? new Date() : null,
         },
       });
 
@@ -355,15 +424,30 @@ export async function approveApplication(
 
     // The setup fee is what puts the account on a negative balance — charged
     // outside the transaction so a notification failure can't roll the store back.
+    //
+    // It is charged either way. On BALANCE it simply clears out of commission,
+    // as it always has. On UPFRONT the debit is what the agent is paying off:
+    // their Paystack payment posts a matching credit, which brings them back to
+    // zero and settles the fee in one visible pair of ledger lines rather than
+    // a flag nobody can audit.
     if (config.setupFee > 0) {
       await postLedgerEntry({
         agentId,
         type: "SETUP_FEE",
         amount: -config.setupFee,
-        narration: "Storefront setup fee — clears automatically from your commissions",
+        narration:
+          feeMethod === "UPFRONT"
+            ? "Registration fee — payable before your store opens"
+            : "Storefront setup fee — clears automatically from your commissions",
         reference: code,
       });
     }
+
+    // Nothing to release yet in the ordinary case: the fee has just been
+    // charged, not paid. It matters for the one case where the programme still
+    // owes something immediately — an admin who set the fee to zero after the
+    // application was made, leaving a balance already at zero.
+    if (referrerId) await releaseReferralRewards(agentId);
   } catch (err) {
     if (err instanceof Error && err.message === "ALREADY_AGENT") {
       return { error: "That person already has an agent account." };

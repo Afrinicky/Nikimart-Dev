@@ -7,6 +7,8 @@ import { requireAdmin } from "@/lib/session";
 import { isNetwork, type Network } from "@/lib/data-bundles/networks";
 import { dispatchDataOrder, refreshDataOrder, dispatchAfaRegistration } from "@/lib/data-bundles/fulfillment";
 import { runDataBundleSweep } from "@/lib/data-bundles/monitor";
+import { voidAgentCommission } from "@/lib/data-bundles/agent-ledger";
+import { voidTeamCommission } from "@/lib/data-bundles/referrals";
 
 /**
  * Admin console actions for the data bundle storefront. Every one of these
@@ -257,14 +259,23 @@ export async function refreshDataOrderStatus(fd: FormData): Promise<void> {
  * Record that a failed order has been refunded. This is a bookkeeping flag —
  * the money moves in Paystack, not here — so it's only allowed on an order that
  * actually failed, never as a way to close a delivered one.
+ *
+ * A refund closes out both commissions it could still have paid. They are
+ * almost certainly void already (the failure voided them), but an order can be
+ * refunded for a reason the provider never reported, and a refunded sale must
+ * not pay anybody.
  */
 export async function markDataOrderRefunded(fd: FormData): Promise<void> {
   await requireAdmin();
   const id = str(fd, "id");
   if (!id) return;
-  await dataDb.dataOrder
+  const refunded = await dataDb.dataOrder
     .updateMany({ where: { id, status: "failed" }, data: { status: "refunded" } })
-    .catch(() => {});
+    .catch(() => ({ count: 0 }));
+  if (refunded.count > 0) {
+    await voidAgentCommission(id);
+    await voidTeamCommission(id);
+  }
   revalidatePath("/admin/data/orders");
 }
 

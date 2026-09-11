@@ -15,6 +15,12 @@ import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { normaliseSlug, round2, slugProblem } from "@/lib/data-bundles/agents";
 import { getAgentUser } from "@/lib/data-bundles/user-link";
+import {
+  checkReferralLink,
+  linkReferral,
+  releaseReferralRewards,
+  resolveReferralCode,
+} from "@/lib/data-bundles/referrals";
 
 /**
  * Admin actions for the sub-agent programme: suspend an agent, correct a
@@ -390,6 +396,54 @@ export async function reissueSetupLink(fd: FormData): Promise<AgentAdminState> {
 
   revalidateAgents(agentId);
   return { ok: true, setupUrl, message: "New link issued — valid for 7 days." };
+}
+
+/**
+ * Record a referrer for an agent who has none.
+ *
+ * The one gap the signup form leaves: someone recruited by an existing agent
+ * who didn't type their code, and finds out afterwards. An admin can put it
+ * right — but only while there is nothing there. A referrer that already exists
+ * is permanent, because changing it moves earnings that have already been paid
+ * to somebody else, and because "my upline changed" is a complaint no ledger
+ * can answer. checkReferralLink is what refuses the rest: self-referral, a
+ * suspended referrer, and a pair that already refer each other.
+ */
+export async function setAgentReferrer(
+  _prev: AgentAdminState,
+  fd: FormData,
+): Promise<AgentAdminState> {
+  await requireAdmin();
+  const agentId = str(fd, "agentId");
+  const code = str(fd, "referralCode").toUpperCase();
+  if (!agentId) return { error: "Missing agent." };
+  if (!code) return { error: "Enter the referrer's agent code." };
+
+  const agent = await dataDb.dataAgent
+    .findUnique({ where: { id: agentId }, select: { userId: true, storeName: true } })
+    .catch(() => null);
+  if (!agent) return { error: "That agent no longer exists." };
+
+  const resolved = await resolveReferralCode(code);
+  if (!resolved.ok) return { error: resolved.message };
+
+  const allowed = await checkReferralLink({
+    referrerId: resolved.agentId,
+    agentId,
+    recruitUserId: agent.userId,
+  });
+  if (!allowed.ok) return { error: allowed.reason };
+
+  if (!(await linkReferral(agentId, allowed.referrerId))) {
+    return { error: "That agent already has a referrer." };
+  }
+
+  // The fee may have been paid long ago, in which case the reward is owed the
+  // moment the relationship exists.
+  await releaseReferralRewards(agentId);
+
+  revalidateAgents(agentId);
+  return { ok: true, message: `${resolved.storeName} (${resolved.code}) is now recorded as the referrer.` };
 }
 
 const editSchema = z.object({

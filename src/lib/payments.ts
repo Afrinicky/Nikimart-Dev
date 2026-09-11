@@ -139,6 +139,13 @@ export interface VerifyResult {
   amountPesewas: number;
   currency: string;
   paid: boolean;
+  /**
+   * Whatever was attached when the transaction was started. It is how a payment
+   * says what it was for when the reference alone is not enough to find it —
+   * an agent's registration fee, most of all, where a retry mints a new
+   * reference and the old link must still settle to the right account.
+   */
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -163,7 +170,13 @@ export async function verifyTransaction(
   const json = (await res.json().catch(() => null)) as {
     status?: boolean;
     message?: string;
-    data?: { status?: string; reference?: string; amount?: number; currency?: string };
+    data?: {
+      status?: string;
+      reference?: string;
+      amount?: number;
+      currency?: string;
+      metadata?: Record<string, unknown>;
+    };
   } | null;
 
   if (!res.ok || !json?.status || !json.data) {
@@ -177,5 +190,6 @@ export async function verifyTransaction(
     amountPesewas: json.data.amount ?? 0,
     currency: json.data.currency ?? "GHS",
     paid: status === "success",
+    metadata: json.data.metadata,
   };
 }

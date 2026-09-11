@@ -39,6 +39,14 @@ export interface AgentAccount {
   status: string;
   balance: number;
   setupFee: number;
+  /** BALANCE | UPFRONT | WAIVED — how the registration fee is being settled. */
+  setupFeeMethod: string;
+  /** When it was settled in full. Null while outstanding, and null if waived. */
+  setupFeePaidAt: Date | null;
+  setupFeeReference: string | null;
+  /** The agent who recruited this one, if any. */
+  referredById: string | null;
+  referralLockedAt: Date | null;
   createdAt: Date;
 }
 
