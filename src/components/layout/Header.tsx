@@ -31,6 +31,19 @@ const ACTION =
  * slides over the page with nothing between the two.
  */
 export async function Header() {
+  // NOTE: this `auth()` is why nothing on the site can be cached.
+  //
+  // Reading the session reads cookies, and a dynamic API anywhere in the tree
+  // makes the whole route dynamic — and this header is in the root layout, so
+  // that is every page. `export const revalidate` on the catalogue pages is
+  // inert until this changes.
+  //
+  // It is used for three small things: where "Account" links, whether it reads
+  // "Account" or "Sign in", and an isAuthed flag. Moving those into a small
+  // client island (with a SessionProvider) would let every public page be
+  // cached, at the cost of the signed-in state resolving a moment after first
+  // paint. That is a visible change to every page, so it is a decision to make
+  // deliberately rather than a side effect of a performance fix.
   const [session, categories, settings] = await Promise.all([auth(), getCategories(), getSettings()]);
   const role = session?.user && isRole(session.user.role) ? session.user.role : null;
   const accountHref = role ? ROLE_HOME[role] : "/login";

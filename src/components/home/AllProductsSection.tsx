@@ -11,9 +11,12 @@ import { ProductGrid } from "@/components/product/ProductGrid";
  */
 export function AllProductsSection({
   products,
+  total,
   vendorNames,
 }: {
   products: Product[];
+  /** How many live products there are in total, when more exist than are shown. */
+  total?: number;
   vendorNames?: Record<string, string>;
 }) {
   if (products.length === 0) {
@@ -46,7 +49,9 @@ export function AllProductsSection({
               Explore all products
             </h2>
             <p className="mt-1 text-sm text-niki-ink/60">
-              {products.length} items from shops across Ghana and abroad
+              {total && total > products.length
+                ? `${products.length} of ${total} items from shops across Ghana and abroad`
+                : `${products.length} items from shops across Ghana and abroad`}
             </p>
           </div>
           <Link
