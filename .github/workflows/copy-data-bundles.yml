@@ -1,0 +1,97 @@
+# Move the data-bundle tables into their own database, from a button.
+#
+# Run it from GitHub: Actions → "Copy data bundles to their own database" →
+# Run workflow. Pick "count" first to see what is there, read the log, then run
+# it again with "copy".
+#
+# It reads from the retail database and writes to the bundle one, and it never
+# changes the source: the old tables are left exactly as they are, so a copy
+# that looks wrong costs nothing but the time to look. Running it twice is safe
+# — rows that are already there are skipped, not duplicated.
+#
+# Two repository secrets are needed (Settings → Secrets and variables →
+# Actions):
+#   NIKIMART_DATABASE_URL     the existing database — the one being copied FROM
+#   DATA_BUNDLES_DATABASE_URL the new project's database — copied TO
+#
+# Both are connection strings from the Neon dashboard. They are secrets, so
+# nothing is printed in the log.
+
+name: Copy data bundles to their own database
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "count = just look (cheap). copy = actually move the rows."
+        required: true
+        default: count
+        type: choice
+        options:
+          - count
+          - copy
+
+# One at a time. Two copies running together would both be writing the same
+# rows, and while that is harmless it makes the logs impossible to read.
+concurrency:
+  group: copy-data-bundles
+  cancel-in-progress: false
+
+jobs:
+  copy:
+    name: ${{ inputs.mode == 'copy' && 'Copy the rows' || 'Count what is there' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      DATABASE_URL: ${{ secrets.NIKIMART_DATABASE_URL }}
+      DATA_DATABASE_URL: ${{ secrets.DATA_BUNDLES_DATABASE_URL }}
+
+    steps:
+      - name: Check both secrets are set
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::NIKIMART_DATABASE_URL is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          if [ -z "$DATA_DATABASE_URL" ]; then
+            echo "::error::DATA_BUNDLES_DATABASE_URL is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Creates the bundle tables in the new database if they are not there yet.
+      # Safe to repeat: each migration runs once and is recorded. It also
+      # re-checks the retail database, which will already be up to date and so
+      # does nothing.
+      - name: Prepare the new database
+        run: npm run db:migrate:deploy
+
+      - name: Count what would be copied
+        if: inputs.mode == 'count'
+        run: node scripts/copy-data-db.mjs --dry-run
+
+      - name: Copy the rows
+        if: inputs.mode == 'copy'
+        run: node scripts/copy-data-db.mjs
+
+      - name: What to do next
+        if: success() && inputs.mode == 'count'
+        run: |
+          echo "Nothing was changed. Read the counts above."
+          echo "If they look right, run this workflow again and choose 'copy'."
+
+      - name: What to do next
+        if: success() && inputs.mode == 'copy'
+        run: |
+          echo "Done. The original database was not touched."
+          echo "Next: set DATA_DATABASE_URL in Vercel to the new database, then redeploy."

@@ -190,18 +190,26 @@ async function copyTable({ name, columns }) {
     log(`${name}: source has no ${missing.join(", ")} — the destination default applies.`);
   }
 
-  const rows = await source.$queryRawUnsafe(
-    `SELECT ${present.map(quote).join(", ")} FROM ${quote(name)}`,
-  );
-
   const already = Number(
     (await dest.$queryRawUnsafe(`SELECT COUNT(*)::int AS n FROM ${quote(name)}`))[0].n,
   );
 
+  // A dry run counts. It used to SELECT every row and then report only how many
+  // there were, which pulled the entire table across the network to print a
+  // number — and on a hosted database that bandwidth is metered and finite. The
+  // point of a dry run is to find out whether to commit to the real transfer,
+  // so it must not cost the same as one.
   if (DRY_RUN) {
-    log(`${name}: ${rows.length} in source, ${already} already in destination.`);
-    return rows.length;
+    const n = Number(
+      (await source.$queryRawUnsafe(`SELECT COUNT(*)::int AS n FROM ${quote(name)}`))[0].n,
+    );
+    log(`${name}: ${n} in source, ${already} already in destination.`);
+    return n;
   }
+
+  const rows = await source.$queryRawUnsafe(
+    `SELECT ${present.map(quote).join(", ")} FROM ${quote(name)}`,
+  );
   if (rows.length === 0) {
     log(`${name}: nothing to copy.`);
     return 0;
@@ -241,15 +249,20 @@ async function copyReferrals() {
     log("DataAgent.referredById: not in the source — no relationships to link.");
     return;
   }
+  if (DRY_RUN) {
+    const n = Number(
+      (await source.$queryRawUnsafe(
+        `SELECT COUNT(*)::int AS n FROM "DataAgent" WHERE "referredById" IS NOT NULL`,
+      ))[0].n,
+    );
+    log(`DataAgent.referredById: ${n} relationships to link.`);
+    return;
+  }
   const rows = await source.$queryRawUnsafe(
     `SELECT "id", "referredById" FROM "DataAgent" WHERE "referredById" IS NOT NULL`,
   );
   if (rows.length === 0) {
     log("DataAgent.referredById: nothing to link.");
-    return;
-  }
-  if (DRY_RUN) {
-    log(`DataAgent.referredById: ${rows.length} relationships to link.`);
     return;
   }
   for (const row of rows) {
