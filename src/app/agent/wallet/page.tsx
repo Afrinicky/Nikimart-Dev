@@ -20,7 +20,11 @@ export const dynamic = "force-dynamic";
 
 const TYPE_LABELS: Record<string, string> = {
   SETUP_FEE: "Setup fee",
+  SETUP_FEE_PAYMENT: "Registration fee paid",
   COMMISSION: "Commission earned",
+  REFERRAL_L1: "Referral reward",
+  REFERRAL_L2: "Second-level referral",
+  TEAM_COMMISSION: "Team commission",
   WITHDRAWAL: "Withdrawal",
   WITHDRAWAL_REVERSAL: "Withdrawal reversed",
   ADJUSTMENT: "Adjustment",
@@ -28,7 +32,14 @@ const TYPE_LABELS: Record<string, string> = {
 
 const TYPE_TONES: Record<string, string> = {
   SETUP_FEE: "bg-niki-gold/15 text-amber-700 ring-1 ring-niki-gold/40",
+  SETUP_FEE_PAYMENT: "bg-niki-gold/15 text-amber-700 ring-1 ring-niki-gold/40",
   COMMISSION: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
+  // Team earnings share the success tone — they are commission by another
+  // route — but keep their own label so the wallet says where each one came
+  // from without anybody having to read the narration.
+  REFERRAL_L1: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
+  REFERRAL_L2: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
+  TEAM_COMMISSION: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
   WITHDRAWAL: "bg-niki-trust/10 text-niki-trust ring-1 ring-niki-trust/30",
   WITHDRAWAL_REVERSAL: "bg-niki-ink/10 text-niki-ink/70 ring-1 ring-niki-ink/20",
   ADJUSTMENT: "bg-niki-ink/10 text-niki-ink/70 ring-1 ring-niki-ink/20",

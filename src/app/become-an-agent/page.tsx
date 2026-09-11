@@ -17,7 +17,11 @@ import { ApplyAgentForm } from "@/components/agent/ApplyAgentForm";
 import { auth } from "@/lib/auth";
 import { siteUrl } from "@/lib/site";
 import { formatPrice } from "@/lib/format";
-import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/settings";
+import {
+  getAgentProgramConfig,
+  getDataStoreConfig,
+  getReferralConfig,
+} from "@/lib/data-bundles/settings";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { getActiveBundles } from "@/lib/data-bundles/catalog";
 import { NETWORK_INFO, bundleLabel } from "@/lib/data-bundles/networks";
@@ -53,9 +57,23 @@ const STEPS = [
   },
 ];
 
-export default async function BecomeAnAgentPage() {
+export default async function BecomeAnAgentPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ ref?: string }>;
+}) {
   const session = await auth();
-  const [program, store] = await Promise.all([getAgentProgramConfig(), getDataStoreConfig()]);
+  const [program, store, referral] = await Promise.all([
+    getAgentProgramConfig(),
+    getDataStoreConfig(),
+    getReferralConfig(),
+  ]);
+
+  // An invite link carries the recruiter's agent code. It only prefills the
+  // field — the code is resolved and checked server-side when the application
+  // is submitted, and again when it is approved, so a link somebody edited
+  // buys nothing.
+  const invitedBy = ((await searchParams)?.ref ?? "").trim().toUpperCase().slice(0, 20);
 
   // Already an agent? There's nothing to pitch — send them to their platform.
   if (session?.user?.id) {
@@ -212,7 +230,12 @@ export default async function BecomeAnAgentPage() {
                   Tell us who you are and what you want your store called. No account or payment
                   needed to apply.
                 </p>
-                <ApplyAgentForm origin={siteUrl()} />
+                <ApplyAgentForm
+                  origin={siteUrl()}
+                  referralCode={invitedBy}
+                  setupFee={program.setupFee}
+                  referralOpen={referral.enabled}
+                />
               </>
             )}
           </div>

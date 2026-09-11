@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
 import { dataDb } from "@/lib/data-db";
 import { requireAdmin } from "@/lib/session";
 import { isNetwork, type Network } from "@/lib/data-bundles/networks";
@@ -66,12 +65,14 @@ export async function saveBundlePrices(
     price: number;
     costPrice: number;
     agentPrice: number;
+    teamCommission: number;
     isActive: boolean;
   }> = [];
   for (const id of ids) {
     const price = num(fd, `price:${id}`);
     const cost = num(fd, `cost:${id}`);
     const agent = num(fd, `agent:${id}`);
+    const team = num(fd, `team:${id}`);
     if (price === null || price < 0) {
       return { error: "Every selling price must be a number of 0 or more." };
     }
@@ -80,6 +81,23 @@ export async function saveBundlePrices(
     }
     if (agent !== null && agent < 0) {
       return { error: "Agent prices can't be negative." };
+    }
+    if (team !== null && team < 0) {
+      return { error: "Team commissions can't be negative." };
+    }
+    // The team commission comes out of Nickimart's margin on the agent price,
+    // not out of the selling agent's own commission. Paying out more than the
+    // margin is a loss on every sale by a recruited agent, which is worth
+    // catching here rather than in the month-end numbers.
+    if (team !== null && team > 0 && agent !== null && agent > 0 && cost !== null && cost > 0) {
+      const margin = Math.round((agent - cost) * 100) / 100;
+      if (team > margin) {
+        return {
+          error:
+            `A team commission of GH₵${team.toFixed(2)} is more than the GH₵${margin.toFixed(2)} ` +
+            "you make on that bundle at the agent price. Lower it, or raise the agent price.",
+        };
+      }
     }
     // Selling to agents below what the bundle costs upstream would mean paying
     // agents to sell — catch it here rather than in the month-end numbers.
@@ -91,12 +109,13 @@ export async function saveBundlePrices(
       price: Math.round(price * 100) / 100,
       costPrice: Math.round((cost ?? 0) * 100) / 100,
       agentPrice: Math.round(Math.max(agent ?? 0, 0) * 100) / 100,
+      teamCommission: Math.round(Math.max(team ?? 0, 0) * 100) / 100,
       isActive: fd.get(`active:${id}`) === "on",
     });
   }
 
   try {
-    await prisma.$transaction(
+    await dataDb.$transaction(
       updates.map((u) =>
         dataDb.dataBundle.update({
           where: { id: u.id },
@@ -104,6 +123,7 @@ export async function saveBundlePrices(
             price: u.price,
             costPrice: u.costPrice,
             agentPrice: u.agentPrice,
+            teamCommission: u.teamCommission,
             isActive: u.isActive,
           },
         }),
@@ -208,7 +228,7 @@ export async function applyMarkup(_prev: DataAdminState, fd: FormData): Promise<
     if (priced.length === 0) {
       return { error: "No cost prices recorded for that network yet, so there's nothing to mark up." };
     }
-    await prisma.$transaction(
+    await dataDb.$transaction(
       priced.map((r) => {
         const retail = Math.ceil(r.costPrice * (1 + markup / 100));
         // Never let the agent price fall below cost, whatever discount is asked

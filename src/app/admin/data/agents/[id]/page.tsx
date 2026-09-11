@@ -5,6 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { BalanceAdjuster } from "@/components/admin/AgentAdminTools";
 import { AgentAccountTools, SetupLinkTool } from "@/components/admin/AgentAccountTools";
+import { ReferrerTool } from "@/components/admin/ReferrerTool";
 import { siteUrl } from "@/lib/site";
 import { formatWhen } from "@/components/agent/AgentUi";
 import { dataDb } from "@/lib/data-db";
@@ -47,6 +48,18 @@ export default async function AdminAgentDetailPage({
   // The person behind the agent lives in the retail database — one extra query
   // rather than an include.
   const agent = { ...row, user: await getAgentUser(row.userId) };
+
+  const [referrer, recruitCount] = await Promise.all([
+    row.referredById
+      ? dataDb.dataAgent
+          .findUnique({
+            where: { id: row.referredById },
+            select: { id: true, code: true, storeName: true },
+          })
+          .catch(() => null)
+      : Promise.resolve(null),
+    dataDb.dataAgent.count({ where: { referredById: row.id } }).catch(() => 0),
+  ]);
 
   const [wallet, ledger, orders, withdrawals] = await Promise.all([
     getAgentWallet(agent),
@@ -209,6 +222,12 @@ export default async function AdminAgentDetailPage({
 
         <div className="space-y-4">
           <BalanceAdjuster agentId={agent.id} />
+
+          <ReferrerTool
+            agentId={agent.id}
+            referrer={referrer ? { code: referrer.code, storeName: referrer.storeName } : null}
+            recruits={recruitCount}
+          />
 
           {/* An agent whose account has no password has never been able to sign
               in — the setup link either was never delivered or has expired. */}

@@ -14,6 +14,12 @@ export interface Bundle {
    * to agents, and it stays off every agent storefront.
    */
   agentPrice: number;
+  /**
+   * What the selling agent's recruiter earns on this bundle (GH₵ per sale).
+   * 0 means the bundle has no amount of its own and the referral programme's
+   * default applies.
+   */
+  teamCommission: number;
   validity: string;
   isActive: boolean;
   order: number;
@@ -56,6 +62,7 @@ function fallbackBundles(): Bundle[] {
     // The starter ladder is a placeholder for the storefront, not a price list
     // to resell from — agents see nothing until an admin sets real numbers.
     agentPrice: 0,
+    teamCommission: 0,
     validity: "No expiry",
     isActive: true,
     order: i,
@@ -69,6 +76,7 @@ function toBundle(row: {
   price: number;
   costPrice: number;
   agentPrice: number;
+  teamCommission: number;
   validity: string;
   isActive: boolean;
   order: number;

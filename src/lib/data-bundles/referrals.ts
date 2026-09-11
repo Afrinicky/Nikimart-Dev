@@ -669,6 +669,116 @@ export async function getTeamSummary(agent: { id: string; code: string }): Promi
   };
 }
 
+/**
+ * The admin's view of the programme: who is recruiting, and what it has cost.
+ *
+ * One row per agent that has either recruited somebody or been recruited, so a
+ * console that would otherwise list every agent twice over shows only the part
+ * of the roster the programme actually touches.
+ */
+export interface ReferralOverviewRow {
+  id: string;
+  code: string;
+  storeName: string;
+  status: string;
+  /** Who recruited them, if anyone. */
+  referrerCode: string | null;
+  referrerName: string | null;
+  /** Whether their own registration fee has been paid — i.e. whether it paid out. */
+  registrationPaid: boolean;
+  registrationMethod: string;
+  directRecruits: number;
+  referralEarnings: number;
+  teamSalesEarnings: number;
+}
+
+export interface ReferralOverview {
+  rows: ReferralOverviewRow[];
+  /** Agents with a referrer whose fee has not been paid — nothing owed on them yet. */
+  awaitingRegistration: number;
+  totalRewardsPaid: number;
+  totalTeamCommissionPaid: number;
+  /** Team commission on delivered orders that has not been credited yet. */
+  pendingTeamCommission: number;
+}
+
+export async function getReferralOverview(take = 100): Promise<ReferralOverview> {
+  const agents = await dataDb.dataAgent
+    .findMany({
+      where: { OR: [{ referredById: { not: null } }, { recruits: { some: {} } }] },
+      select: {
+        id: true, code: true, storeName: true, status: true,
+        setupFeePaidAt: true, setupFeeMethod: true, referredById: true,
+        _count: { select: { recruits: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take,
+    })
+    .catch((): [] => []);
+
+  const referrerIds = [...new Set(agents.map((a) => a.referredById).filter((id): id is string => Boolean(id)))];
+
+  const [referrers, earnings, pending] = await Promise.all([
+    referrerIds.length
+      ? dataDb.dataAgent
+          .findMany({ where: { id: { in: referrerIds } }, select: { id: true, code: true, storeName: true } })
+          .catch((): [] => [])
+      : Promise.resolve([] as never[]),
+    dataDb.dataAgentLedger
+      .groupBy({
+        by: ["agentId", "type"],
+        where: {
+          agentId: { in: agents.map((a) => a.id) },
+          type: { in: ["REFERRAL_L1", "REFERRAL_L2", "TEAM_COMMISSION"] },
+        },
+        _sum: { amount: true },
+      })
+      .catch((): Array<{ agentId: string; type: string; _sum: { amount: number | null } }> => []),
+    dataDb.dataOrder
+      .aggregate({
+        where: { teamCommissionStatus: "pending", paymentStatus: "paid" },
+        _sum: { teamCommission: true },
+      })
+      .catch(() => ({ _sum: { teamCommission: 0 } })),
+  ]);
+
+  const byReferrer = new Map(referrers.map((r) => [r.id, r]));
+  const earned = new Map<string, { rewards: number; team: number }>();
+  for (const row of earnings) {
+    const current = earned.get(row.agentId) ?? { rewards: 0, team: 0 };
+    const amount = row._sum.amount ?? 0;
+    if (row.type === "TEAM_COMMISSION") current.team += amount;
+    else current.rewards += amount;
+    earned.set(row.agentId, current);
+  }
+
+  const rows: ReferralOverviewRow[] = agents.map((a) => {
+    const referrer = a.referredById ? byReferrer.get(a.referredById) : null;
+    const e = earned.get(a.id) ?? { rewards: 0, team: 0 };
+    return {
+      id: a.id,
+      code: a.code,
+      storeName: a.storeName,
+      status: a.status,
+      referrerCode: referrer?.code ?? null,
+      referrerName: referrer?.storeName ?? null,
+      registrationPaid: Boolean(a.setupFeePaidAt),
+      registrationMethod: a.setupFeeMethod,
+      directRecruits: a._count.recruits,
+      referralEarnings: round2(e.rewards),
+      teamSalesEarnings: round2(e.team),
+    };
+  });
+
+  return {
+    rows,
+    awaitingRegistration: rows.filter((r) => r.referrerCode && !r.registrationPaid).length,
+    totalRewardsPaid: round2(rows.reduce((sum, r) => sum + r.referralEarnings, 0)),
+    totalTeamCommissionPaid: round2(rows.reduce((sum, r) => sum + r.teamSalesEarnings, 0)),
+    pendingTeamCommission: round2(pending._sum.teamCommission ?? 0),
+  };
+}
+
 // The pure rules live in referral-rules.ts so they can be tested directly.
 // Re-exported here so callers have one import for the whole programme.
 export { referralLink, referralRewardsLine, saleQualifies } from "@/lib/data-bundles/referral-rules";

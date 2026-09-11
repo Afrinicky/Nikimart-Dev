@@ -138,6 +138,20 @@ export default async function AdminAgentsPage({
                   </time>
                 </div>
 
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  {a.referralCode ? (
+                    <span className="rounded-full bg-niki-orange/10 px-3 py-1 font-semibold text-niki-orange">
+                      Referred by <span className="font-mono">{a.referralCode}</span>
+                      {a.referrerId ? "" : " · code didn't resolve"}
+                    </span>
+                  ) : null}
+                  <span className="rounded-full bg-niki-ink/5 px-3 py-1 font-semibold text-niki-ink/60">
+                    {a.feeMethod === "UPFRONT"
+                      ? "Will pay the registration fee up front"
+                      : "Registration fee from commission"}
+                  </span>
+                </div>
+
                 {a.note ? (
                   <p className="mt-3 rounded-xl bg-niki-surface px-4 py-3 text-sm leading-relaxed text-niki-ink/70">
                     {a.note}

@@ -13,20 +13,35 @@ import {
   type SlugCheck,
 } from "@/lib/data-bundles/agent-application-actions";
 import { cn } from "@/lib/cn";
+import { formatMoney as money } from "@/lib/format";
 import { FormFeedback } from "@/components/ui/FormFeedback";
 
 /**
  * Applying to become an agent.
  *
- * Four things: who you are, how to reach you, and the store name you want. No
- * password — the account doesn't exist until an admin approves the application,
- * and approval sends a one-time link for choosing one.
+ * Who you are, how to reach you, the store name you want, and — if somebody
+ * recruited you — their agent code. No password: the account doesn't exist
+ * until an admin approves the application, and approval sends a one-time link
+ * for choosing one.
  *
  * The store name is checked as it's typed, because it is the one field that can
  * be refused for a reason the applicant can do something about, and finding
  * that out after submitting is a wasted round trip.
  */
-export function ApplyAgentForm({ origin }: { origin: string }) {
+export function ApplyAgentForm({
+  origin,
+  referralCode = "",
+  setupFee,
+  referralOpen,
+}: {
+  origin: string;
+  /** Prefilled from ?ref= on an invite link, and still editable. */
+  referralCode?: string;
+  /** What it costs to open a store. 0 means there is no fee to choose about. */
+  setupFee: number;
+  /** False when the programme is closed — the code field is then pointless. */
+  referralOpen: boolean;
+}) {
   const [state, formAction] = useActionState<ApplyState, FormData>(applyToBeAgent, {});
   const [storeName, setStoreName] = useState("");
   // The last verdict, tagged with the text it was for — see below.
@@ -173,6 +188,41 @@ export function ApplyAgentForm({ origin }: { origin: string }) {
           )}
         </p>
       </div>
+
+      {referralOpen ? (
+        <Field
+          label="Referral code"
+          htmlFor="referralCode"
+          hint="Optional — the agent code of whoever told you about Nickimart. It's how they get credited, and it can't be added once your account is trading."
+        >
+          <input
+            id="referralCode"
+            name="referralCode"
+            defaultValue={referralCode}
+            maxLength={20}
+            autoCapitalize="characters"
+            placeholder="e.g. NKM4821"
+            className={`${inputClass} font-mono uppercase`}
+          />
+        </Field>
+      ) : null}
+
+      {setupFee > 0 ? (
+        <Field
+          label="Registration fee"
+          htmlFor="feeMethod"
+          hint={`Opening a store costs ${money(setupFee)}. Either way there is nothing to pay before you're approved.`}
+        >
+          <select id="feeMethod" name="feeMethod" defaultValue="BALANCE" className={inputClass}>
+            <option value="BALANCE">
+              Take it from my commission — start selling with nothing to pay
+            </option>
+            <option value="UPFRONT">
+              I&apos;ll pay {money(setupFee)} up front once I&apos;m approved
+            </option>
+          </select>
+        </Field>
+      ) : null}
 
       <Field
         label="Anything else?"

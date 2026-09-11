@@ -23,7 +23,9 @@ export default async function AdminBundlePricesPage() {
         <h1 className="font-display text-2xl font-bold text-niki-ink">Bundle prices</h1>
         <p className="mt-1 text-sm text-niki-ink/60">
           Three prices per size: what the provider charges you, what your sub-agents pay, and what
-          a walk-in buyer pays. Both margins are worked out for you as you type.
+          a walk-in buyer pays. Both margins are worked out for you as you type. The fourth column
+          is the team commission — what an agent&apos;s recruiter earns each time they sell this
+          bundle, paid out of your margin on the agent price.
         </p>
       </div>
 
@@ -66,6 +68,7 @@ export default async function AdminBundlePricesPage() {
               price: b.price,
               costPrice: b.costPrice,
               agentPrice: b.agentPrice,
+              teamCommission: b.teamCommission,
               isActive: b.isActive,
             }))}
           />
