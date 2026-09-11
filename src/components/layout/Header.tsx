@@ -1,15 +1,14 @@
 import Link from "next/link";
-import { ClipboardList, HelpCircle, Plane, Store, User } from "lucide-react";
+import { ClipboardList, HelpCircle, Plane } from "lucide-react";
 import { SearchBar } from "./SearchBar";
 import { LocationSelector } from "./LocationSelector";
 import { SidebarNav } from "./SidebarNav";
+import { AccountLink, RoleOrSellButton } from "./AccountActions";
 import { CartBadge } from "@/components/cart/CartBadge";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { Container } from "@/components/ui/Container";
-import { auth } from "@/lib/auth";
 import { getCategories } from "@/lib/catalog";
 import { getSettings } from "@/lib/settings";
-import { isRole, ROLE_HOME, ROLE_LABELS } from "@/lib/roles";
 
 /** Icon-over-label header actions all share this. */
 const ACTION =
@@ -31,29 +30,18 @@ const ACTION =
  * slides over the page with nothing between the two.
  */
 export async function Header() {
-  // NOTE: this `auth()` is why nothing on the site can be cached.
-  //
-  // Reading the session reads cookies, and a dynamic API anywhere in the tree
-  // makes the whole route dynamic — and this header is in the root layout, so
-  // that is every page. `export const revalidate` on the catalogue pages is
-  // inert until this changes.
-  //
-  // It is used for three small things: where "Account" links, whether it reads
-  // "Account" or "Sign in", and an isAuthed flag. Moving those into a small
-  // client island (with a SessionProvider) would let every public page be
-  // cached, at the cost of the signed-in state resolving a moment after first
-  // paint. That is a visible change to every page, so it is a decision to make
-  // deliberately rather than a side effect of a performance fix.
-  const [session, categories, settings] = await Promise.all([auth(), getCategories(), getSettings()]);
-  const role = session?.user && isRole(session.user.role) ? session.user.role : null;
-  const accountHref = role ? ROLE_HOME[role] : "/login";
-  const accountLabel = session?.user ? "Account" : "Sign in";
+  // No session read here, deliberately. The account link and the role chip are
+  // client islands (see AccountActions) because reading the session on the
+  // server reads cookies, and one dynamic API in the root layout makes every
+  // route on the site dynamic — which is what stopped any page being cached.
+
+  const [categories, settings] = await Promise.all([getCategories(), getSettings()]);
   const sidebarCategories = categories.map((c) => ({ slug: c.slug, name: c.name, icon: c.icon }));
 
   return (
     <header className="niki-header-edge sticky top-0 z-50 bg-white">
       <Container className="flex items-center gap-2 py-3 sm:gap-4">
-        <SidebarNav accountHref={accountHref} accountLabel={accountLabel} isAuthed={Boolean(session?.user)} categories={sidebarCategories} logoSrc={settings.logoUrl} dataBundlesUrl={settings.dataBundlesUrl} />
+        <SidebarNav categories={sidebarCategories} logoSrc={settings.logoUrl} dataBundlesUrl={settings.dataBundlesUrl} />
 
         <Link href="/" className="flex shrink-0 items-center gap-2" aria-label="Nickimart home">
           <BrandLogo className="h-8 w-auto text-niki-orange" src={settings.logoUrl} />
@@ -98,10 +86,7 @@ export async function Header() {
 
           {/* Hidden on phones: the bottom nav already has Account, and three
               icon buttons plus the wordmark do not fit a 320px screen. */}
-          <Link href={accountHref} className={`hidden sm:flex ${ACTION}`} aria-label={accountLabel}>
-            <User className="h-5 w-5" />
-            <span className="hidden whitespace-nowrap text-[10px] font-medium sm:block">{accountLabel}</span>
-          </Link>
+          <AccountLink className={`hidden sm:flex ${ACTION}`} />
 
           <Link href="/orders" className={ACTION} aria-label="Orders">
             <ClipboardList className="h-5 w-5" />
@@ -110,22 +95,7 @@ export async function Header() {
 
           <CartBadge />
 
-          {role && role !== "CUSTOMER" ? (
-            <Link
-              href={accountHref}
-              className="ml-1 hidden shrink-0 items-center gap-1.5 rounded-full bg-niki-ink/5 px-4 py-2 text-sm font-semibold text-niki-ink ring-1 ring-niki-edge transition-colors hover:bg-niki-ink/10 lg:flex"
-            >
-              {ROLE_LABELS[role]}
-            </Link>
-          ) : (
-            <Link
-              href="/sell"
-              className="niki-press ml-1 hidden shrink-0 items-center gap-1.5 rounded-full bg-niki-orange px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-niki-orange-light sm:flex"
-            >
-              <Store className="h-4 w-4" />
-              Sell on Nickimart
-            </Link>
-          )}
+          <RoleOrSellButton />
         </div>
       </Container>
 

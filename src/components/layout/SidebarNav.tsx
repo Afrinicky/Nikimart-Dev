@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { ICON_MAP } from "@/lib/icon-map";
 import { isExternalStoreLink } from "@/lib/data-bundles/store-link";
+import { useAccount } from "./useAccount";
 import {
   BadgeCheck,
   ClipboardList,
@@ -61,20 +62,15 @@ const SECTIONS: { title: string; items: Item[] }[] = [
 ];
 
 export function SidebarNav({
-  accountHref,
-  accountLabel,
-  isAuthed,
   categories = [],
   logoSrc,
   dataBundlesUrl,
 }: {
-  accountHref: string;
-  accountLabel: string;
-  isAuthed: boolean;
   categories?: SidebarCategory[];
   logoSrc?: string;
   dataBundlesUrl?: string;
 }) {
+  const account = useAccount();
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -142,12 +138,14 @@ export function SidebarNav({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
+          {/* Who is signed in is resolved in the browser — see useAccount. It
+              is why every page on the site can be cached. */}
           <Link
-            href={accountHref}
+            href={account.href}
             className="mb-3 flex items-center gap-3 rounded-xl bg-niki-surface px-4 py-3 text-sm font-semibold text-niki-ink"
           >
-            {isAuthed ? <LayoutDashboard className="h-5 w-5 text-niki-orange" /> : <LogIn className="h-5 w-5 text-niki-orange" />}
-            {isAuthed ? accountLabel : "Sign in / Register"}
+            {account.isAuthed ? <LayoutDashboard className="h-5 w-5 text-niki-orange" /> : <LogIn className="h-5 w-5 text-niki-orange" />}
+            {account.isAuthed ? account.label : "Sign in / Register"}
           </Link>
 
           <div className="mb-3 grid grid-cols-2 gap-2">
