@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
-import { SETTING_KEYS } from "@/lib/settings";
+import { SETTING_KEYS, SETTINGS_TAG } from "@/lib/settings";
 import type { CrudState } from "@/lib/admin-actions";
 
 export type SettingsState = { ok?: boolean; error?: string; fieldErrors?: Record<string, string> };
@@ -14,6 +14,9 @@ function str(fd: FormData, key: string): string {
 }
 
 function revalidateChrome() {
+  // The stored rows are cached across requests, so the tag has to be dropped
+  // too — the paths below would otherwise re-render against a stale read.
+  updateTag(SETTINGS_TAG);
   // The footer + help are rendered on many pages; revalidate broadly.
   revalidatePath("/", "layout");
   revalidatePath("/help");

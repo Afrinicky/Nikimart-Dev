@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { dataDb } from "@/lib/data-db";
 import { NETWORKS, type Network } from "@/lib/data-bundles/networks";
 
@@ -84,13 +85,30 @@ function toBundle(row: {
   return { ...row, network: row.network as Network };
 }
 
-/** Bundles buyers can see, cheapest size first, grouped by network downstream. */
-export const getActiveBundles = cache(async (): Promise<Bundle[]> => {
-  try {
-    const rows = await dataDb.dataBundle.findMany({
+/** Cache tag for the buyable bundle ladder. Any bundle write must drop it. */
+export const BUNDLES_TAG = "data-bundles";
+
+const readActiveBundles = unstable_cache(
+  async () =>
+    dataDb.dataBundle.findMany({
       where: { isActive: true, price: { gt: 0 } },
       orderBy: [{ order: "asc" }, { sizeGb: "asc" }],
-    });
+    }),
+  ["data-bundles-active"],
+  { tags: [BUNDLES_TAG], revalidate: 60 },
+);
+
+/**
+ * Bundles buyers can see, cheapest size first, grouped by network downstream.
+ *
+ * Cached across requests, not just per render: the store is the busiest page
+ * the agents have, and it was re-reading the whole ladder on every view. The
+ * window is short and every admin write drops the tag outright, so a price
+ * change is live immediately rather than a minute later.
+ */
+export const getActiveBundles = cache(async (): Promise<Bundle[]> => {
+  try {
+    const rows = await readActiveBundles();
     if (rows.length) return rows.map(toBundle);
   } catch {
     // DataBundle table not migrated yet — show the starter ladder instead of

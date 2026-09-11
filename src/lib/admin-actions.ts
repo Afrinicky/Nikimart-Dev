@@ -1,11 +1,12 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { dataDb } from "@/lib/data-db";
+import { CATEGORIES_TAG } from "@/lib/catalog";
 import { requireAdmin } from "@/lib/session";
 import { ROLES } from "@/lib/roles";
 import { buildProductData, parseImages, validateProduct } from "@/lib/product-form";
@@ -60,6 +61,8 @@ function zodErrors(error: z.ZodError): CrudState {
 }
 
 function revalidateCatalog() {
+  // The header's category list is cached across requests; drop it by tag.
+  updateTag(CATEGORIES_TAG);
   revalidatePath("/");
   revalidatePath("/products");
   revalidatePath("/shops");

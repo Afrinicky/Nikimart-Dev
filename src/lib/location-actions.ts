@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+import { LOCATIONS_TAG } from "@/lib/locations";
 import type { CrudState } from "@/lib/admin-actions";
 
 const TYPES = ["city", "town", "campus", "institution", "community"];
@@ -26,6 +27,8 @@ function data(fd: FormData) {
 }
 
 function revalidateLocations() {
+  // The storefront list is cached across requests; drop it by tag as well.
+  updateTag(LOCATIONS_TAG);
   revalidatePath("/", "layout");
   revalidatePath("/admin/locations");
 }

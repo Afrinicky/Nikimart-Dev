@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { locations as STATIC_LOCATIONS } from "@/lib/mock-data";
 import type { Location, LocationType } from "@/lib/types";
@@ -9,12 +10,21 @@ import type { Location, LocationType } from "@/lib/types";
  * places). Reads from the DB, falling back to the built-in list when the table
  * is empty or not migrated yet.
  */
-export const getLocations = cache(async (): Promise<Location[]> => {
-  try {
-    const rows = await prisma.location.findMany({
+export const LOCATIONS_TAG = "locations";
+
+const readLocations = unstable_cache(
+  async () =>
+    prisma.location.findMany({
       where: { OR: [{ isActive: true }, { id: "any" }] },
       orderBy: [{ order: "asc" }, { name: "asc" }],
-    });
+    }),
+  ["locations"],
+  { tags: [LOCATIONS_TAG], revalidate: 300 },
+);
+
+export const getLocations = cache(async (): Promise<Location[]> => {
+  try {
+    const rows = await readLocations();
     if (rows.length) {
       return rows.map((r) => ({
         id: r.id,
