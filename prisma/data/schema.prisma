@@ -1,0 +1,544 @@
+// Nickimart — Data Bundles database.
+//
+// The bundle business runs on its own Postgres database, separate from the
+// retail mall. Everything that belongs to it lives here: the price ladder,
+// bundle and AFA orders, the whole sub-agent platform (accounts, prices,
+// ledger, withdrawals, applications, referrals) and the settings its admin
+// console reads. The mall's database keeps users, products and shipping and
+// knows nothing about any of it.
+//
+// Why separate: the two businesses fail, grow and get restored independently.
+// A bundle price edit should never contend with a Black Friday checkout, and a
+// restore of one side should never roll the other side back.
+//
+// The one thing that crosses the line is identity. An agent signs in with a
+// Nickimart account, so `DataAgent.userId` holds a `User.id` from the mall
+// database — as a plain, indexed column, not a foreign key, because Postgres
+// cannot enforce a reference into another database. Code that needs the person
+// behind an agent reads the agent here and then looks the user up there; the
+// helpers in src/lib/data-bundles/user-link.ts do exactly that, in one round
+// trip for a whole page of rows.
+//
+// DATA_DATABASE_URL points at that database. When it isn't set the client
+// falls back to DATABASE_URL, so an environment that hasn't been split yet
+// keeps working exactly as before (see src/lib/data-db.ts).
+
+generator client {
+  provider = "prisma-client-js"
+  // Its own output directory: two clients generated to the same default path
+  // would overwrite each other, and the second `prisma generate` would leave
+  // the app importing the wrong schema's types.
+  output   = "../../node_modules/.prisma/data-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATA_DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Bundles and orders — fulfilled through the Justice Datashop agent API.
+// ---------------------------------------------------------------------------
+
+// One sellable bundle: a size on a network, at the price NikiMart charges.
+// `costPrice` is what the upstream agent account is billed, so the admin can
+// see the margin on every row. Prices are GH₵ (the provider quotes pesewas).
+model DataBundle {
+  id         String   @id @default(cuid())
+  // MTN | TELECEL | AIRTELTIGO_ISHARE | AIRTELTIGO_BIGTIME (see lib/data-bundles/networks.ts).
+  network    String
+  // Volume in GB, as sent to the provider's `size` field.
+  sizeGb     Float
+  // Selling price shown on the storefront (GH₵).
+  price      Float
+  // Upstream cost (GH₵). 0 when unknown — margin is then just not shown.
+  costPrice  Float    @default(0)
+  // What NikiMart charges its own sub-agents for this bundle (GH₵). It is the
+  // agent's cost basis: their commission on a storefront sale is whatever they
+  // charge above this. 0 means "not resold to agents", and the bundle is then
+  // hidden from agent storefronts. Set it in Admin → Data → Bundle prices.
+  agentPrice Float    @default(0)
+  // What the *recruiter* of the selling agent earns when this bundle is sold
+  // by one of their direct recruits (GH₵ per sale). It comes out of Nickimart's
+  // margin, not out of the selling agent's commission, so it is set per bundle
+  // here in Admin → Data bundles → Bundle prices rather than derived from a
+  // percentage somewhere else. 0 means "use the programme default" (see the
+  // referralTeamCommission settings); set the default to 0 as well to pay
+  // nothing on this bundle.
+  teamCommission Float @default(0)
+  // Optional marketing line, e.g. "No expiry · instant delivery".
+  validity   String   @default("No expiry")
+  isActive   Boolean  @default(true)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([network, sizeGb])
+  @@index([network, isActive])
+}
+
+// A single bundle purchase. Guests can buy (no account needed), so `userId` is
+// optional and the buyer is identified by phone.
+model DataOrder {
+  id        String @id @default(cuid())
+  // Doubles as the Paystack transaction reference (ND-…), so it must be unique.
+  reference String @unique
+
+  network        String
+  sizeGb         Float
+  // Price charged and upstream cost, snapshotted at purchase time so later
+  // price edits never rewrite past orders or the profit report.
+  price          Float
+  costPrice      Float   @default(0)
+  // Local Ghana number the data is credited to (0XXXXXXXXX).
+  recipientPhone String
+  // Who bought it — for the receipt SMS and order lookup.
+  buyerPhone     String
+  buyerEmail     String?
+  buyerName      String?
+
+  // pending | paid | processing | completed | failed | refunded
+  status        String    @default("pending")
+  // unpaid | paid — payment is separate from delivery, so a paid-but-undelivered
+  // order is visible to the admin as exactly that.
+  paymentStatus String    @default("unpaid")
+  paidAt        DateTime?
+
+  // Upstream (Justice Datashop) references, filled in once dispatched.
+  providerOrderId String?
+  providerCode    String?
+  providerStatus  String?
+  providerMessage String?
+  dispatchedAt    DateTime?
+  completedAt     DateTime?
+
+  // --- Sub-agent attribution ------------------------------------------------
+  // Set when the sale came through an agent: either their public storefront or
+  // the Data Topup screen inside their own dashboard.
+  agentId          String?
+  agent            DataAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  // WEB | STOREFRONT | AGENT — where the order was placed. WEB is NikiMart's
+  // own /data-bundles storefront.
+  source           String     @default("WEB")
+  // The agent price in force when the order was placed (the agent's cost), and
+  // the commission they earn on it. Both are snapshotted so a later price edit
+  // never rewrites what was owed.
+  agentCost        Float      @default(0)
+  agentCommission  Float      @default(0)
+  // pending | earned | void. Commission is only credited once the bundle has
+  // actually been delivered, so a failed order never pays out.
+  commissionStatus String     @default("pending")
+  commissionPaidAt DateTime?
+
+  // --- Team-sales commission (the selling agent's recruiter) ----------------
+  // The agent who recruited the selling agent, and what they earn on this sale.
+  // Both are snapshotted at purchase, exactly like the selling agent's own
+  // numbers, so changing the rate or the referral later never rewrites what was
+  // owed. Only the direct recruiter earns: the programme is two levels deep for
+  // *recruitment* rewards and one level deep for sales.
+  teamAgentId          String?
+  teamAgent            DataAgent? @relation("TeamUpline", fields: [teamAgentId], references: [id], onDelete: SetNull)
+  teamCommission       Float      @default(0)
+  // pending | earned | void — same lifecycle as the selling agent's.
+  teamCommissionStatus String     @default("pending")
+  teamCommissionPaidAt DateTime?
+
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([buyerPhone])
+  @@index([recipientPhone])
+  @@index([status])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([agentId, createdAt])
+  @@index([teamAgentId, createdAt])
+}
+
+// An AFA (agent SIM) registration sold through the storefront and submitted to
+// the provider once paid.
+model AfaRegistration {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  fullName    String
+  phoneNumber String
+  idNumber    String
+  dateOfBirth String
+  town        String
+  occupation  String
+
+  price         Float
+  // pending | paid | processing | completed | failed
+  status        String    @default("pending")
+  paymentStatus String    @default("unpaid")
+  paidAt        DateTime?
+
+  providerId      String?
+  providerStatus  String?
+  providerMessage String?
+  dispatchedAt    DateTime?
+  completedAt     DateTime?
+
+  // Sub-agent attribution, exactly as on DataOrder.
+  agentId          String?
+  agent            DataAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  source           String     @default("WEB")
+  agentCost        Float      @default(0)
+  agentCommission  Float      @default(0)
+  commissionStatus String     @default("pending")
+  commissionPaidAt DateTime?
+
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([phoneNumber])
+  @@index([status])
+  @@index([createdAt])
+  @@index([agentId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Sub-agent platform — NikiMart resells to its own agents exactly as Justice
+// Datashop resells to NikiMart. An agent opens a storefront, sets their own
+// retail prices on top of the agent price NikiMart charges them, and earns the
+// difference as commission once each order is delivered.
+//
+// Agents never stock a wallet: every sale is paid by the customer through
+// Paystack at the moment of purchase. The only money that moves into an agent
+// account is commission, and the only money out is a MoMo withdrawal.
+// ---------------------------------------------------------------------------
+
+model DataAgent {
+  id     String @id @default(cuid())
+  /**
+   * The `User.id` of the Nickimart account this agent signs in with. It lives
+   * in the retail database, so this is a plain indexed column rather than a
+   * foreign key — Postgres cannot reference across databases. Resolve it with
+   * the helpers in lib/data-bundles/user-link.ts.
+   */
+  userId String @unique
+
+  // Human-friendly agent code, e.g. "NKM4821" — shown on the dashboard and
+  // quoted in support.
+  code String @unique
+
+  // The storefront. `slug` is the public path segment: /store/<slug>.
+  slug         String  @unique
+  storeName    String
+  // Short line under the store name on the public storefront.
+  storeTagline String  @default("")
+  storeAbout   String  @default("")
+  // "open" hides nothing; "closed" shows a closed notice instead of the grid.
+  storeOpen    Boolean @default(true)
+
+  supportPhone    String @default("")
+  supportWhatsapp String @default("")
+  whatsappGroup   String @default("")
+
+  // The agent's own AFA registration price. 0 means "use NikiMart's price"
+  // (and earn nothing on it); afaEnabled hides AFA from their storefront.
+  afaPrice   Float   @default(0)
+  afaEnabled Boolean @default(true)
+
+  // active | suspended. A suspended agent keeps their balance and history but
+  // their storefront stops selling and they stop earning.
+  status String @default("active")
+
+  // Running balance in GH₵. Opens negative — the storefront setup fee is
+  // charged the moment the store is created — and climbs back through zero as
+  // commissions land. Only a positive balance can be withdrawn.
+  balance  Float @default(0)
+  // What the store cost to open, kept for the ledger narration and for the
+  // "still to clear" line on the wallet.
+  setupFee Float @default(0)
+
+  // --- Registration fee -----------------------------------------------------
+  // How the registration fee is being settled, chosen by the applicant when
+  // they apply:
+  //   BALANCE — debited on approval; the account opens negative and clears
+  //             itself out of commission (the original behaviour).
+  //   UPFRONT — the agent pays it through Paystack before the store opens.
+  //   WAIVED  — an admin set the fee to zero for this agent.
+  // This drives one thing beyond narration: referral rewards are released only
+  // once the fee has actually been *paid*, and a waived fee never pays anyone.
+  setupFeeMethod String    @default("BALANCE")
+  // When the fee was settled in full — the moment referral rewards become
+  // payable. Null while it is still outstanding, and null forever if waived.
+  setupFeePaidAt DateTime?
+  // Paystack reference for an upfront payment, so it can be verified and never
+  // credited twice.
+  setupFeeReference String?
+
+  // --- Referral -------------------------------------------------------------
+  /**
+   * The agent who recruited this one — their direct (level 1) upline. Set once,
+   * when the account is created from an application that quoted a referral
+   * code, and never changed after activation: `referralLockedAt` records when
+   * it became permanent. Level 2 is this agent's referrer's referrer, walked at
+   * read time; the programme stops there.
+   */
+  referredById    String?
+  referredBy      DataAgent?  @relation("AgentReferral", fields: [referredById], references: [id], onDelete: SetNull)
+  recruits        DataAgent[] @relation("AgentReferral")
+  /**
+   * When the referral relationship became permanent. Once set, nothing — not
+   * even an admin — may point this agent at a different referrer.
+   */
+  referralLockedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prices      DataAgentPrice[]
+  ledger      DataAgentLedger[]
+  withdrawals DataAgentWithdrawal[]
+  orders      DataOrder[]
+  afa         AfaRegistration[]
+  // Ledger rows this agent's own activity *paid someone else* — their upline's
+  // referral and team-sales commissions.
+  earnedFor   DataAgentLedger[]     @relation("LedgerSourceAgent")
+  teamOrders  DataOrder[]           @relation("TeamUpline")
+
+  @@index([status])
+  @@index([referredById])
+  @@index([setupFeePaidAt])
+}
+
+// An agent's own retail price for one bundle. Absent = the agent sells that
+// bundle at NikiMart's agent price (zero commission) — present and inactive =
+// the bundle is hidden from their storefront entirely.
+model DataAgentPrice {
+  id      String    @id @default(cuid())
+  agentId String
+  agent   DataAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  network  String
+  sizeGb   Float
+  // What the agent charges their customer (GH₵). Must be ≥ the agent price.
+  price    Float
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([agentId, network, sizeGb])
+  @@index([agentId, isActive])
+}
+
+// Every movement on an agent's balance, newest first on the wallet screen.
+// Balances are only ever changed by writing one of these rows, so the ledger
+// and the balance can always be reconciled against each other.
+model DataAgentLedger {
+  id      String    @id @default(cuid())
+  agentId String
+  agent   DataAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  // SETUP_FEE | SETUP_FEE_PAYMENT | COMMISSION | REFERRAL_L1 | REFERRAL_L2 |
+  // TEAM_COMMISSION | WITHDRAWAL | WITHDRAWAL_REVERSAL | ADJUSTMENT
+  type         String
+  // Signed GH₵: negative debits the agent, positive credits them.
+  amount       Float
+  // Balance after this entry was applied, so history never has to be replayed.
+  balanceAfter Float
+  narration    String  @default("")
+  // The order / withdrawal / admin action this entry came from.
+  reference    String?
+
+  // --- Referral and team earnings ------------------------------------------
+  /**
+   * The agent whose activity produced this entry: the recruit whose
+   * registration fee was paid, or the downline agent who made the sale. Null on
+   * everything an agent earned themselves. It is what makes a referral credit
+   * traceable back to its source rather than just a line of narration.
+   */
+  sourceAgentId String?
+  sourceAgent   DataAgent? @relation("LedgerSourceAgent", fields: [sourceAgentId], references: [id], onDelete: SetNull)
+  /**
+   * Which referral level paid this: 1 for a direct recruit, 2 for a recruit's
+   * recruit. Null when the entry has nothing to do with the referral programme.
+   */
+  referralLevel Int?
+  /**
+   * The one thing that makes a commission payable exactly once.
+   *
+   * Every automatic credit derives a key from what it is paying for —
+   * "REFERRAL_L1:<recruit id>", "TEAM_COMMISSION:<order id>" — and the unique
+   * index refuses the second write. Guarded status flips already stop the
+   * ordinary races; this stops the extraordinary ones too (a retry that lands
+   * after a status was reset by hand, two sweeps on two instances), because the
+   * database, not the code path, is what says no.
+   */
+  dedupeKey String? @unique
+
+  createdAt DateTime @default(now())
+
+  @@index([agentId, createdAt])
+  @@index([reference])
+  @@index([agentId, type, createdAt])
+  @@index([sourceAgentId])
+}
+
+// A commission withdrawal to MoMo. Admins process these by hand from the
+// data console, exactly as Justice does.
+model DataAgentWithdrawal {
+  id      String    @id @default(cuid())
+  agentId String
+  agent   DataAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  // What the agent receives on MoMo.
+  amount Float
+  // Flat platform fee added on top and debited with the payout.
+  fee    Float @default(0)
+
+  momoPhone   String
+  momoName    String
+  momoNetwork String
+
+  // pending | processed | rejected
+  status      String    @default("pending")
+  adminNote   String    @default("")
+  processedBy String?
+  processedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentId, createdAt])
+  @@index([status])
+}
+
+// Broadcast announcements shown to agents (Justice's Notifications screen).
+model DataAnnouncement {
+  id       String  @id @default(cuid())
+  title    String
+  body     String
+  // info | warning | success — drives the accent on the notice card.
+  tone     String  @default("info")
+  isActive Boolean @default(true)
+  // Pinned notices sort above the rest regardless of date.
+  isPinned Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, createdAt])
+}
+
+// A callback request raised from the agent Support screen.
+model DataSupportRequest {
+  id       String  @id @default(cuid())
+  agentId  String?
+  fullName String
+  phone    String
+  language String  @default("English")
+  message  String
+
+  // open | resolved
+  status     String    @default("open")
+  adminNote  String    @default("")
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
+}
+
+/**
+ * An application to become an agent.
+ * Signup is an application, not an instant account: someone gives their name,
+ * contact, email and the store name they want, and an admin approves it. That
+ * ordering matters — the store slug is a public URL and the agent's identity to
+ * their customers, so it gets a human look before it exists, and NikiMart
+ * chooses who resells under its name.
+ * Approving provisions the User and the DataAgent and issues a one-time setup
+ * link, so no password is collected here — nothing worth stealing sits in this
+ * table while it waits.
+ */
+model DataAgentApplication {
+  id String @id @default(cuid())
+
+  fullName    String
+  phone       String
+  email       String
+  /**
+   * The store name they typed, exactly as they typed it.
+   */
+  storeName   String @default("")
+  /**
+   * The store link they asked for, already normalised.
+   */
+  desiredSlug String
+  /**
+   * Optional note from the applicant.
+   */
+  note        String @default("")
+  /**
+   * The agent code the applicant typed, if they were recruited by an existing
+   * agent — stored exactly as given so an admin can see what was claimed even
+   * when it turns out to be a typo. The relationship itself is only created on
+   * approval, once the code has been resolved to a live agent.
+   */
+  referralCode String @default("")
+  /**
+   * The agent the code resolved to when the application was submitted. Held
+   * here so the queue can show who is recruiting whom before anything is
+   * approved; approval re-resolves it rather than trusting this.
+   */
+  referrerId   String?
+  /**
+   * How the applicant chose to settle the registration fee: BALANCE (deducted
+   * from the agent account as a negative, cleared out of commission) or UPFRONT
+   * (paid through Paystack before the store opens). Referral rewards are
+   * released either way, but only once the fee has actually been paid.
+   */
+  feeMethod    String @default("BALANCE")
+
+  // pending | approved | rejected
+  status     String    @default("pending")
+  reviewedBy String?
+  reviewedAt DateTime?
+  /**
+   * Why it was rejected, shown to the applicant if they ask.
+   */
+  adminNote  String    @default("")
+
+  /**
+   * SHA-256 of the one-time setup token, never the token itself. Set on
+   * approval and cleared once the agent has chosen a password.
+   */
+  setupTokenHash String?
+  setupExpiresAt DateTime?
+  /**
+   * The account created on approval, once it exists.
+   */
+  agentId        String?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  /**
+   * When the applicant accepted the agent policy.
+   */
+  termsAcceptedAt DateTime?
+
+  @@index([status, createdAt])
+  @@index([email])
+  @@index([desiredSlug])
+  @@index([referrerId])
+}
+
+// ---------------------------------------------------------------------------
+// Settings for the data-bundle console.
+//
+// The retail side has its own SiteSetting table in the retail database. This is
+// the same idea for this one, and it lives here so the bundle business carries
+// its own configuration: restore this database and the price ladder, the agent
+// programme and the referral rates all come back together, in step with the
+// orders they priced.
+// ---------------------------------------------------------------------------
+model DataSetting {
+  key   String @id
+  value String
+}

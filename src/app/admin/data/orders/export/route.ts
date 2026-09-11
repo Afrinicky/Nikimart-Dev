@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import {
   DATA_STATUS_LABELS,
   bundleLabel,
@@ -42,7 +42,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const orders = await prisma.dataOrder.findMany({
+    const orders = await dataDb.dataOrder.findMany({
       where,
       orderBy: { createdAt: "desc" },
       take: 10000,

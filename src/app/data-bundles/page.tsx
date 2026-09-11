@@ -6,7 +6,7 @@ import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { BundleStore, type NetworkGroup } from "@/components/data/BundleStore";
 import { getActiveBundles, groupByNetwork } from "@/lib/data-bundles/catalog";
-import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/settings";
+import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { formatPrice } from "@/lib/format";
 
 export const metadata: Metadata = {

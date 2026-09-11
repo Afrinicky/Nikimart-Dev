@@ -1,5 +1,5 @@
 import "server-only";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 
 /**
  * Admin figures for the data storefront. Every read is wrapped so the console
@@ -48,20 +48,20 @@ export async function getDataStats(): Promise<DataStats> {
 
     const [today, pendingPayment, inFlight, failed, completed, totals, afaPending] =
       await Promise.all([
-        prisma.dataOrder.aggregate({
+        dataDb.dataOrder.aggregate({
           where: { ...paidWhere, createdAt: { gte: startOfToday } },
           _count: { _all: true },
           _sum: { price: true },
         }),
-        prisma.dataOrder.count({ where: { paymentStatus: "unpaid", status: "pending" } }),
-        prisma.dataOrder.count({ where: { ...paidWhere, status: { in: ["paid", "processing"] } } }),
-        prisma.dataOrder.count({ where: { status: "failed" } }),
-        prisma.dataOrder.count({ where: { status: "completed" } }),
-        prisma.dataOrder.aggregate({
+        dataDb.dataOrder.count({ where: { paymentStatus: "unpaid", status: "pending" } }),
+        dataDb.dataOrder.count({ where: { ...paidWhere, status: { in: ["paid", "processing"] } } }),
+        dataDb.dataOrder.count({ where: { status: "failed" } }),
+        dataDb.dataOrder.count({ where: { status: "completed" } }),
+        dataDb.dataOrder.aggregate({
           where: { ...paidWhere, status: { not: "refunded" } },
           _sum: { price: true, costPrice: true },
         }),
-        prisma.afaRegistration.count({ where: { status: { in: ["paid", "processing"] } } }),
+        dataDb.afaRegistration.count({ where: { status: { in: ["paid", "processing"] } } }),
       ]);
 
     const revenue = totals._sum.price ?? 0;
@@ -158,14 +158,14 @@ export async function getDataOrders(opts: {
 
   try {
     const [rows, total] = await Promise.all([
-      prisma.dataOrder.findMany({
+      dataDb.dataOrder.findMany({
         where,
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * ORDERS_PER_PAGE,
         take: ORDERS_PER_PAGE,
         include: { agent: { select: { storeName: true, code: true } } },
       }),
-      prisma.dataOrder.count({ where }),
+      dataDb.dataOrder.count({ where }),
     ]);
     const orders: AdminDataOrder[] = rows.map(({ agent, ...o }) => ({
       ...o,
@@ -180,7 +180,7 @@ export async function getDataOrders(opts: {
 
 export async function getAfaRegistrations() {
   try {
-    return await prisma.afaRegistration.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
+    return await dataDb.afaRegistration.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
   } catch {
     return [];
   }

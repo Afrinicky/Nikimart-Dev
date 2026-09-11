@@ -3,7 +3,7 @@ import { Banknote } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { formatWhen } from "@/components/agent/AgentUi";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { formatMoney } from "@/lib/format";
 import { processWithdrawal, rejectWithdrawal } from "@/lib/data-bundles/agent-admin-actions";
 import { cn } from "@/lib/cn";
@@ -34,7 +34,7 @@ export default async function AdminWithdrawalsPage({
     ? params.status!
     : "pending";
 
-  const rows = await prisma.dataAgentWithdrawal
+  const rows = await dataDb.dataAgentWithdrawal
     .findMany({
       where: { status },
       orderBy: { createdAt: "desc" },

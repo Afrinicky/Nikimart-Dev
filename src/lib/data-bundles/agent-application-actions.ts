@@ -5,17 +5,19 @@ import { headers } from "next/headers";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { requireAdmin } from "@/lib/session";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { notify, sendSms } from "@/lib/notifications";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
-import { getAgentProgramConfig } from "@/lib/settings";
+import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import { termsAccepted, TERMS_REQUIRED_MESSAGE } from "@/lib/terms";
 import { normaliseSlugClient } from "@/lib/data-bundles/slug";
 import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { generateAgentCode, slugProblem } from "@/lib/data-bundles/agents";
+import { userIdForEmail } from "@/lib/data-bundles/user-link";
 
 /**
  * Becoming an agent, from application to a working account.
@@ -117,8 +119,8 @@ export async function checkStoreName(raw: string): Promise<SlugCheck> {
 
   try {
     const [agent, pending] = await Promise.all([
-      prisma.dataAgent.findUnique({ where: { slug }, select: { id: true } }),
-      prisma.dataAgentApplication.findFirst({
+      dataDb.dataAgent.findUnique({ where: { slug }, select: { id: true } }),
+      dataDb.dataAgentApplication.findFirst({
         where: { desiredSlug: slug, status: "pending" },
         select: { id: true },
       }),
@@ -190,16 +192,18 @@ export async function applyToBeAgent(
   const desiredSlug = slugCheck.slug;
 
   try {
-    // Someone already trading doesn't need to apply again.
-    const existingAgent = await prisma.dataAgent.findFirst({
-      where: { user: { email } },
-      select: { id: true },
-    });
+    // Someone already trading doesn't need to apply again. The email belongs to
+    // a retail User and the agent record is in the bundle database, so the
+    // lookup goes through the id rather than through a relation.
+    const existingUserId = await userIdForEmail(email);
+    const existingAgent = existingUserId
+      ? await dataDb.dataAgent.findUnique({ where: { userId: existingUserId }, select: { id: true } })
+      : null;
     if (existingAgent) {
       return { error: "That email already has an agent account. Sign in instead." };
     }
 
-    const openApplication = await prisma.dataAgentApplication.findFirst({
+    const openApplication = await dataDb.dataAgentApplication.findFirst({
       where: { email, status: "pending" },
       select: { id: true },
     });
@@ -211,7 +215,7 @@ export async function applyToBeAgent(
       };
     }
 
-    await prisma.dataAgentApplication.create({
+    await dataDb.dataAgentApplication.create({
       data: {
         fullName: data.fullName,
         phone,
@@ -277,7 +281,7 @@ export async function approveApplication(
 
   let application;
   try {
-    application = await prisma.dataAgentApplication.findUnique({ where: { id } });
+    application = await dataDb.dataAgentApplication.findUnique({ where: { id } });
   } catch {
     return { error: STORAGE_ERROR };
   }
@@ -287,7 +291,7 @@ export async function approveApplication(
   }
 
   // The name may have been taken while the application waited.
-  const clash = await prisma.dataAgent.findUnique({
+  const clash = await dataDb.dataAgent.findUnique({
     where: { slug: application.desiredSlug },
     select: { id: true },
   });
@@ -302,15 +306,19 @@ export async function approveApplication(
   const token = randomBytes(32).toString("hex");
 
   try {
-    const agentId = await prisma.$transaction(async (tx) => {
-      // An applicant may already shop on Nickimart — reuse that account rather
-      // than stranding them with two.
-      const user =
-        (await tx.user.findUnique({ where: { email } })) ??
-        (await tx.user.create({
-          data: { email, name: application.fullName, phone: application.phone, role: "CUSTOMER" },
-        }));
+    // The person and the agent are in different databases, so this is two
+    // steps rather than one transaction. Order matters: the user comes first,
+    // because an agent row without a user is an account nobody can sign in to,
+    // while a user without an agent row is just a Nickimart customer — which is
+    // exactly what they were a moment ago. Nothing is lost if the second half
+    // fails; approving again picks up the same user.
+    const user =
+      (await prisma.user.findUnique({ where: { email } })) ??
+      (await prisma.user.create({
+        data: { email, name: application.fullName, phone: application.phone, role: "CUSTOMER" },
+      }));
 
+    const agentId = await dataDb.$transaction(async (tx) => {
       const already = await tx.dataAgent.findUnique({ where: { userId: user.id } });
       if (already) throw new Error("ALREADY_AGENT");
 
@@ -416,7 +424,7 @@ export async function rejectApplication(
   if (!id) return { error: "Missing application." };
 
   try {
-    const updated = await prisma.dataAgentApplication.updateMany({
+    const updated = await dataDb.dataAgentApplication.updateMany({
       where: { id, status: "pending" },
       data: {
         status: "rejected",
@@ -427,7 +435,7 @@ export async function rejectApplication(
     });
     if (updated.count === 0) return { error: "That application was already reviewed." };
 
-    const application = await prisma.dataAgentApplication.findUnique({
+    const application = await dataDb.dataAgentApplication.findUnique({
       where: { id },
       select: { phone: true, fullName: true },
     });
@@ -479,7 +487,7 @@ export async function completeAgentSetup(
 
   let application;
   try {
-    application = await prisma.dataAgentApplication.findFirst({
+    application = await dataDb.dataAgentApplication.findFirst({
       where: { setupTokenHash: hashToken(token), status: "approved" },
     });
   } catch {
@@ -497,33 +505,40 @@ export async function completeAgentSetup(
   let hadPassword = false;
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const agent = await tx.dataAgent.findUniqueOrThrow({
-        where: { id: application.agentId! },
-        select: { userId: true },
-      });
+    const agent = await dataDb.dataAgent.findUniqueOrThrow({
+      where: { id: application.agentId! },
+      select: { userId: true },
+    });
 
-      // An applicant may already have shopped on Nickimart, in which case
-      // approval reused their account.
-      //
-      // Nothing here has proved the applicant owns that email — they typed it
-      // on a public form. So an account that already has a password is left
-      // exactly as it is: not the password (that would reset the one its owner
-      // signs in with), and not the name or phone either (whoever redeemed
-      // this link would otherwise be rewriting a stranger's profile). Only an
-      // account this approval created — no password, nothing to overwrite —
-      // gets filled in from the application.
-      const user = await tx.user.findUniqueOrThrow({
+    // An applicant may already have shopped on Nickimart, in which case
+    // approval reused their account.
+    //
+    // Nothing here has proved the applicant owns that email — they typed it
+    // on a public form. So an account that already has a password is left
+    // exactly as it is: not the password (that would reset the one its owner
+    // signs in with), and not the name or phone either (whoever redeemed
+    // this link would otherwise be rewriting a stranger's profile). Only an
+    // account this approval created — no password, nothing to overwrite —
+    // gets filled in from the application.
+    //
+    // The password is in the retail database and the store name is in the
+    // bundle one, so the two writes can't share a transaction. The password
+    // goes first: it is the half that matters, and a store that kept its
+    // provisional name is a rename away from right, while a named store nobody
+    // can sign in to is a support ticket.
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: agent.userId },
+      select: { passwordHash: true },
+    });
+    hadPassword = Boolean(user.passwordHash);
+    if (!hadPassword) {
+      await prisma.user.update({
         where: { id: agent.userId },
-        select: { passwordHash: true },
+        data: { passwordHash, name: application.fullName, phone: application.phone },
       });
-      hadPassword = Boolean(user.passwordHash);
-      if (!hadPassword) {
-        await tx.user.update({
-          where: { id: agent.userId },
-          data: { passwordHash, name: application.fullName, phone: application.phone },
-        });
-      }
+    }
+
+    await dataDb.$transaction(async (tx) => {
       await tx.dataAgent.update({
         where: { id: application.agentId! },
         data: { storeName },
@@ -554,7 +569,7 @@ export async function completeAgentSetup(
 export async function getSetupApplication(token: string) {
   if (!token) return null;
   try {
-    const row = await prisma.dataAgentApplication.findFirst({
+    const row = await dataDb.dataAgentApplication.findFirst({
       where: { setupTokenHash: hashToken(token), status: "approved" },
       select: {
         fullName: true,

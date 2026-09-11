@@ -18,7 +18,7 @@ import { requireUser } from "@/lib/session";
 import { formatMoney } from "@/lib/format";
 import { bundleLabel, networkLabel, DATA_ORDER_STATUSES } from "@/lib/data-bundles/networks";
 import { getAgentForUser, getAgentOrders } from "@/lib/data-bundles/agents";
-import { getDataStoreConfig } from "@/lib/settings";
+import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Orders — Agent — Nickimart" };

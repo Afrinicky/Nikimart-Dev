@@ -17,7 +17,7 @@ import { ApplyAgentForm } from "@/components/agent/ApplyAgentForm";
 import { auth } from "@/lib/auth";
 import { siteUrl } from "@/lib/site";
 import { formatPrice } from "@/lib/format";
-import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/settings";
+import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { getActiveBundles } from "@/lib/data-bundles/catalog";
 import { NETWORK_INFO, bundleLabel } from "@/lib/data-bundles/networks";

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { AgentPageHeading } from "@/components/agent/AgentUi";
 import { SupportTabs } from "@/components/agent/SupportTabs";
 import { requireUser } from "@/lib/session";
-import { getAgentProgramConfig } from "@/lib/settings";
+import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 
 export const metadata: Metadata = { title: "Support — Agent — Nickimart" };

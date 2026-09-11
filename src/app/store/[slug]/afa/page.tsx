@@ -4,7 +4,7 @@ import { BadgeCheck } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { AfaForm } from "@/components/data/AfaForm";
-import { getDataStoreConfig } from "@/lib/settings";
+import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { getAgentBySlug } from "@/lib/data-bundles/agents";
 
 export const metadata: Metadata = { title: "AFA Registration — Nickimart" };

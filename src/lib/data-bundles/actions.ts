@@ -3,11 +3,11 @@
 import { headers } from "next/headers";
 import { after } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { auth } from "@/lib/auth";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { initializeTransaction, isPaymentConfigured, toPesewas } from "@/lib/payments";
-import { getDataStoreConfig } from "@/lib/settings";
+import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { callbackOrigin } from "@/lib/site";
 import { findSellableBundle } from "@/lib/data-bundles/catalog";
 import {
@@ -123,7 +123,7 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
   for (let attempt = 0; attempt < 5; attempt++) {
     const reference = newDataReference();
     try {
-      const order = await prisma.dataOrder.create({
+      const order = await dataDb.dataOrder.create({
         data: {
           reference,
           network: bundle.network,
@@ -175,7 +175,7 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
       } catch (err) {
         // The order never became payable — drop it so it doesn't sit in the
         // admin as a phantom "awaiting payment" row.
-        await prisma.dataOrder.delete({ where: { id: order.id } }).catch(() => {});
+        await dataDb.dataOrder.delete({ where: { id: order.id } }).catch(() => {});
         return {
           ok: false,
           error: err instanceof Error ? err.message : "Could not start the payment. Please try again.",
@@ -255,7 +255,7 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const reference = newAfaReference();
     try {
-      const row = await prisma.afaRegistration.create({
+      const row = await dataDb.afaRegistration.create({
         data: {
           reference,
           fullName: data.fullName,
@@ -296,7 +296,7 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
         });
         return { ok: true, reference, authorizationUrl };
       } catch (err) {
-        await prisma.afaRegistration.delete({ where: { id: row.id } }).catch(() => {});
+        await dataDb.afaRegistration.delete({ where: { id: row.id } }).catch(() => {});
         return {
           ok: false,
           error: err instanceof Error ? err.message : "Could not start the payment. Please try again.",

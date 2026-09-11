@@ -3,7 +3,7 @@ import { Megaphone, Pin, Trash2 } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { AnnouncementForm } from "@/components/admin/AgentAdminTools";
 import { formatWhen } from "@/components/agent/AgentUi";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import {
   deleteAnnouncement,
   setAnnouncementActive,
@@ -21,7 +21,7 @@ const TONES: Record<string, string> = {
 
 /** What every agent sees on their Notifications screen. */
 export default async function AdminAnnouncementsPage() {
-  const notices = await prisma.dataAnnouncement
+  const notices = await dataDb.dataAnnouncement
     .findMany({ orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }], take: 50 })
     .catch(() => []);
 

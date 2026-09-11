@@ -19,11 +19,11 @@ import { getDataStats } from "@/lib/data-bundles/reporting";
 import { getProviderBalance, isDataProviderConfigured, providerBase } from "@/lib/data-bundles/provider";
 import { isPaymentConfigured } from "@/lib/payments";
 import { emailStatus, isSmsConfigured } from "@/lib/notifications";
-import { getDataStoreConfig } from "@/lib/settings";
+import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { getAllBundles } from "@/lib/data-bundles/catalog";
 import { listAgents } from "@/lib/data-bundles/agents";
 import { sweepDataOrders } from "@/lib/data-bundles/admin-actions";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 
 export const metadata: Metadata = { title: "Data Bundles — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -68,8 +68,8 @@ export default async function AdminDataOverviewPage() {
       getDataStoreConfig(),
       getAllBundles(),
       listAgents(),
-      prisma.dataAgentWithdrawal.count({ where: { status: "pending" } }).catch(() => 0),
-      prisma.dataSupportRequest.count({ where: { status: "open" } }).catch(() => 0),
+      dataDb.dataAgentWithdrawal.count({ where: { status: "pending" } }).catch(() => 0),
+      dataDb.dataSupportRequest.count({ where: { status: "open" } }).catch(() => 0),
     ]);
 
   const activeBundles = bundles.filter((b) => b.isActive && b.price > 0).length;

@@ -5,7 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { BundleStore, type NetworkGroup } from "@/components/data/BundleStore";
 import { formatPrice } from "@/lib/format";
-import { getDataStoreConfig } from "@/lib/settings";
+import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { getAgentBySlug, getAgentStorefrontGroups } from "@/lib/data-bundles/agents";
 
 export const dynamic = "force-dynamic";

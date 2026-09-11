@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { requireUser, type SessionUser } from "@/lib/session";
-import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/settings";
+import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { callbackOrigin } from "@/lib/site";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { initializeTransaction, isPaymentConfigured, toPesewas } from "@/lib/payments";
@@ -85,7 +85,7 @@ export async function updateAgentStore(input: z.infer<typeof storeSchema>): Prom
   if (problem) return { ok: false, error: problem };
 
   if (slug !== agent.slug) {
-    const taken = await prisma.dataAgent.findUnique({ where: { slug }, select: { id: true } });
+    const taken = await dataDb.dataAgent.findUnique({ where: { slug }, select: { id: true } });
     if (taken) return { ok: false, error: `“${slug}” is already taken. Try another store link.` };
   }
 
@@ -108,7 +108,7 @@ export async function updateAgentStore(input: z.infer<typeof storeSchema>): Prom
     return { ok: false, error: "The WhatsApp group link should start with https://" };
   }
 
-  await prisma.dataAgent.update({
+  await dataDb.dataAgent.update({
     where: { id: agent.id },
     data: {
       storeName: data.storeName,
@@ -130,7 +130,7 @@ export async function updateAgentStore(input: z.infer<typeof storeSchema>): Prom
 export async function setStoreOpen(open: boolean): Promise<ActionResult> {
   const { agent, error } = await currentAgent();
   if (!agent) return { ok: false, error };
-  await prisma.dataAgent.update({ where: { id: agent.id }, data: { storeOpen: open } });
+  await dataDb.dataAgent.update({ where: { id: agent.id }, data: { storeOpen: open } });
   revalidatePath("/agent/store");
   revalidatePath(`/store/${agent.slug}`);
   return { ok: true, message: open ? "Your store is open." : "Your store is closed to customers." };
@@ -172,7 +172,7 @@ export async function setAgentPrice(input: z.infer<typeof priceSchema>): Promise
     };
   }
 
-  await prisma.dataAgentPrice.upsert({
+  await dataDb.dataAgentPrice.upsert({
     where: {
       agentId_network_sizeGb: { agentId: agent.id, network: data.network, sizeGb: data.sizeGb },
     },
@@ -201,7 +201,7 @@ export async function setAgentPriceActive(input: {
   const row = rows.find((r) => r.network === network && r.sizeGb === input.sizeGb);
   if (!row) return { ok: false, error: "That bundle is not available to resell." };
 
-  await prisma.dataAgentPrice.upsert({
+  await dataDb.dataAgentPrice.upsert({
     where: { agentId_network_sizeGb: { agentId: agent.id, network, sizeGb: input.sizeGb } },
     create: { agentId: agent.id, network, sizeGb: input.sizeGb, price: row.price, isActive: input.isActive },
     update: { isActive: input.isActive },
@@ -229,7 +229,7 @@ export async function applyBulkMarkup(percent: number): Promise<ActionResult> {
 
   for (const row of rows) {
     const price = priceAtMarkup(row.agentPrice, percent);
-    await prisma.dataAgentPrice.upsert({
+    await dataDb.dataAgentPrice.upsert({
       where: {
         agentId_network_sizeGb: { agentId: agent.id, network: row.network, sizeGb: row.sizeGb },
       },
@@ -301,7 +301,7 @@ export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): 
   // the debit itself, because two requests submitted at the same moment would
   // otherwise both read the same balance, both pass, and both be paid.
   try {
-    await prisma.$transaction(async (tx) => {
+    await dataDb.$transaction(async (tx) => {
       const row = await tx.dataAgentWithdrawal.create({
         data: {
           agentId: agent.id,
@@ -369,7 +369,7 @@ export async function requestCallback(input: z.infer<typeof callbackSchema>): Pr
     return { ok: false, error: `You've already asked us to call. We'll be in touch shortly.` };
   }
 
-  await prisma.dataSupportRequest.create({
+  await dataDb.dataSupportRequest.create({
     data: {
       agentId: agent?.id ?? null,
       fullName: data.fullName,
@@ -408,7 +408,7 @@ export async function setAgentAfaPrice(input: z.infer<typeof afaPriceSchema>): P
     return { ok: false, error: `Your AFA price can't be below GH₵${store.afaPrice.toFixed(2)}.` };
   }
 
-  await prisma.dataAgent.update({
+  await dataDb.dataAgent.update({
     where: { id: agent.id },
     data: { afaPrice: price, afaEnabled: parsed.data.available },
   });
@@ -471,7 +471,7 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
   for (let attempt = 0; attempt < 5; attempt++) {
     const reference = newDataReference();
     try {
-      const order = await prisma.dataOrder.create({
+      const order = await dataDb.dataOrder.create({
         data: {
           reference,
           network: row.network,
@@ -517,7 +517,7 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
         });
         return { ok: true, reference, authorizationUrl };
       } catch (err) {
-        await prisma.dataOrder.delete({ where: { id: order.id } }).catch(() => {});
+        await dataDb.dataOrder.delete({ where: { id: order.id } }).catch(() => {});
         return {
           ok: false,
           error: err instanceof Error ? err.message : "Could not start the payment. Please try again.",

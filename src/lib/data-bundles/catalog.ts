@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { NETWORKS, type Network } from "@/lib/data-bundles/networks";
 
 export interface Bundle {
@@ -79,7 +79,7 @@ function toBundle(row: {
 /** Bundles buyers can see, cheapest size first, grouped by network downstream. */
 export const getActiveBundles = cache(async (): Promise<Bundle[]> => {
   try {
-    const rows = await prisma.dataBundle.findMany({
+    const rows = await dataDb.dataBundle.findMany({
       where: { isActive: true, price: { gt: 0 } },
       orderBy: [{ order: "asc" }, { sizeGb: "asc" }],
     });
@@ -95,7 +95,7 @@ export const getActiveBundles = cache(async (): Promise<Bundle[]> => {
 export async function getAllBundles(): Promise<Bundle[]> {
   try {
     return (
-      await prisma.dataBundle.findMany({ orderBy: [{ network: "asc" }, { sizeGb: "asc" }] })
+      await dataDb.dataBundle.findMany({ orderBy: [{ network: "asc" }, { sizeGb: "asc" }] })
     ).map(toBundle);
   } catch {
     return [];
@@ -116,7 +116,7 @@ export function groupByNetwork(bundles: Bundle[]): Array<{ network: Network; bun
  */
 export async function findSellableBundle(network: Network, sizeGb: number): Promise<Bundle | null> {
   try {
-    const row = await prisma.dataBundle.findUnique({
+    const row = await dataDb.dataBundle.findUnique({
       where: { network_sizeGb: { network, sizeGb } },
     });
     if (row && row.isActive && row.price > 0) return toBundle(row);

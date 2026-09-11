@@ -3,11 +3,11 @@ import { Inbox, Pencil, Users } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { formatMoney } from "@/lib/format";
-import { getAgentProgramConfig } from "@/lib/settings";
+import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import { listAgents } from "@/lib/data-bundles/agents";
 import { ApplicationReview } from "@/components/admin/ApplicationReview";
 import { formatWhen } from "@/components/agent/AgentUi";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Agents — Admin — Nickimart" };
@@ -23,7 +23,7 @@ export default async function AdminAgentsPage({
   const [agents, program, applications] = await Promise.all([
     listAgents(),
     getAgentProgramConfig(),
-    prisma.dataAgentApplication
+    dataDb.dataAgentApplication
       .findMany({ where: { status: "pending" }, orderBy: { createdAt: "asc" }, take: 50 })
       .catch(() => []),
   ]);

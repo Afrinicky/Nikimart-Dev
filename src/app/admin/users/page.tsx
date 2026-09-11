@@ -6,6 +6,7 @@ import { DeleteButton } from "@/components/admin/DeleteButton";
 import { ExportButton } from "@/components/admin/ExportButton";
 import { FilterChip } from "@/components/admin/FilterChip";
 import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { requireAdmin } from "@/lib/session";
 import { deleteUser } from "@/lib/admin-actions";
 import { ROLES, ROLE_LABELS, isRole } from "@/lib/roles";
@@ -28,23 +29,30 @@ export default async function AdminUsersPage({
   // programme is filtered by membership instead.
   const agentsOnly = membership === "agent";
 
-  const [users, roleCounts, agentCount] = await Promise.all([
+  // Agent accounts are in the bundle database, so "who is an agent" is a
+  // second query and the filter is a list of ids rather than a relation.
+  const agents = await dataDb.dataAgent
+    .findMany({ select: { id: true, code: true, status: true, userId: true } })
+    .catch((): Array<{ id: string; code: string; status: string; userId: string }> => []);
+  const agentByUserId = new Map(agents.map((a) => [a.userId, a]));
+
+  const [rows, roleCounts] = await Promise.all([
     prisma.user.findMany({
       where: {
         ...(roleFilter ? { role: roleFilter } : {}),
-        ...(agentsOnly ? { dataAgent: { isNot: null } } : {}),
+        ...(agentsOnly ? { id: { in: agents.map((a) => a.userId) } } : {}),
       },
       orderBy: { createdAt: "desc" },
       include: {
         vendor: { select: { id: true } },
         affiliate: { select: { id: true } },
-        dataAgent: { select: { id: true, code: true, status: true } },
         _count: { select: { orders: true } },
       },
     }),
     prisma.user.groupBy({ by: ["role"], _count: { _all: true } }),
-    prisma.dataAgent.count(),
   ]);
+  const users = rows.map((u) => ({ ...u, dataAgent: agentByUserId.get(u.id) ?? null }));
+  const agentCount = agents.length;
   const countByRole = new Map(roleCounts.map((r) => [r.role, r._count._all]));
   const total = roleCounts.reduce((s, r) => s + r._count._all, 0);
 

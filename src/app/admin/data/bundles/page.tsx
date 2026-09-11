@@ -4,7 +4,7 @@ import { Container } from "@/components/ui/Container";
 import { BundlePriceTable } from "@/components/admin/BundlePriceTable";
 import { MarkupTool, NewBundleForm } from "@/components/admin/BundleTools";
 import { getAllBundles, groupByNetwork } from "@/lib/data-bundles/catalog";
-import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/settings";
+import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/settings";
 
 export const metadata: Metadata = { title: "Bundle Prices — Admin — Nickimart" };
 export const dynamic = "force-dynamic";

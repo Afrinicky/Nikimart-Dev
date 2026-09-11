@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import {
   DATA_STATUS_LABELS,
   bundleLabel,
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
   };
 
   try {
-    const orders = await prisma.dataOrder.findMany({
+    const orders = await dataDb.dataOrder.findMany({
       where,
       orderBy: { createdAt: "desc" },
       take: 5000,

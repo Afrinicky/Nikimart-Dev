@@ -6,7 +6,7 @@ import { AgentPageHeading, Card, EmptyRow, TableScroll, formatWhen } from "@/com
 import { WithdrawPanel } from "@/components/agent/WithdrawPanel";
 import { requireUser } from "@/lib/session";
 import { formatMoney } from "@/lib/format";
-import { getAgentProgramConfig } from "@/lib/settings";
+import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import {
   getAgentForUser,
   getAgentLedger,

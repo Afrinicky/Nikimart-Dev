@@ -7,7 +7,7 @@ import { BalanceAdjuster } from "@/components/admin/AgentAdminTools";
 import { AgentAccountTools, SetupLinkTool } from "@/components/admin/AgentAccountTools";
 import { siteUrl } from "@/lib/site";
 import { formatWhen } from "@/components/agent/AgentUi";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { formatMoney } from "@/lib/format";
 import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
 import {
@@ -16,6 +16,7 @@ import {
   getAgentWallet,
   getAgentWithdrawals,
 } from "@/lib/data-bundles/agents";
+import { getAgentUser } from "@/lib/data-bundles/user-link";
 import { setAgentStatus } from "@/lib/data-bundles/agent-admin-actions";
 import { cn } from "@/lib/cn";
 
@@ -39,14 +40,13 @@ export default async function AdminAgentDetailPage({
 }) {
   const { id } = await params;
 
-  const agent = await prisma.dataAgent
-    .findUnique({
-      where: { id },
-      include: { user: { select: { name: true, email: true, phone: true, passwordHash: true } } },
-    })
-    .catch(() => null);
+  const row = await dataDb.dataAgent.findUnique({ where: { id } }).catch(() => null);
 
-  if (!agent) notFound();
+  if (!row) notFound();
+
+  // The person behind the agent lives in the retail database — one extra query
+  // rather than an include.
+  const agent = { ...row, user: await getAgentUser(row.userId) };
 
   const [wallet, ledger, orders, withdrawals] = await Promise.all([
     getAgentWallet(agent),
@@ -212,7 +212,7 @@ export default async function AdminAgentDetailPage({
 
           {/* An agent whose account has no password has never been able to sign
               in — the setup link either was never delivered or has expired. */}
-          {agent.user && !agent.user.passwordHash ? (
+          {agent.user && !agent.user.canSignIn ? (
             <SetupLinkTool agentId={agent.id} name={agent.user.name ?? agent.storeName} />
           ) : null}
 

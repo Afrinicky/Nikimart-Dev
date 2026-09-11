@@ -1,8 +1,10 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { notify, type Recipient } from "@/lib/notifications";
 import { formatPrice } from "@/lib/format";
-import { getDataStoreConfig, getStaffNotifyChannel } from "@/lib/settings";
+import { getStaffNotifyChannel } from "@/lib/settings";
+import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { getProviderBalance, isDataProviderConfigured } from "@/lib/data-bundles/provider";
 import { dispatchAfaRegistration, dispatchDataOrder, refreshDataOrder } from "@/lib/data-bundles/fulfillment";
 import { sweepAgentCommissions } from "@/lib/data-bundles/agent-ledger";
@@ -103,7 +105,7 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
 
   // --- 2. Paid but never handed to the provider ---------------------------
   try {
-    const stuck = await prisma.dataOrder.findMany({
+    const stuck = await dataDb.dataOrder.findMany({
       where: {
         paymentStatus: "paid",
         providerOrderId: null,
@@ -131,7 +133,7 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
 
   // --- 3. Accepted upstream but never confirmed ---------------------------
   try {
-    const inFlight = await prisma.dataOrder.findMany({
+    const inFlight = await dataDb.dataOrder.findMany({
       where: {
         status: "processing",
         providerOrderId: { not: null },
@@ -151,7 +153,7 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
 
   // --- 4. AFA registrations paid but not submitted ------------------------
   try {
-    const afa = await prisma.afaRegistration.findMany({
+    const afa = await dataDb.afaRegistration.findMany({
       where: {
         paymentStatus: "paid",
         providerId: null,

@@ -11,7 +11,7 @@ import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
 import { ROLE_LABELS, ROLE_HOME } from "@/lib/roles";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
-import { getAgentProgramConfig } from "@/lib/settings";
+import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 
 export const metadata: Metadata = {
   title: "My Account — Nickimart",

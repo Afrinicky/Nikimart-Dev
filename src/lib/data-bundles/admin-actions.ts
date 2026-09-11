@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { requireAdmin } from "@/lib/session";
 import { isNetwork, type Network } from "@/lib/data-bundles/networks";
 import { dispatchDataOrder, refreshDataOrder, dispatchAfaRegistration } from "@/lib/data-bundles/fulfillment";
@@ -95,7 +96,7 @@ export async function saveBundlePrices(
   try {
     await prisma.$transaction(
       updates.map((u) =>
-        prisma.dataBundle.update({
+        dataDb.dataBundle.update({
           where: { id: u.id },
           data: {
             price: u.price,
@@ -134,7 +135,7 @@ export async function createBundle(
   const agentPrice = num(fd, "agentPrice") ?? 0;
 
   try {
-    await prisma.dataBundle.create({
+    await dataDb.dataBundle.create({
       data: {
         network,
         sizeGb,
@@ -149,7 +150,7 @@ export async function createBundle(
   } catch {
     // The unique (network, sizeGb) index is the likeliest cause — say so rather
     // than blaming the migration.
-    const clash = await prisma.dataBundle
+    const clash = await dataDb.dataBundle
       .findUnique({ where: { network_sizeGb: { network, sizeGb } } })
       .catch(() => null);
     return {
@@ -168,7 +169,7 @@ export async function deleteBundle(fd: FormData): Promise<void> {
   const id = str(fd, "id");
   if (!id) return;
   try {
-    await prisma.dataBundle.delete({ where: { id } });
+    await dataDb.dataBundle.delete({ where: { id } });
     revalidateAll();
   } catch {
     // Already gone, or the table isn't there — nothing to undo.
@@ -200,7 +201,7 @@ export async function applyMarkup(_prev: DataAdminState, fd: FormData): Promise<
   }
 
   try {
-    const rows = await prisma.dataBundle.findMany({ where: { network: network as Network } });
+    const rows = await dataDb.dataBundle.findMany({ where: { network: network as Network } });
     const priced = rows.filter((r) => r.costPrice > 0);
     if (priced.length === 0) {
       return { error: "No cost prices recorded for that network yet, so there's nothing to mark up." };
@@ -214,7 +215,7 @@ export async function applyMarkup(_prev: DataAdminState, fd: FormData): Promise<
           agentDiscount === null
             ? undefined
             : Math.max(r.costPrice, Math.round(retail * (1 - agentDiscount / 100) * 100) / 100);
-        return prisma.dataBundle.update({
+        return dataDb.dataBundle.update({
           where: { id: r.id },
           data: { price: retail, ...(agentPrice === undefined ? {} : { agentPrice }) },
         });
@@ -261,7 +262,7 @@ export async function markDataOrderRefunded(fd: FormData): Promise<void> {
   await requireAdmin();
   const id = str(fd, "id");
   if (!id) return;
-  await prisma.dataOrder
+  await dataDb.dataOrder
     .updateMany({ where: { id, status: "failed" }, data: { status: "refunded" } })
     .catch(() => {});
   revalidatePath("/admin/data/orders");

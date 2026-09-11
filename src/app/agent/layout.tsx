@@ -6,7 +6,7 @@ import { AgentRail, AgentSidebar } from "@/components/agent/AgentNav";
 import { AgentCode } from "@/components/agent/AgentCode";
 import { requireUser } from "@/lib/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
-import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/settings";
+import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/settings";
 
 export const dynamic = "force-dynamic";
 

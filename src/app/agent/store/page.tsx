@@ -12,7 +12,7 @@ import { AfaPricingForm } from "@/components/agent/AfaPricingForm";
 import { requireUser } from "@/lib/session";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
-import { getDataStoreConfig } from "@/lib/settings";
+import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
 import {
   getAgentBundleRows,
