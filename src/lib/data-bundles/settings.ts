@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { dataDb } from "@/lib/data-db";
 import { getSettings as getRetailSettings } from "@/lib/settings";
 
@@ -95,9 +96,19 @@ const INHERITED_FROM_RETAIL: DataSettingKey[] = [
   "agentWhatsappGroup", "agentPitch",
 ];
 
+/** Cache tag for the stored bundle settings. Any write must drop it. */
+export const DATA_SETTINGS_TAG = "data-settings";
+
+const readStoredDataSettings = unstable_cache(
+  async () => dataDb.dataSetting.findMany(),
+  ["data-settings"],
+  { tags: [DATA_SETTINGS_TAG], revalidate: 300 },
+);
+
 /**
- * Every setting, defaults filled in. Cached per request: a page that reads the
- * store config and the referral config asks the database once.
+ * Every setting, defaults filled in. Cached across requests as well as per
+ * render — the bundle store and every agent screen read this, so a per-render
+ * cache still meant one full read per page view.
  */
 export const getDataSettings = cache(async (): Promise<DataSettings> => {
   const merged = { ...DATA_SETTINGS_DEFAULTS } as DataSettings;
@@ -115,7 +126,7 @@ export const getDataSettings = cache(async (): Promise<DataSettings> => {
 
   // …then this database's own, which win wherever they exist.
   try {
-    const rows = await dataDb.dataSetting.findMany();
+    const rows = await readStoredDataSettings();
     for (const row of rows) {
       if (row.key in merged) merged[row.key as DataSettingKey] = row.value;
     }

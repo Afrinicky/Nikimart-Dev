@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+import { SETTINGS_TAG } from "@/lib/settings";
 import { refreshCurrencyRates } from "@/lib/fx";
 import { parseLocationKey } from "@/lib/shipping";
 import { getRawShippingLaneFees, type RawLaneFee } from "@/lib/shipping-config";
@@ -54,6 +55,9 @@ function on(fd: FormData, key: string): boolean {
  * admin screen would leave the old number on the pages that matter.
  */
 function revalidateShipping() {
+  // The shipping console stores its defaults as SiteSetting rows, which are
+  // cached across requests — drop that cache as well as the paths.
+  updateTag(SETTINGS_TAG);
   revalidatePath("/admin/shipping", "layout");
   revalidatePath("/admin/purchasing", "layout");
   revalidatePath("/checkout");

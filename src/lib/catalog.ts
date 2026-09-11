@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type {
   AbroadInfo,
@@ -143,9 +144,27 @@ export function mapProduct(
 // unreachable, so a DB outage degrades the storefront to an empty state instead
 // of crashing every page with a 500.
 
+/**
+ * Cache tag for the category list. Any write to a category must revalidate it.
+ */
+export const CATEGORIES_TAG = "categories";
+
+const readCategories = unstable_cache(
+  async () => prisma.category.findMany({ orderBy: { name: "asc" } }),
+  ["categories"],
+  { tags: [CATEGORIES_TAG], revalidate: 300 },
+);
+
+/**
+ * The category list, cached across requests.
+ *
+ * Like the settings, this is read by the header on every page, so a per-render
+ * `cache()` left it being fetched once per page view — the most-scanned table
+ * in the database. The rows are small, but the read was constant.
+ */
 export const getCategories = cache(async (): Promise<Category[]> => {
   try {
-    const rows = await prisma.category.findMany({ orderBy: { name: "asc" } });
+    const rows = await readCategories();
     return rows.map(mapCategory);
   } catch {
     return [];

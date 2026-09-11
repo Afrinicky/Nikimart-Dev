@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { normaliseDataBundlesUrl } from "@/lib/data-bundles/store-link";
 
@@ -154,15 +155,47 @@ export type Settings = Record<SettingKey, string>;
 
 export const SETTING_KEYS = Object.keys(SETTINGS_DEFAULTS) as SettingKey[];
 
+/**
+ * Cache tag for the stored settings. Anything that writes a SiteSetting row
+ * must revalidate it, or the edit won't show until the window below lapses.
+ */
+export const SETTINGS_TAG = "site-settings";
+
+/**
+ * The stored rows, cached across requests.
+ *
+ * `cache()` from React only dedupes within a single render, and the chrome —
+ * Header, Footer and TopBar — reads settings on every page the site serves. So
+ * the whole table was being read once per page view. That is cheap in rows and
+ * ruinous in bytes: `logoUrl` may hold a `data:` URL, which makes these ~54
+ * rows close to a megabyte, and every page view was re-downloading the brand
+ * mark from Postgres. Measured over one billing period it came to gigabytes of
+ * database egress — the single largest consumer of the network transfer quota.
+ *
+ * Keyed reads also matter: filtering on the primary key lets Postgres use the
+ * index instead of scanning the table, and skips any stray rows written by an
+ * older build that `SETTING_KEYS` would only discard anyway.
+ */
+const readStoredSettings = unstable_cache(
+  async (): Promise<Record<string, string>> => {
+    const rows = await prisma.siteSetting.findMany({
+      where: { key: { in: SETTING_KEYS } },
+      select: { key: true, value: true },
+    });
+    return Object.fromEntries(rows.map((row) => [row.key, row.value]));
+  },
+  ["site-settings"],
+  { tags: [SETTINGS_TAG], revalidate: 300 },
+);
+
 /** All settings merged with defaults. Resilient if the table doesn't exist yet. */
 export const getSettings = cache(async (): Promise<Settings> => {
   const merged: Settings = { ...SETTINGS_DEFAULTS };
   try {
-    const rows = await prisma.siteSetting.findMany();
-    for (const row of rows) {
-      if ((SETTING_KEYS as string[]).includes(row.key)) {
-        merged[row.key as SettingKey] = row.value;
-      }
+    const stored = await readStoredSettings();
+    for (const key of SETTING_KEYS) {
+      const value = stored[key];
+      if (value !== undefined) merged[key] = value;
     }
   } catch {
     // table not migrated yet — defaults only

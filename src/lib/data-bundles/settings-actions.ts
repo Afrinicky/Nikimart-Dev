@@ -1,8 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { requireAdmin } from "@/lib/session";
-import { DATA_SETTINGS_DEFAULTS, saveDataSettings } from "@/lib/data-bundles/settings";
+import { DATA_SETTINGS_DEFAULTS, DATA_SETTINGS_TAG, saveDataSettings } from "@/lib/data-bundles/settings";
 
 /**
  * Saving settings in the data-bundle console.
@@ -62,6 +62,7 @@ export async function updateDataSettings(
 
   // Every screen the settings drive is force-dynamic, but the public storefront
   // and the recruitment page are not, and both read them.
+  updateTag(DATA_SETTINGS_TAG);
   revalidatePath("/data-bundles");
   revalidatePath("/become-an-agent");
   revalidatePath("/admin/data/settings");

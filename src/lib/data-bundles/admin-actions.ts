@@ -1,7 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { dataDb } from "@/lib/data-db";
+import { BUNDLES_TAG } from "@/lib/data-bundles/catalog";
 import { requireAdmin } from "@/lib/session";
 import { isNetwork, type Network } from "@/lib/data-bundles/networks";
 import { dispatchDataOrder, refreshDataOrder, dispatchAfaRegistration } from "@/lib/data-bundles/fulfillment";
@@ -33,6 +34,9 @@ function num(fd: FormData, key: string): number | null {
 }
 
 function revalidateAll() {
+  // The buyable ladder is cached across requests; drop it by tag so a price or
+  // availability change is live at once rather than at the next window.
+  updateTag(BUNDLES_TAG);
   revalidatePath("/data-bundles");
   revalidatePath("/admin/data");
   revalidatePath("/admin/data/bundles");
