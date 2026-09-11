@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS "DataBundle" (
   "createdAt"      TIMESTAMP(3)     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt"      TIMESTAMP(3)     NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+-- Pre-split databases already have this table without the column below.
+ALTER TABLE "DataBundle" ADD COLUMN IF NOT EXISTS "teamCommission" DOUBLE PRECISION NOT NULL DEFAULT 0;
 CREATE UNIQUE INDEX IF NOT EXISTS "DataBundle_network_sizeGb_key" ON "DataBundle"("network", "sizeGb");
 CREATE INDEX IF NOT EXISTS "DataBundle_network_isActive_idx" ON "DataBundle"("network", "isActive");
 
@@ -60,6 +62,11 @@ CREATE TABLE IF NOT EXISTS "DataAgent" (
   "createdAt"         TIMESTAMP(3)     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt"         TIMESTAMP(3)     NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE "DataAgent" ADD COLUMN IF NOT EXISTS "setupFeeMethod"    TEXT NOT NULL DEFAULT 'BALANCE';
+ALTER TABLE "DataAgent" ADD COLUMN IF NOT EXISTS "setupFeePaidAt"    TIMESTAMP(3);
+ALTER TABLE "DataAgent" ADD COLUMN IF NOT EXISTS "setupFeeReference" TEXT;
+ALTER TABLE "DataAgent" ADD COLUMN IF NOT EXISTS "referredById"      TEXT;
+ALTER TABLE "DataAgent" ADD COLUMN IF NOT EXISTS "referralLockedAt"  TIMESTAMP(3);
 CREATE UNIQUE INDEX IF NOT EXISTS "DataAgent_userId_key" ON "DataAgent"("userId");
 CREATE UNIQUE INDEX IF NOT EXISTS "DataAgent_code_key"   ON "DataAgent"("code");
 CREATE UNIQUE INDEX IF NOT EXISTS "DataAgent_slug_key"   ON "DataAgent"("slug");
@@ -107,6 +114,10 @@ CREATE TABLE IF NOT EXISTS "DataOrder" (
   "createdAt"            TIMESTAMP(3)     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt"            TIMESTAMP(3)     NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE "DataOrder" ADD COLUMN IF NOT EXISTS "teamAgentId"          TEXT;
+ALTER TABLE "DataOrder" ADD COLUMN IF NOT EXISTS "teamCommission"       DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE "DataOrder" ADD COLUMN IF NOT EXISTS "teamCommissionStatus" TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE "DataOrder" ADD COLUMN IF NOT EXISTS "teamCommissionPaidAt" TIMESTAMP(3);
 CREATE UNIQUE INDEX IF NOT EXISTS "DataOrder_reference_key" ON "DataOrder"("reference");
 CREATE INDEX IF NOT EXISTS "DataOrder_buyerPhone_idx"           ON "DataOrder"("buyerPhone");
 CREATE INDEX IF NOT EXISTS "DataOrder_recipientPhone_idx"       ON "DataOrder"("recipientPhone");
@@ -199,6 +210,9 @@ CREATE TABLE IF NOT EXISTS "DataAgentLedger" (
   "dedupeKey"     TEXT,
   "createdAt"     TIMESTAMP(3)     NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE "DataAgentLedger" ADD COLUMN IF NOT EXISTS "sourceAgentId" TEXT;
+ALTER TABLE "DataAgentLedger" ADD COLUMN IF NOT EXISTS "referralLevel" INTEGER;
+ALTER TABLE "DataAgentLedger" ADD COLUMN IF NOT EXISTS "dedupeKey"     TEXT;
 -- The unique index on dedupeKey is what makes a referral or team commission
 -- payable exactly once, whatever retries the sweep, the webhook and an admin
 -- between them manage. NULLs are distinct in Postgres, so every entry that
@@ -289,6 +303,9 @@ CREATE TABLE IF NOT EXISTS "DataAgentApplication" (
   "updatedAt"       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "termsAcceptedAt" TIMESTAMP(3)
 );
+ALTER TABLE "DataAgentApplication" ADD COLUMN IF NOT EXISTS "referralCode" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "DataAgentApplication" ADD COLUMN IF NOT EXISTS "referrerId"   TEXT;
+ALTER TABLE "DataAgentApplication" ADD COLUMN IF NOT EXISTS "feeMethod"    TEXT NOT NULL DEFAULT 'BALANCE';
 CREATE INDEX IF NOT EXISTS "DataAgentApplication_status_createdAt_idx" ON "DataAgentApplication"("status", "createdAt");
 CREATE INDEX IF NOT EXISTS "DataAgentApplication_email_idx"            ON "DataAgentApplication"("email");
 CREATE INDEX IF NOT EXISTS "DataAgentApplication_desiredSlug_idx"      ON "DataAgentApplication"("desiredSlug");
@@ -300,32 +317,19 @@ CREATE TABLE IF NOT EXISTS "DataSetting" (
 );
 
 -- --------------------------------------------------------------------------
--- Catching up a database that already had these tables.
+-- A note on ordering, because it is what makes this file work twice.
 --
--- On an environment where DATA_DATABASE_URL is not set, everything above is a
--- no-op against the retail database — the tables are already there, from before
--- the split — and the new columns would be missed. These add them.
--- --------------------------------------------------------------------------
-ALTER TABLE "DataBundle"           ADD COLUMN IF NOT EXISTS "teamCommission"       DOUBLE PRECISION NOT NULL DEFAULT 0;
-ALTER TABLE "DataAgent"            ADD COLUMN IF NOT EXISTS "setupFeeMethod"       TEXT NOT NULL DEFAULT 'BALANCE';
-ALTER TABLE "DataAgent"            ADD COLUMN IF NOT EXISTS "setupFeePaidAt"       TIMESTAMP(3);
-ALTER TABLE "DataAgent"            ADD COLUMN IF NOT EXISTS "setupFeeReference"    TEXT;
-ALTER TABLE "DataAgent"            ADD COLUMN IF NOT EXISTS "referredById"         TEXT;
-ALTER TABLE "DataAgent"            ADD COLUMN IF NOT EXISTS "referralLockedAt"     TIMESTAMP(3);
-ALTER TABLE "DataOrder"            ADD COLUMN IF NOT EXISTS "teamAgentId"          TEXT;
-ALTER TABLE "DataOrder"            ADD COLUMN IF NOT EXISTS "teamCommission"       DOUBLE PRECISION NOT NULL DEFAULT 0;
-ALTER TABLE "DataOrder"            ADD COLUMN IF NOT EXISTS "teamCommissionStatus" TEXT NOT NULL DEFAULT 'pending';
-ALTER TABLE "DataOrder"            ADD COLUMN IF NOT EXISTS "teamCommissionPaidAt" TIMESTAMP(3);
-ALTER TABLE "DataAgentLedger"      ADD COLUMN IF NOT EXISTS "sourceAgentId"        TEXT;
-ALTER TABLE "DataAgentLedger"      ADD COLUMN IF NOT EXISTS "referralLevel"        INTEGER;
-ALTER TABLE "DataAgentLedger"      ADD COLUMN IF NOT EXISTS "dedupeKey"            TEXT;
-ALTER TABLE "DataAgentApplication" ADD COLUMN IF NOT EXISTS "referralCode"         TEXT NOT NULL DEFAULT '';
-ALTER TABLE "DataAgentApplication" ADD COLUMN IF NOT EXISTS "referrerId"           TEXT;
-ALTER TABLE "DataAgentApplication" ADD COLUMN IF NOT EXISTS "feeMethod"            TEXT NOT NULL DEFAULT 'BALANCE';
-
+-- Every ADD COLUMN above sits with its own table, before the indexes and
+-- constraints that name the column. That is not tidiness: on a database that
+-- already had these tables — which is every environment that existed before the
+-- split, and the one this file first runs against when DATA_DATABASE_URL is
+-- unset — CREATE TABLE IF NOT EXISTS does nothing at all, so a column added
+-- only in a catch-up block at the bottom does not exist yet when an index
+-- halfway up refers to it, and the migration stops there.
+--
 -- An agent who joined before the fee was tracked cleared it out of commission
--- the moment their balance came back through zero, which is what
--- setupFeePaidAt now records. Backfilling it would be a data change, so it is
--- left to lib/data-bundles/referrals.ts, which settles it on the next ledger
--- movement. Nobody is owed a referral reward for an agent recruited before the
--- programme existed, so nothing is lost either way.
+-- the moment their balance came back through zero, which is what setupFeePaidAt
+-- now records. Backfilling it would be a data change, so it is left to
+-- lib/data-bundles/referrals.ts, which settles it on the next ledger movement.
+-- Nobody is owed a referral reward for an agent recruited before the programme
+-- existed, so nothing is lost either way.
