@@ -32,7 +32,7 @@ export default async function VerifyAgentPaymentPage({
 
   let paid = false;
   try {
-    const result = await verifyTransaction(reference);
+    const result = await verifyTransaction(reference, "data");
     paid =
       result.paid &&
       result.currency === "GHS" &&

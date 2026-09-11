@@ -2,6 +2,7 @@ import { ShieldCheck } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { AdminNav } from "@/components/admin/AdminNav";
+import { ConsoleSwitcher } from "@/components/admin/ConsoleSwitcher";
 import { requireDashboard } from "@/lib/session";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -23,7 +24,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </div>
             <LogoutButton />
           </div>
+          {/*
+            Two consoles, then that console's own tabs. The switcher is the only
+            navigation the retail mall and the bundle business share.
+          */}
           <div className="mt-4">
+            <ConsoleSwitcher />
+          </div>
+          <div className="mt-3">
             <AdminNav />
           </div>
         </Container>

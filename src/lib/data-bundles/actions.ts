@@ -118,7 +118,7 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
   const userId = session?.user?.id ?? null;
   const buyerEmail = data.buyerEmail?.trim() || null;
 
-  const collectPayment = isPaymentConfigured();
+  const collectPayment = isPaymentConfigured("data");
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const reference = newDataReference();
@@ -170,7 +170,7 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
             recipientPhone,
             ...(agent ? { store: agent.slug, agentCode: agent.code } : {}),
           },
-        });
+        }, "data");
         return { ok: true, reference, authorizationUrl };
       } catch (err) {
         // The order never became payable — drop it so it doesn't sit in the
@@ -241,7 +241,7 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
   }
 
   const session = await auth();
-  const collectPayment = isPaymentConfigured();
+  const collectPayment = isPaymentConfigured("data");
 
   // An agent may charge their own AFA price; the difference over Nickimart's is
   // their commission, exactly as on a bundle.
@@ -293,7 +293,7 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
             phoneNumber,
             ...(agent ? { store: agent.slug, agentCode: agent.code } : {}),
           },
-        });
+        }, "data");
         return { ok: true, reference, authorizationUrl };
       } catch (err) {
         await dataDb.afaRegistration.delete({ where: { id: row.id } }).catch(() => {});

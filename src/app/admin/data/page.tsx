@@ -96,10 +96,13 @@ export default async function AdminDataOverviewPage() {
             "update it in Vercel, and redeploy.",
     },
     {
-      ok: isPaymentConfigured(),
-      label: "Paystack",
-      detail: isPaymentConfigured()
-        ? "Collecting real payments."
+      // The bundle business has its own Paystack account, and this console
+      // reports on that one only — the mall's key is the retail console's
+      // business.
+      ok: isPaymentConfigured("data"),
+      label: "Paystack (data bundles)",
+      detail: isPaymentConfigured("data")
+        ? "Collecting real payments into the data-bundle account."
         : "Set PAYSTACK_SECRET_KEY — until then orders settle without charging.",
     },
     {

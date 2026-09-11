@@ -465,7 +465,7 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
   const row = rows.find((r) => r.network === data.network && r.sizeGb === data.sizeGb);
   if (!row) return { ok: false, error: "That bundle is not available right now." };
 
-  const collectPayment = isPaymentConfigured();
+  const collectPayment = isPaymentConfigured("data");
   const email = data.email?.trim() || null;
 
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -514,7 +514,7 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
             recipientPhone,
             agentCode: agent.code,
           },
-        });
+        }, "data");
         return { ok: true, reference, authorizationUrl };
       } catch (err) {
         await dataDb.dataOrder.delete({ where: { id: order.id } }).catch(() => {});

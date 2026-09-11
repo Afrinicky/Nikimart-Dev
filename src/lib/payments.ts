@@ -7,18 +7,60 @@ import "server-only";
  * returns false and callers fall back to the simulated "mark as paid" flow.
  *
  * Amounts are handled in the smallest currency unit (pesewas): GHS × 100.
+ *
+ * Two accounts, not one
+ * ---------------------
+ * The mall and the bundle business settle into different Paystack accounts, so
+ * every call here says which one it is acting for. It is not a preference: the
+ * money from a bundle sale and the money from a mall order belong to different
+ * ledgers, and with one account they arrive in one payout that nobody can split
+ * afterwards.
+ *
+ *   "data"   — the bundle storefront, agent storefronts and AFA registrations.
+ *              PAYSTACK_SECRET_KEY, unchanged, because this is the account that
+ *              has always taken those payments.
+ *   "retail"  — the mall. RETAIL_PAYSTACK_SECRET_KEY.
+ *
+ * Retail falls back to PAYSTACK_SECRET_KEY when its own key is not set, so an
+ * environment that has not been given the second account keeps taking payments
+ * exactly as it did. Setting RETAIL_PAYSTACK_SECRET_KEY is what separates them,
+ * and nothing else has to change on the day it is set.
  */
 
 const PAYSTACK_BASE = "https://api.paystack.co";
 
-export function paystackSecretKey(): string | undefined {
-  const key = process.env.PAYSTACK_SECRET_KEY;
-  return key && key.trim() ? key.trim() : undefined;
+/** Which business a charge belongs to. */
+export type PaymentAccount = "retail" | "data";
+
+export function paystackSecretKey(account: PaymentAccount): string | undefined {
+  const raw =
+    account === "retail"
+      ? process.env.RETAIL_PAYSTACK_SECRET_KEY?.trim() || process.env.PAYSTACK_SECRET_KEY
+      : process.env.PAYSTACK_SECRET_KEY;
+  return raw && raw.trim() ? raw.trim() : undefined;
 }
 
-/** True when Paystack is configured and real payments should be collected. */
-export function isPaymentConfigured(): boolean {
-  return Boolean(paystackSecretKey());
+/**
+ * Every configured account, with the business each one settles for. The webhook
+ * uses this to work out which account signed an event.
+ */
+export function paystackAccounts(): Array<{ account: PaymentAccount; secret: string }> {
+  const seen = new Set<string>();
+  const out: Array<{ account: PaymentAccount; secret: string }> = [];
+  for (const account of ["retail", "data"] as const) {
+    const secret = paystackSecretKey(account);
+    // One key serving both businesses is one account, and one signature: listing
+    // it twice would have the webhook accept a bundle charge as a mall order.
+    if (!secret || seen.has(secret)) continue;
+    seen.add(secret);
+    out.push({ account, secret });
+  }
+  return out;
+}
+
+/** True when this account is configured and real payments should be collected. */
+export function isPaymentConfigured(account: PaymentAccount): boolean {
+  return Boolean(paystackSecretKey(account));
 }
 
 /** Convert a Cedi amount to integer pesewas for the Paystack API. */
@@ -47,8 +89,11 @@ export interface InitializeResult {
  * Start a Paystack transaction. Returns the hosted checkout URL to redirect the
  * buyer to (Mobile Money for MTN/Telecel/AirtelTigo + cards). Throws on failure.
  */
-export async function initializeTransaction(params: InitializeParams): Promise<InitializeResult> {
-  const secret = paystackSecretKey();
+export async function initializeTransaction(
+  params: InitializeParams,
+  account: PaymentAccount,
+): Promise<InitializeResult> {
+  const secret = paystackSecretKey(account);
   if (!secret) throw new Error("Paystack is not configured.");
 
   const res = await fetch(`${PAYSTACK_BASE}/transaction/initialize`, {
@@ -96,9 +141,18 @@ export interface VerifyResult {
   paid: boolean;
 }
 
-/** Verify a transaction by reference (server-side source of truth). */
-export async function verifyTransaction(reference: string): Promise<VerifyResult> {
-  const secret = paystackSecretKey();
+/**
+ * Verify a transaction by reference (server-side source of truth).
+ *
+ * It has to be asked of the account that took the charge: Paystack does not
+ * know a reference that belongs to somebody else's account and would report a
+ * paid order as unknown.
+ */
+export async function verifyTransaction(
+  reference: string,
+  account: PaymentAccount,
+): Promise<VerifyResult> {
+  const secret = paystackSecretKey(account);
   if (!secret) throw new Error("Paystack is not configured.");
 
   const res = await fetch(`${PAYSTACK_BASE}/transaction/verify/${encodeURIComponent(reference)}`, {

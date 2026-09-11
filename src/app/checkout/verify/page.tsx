@@ -35,7 +35,7 @@ export default async function VerifyPaymentPage({
 
   let paid = false;
   try {
-    const result = await verifyTransaction(reference);
+    const result = await verifyTransaction(reference, "retail");
     // Paystack is the source of truth for *whether* it was paid; we still
     // check the captured amount covers the order before settling it.
     paid =

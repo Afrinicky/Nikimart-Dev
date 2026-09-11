@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { isDataConsole } from "@/components/admin/ConsoleSwitcher";
 import { ActionLink } from "@/components/ui/motion";
 import {
   ClipboardList,
@@ -20,7 +21,6 @@ import {
   Wallet,
   Gift,
   Scale,
-  Signal,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -31,7 +31,6 @@ const TABS = [
   { href: "/admin/categories", label: "Categories", icon: LayoutGrid },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
-  { href: "/admin/data", label: "Data", icon: Signal },
   { href: "/admin/finance", label: "Finance", icon: Wallet },
   { href: "/admin/affiliates", label: "Affiliates", icon: Gift },
   { href: "/admin/pages", label: "Pages", icon: LayoutTemplate },
@@ -45,8 +44,17 @@ const TABS = [
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
+/**
+ * The retail console's tabs.
+ *
+ * Data bundles are not one of them any more: they are their own console, with
+ * their own tab row (DataSubNav) rendered by /admin/data/layout.tsx. Rendering
+ * nothing here inside that console is what keeps the two from stacking up — the
+ * switcher above is the only navigation the two share.
+ */
 export function AdminNav() {
   const pathname = usePathname();
+  if (isDataConsole(pathname)) return null;
 
   return (
     <nav className="scrollbar-none -mx-1 flex gap-1.5 overflow-x-auto px-1">

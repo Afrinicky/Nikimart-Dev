@@ -41,7 +41,7 @@ export default async function VerifyStorePaymentPage({
 
   let paid = false;
   try {
-    const result = await verifyTransaction(reference);
+    const result = await verifyTransaction(reference, "data");
     paid =
       result.paid &&
       result.currency === "GHS" &&
