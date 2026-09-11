@@ -4,9 +4,12 @@ import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { AgentRail, AgentSidebar } from "@/components/agent/AgentNav";
 import { AgentCode } from "@/components/agent/AgentCode";
+import { RegistrationFeePanel } from "@/components/agent/RegistrationFeePanel";
 import { requireUser } from "@/lib/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/settings";
+import { registrationFeeStatus } from "@/lib/data-bundles/registration-fee";
+import { formatMoney } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +32,7 @@ export default async function AgentLayout({ children }: { children: React.ReactN
   if (!agent) redirect("/become-an-agent");
 
   const suspended = agent.status !== "active";
+  const fee = registrationFeeStatus(agent);
 
   return (
     <div className="niki-gradient-hero min-h-[calc(100vh-4rem)] pb-12">
@@ -64,6 +68,18 @@ export default async function AgentLayout({ children }: { children: React.ReactN
             Your agent account is suspended. Your storefront is closed and you aren&apos;t earning
             commission. Please contact support to sort it out.
           </p>
+        ) : null}
+
+        {/*
+          An agent who chose to pay their registration fee up front sees it on
+          every screen until they have. It is in the shell rather than on one
+          page because it is the one thing outstanding against their account,
+          and because somebody else — whoever recruited them — is waiting on it.
+        */}
+        {fee.payable ? (
+          <div className="animate-fade-up mt-5">
+            <RegistrationFeePanel amount={formatMoney(fee.outstanding)} />
+          </div>
         ) : null}
 
         <div className="mt-5 lg:hidden">

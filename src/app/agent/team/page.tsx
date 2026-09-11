@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { Coins, HandCoins, Share2, Users } from "lucide-react";
 import { AgentPageHeading, Card, EmptyRow, TableScroll, formatWhen } from "@/components/agent/AgentUi";
 import { ReferralShare } from "@/components/agent/ReferralShare";
-import { RegistrationFeePanel } from "@/components/agent/RegistrationFeePanel";
 import { requireUser } from "@/lib/session";
 import { formatMoney } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
@@ -112,6 +111,9 @@ export default async function AgentTeamPage() {
   if (!agent) redirect("/become-an-agent");
 
   const [team, config] = await Promise.all([getTeamSummary(agent), getReferralConfig()]);
+  // The prompt to pay an outstanding registration fee is in the agent shell, on
+  // every screen — this page only needs to know whether their own upline is
+  // still waiting on it.
   const fee = registrationFeeStatus(agent);
   const link = referralLink(siteUrl(), agent.code);
 
@@ -122,7 +124,13 @@ export default async function AgentTeamPage() {
         subtitle="Bring other agents on board. Earn when they register, and keep earning from what they sell."
       />
 
-      {fee.payable ? <RegistrationFeePanel amount={formatMoney(fee.outstanding)} /> : null}
+      {fee.payable ? (
+        <p className="rounded-2xl bg-amber-50 px-5 py-4 text-sm text-amber-800 ring-1 ring-amber-200">
+          Your own registration fee of {formatMoney(fee.outstanding)} is still outstanding. Until it
+          is paid, whoever recruited you hasn&apos;t been paid for bringing you on board — and
+          neither will you be, for the people you recruit, until they pay theirs.
+        </p>
+      ) : null}
 
       {!config.enabled ? (
         <p className="rounded-2xl bg-amber-50 px-5 py-4 text-sm text-amber-800 ring-1 ring-amber-200">

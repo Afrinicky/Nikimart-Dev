@@ -143,14 +143,29 @@ You can also register a brand-new customer at `/register`.
 
 ## Admin console
 
-Signed in as an **Admin**, `/admin` is a full operator console (tabbed shell):
+Signed in as an **Admin**, `/admin` is an operator console split into **two
+consoles**, chosen from the switcher at the top of the shell:
+
+- **Retail Services** (`/admin`) — the mall. Products, shops, categories, users,
+  orders, finance, affiliates, pages, locations, pickup, shipping, order
+  placement, FAQs, policies and settings.
+- **Data Bundles** (`/admin/data`) — the bundle business. Prices, orders, AFA,
+  agents, referrals, withdrawals, announcements, agent support and its own
+  settings (see below).
+
+They are two businesses that share a sign-in and nothing else — separate
+databases, separate Paystack accounts, separate staff who care about them — so
+each gets its own place rather than one being a tab among the other's eighteen.
+Each console shows only its own tabs; the switcher is the only navigation they
+share.
+
+Inside Retail Services:
 
 - **Products / Shops / Categories / Users** — create, edit, delete; shops have
   verify/unverify; users have role assignment.
 - **Orders** — inline status changes.
 - **Order placement** — when to buy the imported goods, and the record of having
   bought them (see below).
-- **Data** — the data bundle storefront: prices, orders, AFA (see below).
 - **Pages** — a section-based **page builder** (see below).
 
 All admin mutations run through admin-only server actions (`requireAdmin`) and
@@ -502,11 +517,58 @@ Nickimart sells internet data bundles alongside the mall, on its own storefront 
 **`/data-bundles`** — MTN, Telecel, AirtelTigo iShare and AirtelTigo BigTime.
 Buyers no longer leave the site for an external agent storefront.
 
-It is deliberately its own world. Bundles are not `Product` rows, bundle orders
-are not `Order` rows, and nothing about them touches the cart, shipping, pickup
-points, or seller settlements. What they *do* share is Nickimart's infrastructure:
-the same Paystack account collects the money and the same Arkesel sender texts
-the buyer.
+It is deliberately its own world, and now literally so: the bundle business runs
+on **its own Postgres database** and settles into **its own Paystack account**.
+Bundles are not `Product` rows, bundle orders are not `Order` rows, and nothing
+about them touches the cart, shipping, pickup points, or seller settlements.
+What they still share is the Arkesel sender that texts the buyer, and the
+Nickimart account an agent signs in with.
+
+### Two databases
+
+`DATA_DATABASE_URL` is the bundle database: the price ladder, bundle and AFA
+orders, the whole agent platform (accounts, prices, ledger, withdrawals,
+applications, referrals) and the settings the bundle console reads. `prisma/data/schema.prisma`
+describes it and `src/lib/data-db.ts` is the only way into it; `DATABASE_URL`
+and `src/lib/prisma.ts` remain the retail mall's.
+
+Why: the two businesses fail, grow and get restored independently. A restore of
+one no longer rolls the other back, and a bundle price edit no longer contends
+with a Black Friday checkout.
+
+The one thing that crosses is identity. `DataAgent.userId` holds a `User.id`
+from the retail database as a plain indexed column — Postgres cannot reference
+across databases — so code joins the two sides through
+`src/lib/data-bundles/user-link.ts`, once per page of rows rather than once per
+row.
+
+**Nothing has to move at once.** With `DATA_DATABASE_URL` unset, both the client
+and the migration runner fall back to `DATABASE_URL` and the app behaves exactly
+as it did before the split. To separate them:
+
+```bash
+# 1. Create the database and set DATA_DATABASE_URL, then deploy.
+#    db/data-migrations/*.sql is applied automatically by `npm run build`.
+# 2. Copy the existing rows across. Reads DATABASE_URL, writes DATA_DATABASE_URL,
+#    and never touches the source.
+npm run db:copy-data -- --dry-run   # counts both sides, changes nothing
+npm run db:copy-data                # copies; safe to run again
+# 3. Check the console, then drop the old tables from the retail database by hand.
+```
+
+### Two Paystack accounts
+
+`PAYSTACK_SECRET_KEY` is the **data bundles** account — the bundle storefront,
+agent storefronts, AFA registrations and agent registration fees. The mall uses
+`RETAIL_PAYSTACK_SECRET_KEY`. Leave the retail key unset and retail falls back to
+the first, which is how it worked before the accounts were split; setting it is
+what separates the payouts.
+
+Both dashboards point their webhook at the same `/api/paystack/webhook`. It
+checks the signature against each configured key to work out which account
+signed an event, then refuses to settle a reference that account does not own —
+without that, one account's key would be enough to sign an event naming an order
+in the other's ledger and have it settled unpaid.
 
 **Buying** (no account needed — a phone number is the whole identity):
 
@@ -542,17 +604,25 @@ endpoint rejects anything whose token doesn't match its reference.
 
 ### Admin
 
-`/admin/data` is a section of the existing admin console (same shell, same
-`requireAdmin` guard) with five tabs:
+`/admin/data` is the **Data Bundles** console — one of the admin's two consoles,
+behind the same `requireAdmin` guard:
 
 - **Overview** — agent wallet balance, today's takings, in-flight and failed
   orders, revenue against provider cost, and a setup checklist.
 - **Bundle prices** — the price table per network. Record the provider's cost
   beside each size and the margin is worked out as you type; "Price from cost"
-  re-prices a whole network at a markup in one move.
+  re-prices a whole network at a markup in one move. The **Team** column is what
+  a selling agent's recruiter earns on that bundle, and it refuses an amount
+  larger than your own margin on the agent price.
 - **Bundle orders** — filter by status, search by reference or phone, and per
   order: send now, refresh from the provider, mark refunded.
 - **AFA** — registrations and their approval status.
+- **Agents** — the roster, the application queue, and per agent their wallet,
+  ledger, orders and who recruited them.
+- **Referrals** — every number the referral programme pays on (see below), and
+  what those numbers have actually paid out.
+- **Withdrawals / Announcements / Agent support** — the MoMo payout queue,
+  broadcasts to agents, and their callback requests.
 - **Store settings** — store name, tagline, open/closed, support WhatsApp, the
   AFA fee, and the default markup.
 
@@ -560,10 +630,64 @@ Prices ship seeded with a **placeholder** ladder so the store is never empty.
 Check every row against your agent cost in **Admin → Data → Bundle prices**
 before advertising the store.
 
+### Referrals and team earnings
+
+An agent's own agent code (`NKM4821`) **is** their referral code — there is no
+second identifier to lose. Applicants can quote one when they apply, or arrive
+on an invite link (`/become-an-agent?ref=NKM4821`) that prefills it; approval
+records the relationship on the new account, permanently.
+
+Two levels, and only two. With `A → B → C`:
+
+| Event | A earns | B earns |
+| --- | --- | --- |
+| B registers | direct reward | — |
+| C registers | second-level reward | direct reward |
+| D registers (recruited by C) | **nothing** | second-level reward |
+| B makes a qualifying sale | team commission | — |
+| C makes a qualifying sale | **nothing** | team commission |
+
+Recruitment rewards reach two levels up; **sales commission reaches one.**
+
+**Nothing is paid on a promise.** A joining reward is released only once the new
+agent's registration fee has actually been paid — either up front through
+Paystack, or by clearing out of their commission, which the applicant chooses
+when they apply. A fee an admin **waives pays nobody, ever**. That is what makes
+an invented agent cost more than they are worth, and it is the rule the rest of
+the abuse story rests on.
+
+Everything lands in the existing agent balance and `DataAgentLedger` — there is
+no second wallet. Each row carries its commission type, the agent whose activity
+produced it, the referral level, and the order or agent code behind it, so a
+credit traces back to its source instead of being a line of narration.
+
+Agents see all of it under **My Team** (`/agent/team`): their code and invite
+link, both levels of recruits with whether each one's registration fee has been
+paid, active recruits, team sales, and the three earnings totals.
+
+Admins set every value in **Admin → Data Bundles → Referrals**: the two joining
+rewards, whether the second level pays at all, the default team-sales
+commission, what counts as a qualifying sale (minimum sale amount, minimum
+commission to the seller, whether AFA counts), a daily cap on rewards per agent,
+and the programme switch. Per-bundle team commissions live on the Bundle prices
+tab, next to the margin they come out of. Every calculation reads the current
+values at the moment it runs, so a change takes effect on the next sale with no
+deploy — and amounts already earned are snapshotted on the order or in the
+ledger, so a change never rewrites what somebody was already owed.
+
+**What it refuses**, each on its own terms: self-referral (same agent, same
+Nickimart account, same email, or same phone number); a second referrer, or a
+referrer changed after activation; a cycle between two agents; commission on a
+failed, cancelled or refunded sale; and — by a unique index on the ledger rather
+than by a code path — paying the same commission twice, however many retries,
+sweeps and webhooks reach it.
+
 ### Setup
 
 1. Run `nikimart-neon-data-bundles.sql` on the database (tables + seed ladder +
    settings). It's idempotent and never overwrites prices you've already set.
+   On a database that already has the bundle tables, `db/data-migrations/` is
+   applied by `npm run build` and brings them up to date.
 2. Generate an API key at justicedatashop.com → Developer → Authentication and
    set `JUSTICE_API_KEY`.
 3. Point Paystack's webhook at `https://<your-domain>/api/paystack/webhook`
@@ -583,12 +707,23 @@ and undispatched until the key is added and you press **Send now**.
 
 ## Data model
 
-Prisma schema (`prisma/schema.prisma`) covers the Auth.js tables plus the
-application domain: `Category`, `Vendor`, `Product`, `Order`, `OrderItem`,
-`PickupPoint`, `Shipment`, the page builder (`Page`, `PageSection`,
-`SiteSetting`), and the data bundle storefront (`DataBundle`, `DataOrder`,
-`AfaRegistration`). The datasource is PostgreSQL in every environment; set
-`DATABASE_URL` accordingly.
+Two Prisma schemas, one per database. Both datasources are PostgreSQL in every
+environment.
+
+**`prisma/schema.prisma`** (`DATABASE_URL`) — the retail mall: the Auth.js
+tables plus `Category`, `Vendor`, `Product`, `Order`, `OrderItem`,
+`PickupPoint`, `Shipment`, and the page builder (`Page`, `PageSection`,
+`SiteSetting`).
+
+**`prisma/data/schema.prisma`** (`DATA_DATABASE_URL`, falling back to
+`DATABASE_URL`) — the bundle business: `DataBundle`, `DataOrder`,
+`AfaRegistration`, `DataAgent` and its `DataAgentPrice` / `DataAgentLedger` /
+`DataAgentWithdrawal` / `DataAgentApplication`, `DataAnnouncement`,
+`DataSupportRequest`, and `DataSetting`. It generates a second client to
+`node_modules/.prisma/data-client`, reached only through `src/lib/data-db.ts`.
+
+`npm run prisma:generate` generates both; `npm run build` and `postinstall` call
+it, so there is nothing extra to remember.
 
 ## Useful scripts
 
@@ -598,6 +733,9 @@ application domain: `Category`, `Vendor`, `Product`, `Order`, `OrderItem`,
 | `npm run build`   | Production build                     |
 | `npm run lint`    | Run ESLint                           |
 | `npm test`        | Run the unit tests (Node test runner)|
+| `npm run prisma:generate` | Generate both Prisma clients (retail + data bundles) |
+| `npm run db:migrate:deploy` | Apply `db/migrations` and `db/data-migrations` |
+| `npm run db:copy-data` | One-time copy of the bundle tables into `DATA_DATABASE_URL` (`-- --dry-run` to count only) |
 | `npm run db:migrate` | Create/apply Prisma migrations    |
 | `npm run db:seed` | Seed demo data                       |
 | `npm run db:reset`| Drop, re-migrate, and re-seed the DB |
