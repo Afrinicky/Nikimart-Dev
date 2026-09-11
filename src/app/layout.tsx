@@ -10,6 +10,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
+import { AuthSession } from "@/components/providers/AuthSession";
 import { RouteProgress } from "@/components/ui/motion";
 
 const geistSans = Geist({
@@ -54,11 +55,25 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image" },
 };
 
-// Every route depends on live database data plus per-request auth, cart, and
-// location, so nothing should be prerendered at build time. Forcing dynamic
-// rendering also keeps the build fully independent of the database (Preview
-// deployments don't need DATABASE_URL to build).
-export const dynamic = "force-dynamic";
+// Everything under this layout may be served from cache for up to a minute.
+//
+// This was `force-dynamic`, which meant every page on the site — including the
+// homepage and every product page a crawler walks — was rendered from scratch,
+// with fresh database queries, for every single hit. That is what spent the
+// bandwidth allowance.
+//
+// A minute is short enough that an admin edit shows up while they are still
+// looking at it, and long enough that a burst of traffic costs one render.
+// Anything personal stays dynamic on its own: reading cookies or the session
+// opts a route out automatically, which covers the cart, checkout, the account
+// pages and every dashboard — and those also set `force-dynamic` themselves.
+//
+// The build no longer being independent of the database is the trade. Every
+// read in this tree already falls back to empty on failure rather than
+// throwing, so a build without DATABASE_URL still succeeds; it would just
+// prerender thin pages, and the revalidate above replaces them within the
+// minute.
+export const revalidate = 60;
 
 export default async function RootLayout({
   children,
@@ -76,15 +91,17 @@ export default async function RootLayout({
         {/* A thin bar under the header while a route is loading, so a tap is
             never followed by a silent pause. */}
         <RouteProgress />
-        <LocationProvider locations={locations}>
-          <CartProvider>
-            <TopBar />
-            <Header />
-            <main className="flex-1">{children}</main>
-            <Footer />
-            <MobileBottomNav />
-          </CartProvider>
-        </LocationProvider>
+        <AuthSession>
+          <LocationProvider locations={locations}>
+            <CartProvider>
+              <TopBar />
+              <Header />
+              <main className="flex-1">{children}</main>
+              <Footer />
+              <MobileBottomNav />
+            </CartProvider>
+          </LocationProvider>
+        </AuthSession>
       </body>
     </html>
   );

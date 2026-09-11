@@ -15,6 +15,7 @@ import type {
 } from "@/lib/types";
 import { ABROAD_TYPES, isAbroadType } from "@/lib/abroad";
 import type {
+  Prisma,
   Product as PrismaProduct,
   Vendor as PrismaVendor,
   Category as PrismaCategory,
@@ -160,19 +161,140 @@ export const getVendors = cache(async (): Promise<Vendor[]> => {
   }
 });
 
+/**
+ * What a product *listing* fetches — everything a card renders, and nothing a
+ * card never shows.
+ *
+ * Prisma selects every scalar on a model unless told otherwise, so the listing
+ * query used to carry each product's full `description` and its `attributes`
+ * spec table across the network, on every page view, for every product on the
+ * page. A grid shows none of it. On a catalogue of any size that is the single
+ * largest thing the database sends all day, and it is metered.
+ *
+ * Note `images: take: 1`: a card shows one thumbnail, and `include` was
+ * fetching every image row of every product to render it.
+ *
+ * The four omitted fields come back empty from `mapProductCard`. Nothing in a
+ * listing reads them — search is the one thing that ever did, and it now runs
+ * in the database (see filterProducts) rather than pulling the text out to
+ * match it here. A page that needs the whole product uses getProductBySlug,
+ * which fetches one row in full.
+ */
+const CARD_SELECT = {
+  id: true, slug: true, name: true, categoryId: true, vendorId: true,
+  price: true, oldPrice: true, stockQuantity: true, moq: true, productType: true,
+  badges: true, locationIds: true,
+  campusDeliveryAvailable: true, pickupAvailable: true, sameDayDeliveryAvailable: true,
+  isOfficial: true, isFeatured: true, rating: true, reviewCount: true,
+  gradientFrom: true, gradientTo: true, emoji: true, image: true,
+  originCountry: true, isArchived: true,
+  sourceUrl: true, supplierName: true, freightMode: true, supplierDelivers: true,
+  shippingWeightKg: true, lengthCm: true, widthCm: true, heightCm: true, cbm: true,
+  arrivalPointId: true, forwarderId: true, forwarderRouteId: true,
+  shippingMethod: true, manualShippingFee: true, shippingOnPickup: true,
+  affiliateEnabled: true, affiliateEnrolledBy: true, affiliateCommissionRate: true,
+  images: { orderBy: { order: "asc" }, take: 1, select: { url: true } },
+  vendor: { select: { originCountry: true } },
+} as const;
+
+// Derived from the select itself, so adding or removing a column above cannot
+// leave this type quietly describing a row shape that is no longer fetched.
+type CardRow = Prisma.ProductGetPayload<{ select: typeof CARD_SELECT }>;
+
+/**
+ * A card row as a Product. The four fields a card never shows are filled in
+ * empty rather than fetched — see CARD_SELECT.
+ */
+function mapProductCard(row: CardRow): Product {
+  return mapProduct({
+    ...row,
+    description: "",
+    attributes: "[]",
+    preorderInfo: null,
+    serviceInfo: null,
+    supplierContact: "",
+    supplierFreight: 0,
+  } as unknown as PrismaProduct & { images?: { url: string }[]; vendor?: { originCountry: string } | null });
+}
+
+/** Only listings a shopper may see. Archived products keep their order history but leave the storefront. */
+const LIVE = { isArchived: false } as const;
+
+/**
+ * Every live product, as cards.
+ *
+ * `cache` is React's per-request dedupe, not a cache between requests — two
+ * components on one page share a fetch, the next visitor does not. So keep the
+ * callers below narrowing in SQL rather than calling this and filtering in
+ * JavaScript: a category page that wants twelve products should ask for twelve.
+ */
 export const getProducts = cache(async (): Promise<Product[]> => {
   try {
     const rows = await prisma.product.findMany({
-      // Archived products keep their order history but leave the storefront.
-      where: { isArchived: false },
+      where: LIVE,
       orderBy: { name: "asc" },
-      include: { images: { orderBy: { order: "asc" } }, vendor: { select: { originCountry: true } } },
+      select: CARD_SELECT,
     });
-    return rows.map(mapProduct);
+    return rows.map(mapProductCard);
   } catch {
     return [];
   }
 });
+
+/** The same list, narrowed in the database. */
+async function listProducts(
+  where: Record<string, unknown>,
+  opts: { take?: number } = {},
+): Promise<Product[]> {
+  try {
+    const rows = await prisma.product.findMany({
+      where: { ...LIVE, ...where },
+      orderBy: { name: "asc" },
+      select: CARD_SELECT,
+      ...(opts.take ? { take: opts.take } : {}),
+    });
+    return rows.map(mapProductCard);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * How many products the homepage renders before pointing at /products.
+ *
+ * The homepage used to render the whole catalogue — every product, on the
+ * busiest page on the site, fetched fresh for each visitor. Nobody scrolls a
+ * thousand cards; they search or pick a category. This is a full screen of
+ * browsing with a way through to the rest.
+ */
+export const HOME_PRODUCT_LIMIT = 48;
+
+/**
+ * The homepage grid. Ordered by name like every other listing — Product has no
+ * created date to sort "newest" by, and inventing one is a schema change this
+ * does not need.
+ */
+export async function getHomeProducts(limit = HOME_PRODUCT_LIMIT): Promise<Product[]> {
+  return listProducts({}, { take: limit });
+}
+
+/** How many live products there are, for "showing 48 of 320". */
+export async function countProducts(): Promise<number> {
+  try {
+    return await prisma.product.count({ where: LIVE });
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * `badges` and `locationIds` are JSON arrays kept in text columns, so matching
+ * one means matching its quoted form — `"flash_sale"` and not `flash_sale`,
+ * which would also match a badge that merely starts with it.
+ */
+function jsonArrayHas(value: string) {
+  return { contains: `"${value}"` };
+}
 
 /** Products enrolled in the affiliate program (for affiliates to promote). */
 export const getAffiliateProducts = cache(async (): Promise<Product[]> => {
@@ -208,25 +330,41 @@ export async function getVendorById(id: string): Promise<Vendor | undefined> {
   return (await getVendors()).find((v) => v.id === id);
 }
 
+/**
+ * One product, in full — description, spec table, every image.
+ *
+ * This fetched the entire catalogue and then searched it in JavaScript for a
+ * single slug. A product page is the most-visited kind of page a shop has and
+ * the most heavily crawled, so it was also the most expensive way the site had
+ * of answering the cheapest possible question.
+ */
 export async function getProductBySlug(slug: string): Promise<Product | undefined> {
-  return (await getProducts()).find((p) => p.slug === slug);
+  try {
+    const row = await prisma.product.findUnique({
+      where: { slug },
+      include: { images: { orderBy: { order: "asc" } }, vendor: { select: { originCountry: true } } },
+    });
+    return row ? mapProduct(row) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function getProductsByCategoryId(categoryId: string): Promise<Product[]> {
-  return (await getProducts()).filter((p) => p.categoryId === categoryId);
+  return listProducts({ categoryId });
 }
 
 export async function getProductsByVendorId(vendorId: string): Promise<Product[]> {
-  return (await getProducts()).filter((p) => p.vendorId === vendorId);
+  return listProducts({ vendorId });
 }
 
 // ---- curated collections (mirror the old mock-data exports) ---------------
 
 export async function getFeaturedProducts(): Promise<Product[]> {
-  return (await getProducts()).filter((p) => p.isFeatured);
+  return listProducts({ isFeatured: true });
 }
 export async function getFlashSaleProducts(): Promise<Product[]> {
-  return (await getProducts()).filter((p) => p.badges.includes("flash_sale"));
+  return listProducts({ badges: jsonArrayHas("flash_sale") });
 }
 /**
  * Everything shipped from abroad, under either spelling of the type.
@@ -235,7 +373,7 @@ export async function getFlashSaleProducts(): Promise<Product[]> {
  * migrations here are additive by rule, so the reconciliation lives in code.
  */
 export async function getAbroadProducts(): Promise<Product[]> {
-  return (await getProducts()).filter((p) => isAbroadType(p.productType));
+  return listProducts({ productType: { in: [...ABROAD_TYPES] } });
 }
 
 /** Imported listings from one origin country ("CN", "AE"…). */
@@ -267,20 +405,31 @@ export async function getAbroadOriginCounts(): Promise<Record<string, number>> {
   return counts;
 }
 export async function getServiceProducts(): Promise<Product[]> {
-  return (await getProducts()).filter((p) => p.productType === "service");
+  return listProducts({ productType: "service" });
 }
 export async function getFoodProducts(): Promise<Product[]> {
-  return (await getProducts()).filter((p) => p.productType === "food");
+  return listProducts({ productType: "food" });
 }
 export async function getOfficialProducts(): Promise<Product[]> {
-  return (await getProducts()).filter((p) => p.isOfficial);
+  return listProducts({ isOfficial: true });
 }
 
+/**
+ * A few things to look at next. Same category first, topped up from elsewhere
+ * if that runs short — and never more than `limit` rows fetched, where this
+ * used to read the whole catalogue to show six of it.
+ */
 export async function getRelatedProducts(product: Product, limit = 6): Promise<Product[]> {
-  const all = await getProducts();
-  const sameCat = all.filter((p) => p.id !== product.id && p.categoryId === product.categoryId);
-  const otherCat = all.filter((p) => p.id !== product.id && p.categoryId !== product.categoryId);
-  return sameCat.concat(otherCat).slice(0, limit);
+  const sameCat = await listProducts(
+    { categoryId: product.categoryId, id: { not: product.id } },
+    { take: limit },
+  );
+  if (sameCat.length >= limit) return sameCat;
+  const rest = await listProducts(
+    { categoryId: { not: product.categoryId }, id: { not: product.id } },
+    { take: limit - sameCat.length },
+  );
+  return sameCat.concat(rest);
 }
 
 // ---- filtering / search ---------------------------------------------------
@@ -294,55 +443,79 @@ export interface ProductFilters {
   minPrice?: number;
 }
 
+/**
+ * Search and filter, in the database.
+ *
+ * This used to load every product and narrow the array — which meant a search
+ * for one phone downloaded the whole catalogue, descriptions included, to throw
+ * nearly all of it away. Postgres does the same work without sending the rows,
+ * and matches case-insensitively rather than by lowercasing every string in
+ * JavaScript first.
+ */
 export async function filterProducts(filters: ProductFilters): Promise<Product[]> {
-  const [all, categories, vendorNames] = await Promise.all([
-    getProducts(),
-    getCategories(),
-    getVendorNameMap(),
-  ]);
-  let result = [...all];
+  const where: Record<string, unknown> = {};
+
   if (filters.category) {
-    const cat = categories.find((c) => c.slug === filters.category);
-    if (cat) result = result.filter((p) => p.categoryId === cat.id);
+    const cat = (await getCategories()).find((c) => c.slug === filters.category);
+    // An unknown category slug matched nothing before and still matches nothing.
+    where.categoryId = cat ? cat.id : "\u0000none";
   }
-  if (filters.badge) {
-    result = result.filter((p) => p.badges.includes(filters.badge as BadgeKind));
-  }
+  if (filters.badge) where.badges = jsonArrayHas(filters.badge);
   if (filters.type) {
     // "shipped_from_abroad" has to match its legacy spelling too, or a filter
     // silently hides every listing made before the rename.
-    const wanted = isAbroadType(filters.type)
-      ? (ABROAD_TYPES as readonly string[])
-      : [filters.type];
-    result = result.filter((p) => wanted.includes(p.productType));
+    where.productType = isAbroadType(filters.type)
+      ? { in: [...ABROAD_TYPES] }
+      : filters.type;
   }
-  if (typeof filters.maxPrice === "number") {
-    result = result.filter((p) => p.price <= filters.maxPrice!);
-  }
-  if (typeof filters.minPrice === "number") {
-    result = result.filter((p) => p.price >= filters.minPrice!);
+  if (typeof filters.maxPrice === "number" || typeof filters.minPrice === "number") {
+    where.price = {
+      ...(typeof filters.maxPrice === "number" ? { lte: filters.maxPrice } : {}),
+      ...(typeof filters.minPrice === "number" ? { gte: filters.minPrice } : {}),
+    };
   }
   if (filters.q) {
-    const q = filters.q.toLowerCase().trim();
-    result = result.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
-        (vendorNames[p.vendorId]?.toLowerCase().includes(q) ?? false),
-    );
+    const q = filters.q.trim();
+    if (q) {
+      where.OR = [
+        { name: { contains: q, mode: "insensitive" } },
+        { description: { contains: q, mode: "insensitive" } },
+        { vendor: { businessName: { contains: q, mode: "insensitive" } } },
+      ];
+    }
   }
-  return result;
+
+  return listProducts(where);
 }
 
 export async function getProductsForLocation(locationId: string): Promise<Product[]> {
-  const all = await getProducts();
-  if (locationId === "any") return all;
-  return all.filter((p) => p.locationIds.includes(locationId) || p.locationIds.includes("any"));
+  if (locationId === "any") return getProducts();
+  // A listing is available here if it names this place, or says "any".
+  return listProducts({
+    OR: [{ locationIds: jsonArrayHas(locationId) }, { locationIds: jsonArrayHas("any") }],
+  });
 }
 
-/** Products whose origin country matches `code` (e.g. "CN", "US"). */
+/**
+ * Products whose origin country matches `code` (e.g. "CN", "US").
+ *
+ * The country on a listing is the listing's own, falling back to its shop's,
+ * falling back to GH — `Product.originCountry` defaults to empty and
+ * `Vendor.originCountry` to "GH". So the match is those three cases spelled
+ * out, rather than one column comparison that would miss every listing whose
+ * seller left the field alone. This is called with "GH" for the local grid, so
+ * it covers the whole catalogue and not only imported listings.
+ */
 export async function getProductsByCountry(code: string): Promise<Product[]> {
-  return (await getProducts()).filter((p) => (p.originCountry ?? "GH") === code);
+  return listProducts({
+    OR: [
+      { originCountry: code },
+      { AND: [{ originCountry: "" }, { vendor: { originCountry: code } }] },
+      ...(code === "GH"
+        ? [{ AND: [{ originCountry: "" }, { vendor: { originCountry: "" } }] }]
+        : []),
+    ],
+  });
 }
 
 export async function getVendorsForLocation(locationId: string): Promise<Vendor[]> {
