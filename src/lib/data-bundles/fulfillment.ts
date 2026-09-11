@@ -26,8 +26,10 @@ import {
   voidAgentCommission,
 } from "@/lib/data-bundles/agent-ledger";
 import {
+  creditAfaTeamCommission,
   creditTeamCommission,
   releaseReferralRewards,
+  voidAfaTeamCommission,
   voidTeamCommission,
 } from "@/lib/data-bundles/referrals";
 
@@ -401,6 +403,9 @@ export async function dispatchAfaRegistration(id: string): Promise<DispatchResul
       where: { id },
       data: { status: "failed", providerMessage: res.message.slice(0, 500) },
     });
+    after(async () => {
+      await voidAfaTeamCommission(id);
+    });
     return { ok: false, message: res.message };
   }
 
@@ -419,6 +424,13 @@ export async function dispatchAfaRegistration(id: string): Promise<DispatchResul
     row.phoneNumber,
     `Nickimart Data: your AFA registration (ref ${row.reference}) has been submitted. We'll text you once it's approved.`,
   );
+  // A provider that approves on the spot owes both commissions now —
+  // applyAfaProviderStatus never runs for that registration.
+  if (status === "completed") {
+    after(async () => {
+      await settleAfaCommissions(id);
+    });
+  }
   return { ok: true, message: res.message };
 }
 
@@ -443,7 +455,30 @@ export async function applyAfaProviderStatus(
 
   if (next === "completed") {
     after(async () => {
-      await creditAfaCommission(id);
+      await settleAfaCommissions(id);
+    });
+  } else if (next === "failed") {
+    // A registration the provider rejected pays nobody. The selling agent's own
+    // commission is already guarded by its status; the recruiter's needs
+    // closing, or it sits pending forever waiting for a delivery that will
+    // never come.
+    after(async () => {
+      await voidAfaTeamCommission(id);
     });
   }
+}
+
+/**
+ * Everything one completed AFA registration owes: the selling agent, their
+ * recruiter, and whatever referral reward the selling agent's own fee clearing
+ * has just made payable. Each step is separately idempotent.
+ */
+async function settleAfaCommissions(id: string): Promise<void> {
+  await creditAfaCommission(id);
+  await creditAfaTeamCommission(id);
+
+  const row = await dataDb.afaRegistration
+    .findUnique({ where: { id }, select: { agentId: true } })
+    .catch(() => null);
+  if (row?.agentId) await releaseReferralRewards(row.agentId);
 }

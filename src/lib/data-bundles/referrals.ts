@@ -1,5 +1,6 @@
 import "server-only";
 import { dataDb } from "@/lib/data-db";
+import { getAgentUser } from "@/lib/data-bundles/user-link";
 import { round2 } from "@/lib/data-bundles/agent-pricing";
 import {
   feeCanReward,
@@ -104,6 +105,16 @@ export async function resolveReferralCode(raw: string): Promise<ReferralCodeChec
   return { ok: true, agentId: agent.id, code: agent.code, storeName: agent.storeName };
 }
 
+/** Digits only, so 024 123 4567 and +233241234567 compare as the same number. */
+function normalisePhone(raw: string | null | undefined): string {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  // Ghana numbers are written both ways. Reduce to the national 9 digits so
+  // 0241234567 and 233241234567 are one number.
+  if (digits.length > 9) return digits.slice(-9);
+  return digits;
+}
+
 /** Why a referral was refused, in words an admin can act on. */
 export type ReferralLinkResult =
   | { ok: true; referrerId: string }
@@ -144,6 +155,26 @@ export async function checkReferralLink(input: {
   }
   if (referrer.userId === input.recruitUserId) {
     return { ok: false, reason: "That referral code belongs to this same account." };
+  }
+
+  // The same person under a second account. Two accounts are easy to make and
+  // a reward is only worth farming if the farmer can collect it, so the check
+  // is on what a person cannot cheaply have two of: their phone number, and the
+  // email they can actually receive at. Neither is proof, and neither is meant
+  // to be — an admin still approves every account and a registration fee still
+  // has to be paid — but it stops the cheapest version outright.
+  const referrerUser = await getAgentUser(referrer.userId);
+  const recruitEmail = input.recruitEmail?.trim().toLowerCase();
+  const recruitPhone = normalisePhone(input.recruitPhone);
+  if (recruitEmail && referrerUser?.email?.toLowerCase() === recruitEmail) {
+    return { ok: false, reason: "That referral code belongs to the same email address." };
+  }
+  if (
+    recruitPhone &&
+    (normalisePhone(referrerUser?.phone) === recruitPhone ||
+      normalisePhone(referrer.supportPhone) === recruitPhone)
+  ) {
+    return { ok: false, reason: "That referral code belongs to the same phone number." };
   }
 
   // Already linked, and locked: a referrer is recorded once and is permanent
@@ -474,6 +505,126 @@ export async function creditTeamCommission(orderId: string): Promise<boolean> {
   }
 }
 
+/**
+ * The team commission on one AFA registration.
+ *
+ * AFA has no bundle row to carry an amount of its own, so it pays the
+ * programme default — and only when the admin has said AFA counts at all,
+ * which it does not by default: a SIM registration is a one-off piece of
+ * paperwork, not the repeat selling the programme is meant to encourage.
+ */
+export async function afaTeamCommissionFor(input: {
+  sellingAgentId: string;
+  salePrice: number;
+  sellerCommission: number;
+}): Promise<{ teamAgentId: string | null; teamCommission: number }> {
+  const config = await getReferralConfig();
+  if (!config.enabled || !config.afaQualifies) return { teamAgentId: null, teamCommission: 0 };
+
+  const { level1 } = await getUpline(input.sellingAgentId);
+  if (!level1) return { teamAgentId: null, teamCommission: 0 };
+
+  if (!saleQualifies(input.salePrice, input.sellerCommission, config)) {
+    return { teamAgentId: level1, teamCommission: 0 };
+  }
+  return {
+    teamAgentId: level1,
+    teamCommission: teamCommissionAmount(0, config.teamCommissionDefault),
+  };
+}
+
+/**
+ * Credit the team commission on a completed AFA registration — once.
+ * The bundle-order rules, applied to the other thing an agent can sell.
+ */
+export async function creditAfaTeamCommission(id: string): Promise<boolean> {
+  const row = await dataDb.afaRegistration
+    .findUnique({
+      where: { id },
+      select: {
+        id: true,
+        reference: true,
+        agentId: true,
+        teamAgentId: true,
+        teamCommission: true,
+        status: true,
+        paymentStatus: true,
+        teamCommissionStatus: true,
+        phoneNumber: true,
+      },
+    })
+    .catch(() => null);
+
+  if (!row?.teamAgentId) return false;
+  if (row.status !== "completed" || row.paymentStatus !== "paid") return false;
+  if (row.teamCommissionStatus !== "pending") return false;
+
+  if (row.teamCommission <= 0) {
+    await dataDb.afaRegistration
+      .updateMany({
+        where: { id, teamCommissionStatus: "pending" },
+        data: { teamCommissionStatus: "void" },
+      })
+      .catch(() => {});
+    return false;
+  }
+
+  const config = await getReferralConfig();
+  if (!config.enabled) return false;
+
+  const upline = await dataDb.dataAgent
+    .findUnique({ where: { id: row.teamAgentId }, select: { status: true } })
+    .catch(() => null);
+  if (!upline || upline.status !== "active") return false;
+
+  const claimed = await dataDb.afaRegistration.updateMany({
+    where: { id, teamCommissionStatus: "pending" },
+    data: { teamCommissionStatus: "earned", teamCommissionPaidAt: new Date() },
+  });
+  if (claimed.count === 0) return false;
+
+  const seller = row.agentId
+    ? await dataDb.dataAgent
+        .findUnique({ where: { id: row.agentId }, select: { storeName: true, code: true } })
+        .catch(() => null)
+    : null;
+
+  try {
+    await postLedgerEntry({
+      agentId: row.teamAgentId,
+      type: "TEAM_COMMISSION",
+      amount: row.teamCommission,
+      narration:
+        `Team commission — ${seller ? `${seller.storeName} (${seller.code})` : "your recruit"} ` +
+        `registered an AFA for ${row.phoneNumber} (${row.reference})`,
+      reference: row.reference,
+      sourceAgentId: row.agentId,
+      referralLevel: 1,
+      dedupeKey: `TEAM_COMMISSION_AFA:${row.id}`,
+    });
+    return true;
+  } catch (err) {
+    if (err instanceof DuplicateLedgerEntryError) return true;
+    await dataDb.afaRegistration
+      .updateMany({
+        where: { id, teamCommissionStatus: "earned" },
+        data: { teamCommissionStatus: "pending", teamCommissionPaidAt: null },
+      })
+      .catch(() => {});
+    return false;
+  }
+}
+
+/** Void the team commission on an AFA registration that failed. */
+export async function voidAfaTeamCommission(id: string): Promise<void> {
+  await dataDb.afaRegistration
+    .updateMany({
+      where: { id, teamCommissionStatus: "pending" },
+      data: { teamCommissionStatus: "void" },
+    })
+    .catch(() => {});
+}
+
 /** Void the team commission on an order that failed, was cancelled or refunded. */
 export async function voidTeamCommission(orderId: string): Promise<void> {
   await dataDb.dataOrder
@@ -489,6 +640,80 @@ export async function voidTeamCommission(orderId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
+ * The agents whose upline is still owed a joining reward.
+ *
+ * Worked out by subtraction rather than by scanning a window of recent agents,
+ * because the ones that need a sweep are precisely the ones the live path
+ * missed — an upline who was suspended for a month, a reward deferred by the
+ * daily cap — and those are not reliably recent. A windowed scan looks like it
+ * is working while never reaching them.
+ *
+ * Three bounded reads: who could owe, what has already been paid, and which of
+ * those referrers have a referrer of their own (which is what decides whether a
+ * second-level reward is even applicable).
+ */
+async function agentsOwedRewards(limit: number): Promise<string[]> {
+  const candidates = await dataDb.dataAgent
+    .findMany({
+      where: {
+        referredById: { not: null },
+        setupFeeMethod: { not: "WAIVED" },
+        // Either the fee is settled, or it is a BALANCE fee whose balance has
+        // come back through zero and simply hasn't been stamped yet.
+        OR: [
+          { setupFeePaidAt: { not: null } },
+          { setupFeeMethod: "BALANCE", setupFeePaidAt: null, balance: { gte: 0 } },
+        ],
+      },
+      select: { id: true, referredById: true },
+      orderBy: { createdAt: "desc" },
+      // A ceiling so one sweep can't read an unbounded table; far above the
+      // number of agents any of this is likely to see.
+      take: 5000,
+    })
+    .catch((): Array<{ id: string; referredById: string | null }> => []);
+  if (candidates.length === 0) return [];
+
+  const [paidRows, referrers] = await Promise.all([
+    dataDb.dataAgentLedger
+      .findMany({
+        where: {
+          type: { in: ["REFERRAL_L1", "REFERRAL_L2"] },
+          sourceAgentId: { in: candidates.map((c) => c.id) },
+        },
+        select: { sourceAgentId: true, referralLevel: true },
+      })
+      .catch((): Array<{ sourceAgentId: string | null; referralLevel: number | null }> => []),
+    dataDb.dataAgent
+      .findMany({
+        where: {
+          id: { in: [...new Set(candidates.map((c) => c.referredById).filter((id): id is string => Boolean(id)))] },
+        },
+        select: { id: true, referredById: true },
+      })
+      .catch((): Array<{ id: string; referredById: string | null }> => []),
+  ]);
+
+  const paid = new Set(paidRows.map((r) => `${r.sourceAgentId}:${r.referralLevel}`));
+  const uplineOfUpline = new Map(referrers.map((r) => [r.id, r.referredById]));
+
+  const owed: string[] = [];
+  for (const c of candidates) {
+    if (!paid.has(`${c.id}:1`)) {
+      owed.push(c.id);
+      continue;
+    }
+    // A second level exists only when the recruiter has a recruiter — and it
+    // can be unpaid while the first level is paid, if that agent was suspended
+    // when the reward came round.
+    const grandparent = c.referredById ? uplineOfUpline.get(c.referredById) : null;
+    if (grandparent && !paid.has(`${c.id}:2`)) owed.push(c.id);
+    if (owed.length >= limit) break;
+  }
+  return owed.slice(0, limit);
+}
+
+/**
  * Catch up everything the live path missed: a callback that arrived while the
  * ledger was down, an agent reactivated after the fact, a reward that hit the
  * daily cap yesterday, a setup fee that cleared on a commission nobody watched.
@@ -499,23 +724,12 @@ export async function sweepReferralEarnings(limit = 100): Promise<{ rewards: num
   if (!config.enabled) return { rewards: 0, team: 0 };
 
   let rewards = 0;
-  // Agents with an upline whose fee has been paid but who may not have paid out
-  // yet. Cheap to re-check: releaseReferralRewards is a no-op once both levels
-  // are settled.
-  const owed = await dataDb.dataAgent
-    .findMany({
-      where: { referredById: { not: null }, setupFeeMethod: { not: "WAIVED" } },
-      select: { id: true },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-    })
-    .catch((): Array<{ id: string }> => []);
-  for (const agent of owed) {
-    rewards += await releaseReferralRewards(agent.id);
+  for (const agentId of await agentsOwedRewards(limit)) {
+    rewards += await releaseReferralRewards(agentId);
   }
 
   let team = 0;
-  const pending = await dataDb.dataOrder
+  const pendingOrders = await dataDb.dataOrder
     .findMany({
       where: {
         teamAgentId: { not: null },
@@ -528,8 +742,25 @@ export async function sweepReferralEarnings(limit = 100): Promise<{ rewards: num
       take: limit,
     })
     .catch((): Array<{ id: string }> => []);
-  for (const order of pending) {
+  for (const order of pendingOrders) {
     if (await creditTeamCommission(order.id)) team++;
+  }
+
+  const pendingAfa = await dataDb.afaRegistration
+    .findMany({
+      where: {
+        teamAgentId: { not: null },
+        status: "completed",
+        paymentStatus: "paid",
+        teamCommissionStatus: "pending",
+        teamCommission: { gt: 0 },
+      },
+      select: { id: true },
+      take: limit,
+    })
+    .catch((): Array<{ id: string }> => []);
+  for (const row of pendingAfa) {
+    if (await creditAfaTeamCommission(row.id)) team++;
   }
 
   return { rewards, team };

@@ -181,7 +181,9 @@ model AfaRegistration {
   dispatchedAt    DateTime?
   completedAt     DateTime?
 
-  // Sub-agent attribution, exactly as on DataOrder.
+  // Sub-agent attribution, exactly as on DataOrder — including the selling
+  // agent's recruiter, when the referral programme counts AFA as a qualifying
+  // sale (Admin → Referrals decides; it is off by default).
   agentId          String?
   agent            DataAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
   source           String     @default("WEB")
@@ -189,6 +191,12 @@ model AfaRegistration {
   agentCommission  Float      @default(0)
   commissionStatus String     @default("pending")
   commissionPaidAt DateTime?
+
+  teamAgentId          String?
+  teamAgent            DataAgent? @relation("AfaTeamUpline", fields: [teamAgentId], references: [id], onDelete: SetNull)
+  teamCommission       Float      @default(0)
+  teamCommissionStatus String     @default("pending")
+  teamCommissionPaidAt DateTime?
 
   userId    String?
   createdAt DateTime @default(now())
@@ -198,6 +206,7 @@ model AfaRegistration {
   @@index([status])
   @@index([createdAt])
   @@index([agentId, createdAt])
+  @@index([teamAgentId, createdAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -301,6 +310,7 @@ model DataAgent {
   // referral and team-sales commissions.
   earnedFor   DataAgentLedger[]     @relation("LedgerSourceAgent")
   teamOrders  DataOrder[]           @relation("TeamUpline")
+  teamAfa     AfaRegistration[]     @relation("AfaTeamUpline")
 
   @@index([status])
   @@index([referredById])

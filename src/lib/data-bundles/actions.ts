@@ -16,7 +16,7 @@ import {
   getAgentBySlug,
 } from "@/lib/data-bundles/agents";
 import { commissionOn } from "@/lib/data-bundles/agent-pricing";
-import { teamCommissionFor } from "@/lib/data-bundles/referrals";
+import { afaTeamCommissionFor, teamCommissionFor } from "@/lib/data-bundles/referrals";
 import { NETWORKS, bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
 import { checkRecipient, parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import {
@@ -271,6 +271,17 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
   const price = agent && agent.afaPrice > 0 ? agent.afaPrice : config.afaPrice;
   const agentCommission = agent ? commissionOn(price, config.afaPrice) : 0;
 
+  // Whether an AFA earns the selling agent's recruiter anything is the admin's
+  // call, and off unless they say otherwise — a SIM registration is a one-off
+  // piece of paperwork, not the repeat selling the programme exists to grow.
+  const team = agent
+    ? await afaTeamCommissionFor({
+        sellingAgentId: agent.id,
+        salePrice: price,
+        sellerCommission: agentCommission,
+      })
+    : { teamAgentId: null, teamCommission: 0 };
+
   for (let attempt = 0; attempt < 5; attempt++) {
     const reference = newAfaReference();
     try {
@@ -290,6 +301,9 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
           agentCost: agent ? config.afaPrice : 0,
           agentCommission,
           commissionStatus: agent ? "pending" : "void",
+          teamAgentId: team.teamAgentId,
+          teamCommission: team.teamCommission,
+          teamCommissionStatus: team.teamCommission > 0 ? "pending" : "void",
         },
       });
 

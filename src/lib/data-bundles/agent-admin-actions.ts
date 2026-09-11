@@ -427,10 +427,15 @@ export async function setAgentReferrer(
   const resolved = await resolveReferralCode(code);
   if (!resolved.ok) return { error: resolved.message };
 
+  // The recruit's own contact details, so the same-person guard has something
+  // to compare against — they are in the retail database, not on the agent row.
+  const recruitUser = await getAgentUser(agent.userId);
   const allowed = await checkReferralLink({
     referrerId: resolved.agentId,
     agentId,
     recruitUserId: agent.userId,
+    recruitEmail: recruitUser?.email ?? null,
+    recruitPhone: recruitUser?.phone ?? null,
   });
   if (!allowed.ok) return { error: allowed.reason };
 

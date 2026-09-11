@@ -153,6 +153,9 @@ CREATE TABLE IF NOT EXISTS "AfaRegistration" (
   "createdAt"        TIMESTAMP(3)     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt"        TIMESTAMP(3)     NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+-- The team-commission columns are added by 0002, which runs against a fresh
+-- database too. They are not repeated here: one file owning one change is what
+-- makes the checksum warning mean something.
 CREATE UNIQUE INDEX IF NOT EXISTS "AfaRegistration_reference_key" ON "AfaRegistration"("reference");
 CREATE INDEX IF NOT EXISTS "AfaRegistration_phoneNumber_idx"        ON "AfaRegistration"("phoneNumber");
 CREATE INDEX IF NOT EXISTS "AfaRegistration_status_idx"             ON "AfaRegistration"("status");
