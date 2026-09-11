@@ -29,8 +29,10 @@ import "server-only";
 
 const PAYSTACK_BASE = "https://api.paystack.co";
 
-/** Which business a charge belongs to. */
-export type PaymentAccount = "retail" | "data";
+// The business a charge belongs to, and the rule for who may settle it, live in
+// lib/payment-routing — pure, so they can be tested without a secret in sight.
+export type { PaymentAccount } from "@/lib/payment-routing";
+import type { PaymentAccount } from "@/lib/payment-routing";
 
 export function paystackSecretKey(account: PaymentAccount): string | undefined {
   const raw =
@@ -40,22 +42,34 @@ export function paystackSecretKey(account: PaymentAccount): string | undefined {
   return raw && raw.trim() ? raw.trim() : undefined;
 }
 
+/** One configured key, and every business it settles for. */
+export interface PaystackSigner {
+  secret: string;
+  /**
+   * Usually one business. Both when a single key serves both — which is the
+   * case until RETAIL_PAYSTACK_SECRET_KEY is set, and the reason this is a list
+   * rather than a single account: a shared key legitimately settles either
+   * side, and recording it against only the first would have the webhook drop
+   * every charge belonging to the second.
+   */
+  accounts: PaymentAccount[];
+}
+
 /**
- * Every configured account, with the business each one settles for. The webhook
- * uses this to work out which account signed an event.
+ * Every distinct key that is configured, with the businesses each one settles
+ * for. The webhook checks a signature against each in turn to find which key
+ * signed an event, and then what that key is allowed to settle.
  */
-export function paystackAccounts(): Array<{ account: PaymentAccount; secret: string }> {
-  const seen = new Set<string>();
-  const out: Array<{ account: PaymentAccount; secret: string }> = [];
+export function paystackAccounts(): PaystackSigner[] {
+  const bySecret = new Map<string, PaystackSigner>();
   for (const account of ["retail", "data"] as const) {
     const secret = paystackSecretKey(account);
-    // One key serving both businesses is one account, and one signature: listing
-    // it twice would have the webhook accept a bundle charge as a mall order.
-    if (!secret || seen.has(secret)) continue;
-    seen.add(secret);
-    out.push({ account, secret });
+    if (!secret) continue;
+    const existing = bySecret.get(secret);
+    if (existing) existing.accounts.push(account);
+    else bySecret.set(secret, { secret, accounts: [account] });
   }
-  return out;
+  return [...bySecret.values()];
 }
 
 /** True when this account is configured and real payments should be collected. */

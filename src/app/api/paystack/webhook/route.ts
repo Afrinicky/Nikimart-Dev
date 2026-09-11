@@ -1,6 +1,11 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
-import { paystackAccounts, type PaymentAccount } from "@/lib/payments";
+import { paystackAccounts } from "@/lib/payments";
+import {
+  accountForReference,
+  signerMaySettle,
+  type PaymentAccount,
+} from "@/lib/payment-routing";
 import { markOrderPaid, paymentCoversOrder } from "@/lib/order-fulfillment";
 import {
   afaPaymentCovers,
@@ -30,16 +35,20 @@ export const dynamic = "force-dynamic";
  * --------------------------
  * The mall and the bundle business settle into different Paystack accounts, and
  * both point their webhook here. So the signature is checked against each
- * configured key in turn, and whichever one matches is the account that took
- * the charge.
+ * configured key in turn, and the one that matches says which key signed.
  *
- * Then the important part: that account has to be the one that *owns* the
- * reference. "ND-"/"NA-"/"NR-" are bundle orders, AFA registrations and agent
- * registration fees, and belong to the data account; anything else is a mall
- * order and belongs to retail. Without that
- * check, anyone holding one account's key could sign an event naming an order
- * in the other's ledger and have it settled unpaid — which is a way to take
- * goods for free, not a theoretical concern about tidiness.
+ * Then the important part: that key has to be one that settles for the business
+ * the reference belongs to. "ND-"/"NA-"/"NR-" are bundle orders, AFA
+ * registrations and agent registration fees; anything else is a mall order.
+ * Without that check, whoever holds one account's key could sign an event
+ * naming an order in the other's ledger and have it settled unpaid — which is a
+ * way to take goods for free, not a theoretical concern about tidiness.
+ *
+ * Until the second account is configured, one key serves both businesses and
+ * legitimately settles either; signerMaySettle is what keeps that case working.
+ * Getting it wrong there fails silently and expensively — the charge verifies,
+ * is attributed to the wrong business, and is dropped with a 200 that stops
+ * Paystack ever retrying it.
  */
 export async function POST(req: Request) {
   const accounts = paystackAccounts();
@@ -51,15 +60,15 @@ export async function POST(req: Request) {
   const raw = await req.text();
   const signature = req.headers.get("x-paystack-signature") ?? "";
 
-  let signedBy: PaymentAccount | null = null;
-  for (const { account, secret } of accounts) {
+  let signedBy: PaymentAccount[] | null = null;
+  for (const { accounts: settlesFor, secret } of accounts) {
     const expected = createHmac("sha512", secret).update(raw).digest("hex");
     const sigBuf = Buffer.from(signature);
     const expBuf = Buffer.from(expected);
     // Compared in full for every key — returning early on a length mismatch
     // would still be constant-time per key, and checking them all keeps the
     // work done independent of which account signed.
-    if (sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf)) signedBy = account;
+    if (sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf)) signedBy = settlesFor;
   }
   if (!signedBy) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
@@ -87,11 +96,11 @@ export async function POST(req: Request) {
     const currency = event.data.currency ?? "GHS";
 
     const isRegistration = isRegistrationReference(reference);
-    const belongsTo: PaymentAccount =
-      isDataReference(reference) || isAfaReference(reference) || isRegistration ? "data" : "retail";
-    if (belongsTo !== signedBy) {
+    const belongsTo = accountForReference(reference);
+    if (!signerMaySettle(signedBy, belongsTo)) {
       console.warn(
-        `[paystack] ${signedBy} account signed a charge for ${reference}, which belongs to ${belongsTo}. Ignored.`,
+        `[paystack] a key for ${signedBy.join("/")} signed a charge for ${reference}, ` +
+          `which belongs to ${belongsTo}. Ignored.`,
       );
       return NextResponse.json({ ok: true });
     }

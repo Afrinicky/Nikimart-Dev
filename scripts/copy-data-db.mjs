@@ -142,18 +142,57 @@ const quote = (c) => `"${c}"`;
 /** Rows are sent in batches; one INSERT per row would take minutes on a big ledger. */
 const BATCH = 200;
 
+/**
+ * The columns a table actually has in the source, as a Set. Empty when the
+ * table isn't there at all.
+ *
+ * Asked rather than assumed, because the source and the destination are not the
+ * same shape and the documented cutover guarantees it: DATA_DATABASE_URL is set
+ * before the deploy, so the migration adds the new columns to the *destination*
+ * while the source keeps the pre-split schema. Selecting a column the source
+ * has never had fails the whole SELECT — and a `catch` around it would report a
+ * table full of live rows as absent and copy nothing, reporting success.
+ */
+async function sourceColumns(name) {
+  const rows = await source.$queryRawUnsafe(
+    `SELECT column_name FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = $1`,
+    name,
+  );
+  return new Set(rows.map((r) => r.column_name));
+}
+
 async function copyTable({ name, columns }) {
-  let rows;
-  try {
-    rows = await source.$queryRawUnsafe(
-      `SELECT ${columns.map(quote).join(", ")} FROM ${quote(name)}`,
-    );
-  } catch {
-    // A table the source never had (a database built after the split) is not an
-    // error — there is simply nothing of it to move.
+  const available = await sourceColumns(name);
+
+  // A table the source never had (a database built after the split) is not an
+  // error — there is simply nothing of it to move.
+  if (available.size === 0) {
     log(`${name}: not present in the source database — skipping.`);
     return 0;
   }
+
+  // Copy what the source has. Anything it lacks is a column added by the split
+  // itself, and every one of those is nullable or carries a default, so the
+  // destination fills it in. What is NOT done here is swallow the difference
+  // quietly: the columns left behind are named, so "the referral fields are
+  // empty after the cutover" is answered by the log rather than investigated.
+  const present = columns.filter((c) => available.has(c));
+  const missing = columns.filter((c) => !available.has(c));
+  if (present.length === 0) {
+    fail(
+      `${name}: the source has this table but none of the expected columns.\n` +
+        `Expected any of: ${columns.join(", ")}.\n` +
+        "That is not a shape this script knows how to copy — nothing has been changed.",
+    );
+  }
+  if (missing.length > 0) {
+    log(`${name}: source has no ${missing.join(", ")} — the destination default applies.`);
+  }
+
+  const rows = await source.$queryRawUnsafe(
+    `SELECT ${present.map(quote).join(", ")} FROM ${quote(name)}`,
+  );
 
   const already = Number(
     (await dest.$queryRawUnsafe(`SELECT COUNT(*)::int AS n FROM ${quote(name)}`))[0].n,
@@ -175,14 +214,14 @@ async function copyTable({ name, columns }) {
     const values = [];
     const params = [];
     for (const row of slice) {
-      const placeholders = columns.map((c) => {
+      const placeholders = present.map((c) => {
         params.push(row[c] ?? null);
         return `$${params.length}`;
       });
       values.push(`(${placeholders.join(", ")})`);
     }
     written += await dest.$executeRawUnsafe(
-      `INSERT INTO ${quote(name)} (${columns.map(quote).join(", ")})
+      `INSERT INTO ${quote(name)} (${present.map(quote).join(", ")})
        VALUES ${values.join(", ")}
        ON CONFLICT (${key}) DO NOTHING`,
       ...params,
@@ -194,9 +233,17 @@ async function copyTable({ name, columns }) {
 
 /** Second pass: an agent can be referred by one created after them. */
 async function copyReferrals() {
-  const rows = await source
-    .$queryRawUnsafe(`SELECT "id", "referredById" FROM "DataAgent" WHERE "referredById" IS NOT NULL`)
-    .catch(() => []);
+  // A pre-split source has no referredById at all — the column arrived with the
+  // programme — so ask before selecting it rather than catching the failure and
+  // guessing what it meant.
+  const available = await sourceColumns("DataAgent");
+  if (!available.has("referredById")) {
+    log("DataAgent.referredById: not in the source — no relationships to link.");
+    return;
+  }
+  const rows = await source.$queryRawUnsafe(
+    `SELECT "id", "referredById" FROM "DataAgent" WHERE "referredById" IS NOT NULL`,
+  );
   if (rows.length === 0) {
     log("DataAgent.referredById: nothing to link.");
     return;
