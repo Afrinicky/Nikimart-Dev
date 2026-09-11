@@ -15,6 +15,11 @@ export interface EditableBundle {
   costPrice: number;
   /** What sub-agents pay. 0 keeps the bundle off agent storefronts. */
   agentPrice: number;
+  /**
+   * What the selling agent's recruiter earns on this bundle (GH₵ per sale).
+   * 0 falls back to the programme default on the Referrals tab.
+   */
+  teamCommission: number;
   isActive: boolean;
 }
 
@@ -44,6 +49,12 @@ function SaveButton() {
  *
  * An agent price of 0 means the bundle isn't resold, and it stays off every
  * agent storefront.
+ *
+ * The fourth number is the team commission: what the *recruiter* of the selling
+ * agent earns when this bundle is sold. It comes out of Nickimart's margin on
+ * the agent price, not out of the seller's commission, which is why it belongs
+ * on this table next to that margin rather than on the referral settings screen
+ * — you can see what there is to give away while deciding what to give away.
  */
 export function BundlePriceTable({
   network,
@@ -55,14 +66,18 @@ export function BundlePriceTable({
   const info = NETWORK_INFO[network];
   const [state, formAction] = useActionState<DataAdminState, FormData>(saveBundlePrices, {});
   // Mirror the inputs so the margin column updates as you type.
-  const [draft, setDraft] = useState<Record<string, { price: number; cost: number; agent: number }>>(
-    () =>
-      Object.fromEntries(
-        bundles.map((b) => [b.id, { price: b.price, cost: b.costPrice, agent: b.agentPrice }]),
-      ),
+  const [draft, setDraft] = useState<
+    Record<string, { price: number; cost: number; agent: number; team: number }>
+  >(() =>
+    Object.fromEntries(
+      bundles.map((b) => [
+        b.id,
+        { price: b.price, cost: b.costPrice, agent: b.agentPrice, team: b.teamCommission },
+      ]),
+    ),
   );
 
-  function set(id: string, key: "price" | "cost" | "agent", raw: string) {
+  function set(id: string, key: "price" | "cost" | "agent" | "team", raw: string) {
     const n = Number(raw);
     setDraft((d) => ({ ...d, [id]: { ...d[id], [key]: Number.isFinite(n) ? n : 0 } }));
   }
@@ -92,7 +107,7 @@ export function BundlePriceTable({
         ) : null}
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
+          <table className="w-full min-w-[880px] text-sm">
             <thead>
               <tr className="border-b border-niki-edge text-left text-xs font-semibold uppercase tracking-wide text-niki-ink/50">
                 <th className="px-5 py-3">Size</th>
@@ -101,13 +116,16 @@ export function BundlePriceTable({
                 <th className="px-3 py-3">Sell (GH₵)</th>
                 <th className="px-3 py-3">Margin</th>
                 <th className="px-3 py-3">Agent earns</th>
+                <th className="px-3 py-3">Team (GH₵)</th>
                 <th className="px-3 py-3">On sale</th>
                 <th className="px-5 py-3" />
               </tr>
             </thead>
             <tbody>
               {bundles.map((b) => {
-                const d = draft[b.id] ?? { price: b.price, cost: b.costPrice, agent: b.agentPrice };
+                const d =
+                  draft[b.id] ??
+                  { price: b.price, cost: b.costPrice, agent: b.agentPrice, team: b.teamCommission };
                 const margin = d.cost > 0 ? d.price - d.cost : null;
                 const marginPct = d.cost > 0 ? Math.round(((d.price - d.cost) / d.cost) * 100) : null;
                 // What an agent makes selling at Nickimart's own retail price —
@@ -115,6 +133,11 @@ export function BundlePriceTable({
                 const agentRoom = d.agent > 0 ? d.price - d.agent : null;
                 // Selling to an agent below cost would be paying them to sell.
                 const agentUnderCost = d.agent > 0 && d.cost > 0 && d.agent < d.cost;
+                // Nickimart's own margin on an agent sale is what the team
+                // commission is paid out of. Giving away more than that loses
+                // money on every sale a recruited agent makes.
+                const houseMargin = d.agent > 0 && d.cost > 0 ? d.agent - d.cost : null;
+                const teamOverMargin = d.team > 0 && houseMargin !== null && d.team > houseMargin;
                 return (
                   <tr key={b.id} className="border-b border-niki-edge last:border-0">
                     <td className="px-5 py-2.5">
@@ -187,6 +210,27 @@ export function BundlePriceTable({
                           {formatPrice(Math.round(agentRoom * 100) / 100)}
                         </span>
                       )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <input
+                        name={`team:${b.id}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        defaultValue={b.teamCommission || ""}
+                        onChange={(e) => set(b.id, "team", e.target.value)}
+                        placeholder="0.00"
+                        aria-invalid={teamOverMargin || undefined}
+                        title="What the selling agent's recruiter earns on this bundle. Leave at 0 to use the programme default on the Referrals tab."
+                        className={`${inputClass} max-w-[7rem] px-3 py-1.5 ${
+                          teamOverMargin ? "border-niki-danger focus:border-niki-danger" : ""
+                        }`}
+                      />
+                      {teamOverMargin ? (
+                        <span className="mt-1 block text-[11px] font-semibold text-niki-danger">
+                          More than your {formatPrice(Math.round(houseMargin! * 100) / 100)} margin
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2.5">
                       <input

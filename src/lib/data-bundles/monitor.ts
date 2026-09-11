@@ -1,11 +1,14 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { notify, type Recipient } from "@/lib/notifications";
 import { formatPrice } from "@/lib/format";
-import { getDataStoreConfig, getStaffNotifyChannel } from "@/lib/settings";
+import { getStaffNotifyChannel } from "@/lib/settings";
+import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { getProviderBalance, isDataProviderConfigured } from "@/lib/data-bundles/provider";
 import { dispatchAfaRegistration, dispatchDataOrder, refreshDataOrder } from "@/lib/data-bundles/fulfillment";
 import { sweepAgentCommissions } from "@/lib/data-bundles/agent-ledger";
+import { sweepReferralEarnings } from "@/lib/data-bundles/referrals";
 import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
 
 /**
@@ -38,6 +41,10 @@ export interface SweepResult {
   afaDispatched: number;
   /** Delivered agent orders whose commission had never been credited. */
   commissionsCredited: number;
+  /** Referral rewards released for recruits whose registration fee had cleared. */
+  referralRewards: number;
+  /** Team-sales commissions credited to the sellers' recruiters. */
+  teamCommissions: number;
   notes: string[];
 }
 
@@ -68,6 +75,8 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
     refreshed: 0,
     afaDispatched: 0,
     commissionsCredited: 0,
+    referralRewards: 0,
+    teamCommissions: 0,
     notes: [],
   };
 
@@ -103,7 +112,7 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
 
   // --- 2. Paid but never handed to the provider ---------------------------
   try {
-    const stuck = await prisma.dataOrder.findMany({
+    const stuck = await dataDb.dataOrder.findMany({
       where: {
         paymentStatus: "paid",
         providerOrderId: null,
@@ -131,7 +140,7 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
 
   // --- 3. Accepted upstream but never confirmed ---------------------------
   try {
-    const inFlight = await prisma.dataOrder.findMany({
+    const inFlight = await dataDb.dataOrder.findMany({
       where: {
         status: "processing",
         providerOrderId: { not: null },
@@ -151,7 +160,7 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
 
   // --- 4. AFA registrations paid but not submitted ------------------------
   try {
-    const afa = await prisma.afaRegistration.findMany({
+    const afa = await dataDb.afaRegistration.findMany({
       where: {
         paymentStatus: "paid",
         providerId: null,
@@ -173,6 +182,15 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
   // a callback that arrived while the ledger was briefly down, or an agent
   // reactivated after their order landed. Catch those up here.
   result.commissionsCredited = await sweepAgentCommissions();
+
+  // The referral programme needs the same safety net, and one more thing the
+  // selling agent's commission doesn't: a reward can be owed for a registration
+  // fee that cleared on an order nobody was watching, or one that hit the daily
+  // cap yesterday and is payable today. Both are found by re-checking, which is
+  // free when there is nothing to do.
+  const referrals = await sweepReferralEarnings();
+  result.referralRewards = referrals.rewards;
+  result.teamCommissions = referrals.team;
 
   return result;
 }

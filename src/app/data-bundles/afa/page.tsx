@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AfaForm } from "@/components/data/AfaForm";
-import { getDataStoreConfig } from "@/lib/settings";
+import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 
 export const metadata: Metadata = { title: "AFA Registration — Nickimart Data" };
 export const dynamic = "force-dynamic";

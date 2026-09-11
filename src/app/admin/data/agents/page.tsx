@@ -3,11 +3,11 @@ import { Inbox, Pencil, Users } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { formatMoney } from "@/lib/format";
-import { getAgentProgramConfig } from "@/lib/settings";
+import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import { listAgents } from "@/lib/data-bundles/agents";
 import { ApplicationReview } from "@/components/admin/ApplicationReview";
 import { formatWhen } from "@/components/agent/AgentUi";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Agents — Admin — Nickimart" };
@@ -23,7 +23,7 @@ export default async function AdminAgentsPage({
   const [agents, program, applications] = await Promise.all([
     listAgents(),
     getAgentProgramConfig(),
-    prisma.dataAgentApplication
+    dataDb.dataAgentApplication
       .findMany({ where: { status: "pending" }, orderBy: { createdAt: "asc" }, take: 50 })
       .catch(() => []),
   ]);
@@ -136,6 +136,20 @@ export default async function AdminAgentsPage({
                   <time className="shrink-0 text-xs text-niki-ink/45">
                     {formatWhen(a.createdAt)}
                   </time>
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  {a.referralCode ? (
+                    <span className="rounded-full bg-niki-orange/10 px-3 py-1 font-semibold text-niki-orange">
+                      Referred by <span className="font-mono">{a.referralCode}</span>
+                      {a.referrerId ? "" : " · code didn't resolve"}
+                    </span>
+                  ) : null}
+                  <span className="rounded-full bg-niki-ink/5 px-3 py-1 font-semibold text-niki-ink/60">
+                    {a.feeMethod === "UPFRONT"
+                      ? "Will pay the registration fee up front"
+                      : "Registration fee from commission"}
+                  </span>
                 </div>
 
                 {a.note ? (

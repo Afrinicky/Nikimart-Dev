@@ -1,6 +1,6 @@
 import "server-only";
 import { after } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { DATA_REFERENCE_PREFIX, AFA_REFERENCE_PREFIX } from "@/lib/data-bundles/reference";
 import { toPesewas } from "@/lib/payments";
 import { sendSms, notify } from "@/lib/notifications";
@@ -25,6 +25,13 @@ import {
   creditAgentCommission,
   voidAgentCommission,
 } from "@/lib/data-bundles/agent-ledger";
+import {
+  creditAfaTeamCommission,
+  creditTeamCommission,
+  releaseReferralRewards,
+  voidAfaTeamCommission,
+  voidTeamCommission,
+} from "@/lib/data-bundles/referrals";
 
 /**
  * Payment settlement and provider dispatch for bundle purchases.
@@ -78,7 +85,7 @@ function callbackUrl(reference: string): string | undefined {
 
 /** Confirm the captured amount covers the order before settling it. */
 export async function dataPaymentCovers(reference: string, amountPesewas: number): Promise<boolean> {
-  const order = await prisma.dataOrder.findUnique({
+  const order = await dataDb.dataOrder.findUnique({
     where: { reference },
     select: { price: true },
   });
@@ -93,13 +100,13 @@ export async function dataPaymentCovers(reference: string, amountPesewas: number
  * Returns true only for the caller that won the transition.
  */
 export async function settleDataOrder(reference: string): Promise<boolean> {
-  const flipped = await prisma.dataOrder.updateMany({
+  const flipped = await dataDb.dataOrder.updateMany({
     where: { reference, paymentStatus: "unpaid" },
     data: { paymentStatus: "paid", status: "paid", paidAt: new Date() },
   });
   if (flipped.count === 0) return false; // already settled, or unknown reference
 
-  const order = await prisma.dataOrder.findUnique({ where: { reference } });
+  const order = await dataDb.dataOrder.findUnique({ where: { reference } });
   if (!order) return false;
 
   // Dispatch after the response is sent: the buyer shouldn't wait on the
@@ -122,7 +129,7 @@ export interface DispatchResult {
  * the guarded update means an order already handed over is never bought twice.
  */
 export async function dispatchDataOrder(orderId: string): Promise<DispatchResult> {
-  const order = await prisma.dataOrder.findUnique({ where: { id: orderId } });
+  const order = await dataDb.dataOrder.findUnique({ where: { id: orderId } });
   if (!order) return { ok: false, message: "Order not found." };
   if (order.paymentStatus !== "paid") {
     return { ok: false, message: "This order has not been paid for yet." };
@@ -132,7 +139,7 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
   }
 
   if (!isDataProviderConfigured()) {
-    await prisma.dataOrder.update({
+    await dataDb.dataOrder.update({
       where: { id: orderId },
       data: {
         status: "paid",
@@ -144,7 +151,7 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
 
   // Claim the dispatch before calling out. If two admins hit "retry" at once,
   // only the one that moves the row out of its pre-dispatch state proceeds.
-  const claimed = await prisma.dataOrder.updateMany({
+  const claimed = await dataDb.dataOrder.updateMany({
     where: { id: orderId, providerOrderId: null, status: { in: ["paid", "failed"] } },
     data: { status: "processing", dispatchedAt: new Date() },
   });
@@ -160,19 +167,20 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
   });
 
   if (!res.ok || !res.payload?.id) {
-    await prisma.dataOrder.update({
+    await dataDb.dataOrder.update({
       where: { id: orderId },
       data: { status: "failed", providerMessage: res.message.slice(0, 500) },
     });
     after(async () => {
       await notifyDataOrderFailed(orderId);
       await voidAgentCommission(orderId);
+      await voidTeamCommission(orderId);
     });
     return { ok: false, message: res.message };
   }
 
   const status = mapProviderStatus(res.payload.status);
-  await prisma.dataOrder.update({
+  await dataDb.dataOrder.update({
     where: { id: orderId },
     data: {
       status,
@@ -191,7 +199,7 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
     await notifyDataOrderDispatched(orderId);
     // A provider that completes on the spot still owes the selling agent their
     // commission — applyProviderStatus never runs for that order.
-    if (status === "completed") await creditAgentCommission(orderId);
+    if (status === "completed") await settleOrderCommissions(orderId);
   });
   return { ok: true, message: res.message };
 }
@@ -205,7 +213,7 @@ export async function applyProviderStatus(
   providerStatus: string | null | undefined,
   message?: string,
 ): Promise<DataOrderStatus | null> {
-  const order = await prisma.dataOrder.findUnique({
+  const order = await dataDb.dataOrder.findUnique({
     where: { id: orderId },
     select: { status: true },
   });
@@ -215,7 +223,7 @@ export async function applyProviderStatus(
   }
 
   const next = mapProviderStatus(providerStatus);
-  await prisma.dataOrder.update({
+  await dataDb.dataOrder.update({
     where: { id: orderId },
     data: {
       status: next,
@@ -230,20 +238,43 @@ export async function applyProviderStatus(
       await notifyDataOrderCompleted(orderId);
       // Commission is earned on delivery, never on payment — a bundle that
       // never lands is a sale the agent was never owed for.
-      await creditAgentCommission(orderId);
+      await settleOrderCommissions(orderId);
     });
   } else if (next === "failed") {
     after(async () => {
       await notifyDataOrderFailed(orderId);
       await voidAgentCommission(orderId);
+      await voidTeamCommission(orderId);
     });
   }
   return next;
 }
 
+/**
+ * Everything one delivered order owes, in the order it is owed.
+ *
+ * The selling agent is paid first, because their commission is what clears
+ * their own registration fee — and clearing it is what makes *their* recruiter's
+ * referral reward payable. Releasing the rewards afterwards means an agent whose
+ * very first sale settles their fee pays their upline the same day, rather than
+ * waiting for a sweep to notice.
+ *
+ * Each step is separately idempotent, so a retry of the whole thing pays
+ * nothing twice.
+ */
+async function settleOrderCommissions(orderId: string): Promise<void> {
+  await creditAgentCommission(orderId);
+  await creditTeamCommission(orderId);
+
+  const order = await dataDb.dataOrder
+    .findUnique({ where: { id: orderId }, select: { agentId: true } })
+    .catch(() => null);
+  if (order?.agentId) await releaseReferralRewards(order.agentId);
+}
+
 /** Re-read an order from the provider and apply whatever it says. */
 export async function refreshDataOrder(orderId: string): Promise<DispatchResult> {
-  const order = await prisma.dataOrder.findUnique({
+  const order = await dataDb.dataOrder.findUnique({
     where: { id: orderId },
     select: { providerOrderId: true },
   });
@@ -261,7 +292,7 @@ export async function refreshDataOrder(orderId: string): Promise<DispatchResult>
 // ---------------------------------------------------------------------------
 
 async function orderForNotice(orderId: string) {
-  return prisma.dataOrder.findUnique({ where: { id: orderId } });
+  return dataDb.dataOrder.findUnique({ where: { id: orderId } });
 }
 
 /** Tell the buyer (and the recipient, when different) that data is on the way. */
@@ -311,7 +342,7 @@ export async function notifyDataOrderFailed(orderId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function afaPaymentCovers(reference: string, amountPesewas: number): Promise<boolean> {
-  const row = await prisma.afaRegistration.findUnique({
+  const row = await dataDb.afaRegistration.findUnique({
     where: { reference },
     select: { price: true },
   });
@@ -321,13 +352,13 @@ export async function afaPaymentCovers(reference: string, amountPesewas: number)
 
 /** Mark an AFA registration paid — idempotently — and submit it upstream. */
 export async function settleAfaRegistration(reference: string): Promise<boolean> {
-  const flipped = await prisma.afaRegistration.updateMany({
+  const flipped = await dataDb.afaRegistration.updateMany({
     where: { reference, paymentStatus: "unpaid" },
     data: { paymentStatus: "paid", status: "paid", paidAt: new Date() },
   });
   if (flipped.count === 0) return false;
 
-  const row = await prisma.afaRegistration.findUnique({ where: { reference } });
+  const row = await dataDb.afaRegistration.findUnique({ where: { reference } });
   if (!row) return false;
 
   const id = row.id;
@@ -338,20 +369,20 @@ export async function settleAfaRegistration(reference: string): Promise<boolean>
 }
 
 export async function dispatchAfaRegistration(id: string): Promise<DispatchResult> {
-  const row = await prisma.afaRegistration.findUnique({ where: { id } });
+  const row = await dataDb.afaRegistration.findUnique({ where: { id } });
   if (!row) return { ok: false, message: "Registration not found." };
   if (row.paymentStatus !== "paid") return { ok: false, message: "Not paid yet." };
   if (row.providerId) return { ok: false, message: "Already submitted." };
 
   if (!isDataProviderConfigured()) {
-    await prisma.afaRegistration.update({
+    await dataDb.afaRegistration.update({
       where: { id },
       data: { providerMessage: "Waiting for the data provider API key to be configured." },
     });
     return { ok: false, message: "The data provider is not configured." };
   }
 
-  const claimed = await prisma.afaRegistration.updateMany({
+  const claimed = await dataDb.afaRegistration.updateMany({
     where: { id, providerId: null, status: { in: ["paid", "failed"] } },
     data: { status: "processing", dispatchedAt: new Date() },
   });
@@ -368,15 +399,18 @@ export async function dispatchAfaRegistration(id: string): Promise<DispatchResul
   });
 
   if (!res.ok || !res.payload?.id) {
-    await prisma.afaRegistration.update({
+    await dataDb.afaRegistration.update({
       where: { id },
       data: { status: "failed", providerMessage: res.message.slice(0, 500) },
+    });
+    after(async () => {
+      await voidAfaTeamCommission(id);
     });
     return { ok: false, message: res.message };
   }
 
   const status = mapProviderStatus(res.payload.status);
-  await prisma.afaRegistration.update({
+  await dataDb.afaRegistration.update({
     where: { id },
     data: {
       status,
@@ -390,6 +424,13 @@ export async function dispatchAfaRegistration(id: string): Promise<DispatchResul
     row.phoneNumber,
     `Nickimart Data: your AFA registration (ref ${row.reference}) has been submitted. We'll text you once it's approved.`,
   );
+  // A provider that approves on the spot owes both commissions now —
+  // applyAfaProviderStatus never runs for that registration.
+  if (status === "completed") {
+    after(async () => {
+      await settleAfaCommissions(id);
+    });
+  }
   return { ok: true, message: res.message };
 }
 
@@ -399,10 +440,10 @@ export async function applyAfaProviderStatus(
   providerStatus: string | null | undefined,
   message?: string,
 ): Promise<void> {
-  const row = await prisma.afaRegistration.findUnique({ where: { id }, select: { status: true } });
+  const row = await dataDb.afaRegistration.findUnique({ where: { id }, select: { status: true } });
   if (!row || row.status === "completed") return;
   const next = mapProviderStatus(providerStatus);
-  await prisma.afaRegistration.update({
+  await dataDb.afaRegistration.update({
     where: { id },
     data: {
       status: next,
@@ -414,7 +455,30 @@ export async function applyAfaProviderStatus(
 
   if (next === "completed") {
     after(async () => {
-      await creditAfaCommission(id);
+      await settleAfaCommissions(id);
+    });
+  } else if (next === "failed") {
+    // A registration the provider rejected pays nobody. The selling agent's own
+    // commission is already guarded by its status; the recruiter's needs
+    // closing, or it sits pending forever waiting for a delivery that will
+    // never come.
+    after(async () => {
+      await voidAfaTeamCommission(id);
     });
   }
+}
+
+/**
+ * Everything one completed AFA registration owes: the selling agent, their
+ * recruiter, and whatever referral reward the selling agent's own fee clearing
+ * has just made payable. Each step is separately idempotent.
+ */
+async function settleAfaCommissions(id: string): Promise<void> {
+  await creditAfaCommission(id);
+  await creditAfaTeamCommission(id);
+
+  const row = await dataDb.afaRegistration
+    .findUnique({ where: { id }, select: { agentId: true } })
+    .catch(() => null);
+  if (row?.agentId) await releaseReferralRewards(row.agentId);
 }

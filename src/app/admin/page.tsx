@@ -39,9 +39,10 @@ export default async function AdminDashboardPage() {
     <>
       <Container className="py-8">
         <div>
-          <h1 className="font-display text-2xl font-bold text-niki-ink">Overview</h1>
+          <h1 className="font-display text-2xl font-bold text-niki-ink">Retail Services</h1>
           <p className="mt-1 text-sm text-niki-ink/60">
-            Platform-wide metrics for users, shops, products, and orders.
+            Users, shops, products and orders across the mall. Data bundles and the agent network
+            are their own console — switch to Data Bundles above.
           </p>
         </div>
 

@@ -1,10 +1,11 @@
 import "server-only";
 import { cache } from "react";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { getActiveBundles } from "@/lib/data-bundles/catalog";
 import { NETWORKS, type Network } from "@/lib/data-bundles/networks";
 import { normaliseSlugClient } from "@/lib/data-bundles/slug";
 import { outstandingSetupFee, round2 } from "@/lib/data-bundles/agent-pricing";
+import { withAgentUsers } from "@/lib/data-bundles/user-link";
 
 /**
  * Reads for the sub-agent platform.
@@ -38,13 +39,21 @@ export interface AgentAccount {
   status: string;
   balance: number;
   setupFee: number;
+  /** BALANCE | UPFRONT | WAIVED — how the registration fee is being settled. */
+  setupFeeMethod: string;
+  /** When it was settled in full. Null while outstanding, and null if waived. */
+  setupFeePaidAt: Date | null;
+  setupFeeReference: string | null;
+  /** The agent who recruited this one, if any. */
+  referredById: string | null;
+  referralLockedAt: Date | null;
   createdAt: Date;
 }
 
 /** The agent account attached to a user, or null if they aren't one. */
 export const getAgentForUser = cache(async (userId: string): Promise<AgentAccount | null> => {
   try {
-    return await prisma.dataAgent.findUnique({ where: { userId } });
+    return await dataDb.dataAgent.findUnique({ where: { userId } });
   } catch {
     // DataAgent table not migrated yet — treat it as "not an agent" so the
     // rest of the site keeps working.
@@ -55,7 +64,7 @@ export const getAgentForUser = cache(async (userId: string): Promise<AgentAccoun
 /** An agent by their public store slug, for /store/<slug>. */
 export async function getAgentBySlug(slug: string): Promise<AgentAccount | null> {
   try {
-    return await prisma.dataAgent.findUnique({ where: { slug: slug.toLowerCase() } });
+    return await dataDb.dataAgent.findUnique({ where: { slug: slug.toLowerCase() } });
   } catch {
     return null;
   }
@@ -94,7 +103,7 @@ export async function generateAgentCode(seed = ""): Promise<string> {
   for (let i = 0; i < 20; i++) {
     const code = `${base}${Math.floor(Math.random() * 9000 + 1000)}`;
     try {
-      const clash = await prisma.dataAgent.findUnique({ where: { code }, select: { id: true } });
+      const clash = await dataDb.dataAgent.findUnique({ where: { code }, select: { id: true } });
       if (!clash) return code;
     } catch {
       return code;
@@ -134,7 +143,7 @@ export interface AgentBundleRow {
 export async function getAgentBundleRows(agentId: string): Promise<AgentBundleRow[]> {
   const [bundles, overrides] = await Promise.all([
     getActiveBundles(),
-    prisma.dataAgentPrice
+    dataDb.dataAgentPrice
       .findMany({ where: { agentId } })
       .catch((): Array<{ network: string; sizeGb: number; price: number; isActive: boolean }> => []),
   ]);
@@ -211,26 +220,26 @@ export interface AgentWalletSummary {
 
 export async function getAgentWallet(agent: AgentAccount): Promise<AgentWalletSummary> {
   const [earned, pending, sales, withdrawn, awaiting] = await Promise.all([
-    prisma.dataAgentLedger
+    dataDb.dataAgentLedger
       .aggregate({ where: { agentId: agent.id, type: "COMMISSION" }, _sum: { amount: true } })
       .catch(() => ({ _sum: { amount: 0 } })),
-    prisma.dataOrder
+    dataDb.dataOrder
       .aggregate({
         where: { agentId: agent.id, commissionStatus: "pending", paymentStatus: "paid" },
         _sum: { agentCommission: true },
       })
       .catch(() => ({ _sum: { agentCommission: 0 } })),
-    prisma.dataOrder
+    dataDb.dataOrder
       .aggregate({
         where: { agentId: agent.id, paymentStatus: "paid" },
         _sum: { price: true },
         _count: true,
       })
       .catch(() => ({ _sum: { price: 0 }, _count: 0 })),
-    prisma.dataAgentWithdrawal
+    dataDb.dataAgentWithdrawal
       .aggregate({ where: { agentId: agent.id, status: "processed" }, _sum: { amount: true } })
       .catch(() => ({ _sum: { amount: 0 } })),
-    prisma.dataAgentWithdrawal
+    dataDb.dataAgentWithdrawal
       .aggregate({ where: { agentId: agent.id, status: "pending" }, _sum: { amount: true, fee: true } })
       .catch(() => ({ _sum: { amount: 0, fee: 0 } })),
   ]);
@@ -257,7 +266,7 @@ export function withdrawableFrom(wallet: AgentWalletSummary): number {
 
 export async function getAgentLedger(agentId: string, take = 50) {
   try {
-    return await prisma.dataAgentLedger.findMany({
+    return await dataDb.dataAgentLedger.findMany({
       where: { agentId },
       orderBy: { createdAt: "desc" },
       take,
@@ -269,7 +278,7 @@ export async function getAgentLedger(agentId: string, take = 50) {
 
 export async function getAgentWithdrawals(agentId: string, take = 50) {
   try {
-    return await prisma.dataAgentWithdrawal.findMany({
+    return await dataDb.dataAgentWithdrawal.findMany({
       where: { agentId },
       orderBy: { createdAt: "desc" },
       take,
@@ -286,13 +295,13 @@ export async function getAgentOrders(agentId: string, opts: { take?: number; ski
   };
   try {
     const [rows, total] = await Promise.all([
-      prisma.dataOrder.findMany({
+      dataDb.dataOrder.findMany({
         where,
         orderBy: { createdAt: "desc" },
         take: opts.take ?? 10,
         skip: opts.skip ?? 0,
       }),
-      prisma.dataOrder.count({ where }),
+      dataDb.dataOrder.count({ where }),
     ]);
     return { rows, total };
   } catch {
@@ -303,7 +312,7 @@ export async function getAgentOrders(agentId: string, opts: { take?: number; ski
 /** Announcements every agent sees, pinned first. */
 export async function getAnnouncements(take = 30) {
   try {
-    return await prisma.dataAnnouncement.findMany({
+    return await dataDb.dataAnnouncement.findMany({
       where: { isActive: true },
       orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
       take,
@@ -316,27 +325,27 @@ export async function getAnnouncements(take = 30) {
 /** Admin-side roster with the numbers each row needs. */
 export async function listAgents() {
   try {
-    const agents = await prisma.dataAgent.findMany({
-      orderBy: { createdAt: "desc" },
-      // `passwordHash` is read only to answer "has this person ever been able
-      // to sign in?" — it is reduced to a boolean below and never leaves here.
-      include: { user: { select: { name: true, email: true, phone: true, passwordHash: true } } },
-    });
-    const sales = await prisma.dataOrder.groupBy({
-      by: ["agentId"],
-      where: { agentId: { in: agents.map((a) => a.id) }, paymentStatus: "paid" },
-      _sum: { price: true, agentCommission: true },
-      _count: true,
-    });
+    const agents = await dataDb.dataAgent.findMany({ orderBy: { createdAt: "desc" } });
+    // The people behind the agents live in the retail database, so this is a
+    // second query rather than an `include` — one for the whole roster.
+    const [withUser, sales] = await Promise.all([
+      withAgentUsers(agents),
+      dataDb.dataOrder.groupBy({
+        by: ["agentId"],
+        where: { agentId: { in: agents.map((a) => a.id) }, paymentStatus: "paid" },
+        _sum: { price: true, agentCommission: true },
+        _count: true,
+      }),
+    ]);
     const byAgent = new Map(sales.map((s) => [s.agentId, s]));
-    return agents.map((a) => {
+    return withUser.map((a) => {
       const s = byAgent.get(a.id);
       const { user, ...rest } = a;
       return {
         ...rest,
         user: user ? { name: user.name, email: user.email, phone: user.phone } : null,
         /** False until they have redeemed their setup link and chosen one. */
-        canSignIn: Boolean(user?.passwordHash),
+        canSignIn: Boolean(user?.canSignIn),
         totalSales: round2(s?._sum.price ?? 0),
         totalCommission: round2(s?._sum.agentCommission ?? 0),
         orderCount: s?._count ?? 0,

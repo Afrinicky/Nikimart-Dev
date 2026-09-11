@@ -9,6 +9,7 @@ import {
   LifeBuoy,
   Settings,
   Store,
+  Users,
   Wallet,
 } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
@@ -27,6 +28,7 @@ const ITEMS = [
   { href: "/agent", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/agent/orders", label: "Orders", icon: ListOrdered },
   { href: "/agent/wallet", label: "Wallet", icon: Wallet },
+  { href: "/agent/team", label: "My Team", icon: Users },
   { href: "/agent/afa", label: "AFA", icon: BadgeCheck },
   { href: "/agent/store", label: "Store", icon: Store },
   { href: "/agent/notifications", label: "Notifications", icon: Bell },

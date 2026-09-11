@@ -3,7 +3,7 @@ import { LifeBuoy, Phone } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { formatWhen } from "@/components/agent/AgentUi";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { resolveSupportRequest } from "@/lib/data-bundles/agent-admin-actions";
 import { cn } from "@/lib/cn";
 
@@ -19,7 +19,7 @@ export default async function AdminSupportPage({
   const params = await searchParams;
   const status = params.status === "resolved" ? "resolved" : "open";
 
-  const rows = await prisma.dataSupportRequest
+  const rows = await dataDb.dataSupportRequest
     .findMany({ where: { status }, orderBy: { createdAt: "desc" }, take: 100 })
     .catch(() => []);
 

@@ -4,10 +4,13 @@ import { Container } from "@/components/ui/Container";
 import { DataSubNav } from "@/components/admin/DataSubNav";
 
 /**
- * The data-bundle console lives inside the existing admin shell (nav, auth and
- * role guard all come from /admin/layout.tsx) and adds only its own second-level
- * tabs — so bundle work never leaves the admin, and never mixes with the mall's
- * product screens.
+ * The Data Bundles console.
+ *
+ * One of the admin's two consoles — the other is Retail Services — reached from
+ * the switcher in /admin/layout.tsx, which is also where auth and the role guard
+ * come from. Everything below is the bundle business and nothing else: its own
+ * tabs, its own database, its own Paystack account. The mall's product and
+ * shipping screens are not reachable from here, and that is the point.
  */
 export default function AdminDataLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -20,8 +23,10 @@ export default function AdminDataLayout({ children }: { children: React.ReactNod
                 <Signal className="h-4 w-4" />
               </span>
               <div>
-                <p className="font-display font-bold text-niki-ink">Data bundles</p>
-                <p className="text-xs text-niki-ink/50">Prices, orders and AFA registrations</p>
+                <p className="font-display font-bold text-niki-ink">Data Bundles</p>
+                <p className="text-xs text-niki-ink/50">
+                  Prices, orders, AFA, agents and referrals
+                </p>
               </div>
             </div>
             <Link

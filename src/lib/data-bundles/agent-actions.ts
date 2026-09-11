@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { requireUser, type SessionUser } from "@/lib/session";
-import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/settings";
+import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { callbackOrigin } from "@/lib/site";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { initializeTransaction, isPaymentConfigured, toPesewas } from "@/lib/payments";
@@ -23,6 +23,8 @@ import {
   type AgentAccount,
 } from "@/lib/data-bundles/agents";
 import { maxWithdrawal, priceAtMarkup } from "@/lib/data-bundles/agent-pricing";
+import { teamCommissionFor } from "@/lib/data-bundles/referrals";
+import { startRegistrationFeePayment } from "@/lib/data-bundles/registration-fee";
 
 /**
  * Everything an agent can do to their own account: rename their store, set
@@ -85,7 +87,7 @@ export async function updateAgentStore(input: z.infer<typeof storeSchema>): Prom
   if (problem) return { ok: false, error: problem };
 
   if (slug !== agent.slug) {
-    const taken = await prisma.dataAgent.findUnique({ where: { slug }, select: { id: true } });
+    const taken = await dataDb.dataAgent.findUnique({ where: { slug }, select: { id: true } });
     if (taken) return { ok: false, error: `“${slug}” is already taken. Try another store link.` };
   }
 
@@ -108,7 +110,7 @@ export async function updateAgentStore(input: z.infer<typeof storeSchema>): Prom
     return { ok: false, error: "The WhatsApp group link should start with https://" };
   }
 
-  await prisma.dataAgent.update({
+  await dataDb.dataAgent.update({
     where: { id: agent.id },
     data: {
       storeName: data.storeName,
@@ -130,7 +132,7 @@ export async function updateAgentStore(input: z.infer<typeof storeSchema>): Prom
 export async function setStoreOpen(open: boolean): Promise<ActionResult> {
   const { agent, error } = await currentAgent();
   if (!agent) return { ok: false, error };
-  await prisma.dataAgent.update({ where: { id: agent.id }, data: { storeOpen: open } });
+  await dataDb.dataAgent.update({ where: { id: agent.id }, data: { storeOpen: open } });
   revalidatePath("/agent/store");
   revalidatePath(`/store/${agent.slug}`);
   return { ok: true, message: open ? "Your store is open." : "Your store is closed to customers." };
@@ -172,7 +174,7 @@ export async function setAgentPrice(input: z.infer<typeof priceSchema>): Promise
     };
   }
 
-  await prisma.dataAgentPrice.upsert({
+  await dataDb.dataAgentPrice.upsert({
     where: {
       agentId_network_sizeGb: { agentId: agent.id, network: data.network, sizeGb: data.sizeGb },
     },
@@ -201,7 +203,7 @@ export async function setAgentPriceActive(input: {
   const row = rows.find((r) => r.network === network && r.sizeGb === input.sizeGb);
   if (!row) return { ok: false, error: "That bundle is not available to resell." };
 
-  await prisma.dataAgentPrice.upsert({
+  await dataDb.dataAgentPrice.upsert({
     where: { agentId_network_sizeGb: { agentId: agent.id, network, sizeGb: input.sizeGb } },
     create: { agentId: agent.id, network, sizeGb: input.sizeGb, price: row.price, isActive: input.isActive },
     update: { isActive: input.isActive },
@@ -229,7 +231,7 @@ export async function applyBulkMarkup(percent: number): Promise<ActionResult> {
 
   for (const row of rows) {
     const price = priceAtMarkup(row.agentPrice, percent);
-    await prisma.dataAgentPrice.upsert({
+    await dataDb.dataAgentPrice.upsert({
       where: {
         agentId_network_sizeGb: { agentId: agent.id, network: row.network, sizeGb: row.sizeGb },
       },
@@ -301,7 +303,7 @@ export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): 
   // the debit itself, because two requests submitted at the same moment would
   // otherwise both read the same balance, both pass, and both be paid.
   try {
-    await prisma.$transaction(async (tx) => {
+    await dataDb.$transaction(async (tx) => {
       const row = await tx.dataAgentWithdrawal.create({
         data: {
           agentId: agent.id,
@@ -340,6 +342,40 @@ export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): 
 }
 
 // ---------------------------------------------------------------------------
+// The registration fee
+// ---------------------------------------------------------------------------
+
+export type PayFeeResult =
+  | { ok: true; reference: string; authorizationUrl?: string }
+  | { ok: false; error: string };
+
+/**
+ * Pay the registration fee, for an agent who chose to settle it up front rather
+ * than out of their commission.
+ *
+ * The agent is read from the session, never from the browser, so one agent can
+ * never start a payment against another's fee — and since the fee is the thing
+ * that releases their recruiter's referral reward, paying somebody else's would
+ * be a way to mint one.
+ */
+export async function payRegistrationFee(): Promise<PayFeeResult> {
+  const { agent, user, error } = await currentAgent();
+  if (!agent) return { ok: false, error };
+
+  const limit = await rateLimit(`agent-fee:${agent.id}`, 10, 60 * 60_000);
+  if (!limit.ok) {
+    return { ok: false, error: `Too many attempts. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
+  }
+
+  const result = await startRegistrationFeePayment(
+    agent,
+    user.email ?? `${agent.code.toLowerCase()}@agent.nikimart.app`,
+  );
+  if (result.ok) revalidatePath("/agent/wallet");
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Support
 // ---------------------------------------------------------------------------
 
@@ -369,7 +405,7 @@ export async function requestCallback(input: z.infer<typeof callbackSchema>): Pr
     return { ok: false, error: `You've already asked us to call. We'll be in touch shortly.` };
   }
 
-  await prisma.dataSupportRequest.create({
+  await dataDb.dataSupportRequest.create({
     data: {
       agentId: agent?.id ?? null,
       fullName: data.fullName,
@@ -408,7 +444,7 @@ export async function setAgentAfaPrice(input: z.infer<typeof afaPriceSchema>): P
     return { ok: false, error: `Your AFA price can't be below GH₵${store.afaPrice.toFixed(2)}.` };
   }
 
-  await prisma.dataAgent.update({
+  await dataDb.dataAgent.update({
     where: { id: agent.id },
     data: { afaPrice: price, afaEnabled: parsed.data.available },
   });
@@ -465,13 +501,26 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
   const row = rows.find((r) => r.network === data.network && r.sizeGb === data.sizeGb);
   if (!row) return { ok: false, error: "That bundle is not available right now." };
 
-  const collectPayment = isPaymentConfigured();
+  const collectPayment = isPaymentConfigured("data");
   const email = data.email?.trim() || null;
+
+  // A walk-in served from the dashboard is still a sale the agent made, so it
+  // still earns their recruiter a team commission. The agent's own commission
+  // on it is zero by design — whatever they charged in cash is between them and
+  // their customer — so an admin who does not want these counted sets a minimum
+  // qualifying commission above zero and they drop out.
+  const team = await teamCommissionFor({
+    sellingAgentId: agent.id,
+    salePrice: row.agentPrice,
+    sellerCommission: 0,
+    network: row.network,
+    sizeGb: row.sizeGb,
+  });
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const reference = newDataReference();
     try {
-      const order = await prisma.dataOrder.create({
+      const order = await dataDb.dataOrder.create({
         data: {
           reference,
           network: row.network,
@@ -490,6 +539,9 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
           agentCost: row.agentPrice,
           agentCommission: 0,
           commissionStatus: "void",
+          teamAgentId: team.teamAgentId,
+          teamCommission: team.teamCommission,
+          teamCommissionStatus: team.teamCommission > 0 ? "pending" : "void",
         },
       });
 
@@ -514,10 +566,10 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
             recipientPhone,
             agentCode: agent.code,
           },
-        });
+        }, "data");
         return { ok: true, reference, authorizationUrl };
       } catch (err) {
-        await prisma.dataOrder.delete({ where: { id: order.id } }).catch(() => {});
+        await dataDb.dataOrder.delete({ where: { id: order.id } }).catch(() => {});
         return {
           ok: false,
           error: err instanceof Error ? err.message : "Could not start the payment. Please try again.",

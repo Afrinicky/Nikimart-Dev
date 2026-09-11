@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { callbackTokenMatches } from "@/lib/data-bundles/callback-token";
 import {
   applyAfaProviderStatus,
@@ -48,13 +48,13 @@ export async function POST(req: Request) {
   const message = typeof body?.message === "string" ? body.message : undefined;
 
   if (isAfaReference(reference)) {
-    const row = await prisma.afaRegistration.findUnique({
+    const row = await dataDb.afaRegistration.findUnique({
       where: { reference },
       select: { id: true },
     });
     if (row) await applyAfaProviderStatus(row.id, providerStatus, message);
   } else {
-    const order = await prisma.dataOrder.findUnique({
+    const order = await dataDb.dataOrder.findUnique({
       where: { reference },
       select: { id: true },
     });

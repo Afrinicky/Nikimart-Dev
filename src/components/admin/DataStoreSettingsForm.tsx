@@ -3,21 +3,22 @@
 import { useActionState } from "react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
-import { updateSettings, type SettingsState } from "@/lib/settings-actions";
-import type { Settings } from "@/lib/settings";
+import { updateDataSettings, type DataSettingsState } from "@/lib/data-bundles/settings-actions";
+import type { DataSettings } from "@/lib/data-bundles/settings";
 import { FormFeedback } from "@/components/ui/FormFeedback";
 
 /**
- * Storefront settings for /data-bundles. It posts to the shared `updateSettings`
- * action, which only writes the keys a form actually submits — so saving here
- * never disturbs shipping, commission, or the rest of Admin → Settings.
+ * Storefront settings for /data-bundles. It posts to `updateDataSettings`,
+ * which writes to the bundle database and only touches the keys a form actually
+ * submits — so saving here never disturbs the referral rates on the next tab,
+ * and never reaches the retail console's settings at all.
  *
  * The on/off switches are selects rather than checkboxes on purpose: an
  * unchecked checkbox isn't submitted at all, which would make "off" invisible
  * to an action that keys off what was sent.
  */
-export function DataStoreSettingsForm({ settings }: { settings: Settings }) {
-  const [state, formAction] = useActionState<SettingsState, FormData>(updateSettings, {});
+export function DataStoreSettingsForm({ settings }: { settings: DataSettings }) {
+  const [state, formAction] = useActionState<DataSettingsState, FormData>(updateDataSettings, {});
 
   return (
     <form action={formAction} className="space-y-6" noValidate>
@@ -105,13 +106,12 @@ export function DataStoreSettingsForm({ settings }: { settings: Settings }) {
           >
             <input id="dataLowBalanceThreshold" name="dataLowBalanceThreshold" type="number" min="0" step="1" defaultValue={settings.dataLowBalanceThreshold} className={inputClass} />
           </Field>
-          <Field
-            label="“Buy Data Bundles” link"
-            htmlFor="dataBundlesUrl"
-            hint="Where the sidebar and footer shortcuts send customers. /data-bundles is this store; paste any other store\u2019s address to send them there instead \u2014 4ubundles.store/store/Nickland works, the https:// is added for you. The carousel has its own link, under Carousel."
-          >
-            <input id="dataBundlesUrl" name="dataBundlesUrl" defaultValue={settings.dataBundlesUrl} className={inputClass} />
-          </Field>
+          {/*
+            The "Buy Data Bundles" shortcut is retail chrome — it decides where
+            the mall's sidebar and footer send customers — so it is a retail
+            setting and is edited in Retail Services → Settings. It was here
+            too, which meant two fields writing what is now two databases.
+          */}
         </div>
       </section>
 

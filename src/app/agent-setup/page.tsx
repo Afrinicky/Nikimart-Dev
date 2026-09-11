@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ActionLink } from "@/components/ui/motion";
 import { AgentSetupForm } from "@/components/agent/AgentSetupForm";
 import { getSetupApplication } from "@/lib/data-bundles/agent-application-actions";
-import { getAgentProgramConfig } from "@/lib/settings";
+import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
 

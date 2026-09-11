@@ -5,14 +5,22 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { requireAdmin } from "@/lib/session";
 import { notify, sendSms } from "@/lib/notifications";
 import { formatMoney } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
-import { getDataStoreConfig } from "@/lib/settings";
+import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { normaliseSlug, round2, slugProblem } from "@/lib/data-bundles/agents";
+import { getAgentUser } from "@/lib/data-bundles/user-link";
+import {
+  checkReferralLink,
+  linkReferral,
+  releaseReferralRewards,
+  resolveReferralCode,
+} from "@/lib/data-bundles/referrals";
 
 /**
  * Admin actions for the sub-agent programme: suspend an agent, correct a
@@ -69,7 +77,7 @@ export async function setAgentStatus(fd: FormData): Promise<void> {
   if (!id || !["active", "suspended"].includes(status)) return;
 
   try {
-    const agent = await prisma.dataAgent.update({
+    const agent = await dataDb.dataAgent.update({
       where: { id },
       data: { status },
       select: { slug: true, storeName: true, supportPhone: true },
@@ -150,7 +158,7 @@ export async function processWithdrawal(fd: FormData): Promise<void> {
 
   try {
     // Guarded so two admins working the queue can't both mark one paid.
-    const claimed = await prisma.dataAgentWithdrawal.updateMany({
+    const claimed = await dataDb.dataAgentWithdrawal.updateMany({
       where: { id, status: "pending" },
       data: {
         status: "processed",
@@ -161,7 +169,7 @@ export async function processWithdrawal(fd: FormData): Promise<void> {
     });
     if (claimed.count === 0) return;
 
-    const row = await prisma.dataAgentWithdrawal.findUnique({
+    const row = await dataDb.dataAgentWithdrawal.findUnique({
       where: { id },
       select: { agentId: true, amount: true, momoPhone: true },
     });
@@ -188,7 +196,7 @@ export async function rejectWithdrawal(fd: FormData): Promise<void> {
   if (!id) return;
 
   try {
-    const claimed = await prisma.dataAgentWithdrawal.updateMany({
+    const claimed = await dataDb.dataAgentWithdrawal.updateMany({
       where: { id, status: "pending" },
       data: {
         status: "rejected",
@@ -199,7 +207,7 @@ export async function rejectWithdrawal(fd: FormData): Promise<void> {
     });
     if (claimed.count === 0) return;
 
-    const row = await prisma.dataAgentWithdrawal.findUnique({
+    const row = await dataDb.dataAgentWithdrawal.findUnique({
       where: { id },
       select: { agentId: true, amount: true, fee: true, momoPhone: true },
     });
@@ -243,12 +251,12 @@ export async function saveAnnouncement(
 
   try {
     if (id) {
-      await prisma.dataAnnouncement.update({
+      await dataDb.dataAnnouncement.update({
         where: { id },
         data: { title, body, tone, isPinned: fd.get("isPinned") === "on" },
       });
     } else {
-      await prisma.dataAnnouncement.create({
+      await dataDb.dataAnnouncement.create({
         data: { title, body, tone, isPinned: fd.get("isPinned") === "on" },
       });
     }
@@ -265,7 +273,7 @@ export async function setAnnouncementActive(fd: FormData): Promise<void> {
   const id = str(fd, "id");
   if (!id) return;
   try {
-    await prisma.dataAnnouncement.update({
+    await dataDb.dataAnnouncement.update({
       where: { id },
       data: { isActive: str(fd, "isActive") === "1" },
     });
@@ -281,7 +289,7 @@ export async function deleteAnnouncement(fd: FormData): Promise<void> {
   const id = str(fd, "id");
   if (!id) return;
   try {
-    await prisma.dataAnnouncement.delete({ where: { id } });
+    await dataDb.dataAnnouncement.delete({ where: { id } });
     revalidatePath("/admin/data/announcements");
     revalidatePath("/agent/notifications");
   } catch {
@@ -298,7 +306,7 @@ export async function resolveSupportRequest(fd: FormData): Promise<void> {
   const id = str(fd, "id");
   if (!id) return;
   try {
-    await prisma.dataSupportRequest.update({
+    await dataDb.dataSupportRequest.update({
       where: { id },
       data: { status: "resolved", resolvedAt: new Date(), adminNote: str(fd, "note") },
     });
@@ -327,15 +335,18 @@ export async function reissueSetupLink(fd: FormData): Promise<AgentAdminState> {
 
   let agent;
   try {
-    agent = await prisma.dataAgent.findUnique({
+    agent = await dataDb.dataAgent.findUnique({
       where: { id: agentId },
-      select: { id: true, storeName: true, slug: true, userId: true, user: { select: { email: true, phone: true, passwordHash: true } } },
+      select: { id: true, storeName: true, slug: true, userId: true },
     });
   } catch {
     return { error: "Couldn't read that agent." };
   }
   if (!agent) return { error: "That agent no longer exists." };
-  if (agent.user?.passwordHash) {
+  // The person behind the agent is in the retail database, so this is a second
+  // hop rather than an include.
+  const user = await getAgentUser(agent.userId);
+  if (user?.canSignIn) {
     return { error: "This agent already has a password — send them to Forgot password instead." };
   }
 
@@ -345,7 +356,7 @@ export async function reissueSetupLink(fd: FormData): Promise<AgentAdminState> {
   try {
     // The link belongs to an application, which is where the token lives. If
     // the agent was created some other way, make a record to hang it on.
-    const existing = await prisma.dataAgentApplication.findFirst({
+    const existing = await dataDb.dataAgentApplication.findFirst({
       where: { agentId },
       select: { id: true },
     });
@@ -354,13 +365,13 @@ export async function reissueSetupLink(fd: FormData): Promise<AgentAdminState> {
       setupExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60_000),
     };
     if (existing) {
-      await prisma.dataAgentApplication.update({ where: { id: existing.id }, data });
+      await dataDb.dataAgentApplication.update({ where: { id: existing.id }, data });
     } else {
-      await prisma.dataAgentApplication.create({
+      await dataDb.dataAgentApplication.create({
         data: {
           fullName: agent.storeName,
-          phone: agent.user?.phone ?? "",
-          email: agent.user?.email ?? "",
+          phone: user?.phone ?? "",
+          email: user?.email ?? "",
           desiredSlug: agent.slug,
           status: "approved",
           agentId,
@@ -373,9 +384,9 @@ export async function reissueSetupLink(fd: FormData): Promise<AgentAdminState> {
   }
 
   await Promise.allSettled([
-    sendSms(agent.user?.phone, `Nickimart: set your agent password here — ${setupUrl}`),
+    sendSms(user?.phone, `Nickimart: set your agent password here — ${setupUrl}`),
     notify(
-      { email: agent.user?.email ?? null, phone: null },
+      { email: user?.email ?? null, phone: null },
       {
         sms: `Set your Nickimart agent password: ${setupUrl}`,
         emailSubject: "Set your Nickimart agent password",
@@ -385,6 +396,59 @@ export async function reissueSetupLink(fd: FormData): Promise<AgentAdminState> {
 
   revalidateAgents(agentId);
   return { ok: true, setupUrl, message: "New link issued — valid for 7 days." };
+}
+
+/**
+ * Record a referrer for an agent who has none.
+ *
+ * The one gap the signup form leaves: someone recruited by an existing agent
+ * who didn't type their code, and finds out afterwards. An admin can put it
+ * right — but only while there is nothing there. A referrer that already exists
+ * is permanent, because changing it moves earnings that have already been paid
+ * to somebody else, and because "my upline changed" is a complaint no ledger
+ * can answer. checkReferralLink is what refuses the rest: self-referral, a
+ * suspended referrer, and a pair that already refer each other.
+ */
+export async function setAgentReferrer(
+  _prev: AgentAdminState,
+  fd: FormData,
+): Promise<AgentAdminState> {
+  await requireAdmin();
+  const agentId = str(fd, "agentId");
+  const code = str(fd, "referralCode").toUpperCase();
+  if (!agentId) return { error: "Missing agent." };
+  if (!code) return { error: "Enter the referrer's agent code." };
+
+  const agent = await dataDb.dataAgent
+    .findUnique({ where: { id: agentId }, select: { userId: true, storeName: true } })
+    .catch(() => null);
+  if (!agent) return { error: "That agent no longer exists." };
+
+  const resolved = await resolveReferralCode(code);
+  if (!resolved.ok) return { error: resolved.message };
+
+  // The recruit's own contact details, so the same-person guard has something
+  // to compare against — they are in the retail database, not on the agent row.
+  const recruitUser = await getAgentUser(agent.userId);
+  const allowed = await checkReferralLink({
+    referrerId: resolved.agentId,
+    agentId,
+    recruitUserId: agent.userId,
+    recruitEmail: recruitUser?.email ?? null,
+    recruitPhone: recruitUser?.phone ?? null,
+  });
+  if (!allowed.ok) return { error: allowed.reason };
+
+  if (!(await linkReferral(agentId, allowed.referrerId))) {
+    return { error: "That agent already has a referrer." };
+  }
+
+  // The fee may have been paid long ago, in which case the reward is owed the
+  // moment the relationship exists.
+  await releaseReferralRewards(agentId);
+
+  revalidateAgents(agentId);
+  return { ok: true, message: `${resolved.storeName} (${resolved.code}) is now recorded as the referrer.` };
 }
 
 const editSchema = z.object({
@@ -472,13 +536,13 @@ export async function updateAgentDetails(
   }
 
   try {
-    const clash = await prisma.dataAgent.findFirst({
+    const clash = await dataDb.dataAgent.findFirst({
       where: { slug, NOT: { id: agentId } },
       select: { id: true },
     });
     if (clash) return { error: `“${slug}” is already taken by another store.` };
 
-    const agent = await prisma.dataAgent.update({
+    const agent = await dataDb.dataAgent.update({
       where: { id: agentId },
       data: {
         storeName: data.storeName,
@@ -534,7 +598,7 @@ export async function deleteAgent(_prev: AgentAdminState, fd: FormData): Promise
   if (!agentId) return { error: "Missing agent." };
 
   try {
-    const agent = await prisma.dataAgent.findUnique({
+    const agent = await dataDb.dataAgent.findUnique({
       where: { id: agentId },
       select: { id: true, storeName: true, balance: true },
     });
@@ -549,14 +613,14 @@ export async function deleteAgent(_prev: AgentAdminState, fd: FormData): Promise
       };
     }
 
-    const pending = await prisma.dataAgentWithdrawal.count({
+    const pending = await dataDb.dataAgentWithdrawal.count({
       where: { agentId, status: "pending" },
     });
     if (pending > 0) {
       return { error: "There's a withdrawal still waiting. Process or reject it first." };
     }
 
-    await prisma.dataAgent.delete({ where: { id: agentId } });
+    await dataDb.dataAgent.delete({ where: { id: agentId } });
   } catch {
     return { error: "Couldn't remove that agent. Please try again." };
   }

@@ -3,11 +3,11 @@
 import { headers } from "next/headers";
 import { after } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { auth } from "@/lib/auth";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { initializeTransaction, isPaymentConfigured, toPesewas } from "@/lib/payments";
-import { getDataStoreConfig } from "@/lib/settings";
+import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { callbackOrigin } from "@/lib/site";
 import { findSellableBundle } from "@/lib/data-bundles/catalog";
 import {
@@ -16,6 +16,7 @@ import {
   getAgentBySlug,
 } from "@/lib/data-bundles/agents";
 import { commissionOn } from "@/lib/data-bundles/agent-pricing";
+import { afaTeamCommissionFor, teamCommissionFor } from "@/lib/data-bundles/referrals";
 import { NETWORKS, bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
 import { checkRecipient, parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import {
@@ -114,16 +115,29 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
   const agentCommission = agent ? commissionOn(bundle.price, agentCost) : 0;
   const costPrice = "costPrice" in bundle ? bundle.costPrice : 0;
 
+  // If the selling agent was recruited by somebody, that somebody earns a
+  // team-sales commission on this order. Worked out now and snapshotted with
+  // the rest, so a rate change tomorrow never rewrites what today's sale paid.
+  const team = agent
+    ? await teamCommissionFor({
+        sellingAgentId: agent.id,
+        salePrice: bundle.price,
+        sellerCommission: agentCommission,
+        network: bundle.network,
+        sizeGb: bundle.sizeGb,
+      })
+    : { teamAgentId: null, teamCommission: 0 };
+
   const session = await auth();
   const userId = session?.user?.id ?? null;
   const buyerEmail = data.buyerEmail?.trim() || null;
 
-  const collectPayment = isPaymentConfigured();
+  const collectPayment = isPaymentConfigured("data");
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const reference = newDataReference();
     try {
-      const order = await prisma.dataOrder.create({
+      const order = await dataDb.dataOrder.create({
         data: {
           reference,
           network: bundle.network,
@@ -142,6 +156,11 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
           agentCost,
           agentCommission,
           commissionStatus: agent ? "pending" : "void",
+          teamAgentId: team.teamAgentId,
+          teamCommission: team.teamCommission,
+          // Nothing to pay is settled now rather than left pending for a sweep
+          // that would only ever close it.
+          teamCommissionStatus: team.teamCommission > 0 ? "pending" : "void",
         },
       });
 
@@ -170,12 +189,12 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
             recipientPhone,
             ...(agent ? { store: agent.slug, agentCode: agent.code } : {}),
           },
-        });
+        }, "data");
         return { ok: true, reference, authorizationUrl };
       } catch (err) {
         // The order never became payable — drop it so it doesn't sit in the
         // admin as a phantom "awaiting payment" row.
-        await prisma.dataOrder.delete({ where: { id: order.id } }).catch(() => {});
+        await dataDb.dataOrder.delete({ where: { id: order.id } }).catch(() => {});
         return {
           ok: false,
           error: err instanceof Error ? err.message : "Could not start the payment. Please try again.",
@@ -241,7 +260,7 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
   }
 
   const session = await auth();
-  const collectPayment = isPaymentConfigured();
+  const collectPayment = isPaymentConfigured("data");
 
   // An agent may charge their own AFA price; the difference over Nickimart's is
   // their commission, exactly as on a bundle.
@@ -252,10 +271,21 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
   const price = agent && agent.afaPrice > 0 ? agent.afaPrice : config.afaPrice;
   const agentCommission = agent ? commissionOn(price, config.afaPrice) : 0;
 
+  // Whether an AFA earns the selling agent's recruiter anything is the admin's
+  // call, and off unless they say otherwise — a SIM registration is a one-off
+  // piece of paperwork, not the repeat selling the programme exists to grow.
+  const team = agent
+    ? await afaTeamCommissionFor({
+        sellingAgentId: agent.id,
+        salePrice: price,
+        sellerCommission: agentCommission,
+      })
+    : { teamAgentId: null, teamCommission: 0 };
+
   for (let attempt = 0; attempt < 5; attempt++) {
     const reference = newAfaReference();
     try {
-      const row = await prisma.afaRegistration.create({
+      const row = await dataDb.afaRegistration.create({
         data: {
           reference,
           fullName: data.fullName,
@@ -271,6 +301,9 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
           agentCost: agent ? config.afaPrice : 0,
           agentCommission,
           commissionStatus: agent ? "pending" : "void",
+          teamAgentId: team.teamAgentId,
+          teamCommission: team.teamCommission,
+          teamCommissionStatus: team.teamCommission > 0 ? "pending" : "void",
         },
       });
 
@@ -293,10 +326,10 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
             phoneNumber,
             ...(agent ? { store: agent.slug, agentCode: agent.code } : {}),
           },
-        });
+        }, "data");
         return { ok: true, reference, authorizationUrl };
       } catch (err) {
-        await prisma.afaRegistration.delete({ where: { id: row.id } }).catch(() => {});
+        await dataDb.afaRegistration.delete({ where: { id: row.id } }).catch(() => {});
         return {
           ok: false,
           error: err instanceof Error ? err.message : "Could not start the payment. Please try again.",

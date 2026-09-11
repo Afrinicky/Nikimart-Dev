@@ -267,7 +267,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   // starts as "pending" and is marked "paid" only after Paystack confirms it
   // (via /checkout/verify or the webhook). Without keys we keep the simulated
   // flow so local dev and preview deploys still work end-to-end.
-  const collectPayment = isPaymentConfigured();
+  const collectPayment = isPaymentConfigured("retail");
   const initialStatus = collectPayment ? "pending" : "paid";
 
   // How long until it lands. Two days is right for a parcel crossing Accra and
@@ -387,7 +387,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
             reference: order.orderNumber,
             callbackUrl: `${callbackOrigin()}/checkout/verify`,
             metadata: { orderId: order.id, userId: user.id },
-          });
+          }, "retail");
           return { ok: true, orderNumber: order.orderNumber, authorizationUrl };
         } catch (err) {
           // The order never became payable — cancel it and put the reserved

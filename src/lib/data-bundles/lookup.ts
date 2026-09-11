@@ -1,6 +1,6 @@
 import "server-only";
 import { headers } from "next/headers";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { toLocalGhPhone } from "@/lib/data-bundles/networks";
 import { AFA_REFERENCE_PREFIX } from "@/lib/data-bundles/fulfillment";
@@ -74,7 +74,7 @@ export async function lookupOrders(rawQuery: string | undefined): Promise<Lookup
 
   try {
     if (reference.startsWith(AFA_REFERENCE_PREFIX)) {
-      const row = await prisma.afaRegistration.findUnique({ where: { reference } });
+      const row = await dataDb.afaRegistration.findUnique({ where: { reference } });
       if (!row) return { state: "empty" };
       return {
         state: "found",
@@ -92,7 +92,7 @@ export async function lookupOrders(rawQuery: string | undefined): Promise<Lookup
       };
     }
 
-    const rows = await prisma.dataOrder.findMany({
+    const rows = await dataDb.dataOrder.findMany({
       where: phone
         ? { OR: [{ buyerPhone: phone }, { recipientPhone: phone }] }
         : { reference },

@@ -10,6 +10,7 @@ import {
   ListOrdered,
   Megaphone,
   Settings2,
+  Share2,
   Tags,
   Users,
 } from "lucide-react";
@@ -21,6 +22,7 @@ const TABS = [
   { href: "/admin/data/orders", label: "Bundle orders", icon: ListOrdered },
   { href: "/admin/data/afa", label: "AFA", icon: BadgeCheck },
   { href: "/admin/data/agents", label: "Agents", icon: Users },
+  { href: "/admin/data/referrals", label: "Referrals", icon: Share2 },
   { href: "/admin/data/withdrawals", label: "Withdrawals", icon: Banknote },
   { href: "/admin/data/announcements", label: "Announcements", icon: Megaphone },
   { href: "/admin/data/support", label: "Agent support", icon: LifeBuoy },

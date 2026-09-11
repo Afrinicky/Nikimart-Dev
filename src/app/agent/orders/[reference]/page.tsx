@@ -4,7 +4,7 @@ import { ArrowLeft, CreditCard, Package, Phone } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { Card, PaymentPill, SourcePill, StatusPill, formatWhen } from "@/components/agent/AgentUi";
 import { requireUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { formatMoney } from "@/lib/format";
 import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
@@ -35,7 +35,7 @@ export default async function AgentOrderDetailPage({
 
   // Scoped to this agent, so one agent can never read another's order by
   // guessing a reference.
-  const order = await prisma.dataOrder
+  const order = await dataDb.dataOrder
     .findFirst({ where: { reference: decodeURIComponent(reference), agentId: agent.id } })
     .catch(() => null);
 

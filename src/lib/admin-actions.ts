@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { requireAdmin } from "@/lib/session";
 import { ROLES } from "@/lib/roles";
 import { buildProductData, parseImages, validateProduct } from "@/lib/product-form";
@@ -410,18 +411,45 @@ export async function updateUser(id: string, _prev: CrudState, fd: FormData): Pr
  * who has bought anything would erase those orders, their items, and every
  * commission and payout figure derived from them.
  */
+/**
+ * Does this person hold a data-agent account? True when they do, and true when
+ * we could not find out — see the note in deleteUser.
+ */
+async function hasAgentAccount(userId: string): Promise<boolean> {
+  try {
+    const agent = await dataDb.dataAgent.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    return Boolean(agent);
+  } catch {
+    return true;
+  }
+}
+
 export async function deleteUser(fd: FormData): Promise<void> {
   const admin = await requireAdmin();
   const id = str(fd, "id");
   if (!id || id === admin.id) return; // never delete yourself
 
-  const [orders, vendor, affiliate] = await Promise.all([
+  const [orders, vendor, affiliate, agent] = await Promise.all([
     prisma.order.count({ where: { userId: id } }),
     prisma.vendor.findFirst({ where: { ownerId: id }, select: { id: true } }),
     prisma.affiliate.findFirst({ where: { userId: id }, select: { id: true } }),
+    // The agent account is in the other database, so nothing enforces this for
+    // us any more. It used to: DataAgent.userId was a cascading foreign key, and
+    // deleting the person took the agent row with it. Now the delete would
+    // succeed and leave a storefront still selling, a balance still owed and a
+    // ledger still standing, all pointing at a user id that no longer exists.
+    //
+    // Fails closed. If the bundle database can't be reached we don't know
+    // whether they hold an agent account, and "don't know" has to mean "don't
+    // delete" for something irreversible — the same reason the users screen
+    // showing a delete button during an outage must not be what decides this.
+    hasAgentAccount(id),
   ]);
   // Surfaced as a disabled delete button with the reason in the users table.
-  if (orders > 0 || vendor || affiliate) return;
+  if (orders > 0 || vendor || affiliate || agent) return;
 
   await prisma.user.delete({ where: { id } });
   revalidatePath("/admin/users");

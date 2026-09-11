@@ -5,9 +5,9 @@ import { ActionLink } from "@/components/ui/motion";
 import { AgentPageHeading, Card, EmptyRow, TableScroll, StatusPill, formatWhen } from "@/components/agent/AgentUi";
 import { AfaForm } from "@/components/data/AfaForm";
 import { requireUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { formatMoney } from "@/lib/format";
-import { getDataStoreConfig } from "@/lib/settings";
+import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 
 export const metadata: Metadata = { title: "AFA — Agent — Nickimart" };
@@ -30,7 +30,7 @@ export default async function AgentAfaPage() {
   const price = agent.afaPrice > 0 ? agent.afaPrice : store.afaPrice;
   const commission = Math.max(0, Math.round((price - store.afaPrice) * 100) / 100);
 
-  const rows = await prisma.afaRegistration
+  const rows = await dataDb.afaRegistration
     .findMany({ where: { agentId: agent.id }, orderBy: { createdAt: "desc" }, take: 25 })
     .catch(() => []);
 

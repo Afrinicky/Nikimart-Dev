@@ -254,76 +254,13 @@ export async function getAbroadConfig(): Promise<AbroadConfig> {
 }
 
 // ---------------------------------------------------------------------------
-// Data bundle storefront
+// Data bundles and the sub-agent programme
+//
+// Their settings moved to lib/data-bundles/settings.ts when the bundle business
+// was split onto its own database — they are stored there, in DataSetting,
+// alongside the orders they price. The keys below are what those settings fall
+// back to for anything set before the split, which is why they are still
+// listed in SETTINGS_DEFAULTS; nothing writes them any more.
 // ---------------------------------------------------------------------------
-
-export interface DataStoreConfig {
-  enabled: boolean;
-  name: string;
-  tagline: string;
-  whatsapp: string;
-  afaEnabled: boolean;
-  afaPrice: number;
-  markupPercent: number;
-  lowBalanceThreshold: number;
-}
-
-/** Storefront configuration for /data-bundles, merged with defaults. */
-export async function getDataStoreConfig(): Promise<DataStoreConfig> {
-  const settings = await getSettings();
-  const numOr = (raw: string, fallback: number) => {
-    const n = Number(raw);
-    return Number.isFinite(n) && n >= 0 ? n : fallback;
-  };
-  return {
-    // Anything other than an explicit "0"/"off" keeps the store open, so a
-    // half-written value never silently takes the storefront down.
-    enabled: !["0", "off", "false", "no"].includes(settings.dataBundlesEnabled.trim().toLowerCase()),
-    name: settings.dataStoreName.trim() || "Nickimart Data",
-    tagline: settings.dataStoreTagline.trim(),
-    whatsapp: settings.dataSupportWhatsapp.trim(),
-    afaEnabled: !["0", "off", "false", "no"].includes(settings.dataAfaEnabled.trim().toLowerCase()),
-    afaPrice: numOr(settings.dataAfaPrice, 12),
-    markupPercent: numOr(settings.dataMarkupPercent, 25),
-    lowBalanceThreshold: numOr(settings.dataLowBalanceThreshold, 50),
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Sub-agent programme
-// ---------------------------------------------------------------------------
-
-export interface AgentProgramConfig {
-  enabled: boolean;
-  setupFee: number;
-  withdrawalFee: number;
-  minWithdrawal: number;
-  /** Suggested discount (percent off retail) for the agent price. */
-  agentDiscountPercent: number;
-  supportPhone: string;
-  supportWhatsapp: string;
-  whatsappGroup: string;
-  pitch: string;
-}
-
-/** Configuration for /agent and the recruitment page, merged with defaults. */
-export async function getAgentProgramConfig(): Promise<AgentProgramConfig> {
-  const settings = await getSettings();
-  const numOr = (raw: string, fallback: number) => {
-    const n = Number(raw);
-    return Number.isFinite(n) && n >= 0 ? n : fallback;
-  };
-  return {
-    enabled: !["0", "off", "false", "no"].includes(settings.agentProgramEnabled.trim().toLowerCase()),
-    setupFee: numOr(settings.agentSetupFee, 30),
-    withdrawalFee: numOr(settings.agentWithdrawalFee, 1),
-    minWithdrawal: numOr(settings.agentMinWithdrawal, 10),
-    agentDiscountPercent: numOr(settings.agentAgentMarkupPercent, 12),
-    supportPhone: settings.agentSupportPhone.trim() || settings.supportPhone.trim(),
-    supportWhatsapp: settings.agentSupportWhatsapp.trim() || settings.dataSupportWhatsapp.trim(),
-    whatsappGroup: settings.agentWhatsappGroup.trim(),
-    pitch: settings.agentPitch.trim(),
-  };
-}
 
 export { normaliseDataBundlesUrl } from "@/lib/data-bundles/store-link";

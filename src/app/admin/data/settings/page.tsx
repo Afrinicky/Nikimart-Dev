@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
 import { DataStoreSettingsForm } from "@/components/admin/DataStoreSettingsForm";
-import { getSettings } from "@/lib/settings";
+import { getDataSettings } from "@/lib/data-bundles/settings";
 
 export const metadata: Metadata = { title: "Data Store Settings — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminDataSettingsPage() {
-  const settings = await getSettings();
+  const settings = await getDataSettings();
 
   return (
     <Container className="max-w-2xl py-8">

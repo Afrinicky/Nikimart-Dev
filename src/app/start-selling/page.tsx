@@ -4,7 +4,8 @@ import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ActionLink } from "@/components/ui/motion";
 import { formatMoney } from "@/lib/format";
-import { getAffiliatePitch, getAgentProgramConfig } from "@/lib/settings";
+import { getAffiliatePitch } from "@/lib/settings";
+import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 
 export const metadata: Metadata = { title: "Start earning — Nickimart" };
 export const dynamic = "force-dynamic";

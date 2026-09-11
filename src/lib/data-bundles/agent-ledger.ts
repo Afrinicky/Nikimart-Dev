@@ -1,5 +1,5 @@
 import "server-only";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { round2 } from "@/lib/data-bundles/agents";
 
 /**
@@ -13,10 +13,22 @@ import { round2 } from "@/lib/data-bundles/agents";
 
 export type LedgerType =
   | "SETUP_FEE"
+  | "SETUP_FEE_PAYMENT"
   | "COMMISSION"
+  | "REFERRAL_L1"
+  | "REFERRAL_L2"
+  | "TEAM_COMMISSION"
   | "WITHDRAWAL"
   | "WITHDRAWAL_REVERSAL"
   | "ADJUSTMENT";
+
+/**
+ * The slice of the data client a ledger write needs. Written as a Pick so an
+ * interactive transaction (`dataDb.$transaction(async (tx) => …)`) can be
+ * passed straight in — a transaction client has the same model properties but
+ * none of the connection-level ones.
+ */
+export type LedgerClient = Pick<typeof dataDb, "dataAgent" | "dataAgentLedger">;
 
 export interface LedgerEntry {
   agentId: string;
@@ -25,6 +37,22 @@ export interface LedgerEntry {
   amount: number;
   narration: string;
   reference?: string | null;
+  /**
+   * The agent whose activity produced this entry — the recruit whose fee was
+   * paid, or the downline who made the sale. Only set on referral and team
+   * earnings; it is what makes them traceable to their source.
+   */
+  sourceAgentId?: string | null;
+  /** 1 for a direct recruit, 2 for a recruit's recruit. */
+  referralLevel?: number | null;
+  /**
+   * A key unique to the thing being paid for, e.g. "TEAM_COMMISSION:<orderId>".
+   * The database refuses a second row with the same key, so a credit that is
+   * retried — by a sweep, a webhook, an admin — is paid exactly once however
+   * many callers get as far as writing it. Callers that set this should catch
+   * DuplicateLedgerEntryError and treat it as "already paid".
+   */
+  dedupeKey?: string | null;
   /**
    * Apply this debit only while the balance is at least `requireBalance`.
    *
@@ -46,6 +74,17 @@ export class InsufficientBalanceError extends Error {
 }
 
 /**
+ * Thrown when an entry carrying a `dedupeKey` has already been written. It
+ * means the commission is paid, not that anything went wrong.
+ */
+export class DuplicateLedgerEntryError extends Error {
+  constructor() {
+    super("DUPLICATE_LEDGER_ENTRY");
+    this.name = "DuplicateLedgerEntryError";
+  }
+}
+
+/**
  * Apply one entry. Returns the balance afterwards, or null when the agent has
  * gone away. `tx` lets a caller fold this into a larger transaction.
  *
@@ -54,9 +93,21 @@ export class InsufficientBalanceError extends Error {
  */
 export async function postLedgerEntry(
   entry: LedgerEntry,
-  tx: Pick<typeof prisma, "dataAgent" | "dataAgentLedger"> = prisma,
+  tx: LedgerClient = dataDb,
 ): Promise<number | null> {
   const amount = round2(entry.amount);
+
+  // Check the dedupe key before moving the balance. The unique index below is
+  // the real guarantee; this is what keeps a duplicate from crediting the
+  // balance and then failing on the ledger row, which would leave the two out
+  // of step — the one thing this module exists to prevent.
+  if (entry.dedupeKey) {
+    const seen = await tx.dataAgentLedger.findUnique({
+      where: { dedupeKey: entry.dedupeKey },
+      select: { id: true },
+    });
+    if (seen) throw new DuplicateLedgerEntryError();
+  }
 
   if (entry.requireBalance !== undefined) {
     // One statement: the balance is both the guard and the thing being
@@ -79,17 +130,42 @@ export async function postLedgerEntry(
         select: { balance: true },
       });
   const balanceAfter = round2(agent.balance);
-  await tx.dataAgentLedger.create({
-    data: {
-      agentId: entry.agentId,
-      type: entry.type,
-      amount,
-      balanceAfter,
-      narration: entry.narration.slice(0, 300),
-      reference: entry.reference ?? null,
-    },
-  });
+  try {
+    await tx.dataAgentLedger.create({
+      data: {
+        agentId: entry.agentId,
+        type: entry.type,
+        amount,
+        balanceAfter,
+        narration: entry.narration.slice(0, 300),
+        reference: entry.reference ?? null,
+        sourceAgentId: entry.sourceAgentId ?? null,
+        referralLevel: entry.referralLevel ?? null,
+        dedupeKey: entry.dedupeKey ?? null,
+      },
+    });
+  } catch (err) {
+    // Two callers raced past the check above and the unique index caught the
+    // loser. Put the balance back — the winner has already credited it.
+    if (entry.dedupeKey && isUniqueViolation(err)) {
+      await tx.dataAgent
+        .update({ where: { id: entry.agentId }, data: { balance: { decrement: amount } } })
+        .catch(() => {});
+      throw new DuplicateLedgerEntryError();
+    }
+    throw err;
+  }
   return balanceAfter;
+}
+
+/** Postgres unique-constraint violation, as Prisma reports it. */
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === "P2002"
+  );
 }
 
 /**
@@ -103,7 +179,7 @@ export async function postLedgerEntry(
 export async function creditAgentCommission(orderId: string): Promise<boolean> {
   let order;
   try {
-    order = await prisma.dataOrder.findUnique({
+    order = await dataDb.dataOrder.findUnique({
       where: { id: orderId },
       select: {
         id: true,
@@ -127,7 +203,7 @@ export async function creditAgentCommission(orderId: string): Promise<boolean> {
   if (order.commissionStatus !== "pending") return false;
   if (order.agentCommission <= 0) {
     // Nothing to pay, but don't leave it pending forever.
-    await prisma.dataOrder.updateMany({
+    await dataDb.dataOrder.updateMany({
       where: { id: orderId, commissionStatus: "pending" },
       data: { commissionStatus: "void" },
     });
@@ -136,13 +212,13 @@ export async function creditAgentCommission(orderId: string): Promise<boolean> {
 
   // A suspended agent stops earning on new deliveries; the order stays pending
   // so an admin can release it by reactivating them.
-  const agent = await prisma.dataAgent.findUnique({
+  const agent = await dataDb.dataAgent.findUnique({
     where: { id: order.agentId },
     select: { status: true },
   });
   if (!agent || agent.status !== "active") return false;
 
-  const claimed = await prisma.dataOrder.updateMany({
+  const claimed = await dataDb.dataOrder.updateMany({
     where: { id: orderId, commissionStatus: "pending" },
     data: { commissionStatus: "earned", commissionPaidAt: new Date() },
   });
@@ -159,7 +235,7 @@ export async function creditAgentCommission(orderId: string): Promise<boolean> {
     return true;
   } catch {
     // The ledger write failed — put the order back so the next sweep retries.
-    await prisma.dataOrder.updateMany({
+    await dataDb.dataOrder.updateMany({
       where: { id: orderId, commissionStatus: "earned" },
       data: { commissionStatus: "pending", commissionPaidAt: null },
     });
@@ -170,7 +246,7 @@ export async function creditAgentCommission(orderId: string): Promise<boolean> {
 /** Void the commission on an order that failed or was refunded. */
 export async function voidAgentCommission(orderId: string): Promise<void> {
   try {
-    await prisma.dataOrder.updateMany({
+    await dataDb.dataOrder.updateMany({
       where: { id: orderId, commissionStatus: "pending" },
       data: { commissionStatus: "void" },
     });
@@ -187,7 +263,7 @@ export async function voidAgentCommission(orderId: string): Promise<void> {
 export async function sweepAgentCommissions(limit = 100): Promise<number> {
   let owed;
   try {
-    owed = await prisma.dataOrder.findMany({
+    owed = await dataDb.dataOrder.findMany({
       where: {
         agentId: { not: null },
         status: "completed",
@@ -216,7 +292,7 @@ export async function sweepAgentCommissions(limit = 100): Promise<number> {
 export async function creditAfaCommission(id: string): Promise<boolean> {
   let row;
   try {
-    row = await prisma.afaRegistration.findUnique({
+    row = await dataDb.afaRegistration.findUnique({
       where: { id },
       select: {
         id: true,
@@ -237,13 +313,13 @@ export async function creditAfaCommission(id: string): Promise<boolean> {
   if (row.status !== "completed" || row.paymentStatus !== "paid") return false;
   if (row.commissionStatus !== "pending" || row.agentCommission <= 0) return false;
 
-  const agent = await prisma.dataAgent.findUnique({
+  const agent = await dataDb.dataAgent.findUnique({
     where: { id: row.agentId },
     select: { status: true },
   });
   if (!agent || agent.status !== "active") return false;
 
-  const claimed = await prisma.afaRegistration.updateMany({
+  const claimed = await dataDb.afaRegistration.updateMany({
     where: { id, commissionStatus: "pending" },
     data: { commissionStatus: "earned", commissionPaidAt: new Date() },
   });
@@ -259,7 +335,7 @@ export async function creditAfaCommission(id: string): Promise<boolean> {
     });
     return true;
   } catch {
-    await prisma.afaRegistration.updateMany({
+    await dataDb.afaRegistration.updateMany({
       where: { id, commissionStatus: "earned" },
       data: { commissionStatus: "pending", commissionPaidAt: null },
     });

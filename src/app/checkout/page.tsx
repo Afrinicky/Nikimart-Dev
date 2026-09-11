@@ -54,7 +54,7 @@ export default async function CheckoutPage() {
         ) : checkout ? (
           <CheckoutClient
             defaultPickupId={checkout.profile?.preferredPickupId ?? ""}
-            paymentEnabled={isPaymentConfigured()}
+            paymentEnabled={isPaymentConfigured("retail")}
           />
         ) : null}
       </Container>

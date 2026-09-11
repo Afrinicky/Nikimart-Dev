@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { requireAdmin } from "@/lib/session";
 import { isNetwork, type Network } from "@/lib/data-bundles/networks";
 import { dispatchDataOrder, refreshDataOrder, dispatchAfaRegistration } from "@/lib/data-bundles/fulfillment";
 import { runDataBundleSweep } from "@/lib/data-bundles/monitor";
+import { voidAgentCommission } from "@/lib/data-bundles/agent-ledger";
+import { voidTeamCommission } from "@/lib/data-bundles/referrals";
 
 /**
  * Admin console actions for the data bundle storefront. Every one of these
@@ -63,12 +65,14 @@ export async function saveBundlePrices(
     price: number;
     costPrice: number;
     agentPrice: number;
+    teamCommission: number;
     isActive: boolean;
   }> = [];
   for (const id of ids) {
     const price = num(fd, `price:${id}`);
     const cost = num(fd, `cost:${id}`);
     const agent = num(fd, `agent:${id}`);
+    const team = num(fd, `team:${id}`);
     if (price === null || price < 0) {
       return { error: "Every selling price must be a number of 0 or more." };
     }
@@ -77,6 +81,23 @@ export async function saveBundlePrices(
     }
     if (agent !== null && agent < 0) {
       return { error: "Agent prices can't be negative." };
+    }
+    if (team !== null && team < 0) {
+      return { error: "Team commissions can't be negative." };
+    }
+    // The team commission comes out of Nickimart's margin on the agent price,
+    // not out of the selling agent's own commission. Paying out more than the
+    // margin is a loss on every sale by a recruited agent, which is worth
+    // catching here rather than in the month-end numbers.
+    if (team !== null && team > 0 && agent !== null && agent > 0 && cost !== null && cost > 0) {
+      const margin = Math.round((agent - cost) * 100) / 100;
+      if (team > margin) {
+        return {
+          error:
+            `A team commission of GH₵${team.toFixed(2)} is more than the GH₵${margin.toFixed(2)} ` +
+            "you make on that bundle at the agent price. Lower it, or raise the agent price.",
+        };
+      }
     }
     // Selling to agents below what the bundle costs upstream would mean paying
     // agents to sell — catch it here rather than in the month-end numbers.
@@ -88,19 +109,21 @@ export async function saveBundlePrices(
       price: Math.round(price * 100) / 100,
       costPrice: Math.round((cost ?? 0) * 100) / 100,
       agentPrice: Math.round(Math.max(agent ?? 0, 0) * 100) / 100,
+      teamCommission: Math.round(Math.max(team ?? 0, 0) * 100) / 100,
       isActive: fd.get(`active:${id}`) === "on",
     });
   }
 
   try {
-    await prisma.$transaction(
+    await dataDb.$transaction(
       updates.map((u) =>
-        prisma.dataBundle.update({
+        dataDb.dataBundle.update({
           where: { id: u.id },
           data: {
             price: u.price,
             costPrice: u.costPrice,
             agentPrice: u.agentPrice,
+            teamCommission: u.teamCommission,
             isActive: u.isActive,
           },
         }),
@@ -134,7 +157,7 @@ export async function createBundle(
   const agentPrice = num(fd, "agentPrice") ?? 0;
 
   try {
-    await prisma.dataBundle.create({
+    await dataDb.dataBundle.create({
       data: {
         network,
         sizeGb,
@@ -149,7 +172,7 @@ export async function createBundle(
   } catch {
     // The unique (network, sizeGb) index is the likeliest cause — say so rather
     // than blaming the migration.
-    const clash = await prisma.dataBundle
+    const clash = await dataDb.dataBundle
       .findUnique({ where: { network_sizeGb: { network, sizeGb } } })
       .catch(() => null);
     return {
@@ -168,7 +191,7 @@ export async function deleteBundle(fd: FormData): Promise<void> {
   const id = str(fd, "id");
   if (!id) return;
   try {
-    await prisma.dataBundle.delete({ where: { id } });
+    await dataDb.dataBundle.delete({ where: { id } });
     revalidateAll();
   } catch {
     // Already gone, or the table isn't there — nothing to undo.
@@ -200,12 +223,12 @@ export async function applyMarkup(_prev: DataAdminState, fd: FormData): Promise<
   }
 
   try {
-    const rows = await prisma.dataBundle.findMany({ where: { network: network as Network } });
+    const rows = await dataDb.dataBundle.findMany({ where: { network: network as Network } });
     const priced = rows.filter((r) => r.costPrice > 0);
     if (priced.length === 0) {
       return { error: "No cost prices recorded for that network yet, so there's nothing to mark up." };
     }
-    await prisma.$transaction(
+    await dataDb.$transaction(
       priced.map((r) => {
         const retail = Math.ceil(r.costPrice * (1 + markup / 100));
         // Never let the agent price fall below cost, whatever discount is asked
@@ -214,7 +237,7 @@ export async function applyMarkup(_prev: DataAdminState, fd: FormData): Promise<
           agentDiscount === null
             ? undefined
             : Math.max(r.costPrice, Math.round(retail * (1 - agentDiscount / 100) * 100) / 100);
-        return prisma.dataBundle.update({
+        return dataDb.dataBundle.update({
           where: { id: r.id },
           data: { price: retail, ...(agentPrice === undefined ? {} : { agentPrice }) },
         });
@@ -256,14 +279,23 @@ export async function refreshDataOrderStatus(fd: FormData): Promise<void> {
  * Record that a failed order has been refunded. This is a bookkeeping flag —
  * the money moves in Paystack, not here — so it's only allowed on an order that
  * actually failed, never as a way to close a delivered one.
+ *
+ * A refund closes out both commissions it could still have paid. They are
+ * almost certainly void already (the failure voided them), but an order can be
+ * refunded for a reason the provider never reported, and a refunded sale must
+ * not pay anybody.
  */
 export async function markDataOrderRefunded(fd: FormData): Promise<void> {
   await requireAdmin();
   const id = str(fd, "id");
   if (!id) return;
-  await prisma.dataOrder
+  const refunded = await dataDb.dataOrder
     .updateMany({ where: { id, status: "failed" }, data: { status: "refunded" } })
-    .catch(() => {});
+    .catch(() => ({ count: 0 }));
+  if (refunded.count > 0) {
+    await voidAgentCommission(id);
+    await voidTeamCommission(id);
+  }
   revalidatePath("/admin/data/orders");
 }
 
