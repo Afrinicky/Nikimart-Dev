@@ -3,14 +3,17 @@ import { redirect } from "next/navigation";
 import {
   AlertTriangle,
   ArrowUpRight,
+  Coins,
   Link2,
   ListOrdered,
   TrendingUp,
+  Trophy,
   Wallet,
 } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { AgentTopup, type TopupBundle } from "@/components/agent/AgentTopup";
 import { CopyChip } from "@/components/agent/AgentCode";
+import { BoardCard } from "@/components/agent/LeaderboardUi";
 import { requireUser } from "@/lib/session";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
@@ -19,6 +22,7 @@ import {
   getAgentForUser,
   getAgentWallet,
 } from "@/lib/data-bundles/agents";
+import { getLeaderboardView } from "@/lib/data-bundles/leaderboard";
 
 export const metadata: Metadata = { title: "Agent Dashboard — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -75,9 +79,10 @@ export default async function AgentDashboardPage() {
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 
-  const [wallet, rows] = await Promise.all([
+  const [wallet, rows, leaderboard] = await Promise.all([
     getAgentWallet(agent),
     getAgentBundleRows(agent.id),
+    getLeaderboardView(agent.id),
   ]);
 
   const bundles: TopupBundle[] = rows.map((r) => ({
@@ -184,6 +189,47 @@ export default async function AgentDashboardPage() {
           </ActionLink>
         </div>
       </div>
+
+      {/*
+        The leaderboard, cut down to what fits above the fold: the podium of
+        each board plus wherever this agent stands. The full boards are one
+        tap away — a dashboard that showed twenty rows three times over would
+        push the thing agents actually come here to do off the screen.
+      */}
+      {leaderboard.enabled && leaderboard.boards.length > 0 ? (
+        <section>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 font-display text-xl font-bold text-niki-ink">
+                <Trophy className="h-5 w-5 text-niki-orange" />
+                Leaderboard
+              </h2>
+              <p className="mt-1 text-sm text-niki-ink/60">
+                {leaderboard.config.pitch || "Sell, climb the board, collect points, cash them in."}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="flex items-center gap-1.5 rounded-full bg-niki-black px-4 py-2 text-xs font-bold text-niki-gold">
+                <Coins className="h-3.5 w-3.5" />
+                {agent.pointsBalance.toLocaleString("en-GH")} points
+              </span>
+              <ActionLink
+                href="/agent/leaderboard"
+                className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-black/5"
+              >
+                View full leaderboard
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </ActionLink>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            {leaderboard.boards.map((board) => (
+              <BoardCard key={board.key} board={board} limit={3} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {/* Data Topup */}
       <section>

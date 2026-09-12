@@ -5,9 +5,11 @@ import {
   referralLink,
   referralRewardsLine,
   registrationOutstanding,
+  registrationQuote,
   rewardForLevel,
   saleQualifies,
   teamCommissionAmount,
+  waiverPercentFor,
 } from "./referral-rules.ts";
 
 /**
@@ -84,18 +86,109 @@ test("a negative reward pays nothing rather than debiting the recruiter", () => 
 
 // --- The registration fee ---------------------------------------------------
 
+const FEE = { gross: 30, waiverPercent: 0, fullWaiverPaysReward: false };
+
 test("a waived registration fee never pays a referral reward", () => {
-  assert.equal(feeCanReward("WAIVED", 30), false);
+  assert.equal(feeCanReward({ ...FEE, method: "WAIVED", payable: 30 }), false);
 });
 
 test("a fee of zero pays nothing however it became zero", () => {
-  assert.equal(feeCanReward("BALANCE", 0), false);
-  assert.equal(feeCanReward("UPFRONT", 0), false);
+  assert.equal(feeCanReward({ ...FEE, method: "BALANCE", payable: 0, gross: 0 }), false);
+  assert.equal(feeCanReward({ ...FEE, method: "UPFRONT", payable: 0, gross: 0 }), false);
 });
 
 test("a real fee, settled either way, can pay a reward", () => {
-  assert.equal(feeCanReward("BALANCE", 30), true);
-  assert.equal(feeCanReward("UPFRONT", 30), true);
+  assert.equal(feeCanReward({ ...FEE, method: "BALANCE", payable: 30 }), true);
+  assert.equal(feeCanReward({ ...FEE, method: "UPFRONT", payable: 30 }), true);
+});
+
+test("a partly waived fee still leaves something to pay, so it still rewards", () => {
+  assert.equal(
+    feeCanReward({ method: "BALANCE", payable: 18, gross: 30, waiverPercent: 40, fullWaiverPaysReward: false }),
+    true,
+  );
+});
+
+test("a full waiver pays nothing unless the admin has said it should", () => {
+  const waived = { method: "WAIVED", payable: 0, gross: 30, waiverPercent: 100 };
+  assert.equal(feeCanReward({ ...waived, fullWaiverPaysReward: false }), false);
+  assert.equal(feeCanReward({ ...waived, fullWaiverPaysReward: true }), true);
+});
+
+test("that switch does not turn a programme with no fee at all into a reward machine", () => {
+  // Nothing was waived here — there was never anything to waive — so the
+  // rule that stops invented accounts still holds.
+  assert.equal(
+    feeCanReward({ method: "WAIVED", payable: 0, gross: 0, waiverPercent: 0, fullWaiverPaysReward: true }),
+    false,
+  );
+});
+
+// --- Waivers ----------------------------------------------------------------
+
+test("no referrer means no waiver and no share, whatever is configured", () => {
+  const quote = registrationQuote({
+    fee: 50,
+    waiverPercent: 40,
+    referrerSharePercent: 50,
+    hasReferrer: false,
+  });
+  assert.equal(quote.payable, 50);
+  assert.equal(quote.waived, 0);
+  assert.equal(quote.referrerShare, 0);
+});
+
+test("the worked example: GH₵50, 40% waiver, half of the rest to the referrer", () => {
+  const quote = registrationQuote({
+    fee: 50,
+    waiverPercent: 40,
+    referrerSharePercent: 50,
+    hasReferrer: true,
+  });
+  assert.equal(quote.gross, 50);
+  assert.equal(quote.waived, 20);
+  assert.equal(quote.payable, 30);
+  assert.equal(quote.referrerShare, 15);
+  assert.equal(quote.nickimartKeeps, 15);
+  assert.equal(quote.free, false);
+});
+
+test("a full waiver costs the new agent nothing, and shares nothing", () => {
+  const quote = registrationQuote({
+    fee: 50,
+    waiverPercent: 100,
+    referrerSharePercent: 50,
+    hasReferrer: true,
+  });
+  assert.equal(quote.payable, 0);
+  assert.equal(quote.waived, 50);
+  assert.equal(quote.referrerShare, 0);
+  assert.equal(quote.free, true);
+});
+
+test("the parts always add back up to the fee, even on an awkward percentage", () => {
+  const quote = registrationQuote({
+    fee: 49.99,
+    waiverPercent: 33,
+    referrerSharePercent: 33,
+    hasReferrer: true,
+  });
+  assert.equal(quote.waived + quote.payable, quote.gross);
+  assert.equal(quote.referrerShare + quote.nickimartKeeps, quote.payable);
+});
+
+test("a waiver can never exceed the fee or go below nothing", () => {
+  const over = registrationQuote({ fee: 50, waiverPercent: 400, referrerSharePercent: 0, hasReferrer: true });
+  assert.equal(over.payable, 0);
+  const under = registrationQuote({ fee: 50, waiverPercent: -40, referrerSharePercent: 0, hasReferrer: true });
+  assert.equal(under.payable, 50);
+});
+
+test("an agent with no waiver of their own follows the default; an explicit zero does not", () => {
+  assert.equal(waiverPercentFor(null, 40), 40);
+  assert.equal(waiverPercentFor(undefined, 40), 40);
+  assert.equal(waiverPercentFor(0, 40), 0);
+  assert.equal(waiverPercentFor(25, 40), 25);
 });
 
 test("what is outstanding is how far below zero the balance still is", () => {

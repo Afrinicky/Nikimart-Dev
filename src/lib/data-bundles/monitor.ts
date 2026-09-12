@@ -9,6 +9,7 @@ import { getProviderBalance, isDataProviderConfigured } from "@/lib/data-bundles
 import { dispatchAfaRegistration, dispatchDataOrder, refreshDataOrder } from "@/lib/data-bundles/fulfillment";
 import { sweepAgentCommissions } from "@/lib/data-bundles/agent-ledger";
 import { sweepReferralEarnings } from "@/lib/data-bundles/referrals";
+import { awardLeaderboardPoints } from "@/lib/data-bundles/points";
 import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
 
 /**
@@ -45,6 +46,8 @@ export interface SweepResult {
   referralRewards: number;
   /** Team-sales commissions credited to the sellers' recruiters. */
   teamCommissions: number;
+  /** Leaderboard points paid out for a ranking period that has closed. */
+  leaderboardPoints: number;
   notes: string[];
 }
 
@@ -77,6 +80,7 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
     commissionsCredited: 0,
     referralRewards: 0,
     teamCommissions: 0,
+    leaderboardPoints: 0,
     notes: [],
   };
 
@@ -191,6 +195,12 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
   const referrals = await sweepReferralEarnings();
   result.referralRewards = referrals.rewards;
   result.teamCommissions = referrals.team;
+
+  // A ranking period that has closed pays its places once. Done here rather
+  // than on a schedule of its own, so a month that ended while nothing was
+  // running is paid the next time anything is — and every award carries a key
+  // that makes the second attempt write nothing.
+  result.leaderboardPoints = await awardLeaderboardPoints();
 
   return result;
 }

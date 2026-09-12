@@ -3,6 +3,7 @@
 import { revalidatePath, updateTag } from "next/cache";
 import { requireAdmin } from "@/lib/session";
 import { DATA_SETTINGS_DEFAULTS, DATA_SETTINGS_TAG, saveDataSettings } from "@/lib/data-bundles/settings";
+import { LEADERBOARD_TAG } from "@/lib/data-bundles/leaderboard";
 
 /**
  * Saving settings in the data-bundle console.
@@ -34,6 +35,25 @@ const NON_NEGATIVE: Array<[string, string]> = [
   ["referralMinSaleAmount", "Minimum qualifying sale"],
   ["referralMinSaleCommission", "Minimum qualifying commission"],
   ["referralDailyRewardCap", "Daily reward cap"],
+  ["referralWaiverDefaultPercent", "Default registration waiver"],
+  ["referralWaiverReferrerSharePercent", "Referrer share of the fee"],
+  ["leaderboardSize", "Leaderboard size"],
+  ["leaderboardMinAgentAgeDays", "Minimum agent age"],
+  ["leaderboardMinQualifyingSales", "Minimum qualifying sales"],
+  ["leaderboardWindowDays", "Performance window"],
+  ["leaderboardPoints1st", "Points for 1st"],
+  ["leaderboardPoints2nd", "Points for 2nd"],
+  ["leaderboardPoints3rd", "Points for 3rd"],
+  ["leaderboardExcellentSales", "Excellent performance"],
+  ["leaderboardExcellentPoints", "Points for an excellent performance"],
+  ["leaderboardExceptionalSales", "Exceptional performance"],
+  ["leaderboardExceptionalPoints", "Points for an exceptional performance"],
+];
+
+/** Fields that are percentages: zero to a hundred, and nothing outside it. */
+const PERCENTAGES: Array<[string, string]> = [
+  ["referralWaiverDefaultPercent", "Default registration waiver"],
+  ["referralWaiverReferrerSharePercent", "Referrer share of the fee"],
 ];
 
 export async function updateDataSettings(
@@ -52,6 +72,19 @@ export async function updateDataSettings(
     }
   }
 
+  for (const [key, label] of PERCENTAGES) {
+    if (!fd.has(key)) continue;
+    const raw = str(fd, key);
+    if (raw === "") continue;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0 || n > 100) {
+      return {
+        error: `${label} must be between 0 and 100 percent.`,
+        fieldErrors: { [key]: "Enter a percentage." },
+      };
+    }
+  }
+
   const entries: Record<string, string> = {};
   for (const key of Object.keys(DATA_SETTINGS_DEFAULTS)) {
     if (fd.has(key)) entries[key] = str(fd, key);
@@ -67,5 +100,13 @@ export async function updateDataSettings(
   revalidatePath("/become-an-agent");
   revalidatePath("/admin/data/settings");
   revalidatePath("/admin/data/referrals");
+  revalidatePath("/admin/data/leaderboard");
+  // The agent screens that read these are force-dynamic, but the boards
+  // themselves are cached for a minute and keyed on the settings — dropping
+  // the tag means a change to what they measure shows on the next load rather
+  // than on the next minute.
+  updateTag(LEADERBOARD_TAG);
+  revalidatePath("/agent");
+  revalidatePath("/agent/leaderboard");
   return { ok: true };
 }

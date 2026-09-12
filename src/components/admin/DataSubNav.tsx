@@ -12,6 +12,7 @@ import {
   Settings2,
   Share2,
   Tags,
+  Trophy,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -23,6 +24,7 @@ const TABS = [
   { href: "/admin/data/afa", label: "AFA", icon: BadgeCheck },
   { href: "/admin/data/agents", label: "Agents", icon: Users },
   { href: "/admin/data/referrals", label: "Referrals", icon: Share2 },
+  { href: "/admin/data/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/admin/data/withdrawals", label: "Withdrawals", icon: Banknote },
   { href: "/admin/data/announcements", label: "Announcements", icon: Megaphone },
   { href: "/admin/data/support", label: "Agent support", icon: LifeBuoy },

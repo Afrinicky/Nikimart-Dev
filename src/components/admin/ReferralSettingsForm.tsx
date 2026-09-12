@@ -82,8 +82,12 @@ export function ReferralSettingsForm({ settings }: { settings: DataSettings }) {
         <p className="mt-1 text-sm text-niki-ink/60">
           Paid once per recruit, and only once that recruit&apos;s registration fee has actually been
           paid — whether they paid it up front or cleared it out of their commission.{" "}
-          <strong className="font-semibold text-niki-ink">A fee you waive pays nobody.</strong> That
-          is what stops invented accounts being worth creating.
+          <strong className="font-semibold text-niki-ink">
+            A registration nobody paid for pays nobody
+          </strong>{" "}
+          — that is what stops invented accounts being worth creating. The one exception is a
+          referral you waived in full, and only if you switch it on under Registration waivers
+          below.
         </p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field
@@ -132,6 +136,70 @@ export function ReferralSettingsForm({ settings }: { settings: DataSettings }) {
               defaultValue={settings.referralDailyRewardCap}
               className={inputClass}
             />
+          </Field>
+        </div>
+      </section>
+
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
+        <h2 className="font-display text-lg font-bold text-niki-ink">Registration waivers</h2>
+        <p className="mt-1 text-sm text-niki-ink/60">
+          What it costs to join when somebody recruits you. The waiver comes off the registration
+          fee, and the referrer&apos;s share comes out of whatever the new agent still pays — so on
+          a GH₵50 fee with a 40% waiver and a 50% share, the new agent pays GH₵30, their recruiter
+          is credited GH₵15, and Nickimart keeps GH₵15. Set a different waiver for one particular
+          agent on their own page in{" "}
+          <strong className="font-semibold text-niki-ink">Agents</strong>; this is the default for
+          everybody else.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Default waiver (%)"
+            htmlFor="referralWaiverDefaultPercent"
+            hint="Taken off the registration fee for anyone joining with an agent's code. 0 is no discount, 100 is free."
+          >
+            <input
+              id="referralWaiverDefaultPercent"
+              name="referralWaiverDefaultPercent"
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              defaultValue={settings.referralWaiverDefaultPercent}
+              className={inputClass}
+            />
+          </Field>
+          <Field
+            label="Referrer's share of what is paid (%)"
+            htmlFor="referralWaiverReferrerSharePercent"
+            hint="Credited to the recruiter once the new agent's fee is actually paid. 0 keeps all of it."
+          >
+            <input
+              id="referralWaiverReferrerSharePercent"
+              name="referralWaiverReferrerSharePercent"
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              defaultValue={settings.referralWaiverReferrerSharePercent}
+              className={inputClass}
+            />
+          </Field>
+        </div>
+        <div className="mt-4">
+          <Field
+            label="A registration waived in full"
+            htmlFor="referralFullWaiverPaysReward"
+            hint="When the new agent pays nothing, there is no fee to share — this is only about the joining reward"
+          >
+            <select
+              id="referralFullWaiverPaysReward"
+              name="referralFullWaiverPaysReward"
+              defaultValue={settings.referralFullWaiverPaysReward.trim() === "1" ? "1" : "0"}
+              className={inputClass}
+            >
+              <option value="0">Pays no joining reward — a free signup is worth nothing</option>
+              <option value="1">Still pays the joining reward</option>
+            </select>
           </Field>
         </div>
       </section>

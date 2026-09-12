@@ -38,7 +38,7 @@ const STEPS = [
   {
     icon: Store,
     title: "Open your store",
-    body: "Pick a name and a link. Your storefront is live the moment you finish — nothing to pay up front.",
+    body: "Pick a name and a link, and we'll review it — usually the same day.",
   },
   {
     icon: Tags,
@@ -186,8 +186,20 @@ export default async function BecomeAnAgentPage({
                 },
                 {
                   icon: BadgeCheck,
-                  title: `Setup costs ${formatPrice(program.setupFee)} — later`,
-                  body: `Your storefront is charged to your balance rather than to you. The account opens at −${formatPrice(program.setupFee)} and clears itself out of your commissions.`,
+                  title:
+                    program.setupFee <= 0
+                      ? "Opening a store is free"
+                      : program.paymentMode === "UPFRONT"
+                        ? `Registration is ${formatPrice(program.setupFee)}`
+                        : `Setup costs ${formatPrice(program.setupFee)} — later`,
+                  body:
+                    program.setupFee <= 0
+                      ? "There is no registration fee at the moment. Apply, get approved, start selling."
+                      : program.paymentMode === "UPFRONT"
+                        ? `Paid once you're approved — your storefront opens for business as soon as it clears. Being referred by an existing agent can bring it down, or cover it entirely.`
+                        : program.paymentMode === "COMMISSION"
+                          ? `Charged to your balance rather than to you. The account opens at −${formatPrice(program.setupFee)} and clears itself out of your commissions.`
+                          : `Pay it up front, or let it clear out of your commissions — your choice when you apply. Being referred by an existing agent can bring it down, or cover it entirely.`,
                 },
                 {
                   icon: Banknote,
@@ -235,6 +247,7 @@ export default async function BecomeAnAgentPage({
                   referralCode={invitedBy}
                   setupFee={program.setupFee}
                   referralOpen={referral.enabled}
+                  paymentMode={program.paymentMode}
                 />
               </>
             )}

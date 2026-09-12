@@ -281,7 +281,28 @@ model DataAgent {
   // credited twice.
   setupFeeReference String?
 
+  // --- What the registration fee was made of --------------------------------
+  // `setupFee` above is what this agent actually owes. These four say how that
+  // number came about, because a waiver is somebody else's money: the fee at
+  // full price, the percentage taken off it because a referrer's recruits get
+  // a discount, the cedis that discount was worth, and the share of what the
+  // agent *does* pay that goes to their recruiter. Recorded on the row rather
+  // than recomputed, so a settings change tomorrow never rewrites what this
+  // registration was.
+  setupFeeGross         Float @default(0)
+  setupFeeWaiverPercent Float @default(0)
+  setupFeeWaived        Float @default(0)
+  setupFeeReferrerShare Float @default(0)
+
   // --- Referral -------------------------------------------------------------
+  /**
+   * The registration waiver *this agent's own recruits* receive, as a
+   * percentage of the fee. Null means "use the programme default"; 100 is a
+   * full waiver, and whether that still pays a joining reward is the admin's
+   * call (see the referralFullWaiverPaysReward setting). Set per agent, so a
+   * recruiter who has earned it can bring people in cheaper than the rest.
+   */
+  referralWaiverPercent Float?
   /**
    * The agent who recruited this one — their direct (level 1) upline. Set once,
    * when the account is created from an application that quoted a referral
@@ -298,6 +319,15 @@ model DataAgent {
    */
   referralLockedAt DateTime?
 
+  // --- Leaderboard points ---------------------------------------------------
+  /**
+   * Points in hand, moved only by writing a DataAgentPoint row — the same rule
+   * the cedi balance follows, so the two can always be reconciled against each
+   * other. Points are not money: they are earned from leaderboard places and
+   * recent performance, and spent on rewards the admin has configured.
+   */
+  pointsBalance Int @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -306,6 +336,8 @@ model DataAgent {
   withdrawals DataAgentWithdrawal[]
   orders      DataOrder[]
   afa         AfaRegistration[]
+  points      DataAgentPoint[]
+  redemptions DataRewardRedemption[]
   // Ledger rows this agent's own activity *paid someone else* — their upline's
   // referral and team-sales commissions.
   earnedFor   DataAgentLedger[]     @relation("LedgerSourceAgent")
@@ -347,7 +379,8 @@ model DataAgentLedger {
   agent   DataAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   // SETUP_FEE | SETUP_FEE_PAYMENT | COMMISSION | REFERRAL_L1 | REFERRAL_L2 |
-  // TEAM_COMMISSION | WITHDRAWAL | WITHDRAWAL_REVERSAL | ADJUSTMENT
+  // REFERRAL_FEE_SHARE | TEAM_COMMISSION | REWARD_PAYOUT | WITHDRAWAL |
+  // WITHDRAWAL_REVERSAL | ADJUSTMENT
   type         String
   // Signed GH₵: negative debits the agent, positive credits them.
   amount       Float
@@ -418,6 +451,115 @@ model DataAgentWithdrawal {
 
   @@index([agentId, createdAt])
   @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Leaderboard, points and rewards
+//
+// Sell, rank, earn points, redeem. Nothing here holds a standing: the boards
+// are counted from the orders and referrals that already exist, so they cannot
+// drift from the business they are describing. What *is* stored is the part
+// counting can't reproduce — points awarded for a place in a period that has
+// since closed, and what an agent spent them on.
+// ---------------------------------------------------------------------------
+
+/**
+ * One movement of an agent's points, and the only way `pointsBalance` moves.
+ *
+ * `dedupeKey` is what makes a placement pay exactly once: the award for first
+ * place on the sales board for September is "RANK:SALES:2026-09:<agentId>",
+ * and the unique index refuses the second write however many times the sweep
+ * runs.
+ */
+model DataAgentPoint {
+  id      String    @id @default(cuid())
+  agentId String
+  agent   DataAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  // RANK_SALES | RANK_RECRUITS | RANK_PERFORMANCE | PERFORMANCE_BONUS |
+  // REDEMPTION | REFUND | ADJUSTMENT
+  type String
+  // Signed: positive earns, negative spends.
+  points Int
+  // Points in hand after this entry, so history never has to be replayed.
+  balanceAfter Int
+  narration    String @default("")
+  /** The ranking period this was awarded for, e.g. "2026-09" or "2026-W37". */
+  periodKey String?
+  /** The place that earned it: 1, 2 or 3. Null on everything else. */
+  rank      Int?
+
+  dedupeKey String? @unique
+
+  createdAt DateTime @default(now())
+
+  @@index([agentId, createdAt])
+  @@index([periodKey])
+}
+
+/**
+ * A reward agents can spend points on. Entirely the admin's: what it is called,
+ * what it costs in points, whether it pays cedis or a data bundle, and whether
+ * it is on the shelf at all. Nothing in the code assumes a price or a tier.
+ */
+model DataRewardTier {
+  id    String @id @default(cuid())
+  label String
+  // CASH | BUNDLE
+  kind  String @default("CASH")
+  /** What it costs the agent. */
+  points Int
+  /** Credited to the agent's balance when the reward is a cash one. */
+  cashAmount Float @default(0)
+  /** The bundle sent when the reward is a data one. */
+  network String @default("")
+  sizeGb  Float  @default(0)
+
+  isActive Boolean @default(true)
+  order    Int     @default(0)
+
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  redemptions DataRewardRedemption[]
+
+  @@index([isActive, order])
+}
+
+/**
+ * An agent spending their points. The points leave the moment it is asked for
+ * — so they can't be spent twice while an admin works through the queue — and
+ * come back if it is rejected, exactly as a withdrawal does with cedis.
+ */
+model DataRewardRedemption {
+  id      String    @id @default(cuid())
+  agentId String
+  agent   DataAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  tierId String?
+  tier   DataRewardTier? @relation(fields: [tierId], references: [id], onDelete: SetNull)
+
+  // Snapshotted from the tier, so editing or retiring it never rewrites what
+  // somebody redeemed.
+  label      String
+  kind       String @default("CASH")
+  points     Int
+  cashAmount Float  @default(0)
+  network    String @default("")
+  sizeGb     Float  @default(0)
+  /** Where a bundle reward should be sent. Empty on a cash one. */
+  recipientPhone String @default("")
+
+  // pending | fulfilled | rejected
+  status      String    @default("pending")
+  adminNote   String    @default("")
+  processedBy String?
+  processedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentId, createdAt])
+  @@index([status, createdAt])
 }
 
 // Broadcast announcements shown to agents (Justice's Notifications screen).

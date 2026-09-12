@@ -60,7 +60,11 @@ export default async function AdminReferralsPage() {
       ) : null}
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Tile label="Joining rewards paid" value={formatMoney(overview.totalRewardsPaid)} />
+        <Tile
+          label="Referral earnings paid"
+          value={formatMoney(overview.totalRewardsPaid)}
+          hint="Joining rewards and recruiters' shares of registration fees"
+        />
         <Tile label="Team commission paid" value={formatMoney(overview.totalTeamCommissionPaid)} />
         <Tile
           label="Team commission pending"
@@ -104,7 +108,7 @@ export default async function AdminReferralsPage() {
                   <th className="px-5 py-3 font-semibold">Recruited by</th>
                   <th className="px-5 py-3 font-semibold">Registration</th>
                   <th className="px-5 py-3 text-right font-semibold">Recruits</th>
-                  <th className="px-5 py-3 text-right font-semibold">Joining rewards</th>
+                  <th className="px-5 py-3 text-right font-semibold">Referral earnings</th>
                   <th className="px-5 py-3 text-right font-semibold">Team commission</th>
                 </tr>
               </thead>
@@ -137,9 +141,7 @@ export default async function AdminReferralsPage() {
                     </td>
                     <td className="px-5 py-3">
                       {row.registrationMethod === "WAIVED" ? (
-                        <span className="text-xs text-niki-ink/50">
-                          Waived — pays no reward
-                        </span>
+                        <span className="text-xs text-niki-ink/50">Waived — nothing to pay</span>
                       ) : (
                         <span
                           className={cn(

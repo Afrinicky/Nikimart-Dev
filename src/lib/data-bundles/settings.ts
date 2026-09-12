@@ -78,6 +78,67 @@ export const DATA_SETTINGS_DEFAULTS = {
   // The line shown to agents above their referral link.
   referralPitch:
     "Share your agent code. Earn when the people you bring on board register, and keep earning from what they sell.",
+
+  // --- Registration fee: how it is collected -------------------------------
+  // Who decides how a new agent settles the registration fee, and what they
+  // may choose from:
+  //   UPFRONT    — they must pay it before the store opens. Nothing else.
+  //   COMMISSION — it is debited on approval and clears out of commission.
+  //   BOTH       — the applicant picks one of the two.
+  agentPaymentMode: "BOTH",
+  // The waiver a referred applicant gets when their recruiter has no waiver of
+  // their own set. A percentage of the fee: 0 is no discount, 100 is free.
+  referralWaiverDefaultPercent: "0",
+  // Of whatever the new agent *does* pay, the share credited to their
+  // recruiter. On a GH₵50 fee with a 40% waiver the new agent pays GH₵30; at
+  // 50% here the recruiter is credited GH₵15 and Nickimart keeps GH₵15.
+  referralWaiverReferrerSharePercent: "0",
+  // Whether a registration that was waived in full still pays the recruiter
+  // their joining reward. Off by default: a free registration that mints a
+  // reward is an account worth inventing.
+  referralFullWaiverPaysReward: "0",
+
+  // --- Leaderboard, points and rewards -------------------------------------
+  // The master switch for the whole thing — boards, points and rewards. Off
+  // hides it from every agent screen and stops points being awarded.
+  leaderboardEnabled: "0",
+  // WEEK | MONTH | ALL — the window the boards rank over, and the period whose
+  // close pays placement points. ALL ranks on lifetime figures and, having no
+  // close, pays no placement points.
+  leaderboardPeriod: "MONTH",
+  // Which boards agents see. Turning one off also stops it paying points.
+  leaderboardSalesEnabled: "1",
+  leaderboardRecruitsEnabled: "1",
+  leaderboardPerformanceEnabled: "1",
+  // Rows on the full leaderboard. The dashboard always shows the top 3 and the
+  // agent's own neighbours, whatever this says.
+  leaderboardSize: "20",
+  // --- Current Performance eligibility -------------------------------------
+  // The board that gives a newer agent a chance against an established one: it
+  // counts only the recent window, and only for agents who have been trading
+  // long enough and sold enough to have a real figure in it.
+  leaderboardMinAgentAgeDays: "21",
+  leaderboardMinQualifyingSales: "10",
+  leaderboardWindowDays: "30",
+  // --- Points ---------------------------------------------------------------
+  // What a place is worth when a ranking period closes. Paid on every enabled
+  // board.
+  leaderboardPoints1st: "100",
+  leaderboardPoints2nd: "75",
+  leaderboardPoints3rd: "50",
+  // Current Performance also pays for the figure itself, not just the place:
+  // clear the first bar and it is excellent, clear the second and it is
+  // exceptional. Both are counts of qualifying sales in the window.
+  leaderboardExcellentSales: "25",
+  leaderboardExcellentPoints: "20",
+  leaderboardExceptionalSales: "50",
+  leaderboardExceptionalPoints: "40",
+  // --- Rewards --------------------------------------------------------------
+  // Whether points can be spent at all. Off leaves the boards and the points
+  // running with the shelf closed — useful while the rewards are being set up.
+  leaderboardRewardsEnabled: "1",
+  // The line above the boards on an agent's leaderboard screen.
+  leaderboardPitch: "Sell, climb the board, collect points, cash them in.",
 } as const;
 
 export type DataSettingKey = keyof typeof DATA_SETTINGS_DEFAULTS;
@@ -166,6 +227,19 @@ function numOr(raw: string, fallback: number): number {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 }
 
+/** A percentage, clamped to 0–100 so a typo can never waive more than the fee. */
+function pct(raw: string): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(100, Math.max(0, n));
+}
+
+/** A whole number of points or days, never negative. */
+function intOr(raw: string, fallback: number): number {
+  const n = Math.round(Number(raw));
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
 export interface DataStoreConfig {
   enabled: boolean;
   name: string;
@@ -192,9 +266,27 @@ export async function getDataStoreConfig(): Promise<DataStoreConfig> {
   };
 }
 
+/**
+ * How a new agent may settle the registration fee.
+ *
+ *   UPFRONT    — they pay before the store opens, and it does not open until
+ *                the payment is confirmed.
+ *   COMMISSION — it is debited on approval and clears out of their commission.
+ *   BOTH       — the applicant chooses.
+ */
+export type PaymentMode = "UPFRONT" | "COMMISSION" | "BOTH";
+
+function paymentMode(raw: string): PaymentMode {
+  const value = raw.trim().toUpperCase();
+  if (value === "UPFRONT" || value === "COMMISSION") return value;
+  return "BOTH";
+}
+
 export interface AgentProgramConfig {
   enabled: boolean;
   setupFee: number;
+  /** How the registration fee may be settled. */
+  paymentMode: PaymentMode;
   withdrawalFee: number;
   minWithdrawal: number;
   /** Suggested discount (percent off retail) for the agent price. */
@@ -215,6 +307,7 @@ export async function getAgentProgramConfig(): Promise<AgentProgramConfig> {
   return {
     enabled: on(s.agentProgramEnabled),
     setupFee: numOr(s.agentSetupFee, 30),
+    paymentMode: paymentMode(s.agentPaymentMode),
     withdrawalFee: numOr(s.agentWithdrawalFee, 1),
     minWithdrawal: numOr(s.agentMinWithdrawal, 10),
     agentDiscountPercent: numOr(s.agentAgentMarkupPercent, 12),
@@ -241,6 +334,15 @@ export interface ReferralConfig {
   /** Referral rewards one agent may be paid in a rolling 24h. 0 = no cap. */
   dailyRewardCap: number;
   pitch: string;
+  /**
+   * The registration waiver a referred applicant gets when their recruiter has
+   * no waiver of their own. A percentage of the fee, 0–100.
+   */
+  waiverDefaultPercent: number;
+  /** Of what the new agent pays, the percentage credited to their recruiter. */
+  referrerSharePercent: number;
+  /** Whether a registration waived in full still pays the joining reward. */
+  fullWaiverPaysReward: boolean;
 }
 
 /**
@@ -255,6 +357,9 @@ export async function getReferralConfig(): Promise<ReferralConfig> {
   const s = await getDataSettings();
   const level2Enabled = on(s.referralLevel2Enabled);
   return {
+    waiverDefaultPercent: pct(s.referralWaiverDefaultPercent),
+    referrerSharePercent: pct(s.referralWaiverReferrerSharePercent),
+    fullWaiverPaysReward: s.referralFullWaiverPaysReward.trim() === "1",
     enabled: on(s.referralEnabled),
     level1Reward: numOr(s.referralLevel1Reward, 0),
     level2Reward: level2Enabled ? numOr(s.referralLevel2Reward, 0) : 0,
@@ -266,5 +371,83 @@ export async function getReferralConfig(): Promise<ReferralConfig> {
     afaQualifies: s.referralAfaQualifies.trim() === "1",
     dailyRewardCap: numOr(s.referralDailyRewardCap, 0),
     pitch: s.referralPitch.trim(),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Leaderboard, points and rewards
+// ---------------------------------------------------------------------------
+
+/** How far back the boards rank. ALL is lifetime and never closes. */
+export type LeaderboardPeriod = "WEEK" | "MONTH" | "ALL";
+
+function leaderboardPeriod(raw: string): LeaderboardPeriod {
+  const value = raw.trim().toUpperCase();
+  if (value === "WEEK" || value === "ALL") return value;
+  return "MONTH";
+}
+
+export interface LeaderboardConfig {
+  /** The master switch for boards, points and rewards together. */
+  enabled: boolean;
+  period: LeaderboardPeriod;
+  salesEnabled: boolean;
+  recruitsEnabled: boolean;
+  performanceEnabled: boolean;
+  /** Rows on the full board. */
+  size: number;
+  /** Current Performance: how long an agent must have been trading. */
+  minAgentAgeDays: number;
+  /** Current Performance: how many qualifying sales in the window. */
+  minQualifyingSales: number;
+  /** Current Performance: how far back "recent" reaches. */
+  windowDays: number;
+  /** Points for first, second and third when a period closes. */
+  points: [number, number, number];
+  /** Sales in the window that make a performance excellent, and what it pays. */
+  excellentSales: number;
+  excellentPoints: number;
+  exceptionalSales: number;
+  exceptionalPoints: number;
+  /** Whether points can be spent right now. */
+  rewardsEnabled: boolean;
+  pitch: string;
+}
+
+/**
+ * The leaderboard as it stands right now.
+ *
+ * Read at the moment a board is drawn or a point is awarded, never captured in
+ * a constant — so an admin who changes what first place is worth changes the
+ * next period's award without a deploy. Points already awarded are in the
+ * points ledger and are never rewritten.
+ */
+export async function getLeaderboardConfig(): Promise<LeaderboardConfig> {
+  const s = await getDataSettings();
+  return {
+    enabled: on(s.leaderboardEnabled),
+    period: leaderboardPeriod(s.leaderboardPeriod),
+    salesEnabled: on(s.leaderboardSalesEnabled),
+    recruitsEnabled: on(s.leaderboardRecruitsEnabled),
+    performanceEnabled: on(s.leaderboardPerformanceEnabled),
+    // A board of nothing helps nobody, and one of a thousand rows is a page
+    // that never finishes loading on a phone.
+    size: Math.min(100, Math.max(3, intOr(s.leaderboardSize, 20))),
+    minAgentAgeDays: intOr(s.leaderboardMinAgentAgeDays, 21),
+    minQualifyingSales: intOr(s.leaderboardMinQualifyingSales, 10),
+    // Zero would mean a window with nothing in it, which reads as a broken
+    // board rather than as a setting.
+    windowDays: Math.max(1, intOr(s.leaderboardWindowDays, 30)),
+    points: [
+      intOr(s.leaderboardPoints1st, 0),
+      intOr(s.leaderboardPoints2nd, 0),
+      intOr(s.leaderboardPoints3rd, 0),
+    ],
+    excellentSales: intOr(s.leaderboardExcellentSales, 0),
+    excellentPoints: intOr(s.leaderboardExcellentPoints, 0),
+    exceptionalSales: intOr(s.leaderboardExceptionalSales, 0),
+    exceptionalPoints: intOr(s.leaderboardExceptionalPoints, 0),
+    rewardsEnabled: on(s.leaderboardRewardsEnabled),
+    pitch: s.leaderboardPitch.trim(),
   };
 }
