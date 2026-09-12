@@ -558,6 +558,11 @@ export async function approveApplication(
   const email = application.email.toLowerCase();
   const code = await generateAgentCode(application.fullName);
   const feePaid = application.paymentStatus === "paid";
+  // Applications made before the password moved onto the signup form carry no
+  // hash. Approving one still creates the account, but nobody can sign in to it
+  // until an admin issues a setup link — so the admin is told, here, rather
+  // than finding out from the agent a week later.
+  let needsSetupLink = false;
 
   // Filled in once the fee is worked out, and quoted back in the welcome
   // email — an agent who is told "nothing to pay" and then finds a payment
@@ -600,6 +605,8 @@ export async function approveApplication(
         },
       });
     }
+
+    needsSetupLink = !application.passwordHash && !existing?.passwordHash;
 
     // Who recruited them, re-resolved now rather than trusted from the
     // application: the code was checked when it was typed, and the agent it
@@ -752,22 +759,30 @@ export async function approveApplication(
   // they sign in with the password they already chose. No link to deliver, and
   // therefore no approval that quietly ends in an account nobody can open.
   const signIn = `${siteUrl()}/login`;
+  // The one case where they can't just sign in — an application from before
+  // passwords were collected — must not be told that they can.
+  const howToGetIn = needsSetupLink
+    ? "We'll send your sign-in details shortly."
+    : `Sign in at ${signIn} with the password you chose.`;
+
   const sent = await Promise.allSettled([
     sendSms(
       application.phone,
-      `Nickimart: your agent application is approved. Your store ${siteUrl()}/store/${application.desiredSlug} is live — ` +
-        `sign in at ${signIn} with the password you chose. Agent code ${code}.`,
+      `Nickimart: your agent application is approved. Your store ${siteUrl()}/store/${application.desiredSlug} ` +
+        `is live and your agent code is ${code}. ${howToGetIn}`,
     ),
     notify(
       { email: application.email, phone: null },
       {
-        sms: `Your Nickimart agent account is approved. Sign in at ${signIn}.`,
+        sms: `Your Nickimart agent account is approved. ${howToGetIn}`,
         emailSubject: "Your Nickimart agent account is approved",
         emailHtml:
           `<p>Welcome aboard — your application has been approved and your store is live.</p>` +
           `<p>Your store link is <strong>${siteUrl()}/store/${application.desiredSlug}</strong><br>` +
           `Your agent code is <strong>${code}</strong>.</p>` +
-          `<p><a href="${signIn}">Sign in</a> with the email and password you registered with.</p>` +
+          (needsSetupLink
+            ? `<p>We'll send your sign-in details shortly.</p>`
+            : `<p><a href="${signIn}">Sign in</a> with the email and password you registered with.</p>`) +
           feeLine,
       },
     ),
@@ -785,10 +800,12 @@ export async function approveApplication(
   // above, so a stale row is harmless.
   return {
     ok: true,
-    delivered,
-    message: delivered
-      ? `Approved. ${application.fullName} can sign in now and has been told so.`
-      : `Approved — ${application.fullName} can sign in now, but the text and email couldn't be sent. Let them know.`,
+    delivered: delivered && !needsSetupLink,
+    message: needsSetupLink
+      ? `Approved — but ${application.fullName} applied before passwords were collected at signup and has none. Send them a setup link from their agent page.`
+      : delivered
+        ? `Approved. ${application.fullName} can sign in now and has been told so.`
+        : `Approved — ${application.fullName} can sign in now, but the text and email couldn't be sent. Let them know.`,
   };
 }
 

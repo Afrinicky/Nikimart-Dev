@@ -1,5 +1,7 @@
 import "server-only";
+import { prisma } from "@/lib/prisma";
 import { dataDb } from "@/lib/data-db";
+import { notify } from "@/lib/notifications";
 import { initializeTransaction, isPaymentConfigured, toPesewas, verifyTransaction } from "@/lib/payments";
 import { callbackOrigin } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
@@ -324,7 +326,34 @@ export async function settleApplicationFee(
     })
     .catch(() => ({ count: 0 }));
 
-  return updated.count > 0;
+  if (updated.count === 0) return false;
+
+  // This, not the form submit, is when a paying applicant joins the queue: the
+  // signup hands them to Paystack and never comes back to our own code, so
+  // without a nudge here a paid application would sit unreviewed until somebody
+  // happened to look. Guarded by the update above, so a webhook and a redirect
+  // arriving together still send one message.
+  await notifyAdminsOfPayment(application.fullName, application.desiredSlug);
+  return true;
+}
+
+async function notifyAdminsOfPayment(fullName: string, slug: string): Promise<void> {
+  try {
+    const admins = await prisma.user.findMany({
+      where: { role: "ADMIN" },
+      select: { phone: true, email: true },
+    });
+    await Promise.allSettled(
+      admins.map((a) =>
+        notify(a, {
+          sms: `Nickimart: ${fullName} has paid their agent registration (store “${slug}”) and is waiting for approval.`,
+          emailSubject: "Agent registration paid — awaiting approval",
+        }),
+      ),
+    );
+  } catch {
+    // The payment is settled; telling the admins is not worth failing for.
+  }
 }
 
 async function findApplicationForPayment(applicationId: string | null | undefined, reference: string) {
