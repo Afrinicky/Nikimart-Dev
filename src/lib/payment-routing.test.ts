@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { accountForReference, signerMaySettle } from "./payment-routing.ts";
+import { accountForReference, accountSplit, signerMaySettle } from "./payment-routing.ts";
 
 /**
  * Which business a Paystack charge belongs to, and who may settle it.
@@ -46,4 +46,21 @@ test("one key serving both businesses settles either", () => {
 test("a key that settles for nothing settles nothing", () => {
   assert.equal(signerMaySettle([], "data"), false);
   assert.equal(signerMaySettle([], "retail"), false);
+});
+
+test("accountSplit: nothing configured when the mall has no key at all", () => {
+  assert.equal(accountSplit(undefined, undefined), "unconfigured");
+  assert.equal(accountSplit("", "sk_data"), "unconfigured");
+});
+
+test("accountSplit: shared when one key serves both businesses", () => {
+  assert.equal(accountSplit("sk_same", "sk_same"), "shared");
+});
+
+test("accountSplit: separate once the mall has its own key", () => {
+  assert.equal(accountSplit("sk_retail", "sk_data"), "separate");
+});
+
+test("accountSplit: the mall alone still counts as separate", () => {
+  assert.equal(accountSplit("sk_retail", undefined), "separate");
 });

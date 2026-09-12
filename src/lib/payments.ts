@@ -33,6 +33,7 @@ const PAYSTACK_BASE = "https://api.paystack.co";
 // lib/payment-routing — pure, so they can be tested without a secret in sight.
 export type { PaymentAccount } from "@/lib/payment-routing";
 import type { PaymentAccount } from "@/lib/payment-routing";
+import { accountSplit, type AccountSplit } from "@/lib/payment-routing";
 
 export function paystackSecretKey(account: PaymentAccount): string | undefined {
   const raw =
@@ -70,6 +71,16 @@ export function paystackAccounts(): PaystackSigner[] {
     else bySecret.set(secret, { secret, accounts: [account] });
   }
   return [...bySecret.values()];
+}
+
+/**
+ * Whether the two businesses have their own Paystack accounts yet.
+ *
+ * Only ever returns the category — the keys go in, nothing about them comes
+ * out — so this is safe to render.
+ */
+export function paymentAccountSplit(): AccountSplit {
+  return accountSplit(paystackSecretKey("retail"), paystackSecretKey("data"));
 }
 
 /** True when this account is configured and real payments should be collected. */

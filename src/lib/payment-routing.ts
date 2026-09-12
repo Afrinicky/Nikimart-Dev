@@ -57,3 +57,29 @@ export function signerMaySettle(
 ): boolean {
   return signerAccounts.includes(belongsTo);
 }
+
+/**
+ * How the two businesses are settling right now.
+ *
+ * Until the mall is given its own Paystack account it shares the bundle
+ * business's key, which works — see signerMaySettle — but means both
+ * businesses' money lands in one bank account. That state is invisible from
+ * the outside: nothing errors, payments go through, and the only way to tell
+ * is to compare the two keys. So it is named here and reported in the admin,
+ * because "did the new key take effect?" is otherwise a question you can only
+ * answer by placing a real order and looking at a bank statement.
+ *
+ * Takes the keys rather than reading the environment so it can be tested; the
+ * wrapper that supplies them lives in lib/payments with the other secrets, and
+ * only ever passes them in — no caller of this ever sees a key.
+ */
+export type AccountSplit = "unconfigured" | "shared" | "separate";
+
+export function accountSplit(
+  retailSecret: string | undefined,
+  dataSecret: string | undefined,
+): AccountSplit {
+  if (!retailSecret) return "unconfigured";
+  if (dataSecret && retailSecret === dataSecret) return "shared";
+  return "separate";
+}

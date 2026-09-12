@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
 import { ROLE_LABELS, ROLES, type Role } from "@/lib/roles";
+import { paymentAccountSplit } from "@/lib/payments";
+import { PaymentAccountNotice } from "@/components/admin/PaymentAccountNotice";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard — Nickimart",
@@ -45,6 +47,18 @@ export default async function AdminDashboardPage() {
             are their own console — switch to Data Bundles above.
           </p>
         </div>
+
+        {/*
+          Where the mall's money is going.
+
+          Sharing the bundle business's Paystack key works — the webhook routes
+          by reference prefix — but it puts both businesses' takings in one bank
+          account, and nothing about the running site reveals that. This is the
+          only place it shows, which matters on the day the second key is set:
+          otherwise "did it take effect?" can only be answered by charging a
+          real card and reading a bank statement.
+        */}
+        <PaymentAccountNotice split={paymentAccountSplit()} />
 
         {/* Every tile drills through to the list it counts. */}
         <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
