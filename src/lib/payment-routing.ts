@@ -2,6 +2,7 @@
 // through Node's type stripping, which resolves neither the "@/…" alias nor a
 // missing extension. Safe because nothing here is ever emitted — the same
 // reason allowImportingTsExtensions is on in tsconfig.
+import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   isAfaReference,
   isDataReference,
@@ -82,4 +83,38 @@ export function accountSplit(
   if (!retailSecret) return "unconfigured";
   if (dataSecret && retailSecret === dataSecret) return "shared";
   return "separate";
+}
+
+/** One configured key and the businesses it settles for. */
+export interface Signer {
+  secret: string;
+  accounts: PaymentAccount[];
+}
+
+/**
+ * Which configured key signed this event, as the businesses that key settles.
+ *
+ * Paystack signs with the account's own secret, so the signature is the only
+ * evidence of which business an event came from. This is the step that changes
+ * behaviour on the day a second key is added — until then one key matches
+ * everything, afterwards each key matches only its own account's events — and
+ * getting it wrong drops real payments with a 200 that stops Paystack
+ * retrying. So it lives here, out of the route, where it can be tested against
+ * two keys before there are two keys in production.
+ *
+ * Every key is compared in full even after a match: returning early would make
+ * the work done depend on which account signed.
+ */
+export function selectSigner(
+  raw: string,
+  signature: string,
+  signers: readonly Signer[],
+): PaymentAccount[] | null {
+  let matched: PaymentAccount[] | null = null;
+  const sigBuf = Buffer.from(signature);
+  for (const { secret, accounts } of signers) {
+    const expBuf = Buffer.from(createHmac("sha512", secret).update(raw).digest("hex"));
+    if (sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf)) matched = accounts;
+  }
+  return matched;
 }

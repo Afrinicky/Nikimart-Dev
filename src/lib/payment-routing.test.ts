@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { accountForReference, accountSplit, signerMaySettle } from "./payment-routing.ts";
+import { createHmac } from "node:crypto";
+import {
+  accountForReference,
+  accountSplit,
+  selectSigner,
+  signerMaySettle,
+  type PaymentAccount,
+} from "./payment-routing.ts";
 
 /**
  * Which business a Paystack charge belongs to, and who may settle it.
@@ -63,4 +70,46 @@ test("accountSplit: separate once the mall has its own key", () => {
 
 test("accountSplit: the mall alone still counts as separate", () => {
   assert.equal(accountSplit("sk_retail", undefined), "separate");
+});
+
+// selectSigner is the step that changes behaviour the day a second Paystack
+// account is added, and a mistake there drops a real payment with a 200 that
+// stops Paystack retrying. These sign the body the way Paystack does, so the
+// two-key case is covered before there are two keys taking money.
+function sign(raw: string, secret: string): string {
+  return createHmac("sha512", secret).update(raw).digest("hex");
+}
+
+const BODY = JSON.stringify({ event: "charge.success", data: { reference: "ND-ABC123" } });
+const TWO_KEYS = [
+  { secret: "sk_retail", accounts: ["retail"] as PaymentAccount[] },
+  { secret: "sk_data", accounts: ["data"] as PaymentAccount[] },
+];
+
+test("selectSigner: each of two keys is recognised as only its own business", () => {
+  assert.deepEqual(selectSigner(BODY, sign(BODY, "sk_retail"), TWO_KEYS), ["retail"]);
+  assert.deepEqual(selectSigner(BODY, sign(BODY, "sk_data"), TWO_KEYS), ["data"]);
+});
+
+test("selectSigner: a key serving both businesses is recognised as both", () => {
+  const shared = [{ secret: "sk_both", accounts: ["retail", "data"] as PaymentAccount[] }];
+  assert.deepEqual(selectSigner(BODY, sign(BODY, "sk_both"), shared), ["retail", "data"]);
+});
+
+test("selectSigner: an unknown key, a wrong body and an empty signature all fail", () => {
+  assert.equal(selectSigner(BODY, sign(BODY, "sk_someone_else"), TWO_KEYS), null);
+  assert.equal(selectSigner(BODY, sign("tampered", "sk_retail"), TWO_KEYS), null);
+  assert.equal(selectSigner(BODY, "", TWO_KEYS), null);
+  assert.equal(selectSigner(BODY, sign(BODY, "sk_retail"), []), null);
+});
+
+// The pair that matters: a bundle reference signed by the bundle key settles,
+// and the same reference signed by the mall's key does not.
+test("selectSigner and signerMaySettle together keep the two accounts apart", () => {
+  const dataSigned = selectSigner(BODY, sign(BODY, "sk_data"), TWO_KEYS);
+  const retailSigned = selectSigner(BODY, sign(BODY, "sk_retail"), TWO_KEYS);
+  const belongsTo = accountForReference("ND-ABC123");
+  assert.equal(belongsTo, "data");
+  assert.equal(signerMaySettle(dataSigned!, belongsTo), true);
+  assert.equal(signerMaySettle(retailSigned!, belongsTo), false);
 });

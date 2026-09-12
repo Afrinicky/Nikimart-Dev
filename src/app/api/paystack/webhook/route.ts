@@ -1,10 +1,9 @@
-import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { paystackAccounts } from "@/lib/payments";
 import {
   accountForReference,
+  selectSigner,
   signerMaySettle,
-  type PaymentAccount,
 } from "@/lib/payment-routing";
 import { markOrderPaid, paymentCoversOrder } from "@/lib/order-fulfillment";
 import {
@@ -60,16 +59,9 @@ export async function POST(req: Request) {
   const raw = await req.text();
   const signature = req.headers.get("x-paystack-signature") ?? "";
 
-  let signedBy: PaymentAccount[] | null = null;
-  for (const { accounts: settlesFor, secret } of accounts) {
-    const expected = createHmac("sha512", secret).update(raw).digest("hex");
-    const sigBuf = Buffer.from(signature);
-    const expBuf = Buffer.from(expected);
-    // Compared in full for every key — returning early on a length mismatch
-    // would still be constant-time per key, and checking them all keeps the
-    // work done independent of which account signed.
-    if (sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf)) signedBy = settlesFor;
-  }
+  // Which key signed, as the businesses that key settles. Lives in
+  // lib/payment-routing so it can be tested against two keys — see there.
+  const signedBy = selectSigner(raw, signature, accounts);
   if (!signedBy) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
