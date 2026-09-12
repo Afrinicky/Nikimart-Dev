@@ -140,6 +140,18 @@ jobs:
             WHERE table_schema='public' AND table_type='BASE TABLE';" | sed 's/^/  tables: /'
           psql "$OLD_URL" -At -c "
             SELECT pg_size_pretty(pg_database_size(current_database()));" | sed 's/^/  size: /'
+          echo "  schemas: $(psql "$OLD_URL" -At -c "
+            SELECT string_agg(nspname, ', ' ORDER BY nspname) FROM pg_namespace
+            WHERE nspname NOT LIKE 'pg\\_%' AND nspname <> 'information_schema';")"
+          # neon_auth is Neon's own, provisioned into every project including the
+          # new one, so it is excluded from the copy. If it somehow holds rows,
+          # say so rather than let them go quietly missing.
+          psql "$OLD_URL" -At -c "
+            SELECT 'NOTE: neon_auth.'||relname||' holds '||n_live_tup||' rows and is NOT copied'
+            FROM pg_stat_user_tables t
+            JOIN pg_class c ON c.oid = t.relid
+            JOIN pg_namespace ns ON ns.oid = c.relnamespace
+            WHERE ns.nspname = 'neon_auth' AND n_live_tup > 0;" 2>/dev/null | sed 's/^/  /'
           echo "=== NEW database ==="
           psql "$NEW_URL" -At -c "SELECT current_setting('server_version');" | sed 's/^/  Postgres /'
           NEWTABLES=$(psql "$NEW_URL" -At -c "
@@ -167,8 +179,13 @@ jobs:
           echo "Dumping..."
           # --no-owner / --no-acl: the new database has a different owning role,
           # and carrying the old one over only produces errors on restore.
+          # neon_auth is created by Neon in every project, so the new database
+          # already has it and CREATE SCHEMA neon_auth fails on restore. It is
+          # Neon's, not the application's — every table the app owns lives in
+          # public — so it is left out rather than fought over.
           pg_dump "$OLD_URL" \
             --no-owner --no-acl --no-comments \
+            --exclude-schema=neon_auth \
             --format=custom --compress=6 \
             --file=/tmp/retail.dump
           ls -lh /tmp/retail.dump | awk '{print "  dump size: "$5}'
