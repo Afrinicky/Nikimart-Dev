@@ -6,6 +6,7 @@ import {
   maxWithdrawal,
   outstandingSetupFee,
   priceAtMarkup,
+  registrationBlocksSelling,
   round2,
 } from "./agent-pricing.ts";
 import { normaliseSlugClient } from "./slug.ts";
@@ -101,4 +102,53 @@ test("money in a price list always carries its pesewas", () => {
   assert.equal(formatMoney(5.5), "GH₵5.50");
   assert.equal(formatMoney(10.5), "GH₵10.50");
   assert.equal(formatMoney(26.25), "GH₵26.25");
+});
+
+/**
+ * What holds a storefront shut.
+ *
+ * This decides whether a real agent can trade, so both directions cost
+ * something: too eager and somebody sells before paying to register, too strict
+ * and an agent who owes nothing is locked out of their own store with no way to
+ * open it — which is exactly what happened the first time an admin waived a fee
+ * by crediting the balance.
+ */
+
+const upfront = { setupFeeMethod: "UPFRONT", setupFeePaidAt: null, setupFee: 50, balance: -50 };
+
+test("an unpaid up-front registration holds the store shut", () => {
+  assert.equal(registrationBlocksSelling(upfront), true);
+  // Part-paid is still owed.
+  assert.equal(registrationBlocksSelling({ ...upfront, balance: -20 }), true);
+});
+
+test("paying it opens the store", () => {
+  assert.equal(
+    registrationBlocksSelling({ ...upfront, setupFeePaidAt: new Date(), balance: 0 }),
+    false,
+  );
+});
+
+test("an admin waiving the fee by crediting the balance opens the store", () => {
+  // The waiver an admin actually grants: +50 against a −50 balance. Nothing is
+  // owed, so nothing should be holding the store shut — even though no payment
+  // was ever verified and setupFeePaidAt is still null.
+  assert.equal(registrationBlocksSelling({ ...upfront, balance: 0 }), false);
+  // Credited beyond the fee — a goodwill credit on top — is no different.
+  assert.equal(registrationBlocksSelling({ ...upfront, balance: 12.5 }), false);
+});
+
+test("a fee that clears from commission never holds the store shut", () => {
+  assert.equal(
+    registrationBlocksSelling({ ...upfront, setupFeeMethod: "BALANCE" }),
+    false,
+  );
+  assert.equal(
+    registrationBlocksSelling({ ...upfront, setupFeeMethod: "WAIVED", setupFee: 0, balance: 0 }),
+    false,
+  );
+});
+
+test("no fee to pay, no reason to close the store", () => {
+  assert.equal(registrationBlocksSelling({ ...upfront, setupFee: 0, balance: 0 }), false);
 });

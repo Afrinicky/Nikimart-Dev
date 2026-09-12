@@ -133,6 +133,12 @@ export async function adjustAgentBalance(
       narration,
       reference: null,
     });
+    // A credit is how a registration fee gets waived in practice, so check
+    // whether this one just settled it. That opens the storefront and releases
+    // the recruiter's reward now rather than on the next nightly sweep — and
+    // does nothing at all when the adjustment was for something else.
+    if (amount > 0) await releaseReferralRewards(agentId);
+
     revalidateAgents(agentId);
     return {
       ok: true,

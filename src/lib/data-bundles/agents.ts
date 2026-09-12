@@ -4,7 +4,11 @@ import { dataDb } from "@/lib/data-db";
 import { getActiveBundles } from "@/lib/data-bundles/catalog";
 import { NETWORKS, type Network } from "@/lib/data-bundles/networks";
 import { normaliseSlugClient } from "@/lib/data-bundles/slug";
-import { outstandingSetupFee, round2 } from "@/lib/data-bundles/agent-pricing";
+import {
+  outstandingSetupFee,
+  registrationBlocksSelling,
+  round2,
+} from "@/lib/data-bundles/agent-pricing";
 import { withAgentUsers } from "@/lib/data-bundles/user-link";
 
 /**
@@ -58,23 +62,6 @@ export interface AgentAccount {
   referredById: string | null;
   referralLockedAt: Date | null;
   createdAt: Date;
-}
-
-/**
- * Is this agent's registration still standing between them and trading?
- *
- * Only for an agent who is settling it up front: their store is not open for
- * business until the payment clears, which is what "pay to register" has to
- * mean if it is to mean anything. An agent clearing the fee out of commission
- * was promised the opposite — nothing to pay before they start — so their
- * store opens immediately and the debit clears itself.
- */
-export function registrationBlocksSelling(agent: {
-  setupFeeMethod: string;
-  setupFeePaidAt: Date | null;
-  setupFee: number;
-}): boolean {
-  return agent.setupFeeMethod === "UPFRONT" && !agent.setupFeePaidAt && agent.setupFee > 0;
 }
 
 /** The agent account attached to a user, or null if they aren't one. */

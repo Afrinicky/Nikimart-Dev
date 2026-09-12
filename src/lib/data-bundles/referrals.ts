@@ -293,8 +293,13 @@ export async function quoteRegistrationFee(
  * Has this agent's registration fee actually been paid?
  *
  * Two ways it can be, and one way it can't:
- *   • UPFRONT — they paid it through Paystack; `setupFeePaidAt` was stamped by
- *     the verification.
+ *   • UPFRONT — normally they paid it through Paystack and `setupFeePaidAt` was
+ *     stamped by the verification. It can also be settled from this side: an
+ *     admin waiving the rest of a fee credits the balance, which clears the
+ *     debt in the ledger without any payment to verify. That has to count, or
+ *     an agent whose fee was forgiven is left owing nobody anything with their
+ *     recruiter still unpaid. The debit must actually have been posted first —
+ *     see below.
  *   • BALANCE — it was debited on approval and clears out of their commission.
  *     It is paid the moment their balance comes back to zero or above.
  *   • WAIVED, or a fee of zero — nothing was ever charged, so it is settled
@@ -314,7 +319,19 @@ export async function settleSetupFee(agentId: string): Promise<boolean> {
   if (!agent) return false;
   if (agent.setupFeePaidAt) return true;
   if (agent.setupFeeMethod === "WAIVED" || agent.setupFee <= 0) return false;
-  if (agent.setupFeeMethod === "UPFRONT") return false; // only the payment itself settles this
+
+  // A brand-new account is at zero because nothing has been posted to it yet,
+  // not because its fee is covered: approval creates the agent and posts the
+  // debit a moment later, and anything running in that gap would otherwise read
+  // an empty ledger as a settled one and pay a reward for a fee nobody has
+  // paid. The debit is the proof that there is something to have cleared.
+  if (agent.setupFeeMethod === "UPFRONT") {
+    const charged = await dataDb.dataAgentLedger
+      .findFirst({ where: { agentId, type: "SETUP_FEE" }, select: { id: true } })
+      .catch(() => null);
+    if (!charged) return false;
+  }
+
   if (agent.balance < 0) return false; // still clearing
 
   const claimed = await dataDb.dataAgent
