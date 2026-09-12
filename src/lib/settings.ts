@@ -175,17 +175,79 @@ export const SETTINGS_TAG = "site-settings";
  * Keyed reads also matter: filtering on the primary key lets Postgres use the
  * index instead of scanning the table, and skips any stray rows written by an
  * older build that `SETTING_KEYS` would only discard anyway.
+ *
+ * The image keys are excluded from the bulk read entirely — see below.
  */
+
+/**
+ * Settings whose value may hold a whole image rather than a line of text.
+ *
+ * The admin image fields accept a `data:` URL, so what looks like a URL can be
+ * an entire PNG in base64. One 1200x1200 logo measured 413 KB as text. Read on
+ * every page, that is the difference between a settings table you can ignore
+ * and one that costs gigabytes a month, so these keys never travel with the
+ * rest: the bulk read takes a fingerprint, and the bytes themselves are served
+ * once by /brand/logo and cached by the browser for a year.
+ */
+export const IMAGE_SETTING_KEYS = ["logoUrl"] as const;
+const TEXT_SETTING_KEYS = SETTING_KEYS.filter(
+  (key) => !(IMAGE_SETTING_KEYS as readonly string[]).includes(key),
+);
+
+/** What the bulk read returns for an image key: enough to build a URL, no bytes. */
+type ImageStamp = { fingerprint: string; isDataUrl: boolean; short: string };
+
 const readStoredSettings = unstable_cache(
-  async (): Promise<Record<string, string>> => {
-    const rows = await prisma.siteSetting.findMany({
-      where: { key: { in: SETTING_KEYS } },
-      select: { key: true, value: true },
-    });
-    return Object.fromEntries(rows.map((row) => [row.key, row.value]));
+  async (): Promise<{ text: Record<string, string>; images: Record<string, ImageStamp> }> => {
+    const [rows, stamps] = await Promise.all([
+      prisma.siteSetting.findMany({
+        where: { key: { in: TEXT_SETTING_KEYS } },
+        select: { key: true, value: true },
+      }),
+      // md5 and a 5-character peek, computed in the database: a few dozen bytes
+      // come back instead of the image. The digest changes when the logo does,
+      // which is exactly what a cache-busting URL needs.
+      prisma.$queryRaw<Array<{ key: string; fingerprint: string; head: string; short: string }>>`
+        SELECT "key",
+               md5("value") AS "fingerprint",
+               substring("value" from 1 for 5) AS "head",
+               -- An ordinary https:// logo is a few dozen characters and must
+               -- still come back whole, or it would be lost on every read.
+               -- Only something too big to be a URL is withheld.
+               CASE WHEN length("value") <= 512 THEN "value" ELSE '' END AS "short"
+        FROM "SiteSetting"
+        WHERE "key" = ANY(${IMAGE_SETTING_KEYS as readonly string[]})
+      `,
+    ]);
+    return {
+      text: Object.fromEntries(rows.map((row) => [row.key, row.value])),
+      images: Object.fromEntries(
+        stamps.map((row) => [
+          row.key,
+          {
+            fingerprint: (row.fingerprint ?? "").slice(0, 12),
+            isDataUrl: row.head === "data:",
+            short: row.short ?? "",
+          },
+        ]),
+      ),
+    };
   },
   ["site-settings"],
   { tags: [SETTINGS_TAG], revalidate: 300 },
+);
+
+/**
+ * The bytes of one image setting. Only /brand/logo calls this, and only when a
+ * browser actually asks for the image rather than on every page render.
+ */
+export const readImageSetting = unstable_cache(
+  async (key: string): Promise<string | null> => {
+    const row = await prisma.siteSetting.findUnique({ where: { key }, select: { value: true } });
+    return row?.value ?? null;
+  },
+  ["site-setting-image"],
+  { tags: [SETTINGS_TAG], revalidate: 3600 },
 );
 
 /** All settings merged with defaults. Resilient if the table doesn't exist yet. */
@@ -193,9 +255,19 @@ export const getSettings = cache(async (): Promise<Settings> => {
   const merged: Settings = { ...SETTINGS_DEFAULTS };
   try {
     const stored = await readStoredSettings();
-    for (const key of SETTING_KEYS) {
-      const value = stored[key];
+    for (const key of TEXT_SETTING_KEYS) {
+      const value = stored.text[key];
       if (value !== undefined) merged[key] = value;
+    }
+    // An image setting becomes a URL the page can link to. A stored http(s)
+    // URL is already one and is left alone; a data: URL would otherwise be
+    // inlined into the markup, so it is pointed at the route that serves it.
+    for (const key of IMAGE_SETTING_KEYS) {
+      const stamp = stored.images[key];
+      if (!stamp) continue;
+      merged[key] = stamp.isDataUrl
+        ? `/brand/logo?v=${stamp.fingerprint}`
+        : stamp.short;
     }
   } catch {
     // table not migrated yet — defaults only
