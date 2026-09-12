@@ -17,9 +17,8 @@ import {
 } from "@/lib/data-bundles/fulfillment";
 import { isRegistrationReference } from "@/lib/data-bundles/reference";
 import {
-  agentIdFromMetadata,
-  registrationPaymentCovers,
-  settleRegistrationFee,
+  registrationChargeCovers,
+  settleRegistrationCharge,
 } from "@/lib/data-bundles/registration-fee";
 
 export const runtime = "nodejs";
@@ -105,10 +104,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // A registration fee is found by the agent id in its metadata rather than
-    // by the reference: a retry mints a new reference, and an agent who pays an
+    // A registration fee is found by what its metadata names — an application
+    // that hasn't been approved yet, or an agent already trading — rather than
+    // by the reference: a retry mints a new reference, and somebody who pays an
     // abandoned link still has to be credited.
-    const agentId = isRegistration ? agentIdFromMetadata(event.data.metadata) : null;
+    const metadata = event.data.metadata;
 
     // A signed event still has to pay for the order it names, in the right
     // currency, before we settle it.
@@ -119,13 +119,13 @@ export async function POST(req: Request) {
         : isAfaReference(reference)
           ? await afaPaymentCovers(reference, amount)
           : isRegistration
-            ? await registrationPaymentCovers(reference, amount, agentId)
+            ? await registrationChargeCovers(reference, amount, metadata)
             : await paymentCoversOrder(reference, amount));
 
     if (covered) {
       if (isDataReference(reference)) await settleDataOrder(reference);
       else if (isAfaReference(reference)) await settleAfaRegistration(reference);
-      else if (isRegistration) await settleRegistrationFee(agentId, reference);
+      else if (isRegistration) await settleRegistrationCharge(reference, metadata);
       else await markOrderPaid(reference);
     } else {
       console.warn(`[paystack] underpaid or mismatched charge for ${reference}: ${amount} ${currency}`);

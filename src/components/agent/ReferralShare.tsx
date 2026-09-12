@@ -18,8 +18,7 @@ export function ReferralShare({ code, link }: { code: string; link: string }) {
       </p>
       <p className="mt-1.5 font-figures text-3xl font-bold tracking-wide">{code}</p>
       <p className="mt-2 text-sm text-white/60">
-        It&apos;s your agent code — the same one on your dashboard. Anyone who quotes it when they
-        apply is recorded as yours for good.
+        Anyone who registers with this code is recorded as yours.
       </p>
 
       <div className="mt-4 flex flex-wrap gap-2">

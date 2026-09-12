@@ -1,5 +1,7 @@
 import "server-only";
+import { prisma } from "@/lib/prisma";
 import { dataDb } from "@/lib/data-db";
+import { notify } from "@/lib/notifications";
 import { initializeTransaction, isPaymentConfigured, toPesewas, verifyTransaction } from "@/lib/payments";
 import { callbackOrigin } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
@@ -212,4 +214,201 @@ export async function verifyAndSettleRegistrationFee(reference: string): Promise
   const agentId = agentIdFromMetadata(result.metadata);
   if (!(await registrationPaymentCovers(reference, result.amountPesewas, agentId))) return false;
   return settleRegistrationFee(agentId, reference);
+}
+
+// ---------------------------------------------------------------------------
+// Paying at signup, before the account exists
+// ---------------------------------------------------------------------------
+
+/**
+ * The same fee, collected one step earlier.
+ *
+ * When the programme collects up front, "up front" has to mean before there is
+ * anything to collect against: an applicant who is approved and only then asked
+ * to pay is an approved agent who may never pay, and the store was already
+ * open. So the payment happens on the signup form, against the application,
+ * and approval is simply not offered until the money is in.
+ *
+ * There is no agent row yet, so these mirror the functions above against
+ * `DataAgentApplication` instead. The ledger pair is still posted — on the
+ * agent, at approval — so the wallet reads the same either way: a debit for
+ * what was charged and a credit for what was paid.
+ */
+
+/** The application id a signup transaction carries, if it carries one. */
+export function applicationIdFromMetadata(metadata: unknown): string | null {
+  if (typeof metadata !== "object" || metadata === null) return null;
+  const value = (metadata as Record<string, unknown>).applicationId;
+  return typeof value === "string" && value ? value : null;
+}
+
+/**
+ * Begin the registration payment for one application.
+ *
+ * With no Paystack keys configured (local dev, preview) the application is
+ * marked paid directly, so the flow this gates — approval, activation, the
+ * recruiter's reward — stays exercisable end to end without a gateway.
+ */
+export async function startApplicationFeePayment(application: {
+  id: string;
+  email: string;
+  fullName: string;
+  feeAmount: number;
+}): Promise<StartPaymentResult> {
+  if (application.feeAmount <= 0) {
+    return { ok: false, error: "There is nothing to pay on this application." };
+  }
+
+  const reference = newRegistrationReference();
+  await dataDb.dataAgentApplication
+    .updateMany({
+      where: { id: application.id, feePaidAt: null },
+      data: { feeReference: reference, paymentStatus: "pending" },
+    })
+    .catch(() => ({ count: 0 }));
+
+  if (!isPaymentConfigured("data")) {
+    await settleApplicationFee(application.id, reference);
+    return { ok: true, reference };
+  }
+
+  try {
+    const { authorizationUrl } = await initializeTransaction(
+      {
+        email: application.email,
+        amountPesewas: toPesewas(application.feeAmount),
+        reference,
+        callbackUrl: `${callbackOrigin()}/become-an-agent/verify`,
+        metadata: {
+          kind: "agent-application-fee",
+          applicationId: application.id,
+          applicantName: application.fullName,
+        },
+      },
+      "data",
+    );
+    return { ok: true, reference, authorizationUrl };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Could not start the payment. Please try again.",
+    };
+  }
+}
+
+/** Confirm a captured amount covers what this application was quoted. */
+export async function applicationPaymentCovers(
+  reference: string,
+  amountPesewas: number,
+  applicationId?: string | null,
+): Promise<boolean> {
+  const application = await findApplicationForPayment(applicationId, reference);
+  if (!application) return false;
+  if (application.feePaidAt) return true;
+  // One pesewa of tolerance, as elsewhere, for the rounding between our total
+  // and the gateway's integer amount.
+  return amountPesewas + 1 >= toPesewas(application.feeAmount);
+}
+
+/** Mark an application's registration fee as paid — once. */
+export async function settleApplicationFee(
+  applicationId: string | null,
+  reference: string,
+): Promise<boolean> {
+  const application = await findApplicationForPayment(applicationId, reference);
+  if (!application) return false;
+  if (application.feePaidAt) return true;
+
+  const updated = await dataDb.dataAgentApplication
+    .updateMany({
+      where: { id: application.id, feePaidAt: null },
+      data: { paymentStatus: "paid", feePaidAt: new Date(), feeReference: reference },
+    })
+    .catch(() => ({ count: 0 }));
+
+  if (updated.count === 0) return false;
+
+  // This, not the form submit, is when a paying applicant joins the queue: the
+  // signup hands them to Paystack and never comes back to our own code, so
+  // without a nudge here a paid application would sit unreviewed until somebody
+  // happened to look. Guarded by the update above, so a webhook and a redirect
+  // arriving together still send one message.
+  await notifyAdminsOfPayment(application.fullName, application.desiredSlug);
+  return true;
+}
+
+async function notifyAdminsOfPayment(fullName: string, slug: string): Promise<void> {
+  try {
+    const admins = await prisma.user.findMany({
+      where: { role: "ADMIN" },
+      select: { phone: true, email: true },
+    });
+    await Promise.allSettled(
+      admins.map((a) =>
+        notify(a, {
+          sms: `Nickimart: ${fullName} has paid their agent registration (store “${slug}”) and is waiting for approval.`,
+          emailSubject: "Agent registration paid — awaiting approval",
+        }),
+      ),
+    );
+  } catch {
+    // The payment is settled; telling the admins is not worth failing for.
+  }
+}
+
+async function findApplicationForPayment(applicationId: string | null | undefined, reference: string) {
+  return applicationId
+    ? await dataDb.dataAgentApplication.findUnique({ where: { id: applicationId } }).catch(() => null)
+    : await dataDb.dataAgentApplication
+        .findFirst({ where: { feeReference: reference } })
+        .catch(() => null);
+}
+
+/** Verify a signup payment with Paystack and settle it. Used by the redirect. */
+export async function verifyAndSettleApplicationFee(reference: string): Promise<boolean> {
+  const result = await verifyTransaction(reference, "data");
+  if (!result.paid || result.currency !== "GHS") return false;
+  const applicationId = applicationIdFromMetadata(result.metadata);
+  if (!(await applicationPaymentCovers(reference, result.amountPesewas, applicationId))) return false;
+  return settleApplicationFee(applicationId, reference);
+}
+
+// ---------------------------------------------------------------------------
+// One door for the webhook
+// ---------------------------------------------------------------------------
+
+/**
+ * Both kinds of registration charge share the "NR-" prefix, because they are
+ * the same fee paid at two different moments. Which one this is comes from the
+ * transaction's own metadata — an application id, or an agent id — so the
+ * webhook asks these two rather than deciding for itself.
+ */
+export async function registrationChargeCovers(
+  reference: string,
+  amountPesewas: number,
+  metadata: unknown,
+): Promise<boolean> {
+  const applicationId = applicationIdFromMetadata(metadata);
+  if (applicationId) return applicationPaymentCovers(reference, amountPesewas, applicationId);
+  const agentId = agentIdFromMetadata(metadata);
+  if (agentId) return registrationPaymentCovers(reference, amountPesewas, agentId);
+  // No metadata to go on — an older link, or one Paystack replayed without it.
+  // Try both by reference; an application and an agent can never share one.
+  return (
+    (await applicationPaymentCovers(reference, amountPesewas, null)) ||
+    (await registrationPaymentCovers(reference, amountPesewas, null))
+  );
+}
+
+export async function settleRegistrationCharge(
+  reference: string,
+  metadata: unknown,
+): Promise<boolean> {
+  const applicationId = applicationIdFromMetadata(metadata);
+  if (applicationId) return settleApplicationFee(applicationId, reference);
+  const agentId = agentIdFromMetadata(metadata);
+  if (agentId) return settleRegistrationFee(agentId, reference);
+  return (
+    (await settleApplicationFee(null, reference)) || (await settleRegistrationFee(null, reference))
+  );
 }

@@ -1,9 +1,11 @@
 "use server";
 
-import { createHash, randomBytes } from "crypto";
+import { createHash } from "crypto";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dataDb } from "@/lib/data-db";
 import { requireAdmin } from "@/lib/session";
@@ -23,6 +25,10 @@ import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { generateAgentCode, slugProblem } from "@/lib/data-bundles/agents";
 import { userIdForEmail } from "@/lib/data-bundles/user-link";
 import {
+  settleRegistrationFee,
+  startApplicationFeePayment,
+} from "@/lib/data-bundles/registration-fee";
+import {
   checkReferralLink,
   quoteRegistrationFee,
   releaseReferralRewards,
@@ -30,17 +36,30 @@ import {
 } from "@/lib/data-bundles/referrals";
 
 /**
- * Becoming an agent, from application to a working account.
+ * Becoming an agent, from signup to a working account.
  *
- * The shape is deliberate: an applicant gives their name, contact, email and
- * the store name they want, and nothing exists until an admin approves it. A
- * store slug is a public URL and the agent's identity to their own customers,
- * so it gets a human look before it is minted, and Nickimart chooses who resells
- * under its name.
+ * One form, one payment, one decision:
  *
- * No password is collected on the form. Approval provisions the account and
- * issues a one-time setup link, so nothing worth stealing sits in the
- * applications table while it waits.
+ *   1. The applicant gives their name, contact, the store name they want and
+ *      the password they will sign in with.
+ *   2. If the programme collects the registration fee up front, they pay it
+ *      there and then — the form hands them straight to Paystack. If it is
+ *      collected from commission instead, there is nothing to pay and they go
+ *      straight into the queue. Which of the two applies is the admin's
+ *      setting, not the applicant's.
+ *   3. An admin approves, and approval is what activates the account: the
+ *      console opens, the storefront opens, and they can buy. Nothing is
+ *      approvable until the money is in, so "pay to register" means what it
+ *      says rather than being a bill sent to somebody already trading.
+ *
+ * The password is collected up front, hashed, and moved onto the account at
+ * approval. That is what removes the setup link that used to sit between the
+ * two — a link that had to arrive by text or email, and left an account nobody
+ * could sign in to whenever it didn't. An approved agent simply signs in.
+ *
+ * The store slug is still a human decision: it is a public URL and the agent's
+ * identity to their own customers, and Nickimart chooses who resells under its
+ * name.
  */
 
 export type ApplyState = {
@@ -49,15 +68,6 @@ export type ApplyState = {
   message?: string;
   /** Shown against the acceptance box rather than at the top of the form. */
   termsError?: string;
-  /**
-   * The one-time setup link, handed back to the admin who approved it.
-   *
-   * It used to leave only by SMS and email. With no Arkesel or Resend key
-   * configured both are skipped silently, the applicant never receives it, and
-   * there is no other way to set a password — the account exists and nobody
-   * can sign in to it. The admin sees the link now and can send it themselves.
-   */
-  setupUrl?: string;
   /** False when neither the text nor the email went out. */
   delivered?: boolean;
 };
@@ -221,22 +231,28 @@ export async function quoteRegistration(rawCode: string): Promise<FeeQuote> {
 // ---------------------------------------------------------------------------
 
 const applySchema = z.object({
-  fullName: z.string().trim().min(3, "Enter your full name."),
+  firstName: z.string().trim().min(2, "Enter your first name.").max(40),
+  lastName: z.string().trim().min(2, "Enter your last name.").max(40),
   phone: z.string().min(1, "Enter your phone number."),
   email: z.string().trim().email("Enter a valid email address."),
   storeName: z.string().trim().min(2, "Enter the store name you want."),
-  note: z.string().trim().max(400).optional(),
   /** The agent code of whoever recruited them. Optional — most people have none. */
   referralCode: z.string().trim().max(20).optional(),
   /**
-   * How they want to settle the registration fee. BALANCE is the original
-   * behaviour: it is debited on approval and clears out of their commission, so
-   * there is nothing to pay before they start. UPFRONT means they pay it
-   * through Paystack once their account exists.
+   * How they want to settle the registration fee, where the admin lets them
+   * choose. BALANCE is debited on approval and clears out of commission;
+   * UPFRONT is paid on this form, before anybody reviews them.
    */
   feeMethod: z.enum(["BALANCE", "UPFRONT"]).optional(),
 });
 
+/**
+ * Apply to become an agent.
+ *
+ * Ends in one of two places, and which one is the admin's setting rather than
+ * the applicant's choice: at Paystack, when the fee is collected up front, or
+ * on a "we'll be in touch" confirmation when it clears from commission instead.
+ */
 export async function applyToBeAgent(
   _prev: ApplyState,
   fd: FormData,
@@ -248,12 +264,20 @@ export async function applyToBeAgent(
 
   if (!termsAccepted(fd)) return { termsError: TERMS_REQUIRED_MESSAGE };
 
+  // Somebody already signed in keeps the account they have: they are adding a
+  // storefront to it, not opening a second one. The form doesn't ask them for a
+  // password, so there is none to check here either.
+  const session = await auth();
+  const existingUser = session?.user?.id
+    ? { id: session.user.id, email: (session.user.email ?? "").toLowerCase() }
+    : null;
+
   const parsed = applySchema.safeParse({
-    fullName: fd.get("fullName"),
+    firstName: fd.get("firstName"),
+    lastName: fd.get("lastName"),
     phone: fd.get("phone"),
-    email: fd.get("email"),
+    email: existingUser?.email || fd.get("email"),
     storeName: fd.get("storeName"),
-    note: fd.get("note") ?? undefined,
     referralCode: fd.get("referralCode") ?? undefined,
     feeMethod: fd.get("feeMethod") ?? undefined,
   });
@@ -261,6 +285,12 @@ export async function applyToBeAgent(
     return { error: parsed.error.issues[0]?.message ?? "Please check the form and try again." };
   }
   const data = parsed.data;
+  const fullName = `${data.firstName} ${data.lastName}`.trim();
+
+  const password = String(fd.get("password") ?? "");
+  if (!existingUser && password.length < 6) {
+    return { error: "Choose a password of at least 6 characters." };
+  }
 
   const phoneCheck = parseGhPhone(data.phone);
   if (!phoneCheck.ok) return { error: phoneCheck.message };
@@ -268,8 +298,8 @@ export async function applyToBeAgent(
 
   const email = data.email.toLowerCase();
 
-  // Applications are free to submit, so rate-limit them or the queue becomes
-  // someone's plaything.
+  // Applications cost nothing to submit, so rate-limit them or the queue
+  // becomes someone's plaything.
   const limit = await rateLimit(`agent-apply:${await clientIp()}`, 5, 60 * 60_000);
   if (!limit.ok) {
     return { error: `Too many applications from here. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
@@ -304,24 +334,60 @@ export async function applyToBeAgent(
   // form posting UPFRONT when the programme collects from commission — or the
   // other way round — is corrected here rather than honoured.
   const feeMethod = settleMethodFor(config.paymentMode, data.feeMethod, config.setupFee);
+  // What they will actually be charged, quoted from the same function the
+  // approval commits — including whatever their recruiter's code takes off.
+  const quote = await quoteRegistrationFee(referrerId);
+  const payNow = feeMethod === "UPFRONT" && quote.payable > 0;
 
+  let applicationId: string;
   try {
     // Someone already trading doesn't need to apply again. The email belongs to
     // a retail User and the agent record is in the bundle database, so the
     // lookup goes through the id rather than through a relation.
-    const existingUserId = await userIdForEmail(email);
-    const existingAgent = existingUserId
-      ? await dataDb.dataAgent.findUnique({ where: { userId: existingUserId }, select: { id: true } })
+    const userId = existingUser?.id ?? (await userIdForEmail(email));
+    const alreadyAnAgent = userId
+      ? await dataDb.dataAgent.findUnique({ where: { userId }, select: { id: true } })
       : null;
-    if (existingAgent) {
+    if (alreadyAnAgent) {
       return { error: "That email already has an agent account. Sign in instead." };
+    }
+
+    // An email that already signs in to Nickimart cannot be claimed from a
+    // public form by typing a new password for it. Sign in first; the form
+    // then adds a storefront to that account and never asks for one.
+    if (!existingUser && userId) {
+      const account = await prisma.user
+        .findUnique({ where: { id: userId }, select: { passwordHash: true } })
+        .catch(() => null);
+      if (account?.passwordHash) {
+        return {
+          error: "That email already has a Nickimart account. Sign in first, then apply.",
+        };
+      }
     }
 
     const openApplication = await dataDb.dataAgentApplication.findFirst({
       where: { email, status: "pending" },
-      select: { id: true },
+      select: { id: true, paymentStatus: true, feeAmount: true, fullName: true },
     });
+
     if (openApplication) {
+      // Applied before and never got through the payment — the commonest way a
+      // signup ends half-finished, because the gateway is a page they can close.
+      // Send them back to it rather than refusing them as a duplicate.
+      if (openApplication.paymentStatus === "pending" && openApplication.feeAmount > 0) {
+        const retry = await startApplicationFeePayment({
+          id: openApplication.id,
+          email,
+          fullName: openApplication.fullName,
+          feeAmount: openApplication.feeAmount,
+        });
+        if (retry.ok && retry.authorizationUrl) redirect(retry.authorizationUrl);
+        if (retry.ok) {
+          return { ok: true, message: "Payment received. We'll review your application shortly." };
+        }
+        return { error: retry.error };
+      }
       return {
         ok: true,
         message:
@@ -329,31 +395,76 @@ export async function applyToBeAgent(
       };
     }
 
-    await dataDb.dataAgentApplication.create({
+    const application = await dataDb.dataAgentApplication.create({
       data: {
-        fullName: data.fullName,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        fullName,
         phone,
         email,
         storeName: data.storeName,
         desiredSlug,
-        note: data.note ?? "",
+        note: "",
         referralCode,
         referrerId,
         feeMethod,
+        feeAmount: quote.payable,
+        feeGross: quote.gross,
+        feeWaiverPercent: quote.waiverPercent,
+        feeWaived: quote.waived,
+        feeReferrerShare: quote.referrerShare,
+        // Nothing to collect is a settled state, not a pending one: an
+        // application clearing its fee from commission must never look like one
+        // waiting on a payment that will never come.
+        paymentStatus: payNow ? "pending" : "none",
+        // Hashed here and moved onto the account at approval, where it is also
+        // cleared. Only set when the applicant isn't already signed in.
+        passwordHash: existingUser ? null : await bcrypt.hash(password, 10),
         termsAcceptedAt: new Date(),
       },
+      select: { id: true },
     });
-  } catch {
+    applicationId = application.id;
+  } catch (err) {
+    // A redirect is thrown, not returned — don't swallow the retry path above.
+    if (isRedirectError(err)) throw err;
     return { error: STORAGE_ERROR };
+  }
+
+  // Straight to Paystack. This is the whole point of collecting up front: the
+  // applicant pays on the form they just filled in, not after somebody decides
+  // to approve them.
+  if (payNow) {
+    const payment = await startApplicationFeePayment({
+      id: applicationId,
+      email,
+      fullName,
+      feeAmount: quote.payable,
+    });
+    if (!payment.ok) return { error: payment.error };
+    // Thrown outside the try above so it isn't caught and turned into an error.
+    if (payment.authorizationUrl) redirect(payment.authorizationUrl);
+    // No gateway configured: the fee was settled directly, so fall through to
+    // the confirmation as if it had been paid — which it has.
   }
 
   // No revalidatePath here. The admin queue is force-dynamic, so there is
   // nothing cached to invalidate — but revalidating during an action refreshes
   // the route the applicant is standing on, which remounts this form and throws
-  // away the "Application received" state it is about to return. The admin sees
-  // the new application on their next load either way.
+  // away the confirmation it is about to return.
 
-  // Tell the admins there's something in the queue.
+  await notifyAdminsOfApplication(fullName, desiredSlug);
+
+  return {
+    ok: true,
+    message: payNow
+      ? "Payment received. We'll review your application and text you — usually the same day."
+      : "Application received. We'll review it and text you on the number you gave — usually the same day.",
+  };
+}
+
+/** Tell the admins there's something in the queue. Best-effort, always. */
+async function notifyAdminsOfApplication(fullName: string, slug: string): Promise<void> {
   try {
     const admins = await prisma.user.findMany({
       where: { role: "ADMIN" },
@@ -362,20 +473,28 @@ export async function applyToBeAgent(
     await Promise.allSettled(
       admins.map((a) =>
         notify(a, {
-          sms: `Nickimart: ${data.fullName} has applied to become a data agent (store “${desiredSlug}”). Review it in Admin → Data → Agents.`,
+          sms: `Nickimart: ${fullName} has applied to become a data agent (store “${slug}”). Review it in Admin → Data → Agents.`,
           emailSubject: "New data agent application",
         }),
       ),
     );
   } catch {
-    // Notifying admins is best-effort; the application is already saved.
+    // The application is already saved; telling the admins is not worth failing for.
   }
+}
 
-  return {
-    ok: true,
-    message:
-      "Application received. We'll review it and text you on the number you gave — usually the same day.",
-  };
+/**
+ * Next throws a redirect rather than returning one, so a `catch` around a
+ * database call will happily swallow a navigation and report a storage error
+ * that never happened.
+ */
+function isRedirectError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    typeof (err as { digest?: unknown }).digest === "string" &&
+    (err as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -383,8 +502,15 @@ export async function applyToBeAgent(
 // ---------------------------------------------------------------------------
 
 /**
- * Approve an application: create the account, open the store, charge the setup
- * fee as a debit, and send a one-time link for choosing a password.
+ * Approve an application: create the account, open the store, settle the
+ * registration fee, and tell them they're in.
+ *
+ * Approval is the activation. Before it there is a row in a queue; after it
+ * there is an account that can sign in, a storefront that is open for business
+ * and a console that can buy. So it is deliberately not offered for an
+ * application whose registration payment has not cleared — an approved agent
+ * who still owes an up-front fee is exactly the thing collecting up front
+ * exists to prevent.
  */
 export async function approveApplication(
   _prev: ApplyState,
@@ -407,6 +533,17 @@ export async function approveApplication(
     return { error: `This application was already ${application.status}.` };
   }
 
+  // The gate. Nothing else in this function needs to know about money: either
+  // the fee was paid on the signup form, or there was never one to pay.
+  if (application.paymentStatus === "pending") {
+    return {
+      error:
+        `${application.fullName} hasn't completed the ` +
+        `${formatMoney(application.feeAmount)} registration payment yet. ` +
+        "They can finish it by submitting the signup form again with the same email.",
+    };
+  }
+
   // The name may have been taken while the application waited.
   const clash = await dataDb.dataAgent.findUnique({
     where: { slug: application.desiredSlug },
@@ -420,7 +557,12 @@ export async function approveApplication(
 
   const email = application.email.toLowerCase();
   const code = await generateAgentCode(application.fullName);
-  const token = randomBytes(32).toString("hex");
+  const feePaid = application.paymentStatus === "paid";
+  // Applications made before the password moved onto the signup form carry no
+  // hash. Approving one still creates the account, but nobody can sign in to it
+  // until an admin issues a setup link — so the admin is told, here, rather
+  // than finding out from the agent a week later.
+  let needsSetupLink = false;
 
   // Filled in once the fee is worked out, and quoted back in the welcome
   // email — an agent who is told "nothing to pay" and then finds a payment
@@ -434,11 +576,37 @@ export async function approveApplication(
     // while a user without an agent row is just a Nickimart customer — which is
     // exactly what they were a moment ago. Nothing is lost if the second half
     // fails; approving again picks up the same user.
+    //
+    // The password is whatever they chose on the signup form. An account that
+    // already existed and already had one keeps it: nothing on a public form
+    // proves the applicant owns that email, so approving an application can
+    // never rewrite a password somebody else signs in with.
+    const existing = await prisma.user.findUnique({ where: { email } });
     const user =
-      (await prisma.user.findUnique({ where: { email } })) ??
+      existing ??
       (await prisma.user.create({
-        data: { email, name: application.fullName, phone: application.phone, role: "CUSTOMER" },
+        data: {
+          email,
+          name: application.fullName,
+          phone: application.phone,
+          role: "CUSTOMER",
+          passwordHash: application.passwordHash,
+          termsAcceptedAt: application.termsAcceptedAt ?? new Date(),
+        },
       }));
+
+    if (existing && !existing.passwordHash && application.passwordHash) {
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          passwordHash: application.passwordHash,
+          name: existing.name ?? application.fullName,
+          phone: existing.phone ?? application.phone,
+        },
+      });
+    }
+
+    needsSetupLink = !application.passwordHash && !existing?.passwordHash;
 
     // Who recruited them, re-resolved now rather than trusted from the
     // application: the code was checked when it was typed, and the agent it
@@ -460,12 +628,22 @@ export async function approveApplication(
       }
     }
 
-    // What this registration actually costs, worked out once and committed
-    // here: the fee at full price, whatever their recruiter's waiver takes
-    // off it, and the share of the rest that recruiter is owed. Quoted from
-    // the same function the signup form quotes, so the applicant is charged
-    // what they were shown.
-    const quote = await quoteRegistrationFee(referrerId);
+    // What this registration actually cost.
+    //
+    // A fee already paid is read back off the application — that is the quote
+    // they were shown and the money they sent, and the programme's fee may have
+    // moved in the days since. One that will clear from commission is quoted
+    // fresh, because nothing has been charged yet.
+    const quote = feePaid
+      ? {
+          gross: application.feeGross || application.feeAmount,
+          payable: application.feeAmount,
+          waiverPercent: application.feeWaiverPercent,
+          waived: application.feeWaived,
+          referrerShare: application.feeReferrerShare,
+          free: application.feeAmount <= 0,
+        }
+      : await quoteRegistrationFee(referrerId);
 
     // Nothing left to pay is a waiver, however it came about — a fee of zero,
     // or a referral that waived all of it. Whether that still pays a joining
@@ -473,7 +651,9 @@ export async function approveApplication(
     // is settled either way, because there is nothing outstanding on it.
     const feeMethod = quote.free
       ? "WAIVED"
-      : settleMethodFor(config.paymentMode, application.feeMethod, quote.payable);
+      : feePaid
+        ? "UPFRONT"
+        : settleMethodFor(config.paymentMode, application.feeMethod, quote.payable);
 
     const agentId = await dataDb.$transaction(async (tx) => {
       const already = await tx.dataAgent.findUnique({ where: { userId: user.id } });
@@ -499,8 +679,10 @@ export async function approveApplication(
           setupFeeWaived: quote.waived,
           setupFeeReferrerShare: quote.referrerShare,
           // A registration with nothing to pay is settled the moment it is
-          // approved. There is no payment to wait for and no balance to clear.
+          // approved. A paid one is settled below, through the ledger, so the
+          // wallet carries both halves of it.
           setupFeePaidAt: quote.free ? new Date() : null,
+          setupFeeReference: application.feeReference,
           // The relationship is recorded with the account and locked at the
           // same moment. There is no window in which it exists without a
           // referrer and could be given a different one.
@@ -516,24 +698,23 @@ export async function approveApplication(
           reviewedBy: admin.name ?? admin.email ?? admin.id,
           reviewedAt: new Date(),
           agentId: agent.id,
-          setupTokenHash: hashToken(token),
-          // Long enough to act on, short enough that a forwarded email stops
-          // working.
-          setupExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60_000),
+          // The hash has done its job — it lives on the account now, and a
+          // copy of it in a reviewed application is a copy nobody needs.
+          passwordHash: null,
         },
       });
 
       return agent.id;
     });
 
-    // The setup fee is what puts the account on a negative balance — charged
-    // outside the transaction so a notification failure can't roll the store back.
+    // The setup fee is charged outside the transaction so a notification
+    // failure can't roll the store back.
     //
-    // It is charged either way. On BALANCE it simply clears out of commission,
-    // as it always has. On UPFRONT the debit is what the agent is paying off:
-    // their Paystack payment posts a matching credit, which brings them back to
-    // zero and settles the fee in one visible pair of ledger lines rather than
-    // a flag nobody can audit.
+    // It is charged either way, and always as a debit. On BALANCE it simply
+    // clears out of commission, as it always has. On a fee already paid at
+    // signup the matching credit is posted immediately below, so the wallet
+    // shows what was charged and what was paid in one reconcilable pair rather
+    // than a flag nobody can audit.
     if (quote.payable > 0) {
       await postLedgerEntry({
         agentId,
@@ -541,25 +722,28 @@ export async function approveApplication(
         amount: -quote.payable,
         narration:
           `Registration fee${quote.waived > 0 ? ` (${quote.waiverPercent}% referral waiver)` : ""} — ` +
-          (feeMethod === "UPFRONT"
-            ? "payable before your store opens"
-            : "clears automatically from your commissions"),
+          (feePaid ? "paid at signup" : "clears automatically from your commissions"),
         reference: code,
       });
     }
 
-    // Nothing to release yet in the ordinary case: the fee has just been
-    // charged, not paid. It matters for the one case where the programme still
-    // owes something immediately — an admin who set the fee to zero after the
-    // application was made, leaving a balance already at zero.
-    if (referrerId) await releaseReferralRewards(agentId);
+    // Paid on the signup form: credit it, stamp it settled, and release
+    // whatever it owes the recruiter — the same path an agent paying from
+    // their own dashboard takes.
+    if (feePaid && quote.payable > 0) {
+      await settleRegistrationFee(agentId, application.feeReference ?? code);
+    } else if (referrerId) {
+      // Nothing to release in the ordinary case: the fee has just been charged,
+      // not paid. It matters for the one case where the programme still owes
+      // something immediately — an admin who set the fee to zero after the
+      // application was made, leaving a balance already at zero.
+      await releaseReferralRewards(agentId);
+    }
 
-    feeLine = quote.free
-      ? `<p>Your registration fee has been waived in full${quote.waived > 0 ? " by the agent who recruited you" : ""} — there is nothing to pay.</p>`
-      : feeMethod === "UPFRONT"
-        ? `<p>Your registration fee is <strong>${formatMoney(quote.payable)}</strong>` +
-          `${quote.waived > 0 ? ` (${quote.waiverPercent}% off, thanks to the agent who recruited you)` : ""}. ` +
-          `Pay it from your dashboard — your store opens for business as soon as it clears.</p>`
+    feeLine = feePaid
+      ? `<p>Your registration fee of <strong>${formatMoney(quote.payable)}</strong> is paid and settled.</p>`
+      : quote.free
+        ? `<p>Your registration fee has been waived in full${quote.waived > 0 ? " by the agent who recruited you" : ""} — there is nothing to pay.</p>`
         : `<p>Opening the store cost ${formatMoney(quote.payable)}` +
           `${quote.waived > 0 ? ` (${quote.waiverPercent}% off, thanks to the agent who recruited you)` : ""}, ` +
           `charged to your balance rather than to you. It clears itself out of the commission you earn, ` +
@@ -571,22 +755,34 @@ export async function approveApplication(
     return { error: "Couldn't approve that application. Please try again." };
   }
 
-  const setupUrl = `${siteUrl()}/agent-setup?token=${token}`;
+  // What they get told, and all they need to be told: they're approved, and
+  // they sign in with the password they already chose. No link to deliver, and
+  // therefore no approval that quietly ends in an account nobody can open.
+  const signIn = `${siteUrl()}/login`;
+  // The one case where they can't just sign in — an application from before
+  // passwords were collected — must not be told that they can.
+  const howToGetIn = needsSetupLink
+    ? "We'll send your sign-in details shortly."
+    : `Sign in at ${signIn} with the password you chose.`;
+
   const sent = await Promise.allSettled([
     sendSms(
       application.phone,
-      `Nickimart: your agent application is approved. Set your password and open your store: ${setupUrl}`,
+      `Nickimart: your agent application is approved. Your store ${siteUrl()}/store/${application.desiredSlug} ` +
+        `is live and your agent code is ${code}. ${howToGetIn}`,
     ),
     notify(
       { email: application.email, phone: null },
       {
-        sms: `Your Nickimart agent account is approved. Set your password: ${setupUrl}`,
+        sms: `Your Nickimart agent account is approved. ${howToGetIn}`,
         emailSubject: "Your Nickimart agent account is approved",
         emailHtml:
-          `<p>Welcome aboard.</p>` +
+          `<p>Welcome aboard — your application has been approved and your store is live.</p>` +
           `<p>Your store link is <strong>${siteUrl()}/store/${application.desiredSlug}</strong><br>` +
           `Your agent code is <strong>${code}</strong>.</p>` +
-          `<p><a href="${setupUrl}">Set your password and open your store</a> — the link is valid for 7 days.</p>` +
+          (needsSetupLink
+            ? `<p>We'll send your sign-in details shortly.</p>`
+            : `<p><a href="${signIn}">Sign in</a> with the email and password you registered with.</p>`) +
           feeLine,
       },
     ),
@@ -599,17 +795,17 @@ export async function approveApplication(
   );
 
   // No revalidatePath. Refreshing this route remounts the review panel and
-  // throws away the state it is about to return — and that state now carries
-  // the setup link, which is the only copy of it there will ever be. The queue
-  // catches up on the admin's next navigation; a second approve is refused by
-  // the status guard above, so a stale row is harmless.
+  // throws away the state it is about to return. The queue catches up on the
+  // admin's next navigation; a second approve is refused by the status guard
+  // above, so a stale row is harmless.
   return {
     ok: true,
-    setupUrl,
-    delivered,
-    message: delivered
-      ? `Approved. ${application.fullName} has been sent a setup link.`
-      : `Approved — but the text and email could not be sent. Give ${application.fullName} the link below yourself.`,
+    delivered: delivered && !needsSetupLink,
+    message: needsSetupLink
+      ? `Approved — but ${application.fullName} applied before passwords were collected at signup and has none. Send them a setup link from their agent page.`
+      : delivered
+        ? `Approved. ${application.fullName} can sign in now and has been told so.`
+        : `Approved — ${application.fullName} can sign in now, but the text and email couldn't be sent. Let them know.`,
   };
 }
 
@@ -636,13 +832,26 @@ export async function rejectApplication(
 
     const application = await dataDb.dataAgentApplication.findUnique({
       where: { id },
-      select: { phone: true, fullName: true },
+      select: { phone: true, fullName: true, paymentStatus: true, feeAmount: true, feeReference: true },
     });
     if (application) {
       await sendSms(
         application.phone,
         `Nickimart: thanks for applying to become a data agent. We can't approve it at this time${reason ? ` — ${reason}` : ""}.`,
       ).catch(() => {});
+
+      // Somebody who paid and was turned down is owed their money back. There
+      // is no account to credit it to, so it has to be a refund somebody makes
+      // — and the only way that happens is if the person rejecting them is told
+      // so, here, with the reference in their hand.
+      if (application.paymentStatus === "paid" && application.feeAmount > 0) {
+        return {
+          ok: true,
+          message:
+            `Application rejected. ${application.fullName} paid ` +
+            `${formatMoney(application.feeAmount)} (ref ${application.feeReference ?? "—"}) — refund it in Paystack.`,
+        };
+      }
     }
   } catch {
     return { error: STORAGE_ERROR };
@@ -661,6 +870,12 @@ export type SetupState = { ok?: boolean; error?: string; message?: string };
 
 /**
  * Redeem a setup link: choose a password, name the store, and go live.
+ *
+ * Registration no longer issues one of these — an applicant chooses their
+ * password on the signup form, so approval has nothing to deliver. What remains
+ * is the recovery route: an admin can issue a link from the agent's own page
+ * for an account that somehow has no password, and links issued before this
+ * changed keep working until they expire.
  *
  * The token is single-use and looked up by hash, so the link in an inbox is the
  * only copy that works and it stops working the moment it's used.

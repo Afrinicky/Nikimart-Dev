@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { Check, Loader2, Send, X } from "lucide-react";
+import { Check, Eye, EyeOff, Loader2, X } from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/ui/motion";
 import { AcceptTerms } from "@/components/ui/AcceptTerms";
@@ -19,16 +19,16 @@ import { formatMoney as money } from "@/lib/format";
 import { FormFeedback } from "@/components/ui/FormFeedback";
 
 /**
- * Applying to become an agent.
+ * Registering as an agent. One screen, and then either Paystack or the queue.
  *
- * Who you are, how to reach you, the store name you want, and — if somebody
- * recruited you — their agent code. No password: the account doesn't exist
- * until an admin approves the application, and approval sends a one-time link
- * for choosing one.
+ * Six fields, because six is what an account needs: who you are, how to reach
+ * you, what your store is called, and the password you'll sign in with. The
+ * store name is checked as it's typed — it is the one field that can be refused
+ * for a reason the applicant can do something about, and finding that out after
+ * submitting is a wasted round trip.
  *
- * The store name is checked as it's typed, because it is the one field that can
- * be refused for a reason the applicant can do something about, and finding
- * that out after submitting is a wasted round trip.
+ * When the fee is collected up front, submitting hands them straight to
+ * Paystack. Whether it is collected up front at all is the admin's setting.
  */
 export function ApplyAgentForm({
   origin,
@@ -36,6 +36,7 @@ export function ApplyAgentForm({
   setupFee,
   referralOpen,
   paymentMode,
+  signedInAs,
 }: {
   origin: string;
   /** Prefilled from ?ref= on an invite link, and still editable. */
@@ -46,11 +47,14 @@ export function ApplyAgentForm({
   referralOpen: boolean;
   /** How the admin collects the fee: up front, from commission, or either. */
   paymentMode: "UPFRONT" | "COMMISSION" | "BOTH";
+  /** Set when they're already signed in: their account is reused, no password. */
+  signedInAs?: { name: string; email: string; phone: string } | null;
 }) {
   const [state, formAction] = useActionState<ApplyState, FormData>(applyToBeAgent, {});
   const [storeName, setStoreName] = useState("");
   const [code, setCode] = useState(referralCode);
   const [quote, setQuote] = useState<FeeQuote | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   // The last verdict, tagged with the text it was for — see below.
   const [checked, setChecked] = useState<{ for: string; result: SlugCheck }>({
     for: "",
@@ -84,8 +88,8 @@ export function ApplyAgentForm({
   const slug: SlugCheck = checked.for === storeName ? checked.result : { state: "idle" };
   const checking = Boolean(storeName.trim()) && checked.for !== storeName;
 
-  // What the code is worth, quoted as it is typed. A recruiter's waiver is
-  // the reason to use their code rather than signing up cold, so it has to be
+  // What the code is worth, quoted as it is typed. A recruiter's waiver is the
+  // reason to use their code rather than signing up cold, so it has to be
   // visible before the form is submitted, not discovered on approval.
   useEffect(() => {
     if (!referralOpen || setupFee <= 0) return;
@@ -102,6 +106,10 @@ export function ApplyAgentForm({
 
   const payable = quote ? quote.payable : setupFee;
   const discounted = Boolean(quote && quote.waiverPercent > 0);
+  // With no choice on offer, the form states what will happen rather than
+  // asking a question with one answer.
+  const choosable = paymentMode === "BOTH" && payable > 0;
+  const payingNow = payable > 0 && paymentMode === "UPFRONT";
 
   if (state.ok) {
     return (
@@ -109,61 +117,107 @@ export function ApplyAgentForm({
         <Check className="mx-auto h-8 w-8 text-niki-success" />
         <p className="mt-2 font-display font-bold text-niki-ink">Application received</p>
         <p className="mt-1 text-sm text-niki-ink/70">{state.message}</p>
-        <p className="mt-3 text-xs text-niki-ink/50">
-          When it&apos;s approved you&apos;ll get a link to set your password and open your store.
-        </p>
       </div>
     );
   }
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
-      <Field label="Full name" htmlFor="fullName">
-        <input
-          id="fullName"
-          name="fullName"
-          required
-          autoComplete="name"
-          placeholder="Nicholas Gyamfi"
-          className={inputClass}
-        />
-      </Field>
-
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label="Phone number"
-          htmlFor="phone"
-          hint="10 digits starting with 0 — we'll text you the decision."
-        >
+        <Field label="First name" htmlFor="firstName">
           <input
-            id="phone"
-            name="phone"
+            id="firstName"
+            name="firstName"
             required
-            inputMode="tel"
-            autoComplete="tel"
-            maxLength={15}
-            placeholder="0241234567"
+            autoComplete="given-name"
+            defaultValue={signedInAs?.name.split(" ")[0] ?? ""}
+            placeholder="Nicholas"
             className={inputClass}
           />
         </Field>
-
-        <Field label="Email" htmlFor="email">
+        <Field label="Last name" htmlFor="lastName">
           <input
-            id="email"
-            name="email"
-            type="email"
+            id="lastName"
+            name="lastName"
             required
-            autoComplete="email"
-            placeholder="you@example.com"
+            autoComplete="family-name"
+            defaultValue={signedInAs?.name.split(" ").slice(1).join(" ") ?? ""}
+            placeholder="Gyamfi"
             className={inputClass}
           />
         </Field>
       </div>
 
+      <Field label="Phone number" htmlFor="phone">
+        <input
+          id="phone"
+          name="phone"
+          required
+          inputMode="tel"
+          autoComplete="tel"
+          maxLength={15}
+          defaultValue={signedInAs?.phone ?? ""}
+          placeholder="0241234567"
+          className={inputClass}
+        />
+      </Field>
+
+      {signedInAs ? (
+        <div>
+          <span className="mb-1.5 block text-sm font-medium text-niki-ink">Email</span>
+          <p className="rounded-xl border border-niki-edge-strong bg-niki-surface px-4 py-2.5 text-sm text-niki-ink/70">
+            {signedInAs.email}
+          </p>
+          <span className="mt-1 block text-xs text-niki-ink/50">
+            Your store is added to this account — sign in with the password you already use.
+          </span>
+        </div>
+      ) : (
+        <>
+          <Field label="Email" htmlFor="email">
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="you@example.com"
+              className={inputClass}
+            />
+          </Field>
+
+          <div>
+            <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-niki-ink">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                required
+                minLength={6}
+                autoComplete="new-password"
+                placeholder="At least 6 characters"
+                className={`${inputClass} pr-11`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                className="niki-focus absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-niki-ink/40 hover:text-niki-ink/70"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Store name, with live availability. */}
       <div>
         <label htmlFor="storeName" className="mb-1.5 block text-sm font-medium text-niki-ink">
-          Preferred store name <span className="text-niki-danger">*</span>
+          Store name
         </label>
         <div className="relative">
           <input
@@ -201,26 +255,20 @@ export function ApplyAgentForm({
             <span className="text-niki-ink/50">Checking…</span>
           ) : slug.state === "free" ? (
             <span className="font-medium text-niki-success">
-              Available — your store will be {origin}/store/{slug.slug}
+              Available — {origin}/store/{slug.slug}
             </span>
           ) : slug.state === "taken" || slug.state === "invalid" ? (
             <span className="font-medium text-niki-danger">{slug.message}</span>
           ) : (
             <span className="text-niki-ink/50">
-              {preview
-                ? `Your store link will be ${origin}/store/${preview}`
-                : "This becomes your public store link. Letters, numbers and hyphens only."}
+              {preview ? `${origin}/store/${preview}` : "This becomes your public store link."}
             </span>
           )}
         </p>
       </div>
 
       {referralOpen ? (
-        <Field
-          label="Referral code"
-          htmlFor="referralCode"
-          hint="Optional — the agent code of whoever told you about Nickimart. It's how they get credited, and it can't be added once your account is trading."
-        >
+        <Field label="Referral code" htmlFor="referralCode" hint="Optional.">
           <input
             id="referralCode"
             name="referralCode"
@@ -255,34 +303,21 @@ export function ApplyAgentForm({
           {discounted && quote ? (
             <p className="mt-1 text-xs font-medium text-niki-success">
               {quote.waiverPercent}% off
-              {quote.referrerName ? `, thanks to ${quote.referrerName}` : ""} — because you were
-              referred.
+              {quote.referrerName ? `, thanks to ${quote.referrerName}` : ""}
             </p>
           ) : null}
 
-          {/*
-            Which of the two the applicant may choose is the admin's call. With
-            only one on offer there is nothing to ask, so the form states what
-            will happen and posts it as a hidden field rather than showing a
-            select with a single option.
-          */}
           {payable <= 0 ? (
-            <input type="hidden" name="feeMethod" value="BALANCE" />
-          ) : paymentMode === "BOTH" ? (
+            <>
+              <input type="hidden" name="feeMethod" value="BALANCE" />
+              <p className="mt-2 text-xs font-medium text-niki-success">Nothing to pay.</p>
+            </>
+          ) : choosable ? (
             <div className="mt-3">
               <Field label="How would you like to settle it?" htmlFor="feeMethod">
-                <select
-                  id="feeMethod"
-                  name="feeMethod"
-                  defaultValue="BALANCE"
-                  className={inputClass}
-                >
-                  <option value="BALANCE">
-                    Take it from my commission — start selling with nothing to pay
-                  </option>
-                  <option value="UPFRONT">
-                    I&apos;ll pay {money(payable)} up front once I&apos;m approved
-                  </option>
+                <select id="feeMethod" name="feeMethod" defaultValue="BALANCE" className={inputClass}>
+                  <option value="BALANCE">Take it from my commission</option>
+                  <option value="UPFRONT">Pay {money(payable)} now</option>
                 </select>
               </Field>
             </div>
@@ -294,44 +329,30 @@ export function ApplyAgentForm({
                 value={paymentMode === "UPFRONT" ? "UPFRONT" : "BALANCE"}
               />
               <p className="mt-2 text-xs text-niki-ink/60">
-                {paymentMode === "UPFRONT"
-                  ? `Payable once you're approved. Your storefront opens for business as soon as the ${money(payable)} clears.`
-                  : "Nothing to pay before you start — it comes out of the commission you earn."}
+                {payingNow
+                  ? "Payable now, on the next screen."
+                  : "Taken from the commission you earn — nothing to pay now."}
               </p>
             </>
           )}
-
-          {payable <= 0 ? (
-            <p className="mt-2 text-xs font-medium text-niki-success">
-              Nothing to pay. Your registration is covered in full.
-            </p>
-          ) : null}
         </div>
       ) : null}
-
-      <Field
-        label="Anything else?"
-        htmlFor="note"
-        hint="Optional — where you sell, how many customers you have."
-      >
-        <textarea id="note" name="note" rows={3} className={`${inputClass} resize-y`} />
-      </Field>
 
       <AcceptTerms audience="agent" error={state.termsError} />
 
       <FormFeedback error={state.error} />
       <SubmitButton
-        pendingLabel="Sending…"
-        icon={<Send className="h-4 w-4" />}
+        pendingLabel={payingNow ? "Taking you to payment…" : "Sending…"}
         disabled={slug.state === "taken" || slug.state === "invalid"}
         className="w-full rounded-xl bg-niki-orange px-4 py-3.5 text-sm font-bold text-white hover:bg-niki-orange-light"
       >
-        Apply to become an agent
+        {payingNow ? "Continue to payment" : "Create my agent account"}
       </SubmitButton>
 
       <p className="text-center text-[11px] leading-relaxed text-niki-ink/45">
-        Nothing to pay now. We review every application and text you the decision — usually the same
-        day.
+        {payingNow
+          ? "Closed Paystack or the payment failed? Submit this form again with the same email."
+          : "We review every application and text you the decision."}
       </p>
     </form>
   );

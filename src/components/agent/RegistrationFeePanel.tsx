@@ -39,10 +39,7 @@ export function RegistrationFeePanel({ amount }: { amount: string }) {
         Your registration fee of {amount} is still outstanding.
       </p>
       <p className="mt-1 text-sm text-amber-800">
-        Your registration is settled up front rather than out of your commission, so your
-        storefront stays closed to customers until it clears. Paying it opens your balance at zero
-        and puts your store live — and it is what pays the agent who recruited you, so they are
-        waiting on it too.
+        Your store stays closed to customers until it clears.
       </p>
       {error ? (
         <p role="alert" className="mt-3 text-sm font-medium text-niki-danger">

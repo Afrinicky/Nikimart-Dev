@@ -152,12 +152,10 @@ export default async function AgentDashboardPage() {
           </span>
           <div>
             <p className="font-figures font-bold text-niki-ink">
-              {formatMoney(wallet.outstandingSetup)} of your setup fee is still clearing
+              {formatMoney(wallet.outstandingSetup)} of your registration fee is still clearing
             </p>
             <p className="mt-1 text-sm text-niki-ink/65">
-              Nothing to pay up front — your storefront cost {formatMoney(agent.setupFee)} and it
-              comes out of the commission you earn. Once the balance passes zero, everything above it
-              is yours to withdraw.
+              Nothing to pay — it comes out of the commission you earn.
             </p>
           </div>
         </div>
@@ -204,9 +202,7 @@ export default async function AgentDashboardPage() {
                 <Trophy className="h-5 w-5 text-niki-orange" />
                 Leaderboard
               </h2>
-              <p className="mt-1 text-sm text-niki-ink/60">
-                {leaderboard.config.pitch || "Sell, climb the board, collect points, cash them in."}
-              </p>
+              <p className="mt-1 text-sm text-niki-ink/60">{leaderboard.config.pitch}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="flex items-center gap-1.5 rounded-full bg-niki-black px-4 py-2 text-xs font-bold text-niki-gold">
@@ -235,10 +231,8 @@ export default async function AgentDashboardPage() {
       <section>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="font-display text-2xl font-bold text-niki-ink">Data Topup</h1>
-            <p className="mt-1 text-sm text-niki-ink/60">
-              Select a network and bundle to send data for a customer at your agent price.
-            </p>
+            <h1 className="font-display text-2xl font-bold text-niki-ink">Data topup</h1>
+            <p className="mt-1 text-sm text-niki-ink/60">Send data at your agent price.</p>
           </div>
           <ActionLink
             href="/agent/orders"

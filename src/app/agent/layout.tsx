@@ -7,11 +7,7 @@ import { AgentCode } from "@/components/agent/AgentCode";
 import { RegistrationFeePanel } from "@/components/agent/RegistrationFeePanel";
 import { requireUser } from "@/lib/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
-import {
-  getAgentProgramConfig,
-  getDataStoreConfig,
-  getLeaderboardConfig,
-} from "@/lib/data-bundles/settings";
+import { getDataStoreConfig, getLeaderboardConfig } from "@/lib/data-bundles/settings";
 import { registrationFeeStatus } from "@/lib/data-bundles/registration-fee";
 import { formatMoney } from "@/lib/format";
 
@@ -27,9 +23,8 @@ export const dynamic = "force-dynamic";
  */
 export default async function AgentLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const [agent, program, store, leaderboard] = await Promise.all([
+  const [agent, store, leaderboard] = await Promise.all([
     getAgentForUser(user.id),
-    getAgentProgramConfig(),
     getDataStoreConfig(),
     getLeaderboardConfig(),
   ]);
@@ -70,8 +65,7 @@ export default async function AgentLayout({ children }: { children: React.ReactN
 
         {suspended ? (
           <p className="animate-fade-up mt-5 rounded-2xl bg-niki-danger/15 px-4 py-3 text-sm font-medium text-white ring-1 ring-niki-danger/40">
-            Your agent account is suspended. Your storefront is closed and you aren&apos;t earning
-            commission. Please contact support to sort it out.
+            Your account is suspended and your store is closed. Please contact support.
           </p>
         ) : null}
 
@@ -94,10 +88,6 @@ export default async function AgentLayout({ children }: { children: React.ReactN
         <div className="mt-6 gap-6 lg:grid lg:grid-cols-[220px_minmax(0,1fr)]">
           <aside className="hidden lg:block">
             <AgentSidebar afaEnabled={store.afaEnabled} leaderboardEnabled={leaderboard.enabled} />
-            <p className="mt-6 px-4 text-[11px] leading-relaxed text-white/35">
-              Commission is credited once a bundle is delivered. Withdrawals go to MoMo, minus a{" "}
-              {program.withdrawalFee > 0 ? `GH₵${program.withdrawalFee.toFixed(2)} ` : ""}fee.
-            </p>
           </aside>
 
           {/* The content sits on a light card so the existing page components

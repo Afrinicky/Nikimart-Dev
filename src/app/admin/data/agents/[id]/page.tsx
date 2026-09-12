@@ -20,7 +20,7 @@ import {
 } from "@/lib/data-bundles/agents";
 import { getAgentUser } from "@/lib/data-bundles/user-link";
 import { setAgentStatus } from "@/lib/data-bundles/agent-admin-actions";
-import { getReferralConfig } from "@/lib/data-bundles/settings";
+import { getAgentProgramConfig, getReferralConfig } from "@/lib/data-bundles/settings";
 import { registrationFeeBreakdown } from "@/lib/data-bundles/referral-rules";
 import { cn } from "@/lib/cn";
 
@@ -64,12 +64,13 @@ export default async function AdminAgentDetailPage({
     dataDb.dataAgent.count({ where: { referredById: row.id } }).catch(() => 0),
   ]);
 
-  const [wallet, ledger, orders, withdrawals, referralConfig] = await Promise.all([
+  const [wallet, ledger, orders, withdrawals, referralConfig, program] = await Promise.all([
     getAgentWallet(agent),
     getAgentLedger(agent.id, 25),
     getAgentOrders(agent.id, { take: 10 }),
     getAgentWithdrawals(agent.id, 10),
     getReferralConfig(),
+    getAgentProgramConfig(),
   ]);
 
   const suspended = agent.status !== "active";
@@ -326,8 +327,10 @@ export default async function AdminAgentDetailPage({
           <ReferralWaiverTool
             agentId={agent.id}
             waiverPercent={agent.referralWaiverPercent}
+            sharePercent={agent.referralSharePercent}
             defaultPercent={referralConfig.waiverDefaultPercent}
-            referrerSharePercent={referralConfig.referrerSharePercent}
+            defaultSharePercent={referralConfig.referrerSharePercent}
+            registrationFee={program.setupFee}
           />
 
           {/* An agent whose account has no password has never been able to sign

@@ -98,10 +98,7 @@ export default async function AgentWalletPage() {
 
   return (
     <div className="space-y-5">
-      <AgentPageHeading
-        title="Wallet"
-        subtitle="Your balance, every commission that built it, and your payouts."
-      >
+      <AgentPageHeading title="Wallet" subtitle="Your balance, earnings and payouts.">
         <ActionLink
           href="/agent/store?tab=withdrawals"
           className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-black/5"
@@ -168,7 +165,7 @@ export default async function AgentWalletPage() {
         defaultName={user.name ?? ""}
       />
 
-      <Card title="Transactions" description="Every movement on your balance, newest first.">
+      <Card title="Transactions" description="Newest first">
         {ledger.length === 0 ? (
           <EmptyRow>Nothing yet. Your first commission will show up here.</EmptyRow>
         ) : (

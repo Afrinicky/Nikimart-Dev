@@ -769,15 +769,24 @@ down refunds them.
    applied by `npm run build` and brings them up to date.
 2. Generate an API key at justicedatashop.com → Developer → Authentication and
    set `JUSTICE_API_KEY`.
-3. Point Paystack's webhook at `https://<your-domain>/api/paystack/webhook`
+3. Set `JUSTICE_AGENT_PHONE` and `JUSTICE_AGENT_PASSWORD` to the login for that
+   same Justice Datashop agent dashboard. The API key can order but cannot read
+   a price list, so the nightly cost sync signs in with these and reads the
+   account's own package tier. It only ever writes `DataBundle.costPrice` —
+   retail prices, agent prices and what is on sale are left alone. Leave them
+   unset and costs stay whatever an admin last typed; **Fetch now** on Bundle
+   prices says so rather than failing quietly. Sign-in cannot be automated if
+   the provider dashboard has one-time codes switched on for this account.
+4. Point Paystack's webhook at `https://<your-domain>/api/paystack/webhook`
    (Paystack dashboard → Settings → API Keys & Webhooks). It settles orders
    where the buyer closed the browser before the redirect finished, and serves
    the mall and the bundle store alike.
-4. Keep the agent wallet funded — every bundle you sell is bought from it. A
+5. Keep the agent wallet funded — every bundle you sell is bought from it. A
    daily sweep (`/api/cron/data-bundles`, in `vercel.json`) texts admins when it
    drops below the threshold in Store settings, re-drives orders that were paid
    but never reached the provider, and re-checks ones the provider never
-   confirmed. **Run checks now** on the overview does the same on demand. Raise
+   confirmed, and refreshes the cost prices above. **Run checks now** on the
+   overview does the same on demand. Raise
    it to hourly (`0 * * * *`) on a Vercel plan above Hobby, which refuses to
    deploy crons that run more than once a day.
 

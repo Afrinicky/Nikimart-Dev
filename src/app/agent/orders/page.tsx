@@ -66,7 +66,7 @@ export default async function AgentOrdersPage({
 
   return (
     <div className="space-y-5">
-      <AgentPageHeading title="Orders" subtitle="Every bundle sold through your store or dashboard.">
+      <AgentPageHeading title="Orders" subtitle="Sold through your store and dashboard.">
         <a
           href={exportHref}
           className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-black/5"

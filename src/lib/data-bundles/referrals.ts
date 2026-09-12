@@ -8,6 +8,7 @@ import {
   rewardForLevel,
   saleQualifies,
   teamCommissionAmount,
+  sharePercentFor,
   waiverPercentFor,
   type RegistrationQuote,
 } from "@/lib/data-bundles/referral-rules";
@@ -263,7 +264,12 @@ export async function quoteRegistrationFee(
       ? await dataDb.dataAgent
           .findUnique({
             where: { id: referrerId },
-            select: { id: true, referralWaiverPercent: true, status: true },
+            select: {
+              id: true,
+              referralWaiverPercent: true,
+              referralSharePercent: true,
+              status: true,
+            },
           })
           .catch(() => null)
       : null;
@@ -272,7 +278,13 @@ export async function quoteRegistrationFee(
   return registrationQuote({
     fee: program.setupFee,
     waiverPercent: active ? waiverPercentFor(referrer?.referralWaiverPercent, config.waiverDefaultPercent) : 0,
-    referrerSharePercent: config.referrerSharePercent,
+    // Per recruiter where one is set, the programme default otherwise — the
+    // waiver's twin, so "this recruiter brings people in at half price and
+    // keeps half of what they pay" is one agent's arrangement rather than
+    // everybody's.
+    referrerSharePercent: active
+      ? sharePercentFor(referrer?.referralSharePercent, config.referrerSharePercent)
+      : config.referrerSharePercent,
     hasReferrer: active,
   });
 }

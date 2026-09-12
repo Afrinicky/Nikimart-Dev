@@ -71,7 +71,7 @@ export default async function AgentAfaPage() {
 
       <Card
         title="Register a customer"
-        description="The details go straight to the provider once payment clears."
+        description="Sent to the provider once payment clears"
         icon={BadgeCheck}
       >
         <AfaForm price={price} storeSlug={agent.slug} trackHref="/agent/orders" />

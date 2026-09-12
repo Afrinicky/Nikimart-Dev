@@ -93,20 +93,13 @@ export function PricingTable({ rows }: { rows: PricingRow[] }) {
   if (rows.length === 0) {
     return (
       <p className="rounded-2xl bg-niki-surface px-4 py-10 text-center text-sm text-niki-ink/55">
-        Nickimart hasn&apos;t published agent prices for any bundle yet. Once it does, your ladder
-        appears here.
+        No agent prices published yet.
       </p>
     );
   }
 
   return (
     <div className="space-y-4">
-      <p className="rounded-xl bg-niki-gold/10 px-4 py-3 text-sm text-niki-ink/70 ring-1 ring-niki-gold/40">
-        <span className="font-semibold text-niki-ink">Set your own prices.</span> Mark up your cost
-        to earn on each sale — the difference is credited to your balance once the bundle is
-        delivered. Toggle a bundle off to hide it from your store.
-      </p>
-
       {error ? (
         <p className="animate-fade-up rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
           {error}

@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { AlertTriangle } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { BundlePriceTable } from "@/components/admin/BundlePriceTable";
-import { MarkupTool, NewBundleForm } from "@/components/admin/BundleTools";
+import { CostSyncTool, MarkupTool, NewBundleForm } from "@/components/admin/BundleTools";
 import { getAllBundles, groupByNetwork } from "@/lib/data-bundles/catalog";
 import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/settings";
+import { isProviderDashboardConfigured } from "@/lib/data-bundles/provider";
 
 export const metadata: Metadata = { title: "Bundle Prices — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -16,16 +17,14 @@ export default async function AdminBundlePricesPage() {
     getAgentProgramConfig(),
   ]);
   const groups = groupByNetwork(bundles);
+  const syncable = isProviderDashboardConfigured();
 
   return (
     <Container className="py-8">
       <div>
         <h1 className="font-display text-2xl font-bold text-niki-ink">Bundle prices</h1>
         <p className="mt-1 text-sm text-niki-ink/60">
-          Three prices per size: what the provider charges you, what your sub-agents pay, and what
-          a walk-in buyer pays. Both margins are worked out for you as you type. The fourth column
-          is the team commission — what an agent&apos;s recruiter earns each time they sell this
-          bundle, paid out of your margin on the agent price.
+          Cost, agent price and selling price for every size. Margins are worked out as you type.
         </p>
       </div>
 
@@ -33,23 +32,25 @@ export default async function AdminBundlePricesPage() {
         <p className="mt-6 flex items-start gap-3 rounded-2xl bg-amber-50 px-5 py-4 text-sm text-amber-800 ring-1 ring-amber-200">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
           <span>
-            No bundle rows in the database yet. Run{" "}
+            No bundle rows yet. Run{" "}
             <code className="font-mono text-xs">nikimart-neon-data-bundles.sql</code> to create the
-            tables and seed the starter price ladder — the storefront shows those starter prices in
-            the meantime.
+            tables and seed the starter ladder.
           </span>
         </p>
-      ) : (
-        <p className="mt-6 flex items-start gap-3 rounded-2xl bg-niki-surface px-5 py-4 text-sm text-niki-ink/70 ring-1 ring-niki-edge">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-niki-orange" />
-          <span>
-            The seeded prices are placeholders. Check every row against your Justice Datashop agent
-            cost before you advertise the store.
-          </span>
-        </p>
-      )}
+      ) : null}
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      {/* Costs come from the provider now, daily and on demand. */}
+      <div className="mt-6">
+        <CostSyncTool
+          syncedLabel={
+            syncable
+              ? "Fetched from the provider every day. Cost prices only — nothing else is touched."
+              : "Set JUSTICE_AGENT_PHONE and JUSTICE_AGENT_PASSWORD to fetch costs automatically."
+          }
+        />
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <MarkupTool
           defaultMarkup={config.markupPercent}
           defaultAgentDiscount={program.agentDiscountPercent}

@@ -473,20 +473,22 @@ export async function setAgentReferralWaiver(
   const agentId = str(fd, "agentId");
   if (!agentId) return { error: "Missing agent." };
 
-  const raw = str(fd, "referralWaiverPercent");
-  let percent: number | null = null;
-  if (raw !== "") {
-    const n = Number(raw);
-    if (!Number.isFinite(n) || n < 0 || n > 100) {
-      return { error: "Enter a waiver between 0 and 100 percent, or leave it blank." };
-    }
-    percent = round2(n);
+  const waiver = optionalPercent(fd, "referralWaiverPercent");
+  if ("error" in waiver) {
+    return { error: "Enter a waiver between 0 and 100 percent, or leave it blank." };
+  }
+  const share = optionalPercent(fd, "referralSharePercent");
+  if ("error" in share) {
+    return { error: "Enter a share between 0 and 100 percent, or leave it blank." };
   }
 
   try {
     await dataDb.dataAgent.update({
       where: { id: agentId },
-      data: { referralWaiverPercent: percent },
+      data: {
+        referralWaiverPercent: waiver.value,
+        referralSharePercent: share.value,
+      },
     });
   } catch {
     return { error: STORAGE_ERROR };
@@ -494,15 +496,44 @@ export async function setAgentReferralWaiver(
 
   revalidateAgents(agentId);
   revalidatePath("/become-an-agent");
-  return {
-    ok: true,
-    message:
-      percent === null
-        ? "This agent's recruits now follow the programme default."
-        : percent >= 100
-          ? "Recruits joining with this agent's code register free."
-          : `Recruits joining with this agent's code get ${percent}% off the registration fee.`,
-  };
+
+  // Both halves in one line, because they only make sense together: what a
+  // recruit is charged, and how much of it comes back here.
+  const charged =
+    waiver.value === null
+      ? "Recruits follow the default waiver"
+      : waiver.value >= 100
+        ? "Recruits register free"
+        : waiver.value > 0
+          ? `Recruits get ${waiver.value}% off`
+          : "Recruits pay the full fee";
+  const kept =
+    share.value === null
+      ? "and this agent keeps the default share of it."
+      : share.value > 0
+        ? `and this agent keeps ${share.value}% of what they pay.`
+        : "and this agent keeps none of it.";
+
+  return { ok: true, message: `${charged} ${kept}` };
+}
+
+/**
+ * A percentage field that may be left blank.
+ *
+ * Blank is not zero anywhere in the referral programme: blank follows the
+ * programme default as it changes, zero is a decision that outlives it. The
+ * two have to stay distinguishable all the way from the form to the column,
+ * so an empty field becomes null rather than 0.
+ */
+function optionalPercent(
+  fd: FormData,
+  key: string,
+): { value: number | null } | { error: true } {
+  const raw = str(fd, key);
+  if (raw === "") return { value: null };
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 100) return { error: true };
+  return { value: round2(n) };
 }
 
 const editSchema = z.object({
