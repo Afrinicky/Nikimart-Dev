@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { dataDb } from "@/lib/data-db";
-import { CATEGORIES_TAG } from "@/lib/catalog";
+import { CATEGORIES_TAG, PRODUCTS_TAG, VENDORS_TAG } from "@/lib/catalog";
 import { requireAdmin } from "@/lib/session";
 import { ROLES } from "@/lib/roles";
 import { buildProductData, parseImages, validateProduct } from "@/lib/product-form";
@@ -61,8 +61,11 @@ function zodErrors(error: z.ZodError): CrudState {
 }
 
 function revalidateCatalog() {
-  // The header's category list is cached across requests; drop it by tag.
+  // These lists are cached across requests now, so dropping the paths alone
+  // would leave the cached queries behind them untouched.
   updateTag(CATEGORIES_TAG);
+  updateTag(PRODUCTS_TAG);
+  updateTag(VENDORS_TAG);
   revalidatePath("/");
   revalidatePath("/products");
   revalidatePath("/shops");
@@ -476,6 +479,7 @@ export async function setOrderStatus(fd: FormData): Promise<void> {
     // transition so re-saving "cancelled" can't inflate stock repeatedly.
     if (status === "cancelled" && before && before.status !== "cancelled") {
       await releaseStockForOrder(id);
+      updateTag(PRODUCTS_TAG);
       revalidatePath("/products");
     }
     // Admin override: force the shipment's confirmed stages to match, back-filling

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { cookies } from "next/headers";
 import { after } from "next/server";
 import { z } from "zod";
@@ -13,6 +13,7 @@ import { REFERRAL_COOKIE } from "@/lib/affiliate";
 import { resolveCommissionRate } from "@/lib/commission";
 import { affiliateLineCommission, resolveAffiliateRate } from "@/lib/affiliate-commission";
 import { releaseStockForOrder, tracksStock } from "@/lib/stock";
+import { PRODUCTS_TAG } from "@/lib/catalog";
 import { priceCart } from "@/lib/cart-pricing";
 import { amountDueNow, balanceAfter, type PaymentPlan } from "@/lib/cart-bill";
 import { isPaymentConfigured, initializeTransaction, toPesewas } from "@/lib/payments";
@@ -396,6 +397,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
             .update({ where: { id: order.id }, data: { status: "cancelled" } })
             .catch(() => {});
           await releaseStockForOrder(order.id).catch(() => {});
+          updateTag(PRODUCTS_TAG);
           return {
             ok: false,
             error: err instanceof Error ? err.message : "Could not start the payment. Please try again.",
@@ -410,6 +412,9 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         await notifyStaffNewOrder(order.id);
       });
 
+      // The order reserved stock, so every cached listing is now a card out of
+      // date. Cheap to drop; the next visitor re-reads once.
+      updateTag(PRODUCTS_TAG);
       revalidatePath("/orders");
       revalidatePath("/account");
       revalidatePath("/admin/orders");

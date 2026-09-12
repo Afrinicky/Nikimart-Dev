@@ -171,9 +171,18 @@ export const getCategories = cache(async (): Promise<Category[]> => {
   }
 });
 
+/** Cache tag for the shop list. Any vendor write must drop it. */
+export const VENDORS_TAG = "vendors";
+
+const readVendors = unstable_cache(
+  async () => prisma.vendor.findMany({ orderBy: { businessName: "asc" } }),
+  ["vendors"],
+  { tags: [VENDORS_TAG], revalidate: 120 },
+);
+
 export const getVendors = cache(async (): Promise<Vendor[]> => {
   try {
-    const rows = await prisma.vendor.findMany({ orderBy: { businessName: "asc" } });
+    const rows = await readVendors();
     return rows.map(mapVendor);
   } catch {
     return [];
@@ -247,13 +256,38 @@ const LIVE = { isArchived: false } as const;
  * callers below narrowing in SQL rather than calling this and filtering in
  * JavaScript: a category page that wants twelve products should ask for twelve.
  */
-export const getProducts = cache(async (): Promise<Product[]> => {
-  try {
-    const rows = await prisma.product.findMany({
-      where: LIVE,
+/** Cache tag for every product listing. Any write that changes a card drops it. */
+export const PRODUCTS_TAG = "products";
+
+/**
+ * The one query every listing goes through, cached across requests.
+ *
+ * `/products` is a dynamic route — it has to be, it reads filters from the
+ * query string — so before this it re-read the catalogue for every visitor and
+ * every bot. The cache key includes the `where` and the limit, so each distinct
+ * filter keeps its own entry and a repeat of the same view costs nothing.
+ *
+ * Short window, and every catalogue write drops the tag, so an edit is live at
+ * once. A card can still be up to the window out of date on stock, which is
+ * safe: the product page itself is uncached, and checkout reserves stock with
+ * an atomic guarded decrement, so a sold-out product cannot be oversold from a
+ * stale grid — the race simply fails and rolls back.
+ */
+const readProductCards = unstable_cache(
+  async (where: Record<string, unknown>, take?: number) =>
+    prisma.product.findMany({
+      where: { ...LIVE, ...where },
       orderBy: { name: "asc" },
       select: CARD_SELECT,
-    });
+      ...(take ? { take } : {}),
+    }),
+  ["product-cards"],
+  { tags: [PRODUCTS_TAG], revalidate: 120 },
+);
+
+export const getProducts = cache(async (): Promise<Product[]> => {
+  try {
+    const rows = await readProductCards({});
     return rows.map(mapProductCard);
   } catch {
     return [];
@@ -266,12 +300,7 @@ async function listProducts(
   opts: { take?: number } = {},
 ): Promise<Product[]> {
   try {
-    const rows = await prisma.product.findMany({
-      where: { ...LIVE, ...where },
-      orderBy: { name: "asc" },
-      select: CARD_SELECT,
-      ...(opts.take ? { take: opts.take } : {}),
-    });
+    const rows = await readProductCards(where, opts.take);
     return rows.map(mapProductCard);
   } catch {
     return [];

@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
 export interface BannerSlide {
@@ -70,12 +71,22 @@ export const DEFAULT_BANNERS: BannerSlide[] = [
 
 /** Active carousel slides for the storefront. Falls back to defaults; resilient
  *  if the Banner table isn't migrated yet (won't crash the homepage). */
-export const getBanners = cache(async (): Promise<BannerSlide[]> => {
-  try {
-    const rows = await prisma.banner.findMany({
+/** Cache tag for the carousel. Any banner write must drop it. */
+export const BANNERS_TAG = "banners";
+
+const readBanners = unstable_cache(
+  async () =>
+    prisma.banner.findMany({
       where: { isActive: true },
       orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-    });
+    }),
+  ["banners"],
+  { tags: [BANNERS_TAG], revalidate: 300 },
+);
+
+export const getBanners = cache(async (): Promise<BannerSlide[]> => {
+  try {
+    const rows = await readBanners();
     if (rows.length) {
       return rows.map((r) => ({
         id: r.id,
