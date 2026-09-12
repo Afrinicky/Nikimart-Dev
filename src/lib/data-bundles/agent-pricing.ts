@@ -66,3 +66,31 @@ export function outstandingSetupFee(balance: number, setupFee: number): number {
   if (balance >= 0) return 0;
   return round2(Math.min(-balance, setupFee));
 }
+
+/**
+ * Is this agent's registration still standing between them and trading?
+ *
+ * Only for an agent settling it up front: their store is not open for business
+ * until the fee clears, which is what "pay to register" has to mean if it is to
+ * mean anything. An agent clearing the fee out of commission was promised the
+ * opposite — nothing to pay before they start — so their store opens
+ * immediately and the debit clears itself.
+ *
+ * What holds the store shut is money owed, not a flag. The two came apart the
+ * first time an admin waived a fee the way an admin naturally would, by
+ * crediting the balance: that settles the debt in the ledger but stamps
+ * nothing, so the agent owed nobody anything and their store stayed closed with
+ * no way for anyone to open it. Asking what is outstanding instead means a
+ * balance brought back to zero opens the store however it got there.
+ */
+export function registrationBlocksSelling(agent: {
+  setupFeeMethod: string;
+  setupFeePaidAt: Date | null;
+  setupFee: number;
+  balance: number;
+}): boolean {
+  if (agent.setupFeeMethod !== "UPFRONT") return false;
+  if (agent.setupFeePaidAt) return false;
+  if (agent.setupFee <= 0) return false;
+  return outstandingSetupFee(agent.balance, agent.setupFee) > 0;
+}
