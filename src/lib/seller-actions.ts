@@ -1,11 +1,12 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import type { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { termsAccepted, TERMS_REQUIRED_MESSAGE } from "@/lib/terms";
 import { requireUser } from "@/lib/session";
+import { PRODUCTS_TAG, VENDORS_TAG } from "@/lib/catalog";
 import { buildProductData, parseImages, validateProduct } from "@/lib/product-form";
 import { syncProductImages } from "@/lib/product-images";
 import type { CrudState } from "@/lib/admin-actions";
@@ -28,6 +29,8 @@ function zodErrors(error: z.ZodError): CrudState {
 }
 
 function revalidate() {
+  updateTag(PRODUCTS_TAG);
+  updateTag(VENDORS_TAG);
   revalidatePath("/seller/products");
   revalidatePath("/seller");
   revalidatePath("/");
@@ -136,6 +139,7 @@ export async function updateSellerShop(_prev: SellerShopState, fd: FormData): Pr
     return { error: "Couldn't save your shop. Please try again." };
   }
 
+  updateTag(VENDORS_TAG);
   revalidatePath("/seller/settings");
   revalidatePath("/seller");
   revalidatePath("/shops");

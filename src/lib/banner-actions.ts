@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+import { BANNERS_TAG } from "@/lib/banners";
 import { isSafeImageUrl } from "@/lib/product-form";
 import type { CrudState } from "@/lib/admin-actions";
 
@@ -42,6 +43,7 @@ function bannerData(fd: FormData) {
 }
 
 function revalidateBanners() {
+  updateTag(BANNERS_TAG);
   revalidatePath("/", "layout");
   revalidatePath("/admin/banners");
 }
