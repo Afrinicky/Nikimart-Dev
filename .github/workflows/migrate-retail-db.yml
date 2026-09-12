@@ -1,0 +1,163 @@
+# Move the whole retail database to a new Postgres, from a button.
+#
+# This is a full dump and restore — every table, index, constraint and row —
+# not the selective copy the bundle move used. It is the right tool when the
+# goal is "the same database, somewhere else".
+#
+# Run it from GitHub: Actions → "Migrate the retail database" → Run workflow.
+#
+#   check    Connect to both ends and print what is there. Changes nothing.
+#   migrate  Dump the old database and restore it into the new one.
+#   verify   Compare row counts table by table, old against new.
+#
+# Two repository secrets are needed (Settings → Secrets and variables →
+# Actions):
+#   NIKIMART_DATABASE_URL      the CURRENT retail database — copied FROM
+#   NEW_RETAIL_DATABASE_URL    the new, empty database  — copied TO
+#
+# Neither is ever printed: psql and pg_dump read them from the environment.
+#
+# ORDER OF OPERATIONS for a live site:
+#   1. "check"   — confirm both ends are reachable and the target is empty.
+#   2. "migrate" — during a quiet hour; it does not take the site down, but any
+#                  order placed after the dump starts will not be in the copy.
+#   3. "verify"  — row counts must match before you trust it.
+#   4. Switch DATABASE_URL in Vercel and redeploy.
+#   5. "migrate" again is NOT safe onto a populated target — see the guard.
+#
+# The old database is only ever read. Nothing here can damage it.
+
+name: Migrate the retail database
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "check = look only. migrate = dump and restore. verify = compare row counts."
+        required: true
+        default: check
+        type: choice
+        options:
+          - check
+          - migrate
+          - verify
+
+concurrency:
+  group: migrate-retail-db
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: ${{ inputs.mode }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      OLD_URL: ${{ secrets.NIKIMART_DATABASE_URL }}
+      NEW_URL: ${{ secrets.NEW_RETAIL_DATABASE_URL }}
+
+    steps:
+      - name: Check both secrets are set
+        run: |
+          if [ -z "$OLD_URL" ]; then
+            echo "::error::NIKIMART_DATABASE_URL is not set."; exit 1
+          fi
+          if [ -z "$NEW_URL" ]; then
+            echo "::error::NEW_RETAIL_DATABASE_URL is not set."; exit 1
+          fi
+
+      # The client must be at least as new as the newer server. Neon creates
+      # new projects on Postgres 18, while the old one is on 16, and a 16
+      # pg_dump cannot read an 18 catalogue. Installing 18 covers both.
+      - name: Install PostgreSQL 18 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-18
+          /usr/lib/postgresql/18/bin/pg_dump --version
+
+      - name: Look at both ends
+        run: |
+          export PATH=/usr/lib/postgresql/18/bin:$PATH
+          echo "=== OLD database ==="
+          psql "$OLD_URL" -At -c "SELECT current_setting('server_version');" | sed 's/^/  Postgres /'
+          psql "$OLD_URL" -At -c "
+            SELECT count(*) FROM information_schema.tables
+            WHERE table_schema='public' AND table_type='BASE TABLE';" | sed 's/^/  tables: /'
+          psql "$OLD_URL" -At -c "
+            SELECT pg_size_pretty(pg_database_size(current_database()));" | sed 's/^/  size: /'
+          echo "=== NEW database ==="
+          psql "$NEW_URL" -At -c "SELECT current_setting('server_version');" | sed 's/^/  Postgres /'
+          NEWTABLES=$(psql "$NEW_URL" -At -c "
+            SELECT count(*) FROM information_schema.tables
+            WHERE table_schema='public' AND table_type='BASE TABLE';")
+          echo "  tables: $NEWTABLES"
+          echo "NEWTABLES=$NEWTABLES" >> "$GITHUB_ENV"
+
+      # Restoring over existing tables is how you get a half-merged database
+      # that looks fine and is not. The target must be empty.
+      - name: Refuse to restore onto a database that already has tables
+        if: inputs.mode == 'migrate'
+        run: |
+          if [ "${NEWTABLES:-0}" != "0" ]; then
+            echo "::error::The target already has $NEWTABLES tables. Restore only into an empty database."
+            echo "::error::To start over: in the Neon SQL Editor run  DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+            exit 1
+          fi
+          echo "Target is empty. Good."
+
+      - name: Dump and restore
+        if: inputs.mode == 'migrate'
+        run: |
+          export PATH=/usr/lib/postgresql/18/bin:$PATH
+          echo "Dumping..."
+          # --no-owner / --no-acl: the new database has a different owning role,
+          # and carrying the old one over only produces errors on restore.
+          pg_dump "$OLD_URL" \
+            --no-owner --no-acl --no-comments \
+            --format=custom --compress=6 \
+            --file=/tmp/retail.dump
+          ls -lh /tmp/retail.dump | awk '{print "  dump size: "$5}'
+          echo "Restoring..."
+          pg_restore --dbname="$NEW_URL" \
+            --no-owner --no-acl --single-transaction \
+            --exit-on-error \
+            /tmp/retail.dump
+          echo "Restore finished without error."
+
+      - name: Compare row counts, table by table
+        if: inputs.mode == 'verify' || inputs.mode == 'migrate'
+        run: |
+          export PATH=/usr/lib/postgresql/18/bin:$PATH
+          COUNTSQL="SELECT table_name FROM information_schema.tables
+                    WHERE table_schema='public' AND table_type='BASE TABLE'
+                    ORDER BY table_name;"
+          FAIL=0
+          printf "%-32s %12s %12s\n" "TABLE" "OLD" "NEW"
+          for t in $(psql "$OLD_URL" -At -c "$COUNTSQL"); do
+            A=$(psql "$OLD_URL" -At -c "SELECT count(*) FROM \"$t\";" 2>/dev/null || echo ERR)
+            B=$(psql "$NEW_URL" -At -c "SELECT count(*) FROM \"$t\";" 2>/dev/null || echo MISSING)
+            if [ "$A" = "$B" ]; then
+              printf "%-32s %12s %12s   ok\n" "$t" "$A" "$B"
+            else
+              printf "%-32s %12s %12s   MISMATCH\n" "$t" "$A" "$B"
+              FAIL=1
+            fi
+          done
+          if [ "$FAIL" = "1" ]; then
+            echo "::error::Row counts differ. Do not switch DATABASE_URL until this is resolved."
+            exit 1
+          fi
+          echo "Every table matches."
+
+      - name: What to do next
+        if: inputs.mode == 'migrate'
+        run: |
+          echo "The copy is in place and the row counts match."
+          echo "Next: set DATABASE_URL in Vercel to the new connection string and redeploy."
+          echo "Keep the old database untouched until the new one has served real traffic."
