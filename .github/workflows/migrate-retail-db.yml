@@ -81,6 +81,55 @@ jobs:
           sudo apt-get install -y -qq postgresql-client-18
           /usr/lib/postgresql/18/bin/pg_dump --version
 
+      # Two things about a Neon connection string will stop pg_dump dead, and
+      # both are easy to paste in by accident, so they are handled here rather
+      # than left as instructions.
+      #
+      #   -pooler   routes through PgBouncer. A transaction-mode pooler cannot
+      #             serve pg_dump's consistent snapshot, and --single-transaction
+      #             on restore fails outright. The direct endpoint is the same
+      #             host without that suffix.
+      #   Prisma-only parameters (connection_limit, pool_timeout, pgbouncer,
+      #             schema) are not libpq parameters. libpq does not ignore an
+      #             unknown one, it refuses the URL.
+      #
+      # The cleaned URLs are masked before use, so a log line can never carry
+      # one even though it is no longer the literal secret GitHub knows about.
+      - name: Normalise both connection strings
+        run: |
+          clean() {
+            python3 - "$1" <<'EOF'
+          import os, sys
+          from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+          u = urlsplit(sys.argv[1].strip())
+          host = (u.hostname or "")
+          if "-pooler." in host:
+              host = host.replace("-pooler.", ".", 1)
+              print("  using the direct endpoint instead of the pooler", file=sys.stderr)
+          netloc = ""
+          if u.username:
+              netloc += u.username
+              if u.password:
+                  netloc += ":" + u.password
+              netloc += "@"
+          netloc += host
+          if u.port:
+              netloc += f":{u.port}"
+          drop = {"connection_limit", "pool_timeout", "pgbouncer", "schema"}
+          q = [(k, v) for k, v in parse_qsl(u.query) if k not in drop]
+          if not any(k == "sslmode" for k, _ in q):
+              q.append(("sslmode", "require"))
+          print(urlunsplit((u.scheme, netloc, u.path, urlencode(q), "")))
+          EOF
+          }
+          OLD_CLEAN=$(clean "$OLD_URL")
+          NEW_CLEAN=$(clean "$NEW_URL")
+          echo "::add-mask::$OLD_CLEAN"
+          echo "::add-mask::$NEW_CLEAN"
+          echo "OLD_URL=$OLD_CLEAN" >> "$GITHUB_ENV"
+          echo "NEW_URL=$NEW_CLEAN" >> "$GITHUB_ENV"
+          echo "Both connection strings normalised."
+
       - name: Look at both ends
         run: |
           export PATH=/usr/lib/postgresql/18/bin:$PATH
