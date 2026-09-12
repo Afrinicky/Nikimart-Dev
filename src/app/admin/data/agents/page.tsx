@@ -145,10 +145,22 @@ export default async function AdminAgentsPage({
                       {a.referrerId ? "" : " · code didn't resolve"}
                     </span>
                   ) : null}
-                  <span className="rounded-full bg-niki-ink/5 px-3 py-1 font-semibold text-niki-ink/60">
-                    {a.feeMethod === "UPFRONT"
-                      ? "Will pay the registration fee up front"
-                      : "Registration fee from commission"}
+                  {/* The one thing that decides whether this can be approved. */}
+                  <span
+                    className={cn(
+                      "rounded-full px-3 py-1 font-semibold",
+                      a.paymentStatus === "paid"
+                        ? "bg-niki-success/10 text-niki-success"
+                        : a.paymentStatus === "pending"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-niki-ink/5 text-niki-ink/60",
+                    )}
+                  >
+                    {a.paymentStatus === "paid"
+                      ? `Paid ${formatMoney(a.feeAmount)}`
+                      : a.paymentStatus === "pending"
+                        ? `Awaiting ${formatMoney(a.feeAmount)} payment`
+                        : "Fee clears from commission"}
                   </span>
                 </div>
 
@@ -159,7 +171,14 @@ export default async function AdminAgentsPage({
                 ) : null}
 
                 <div className="mt-4">
-                  <ApplicationReview id={a.id} />
+                  <ApplicationReview
+                    id={a.id}
+                    blocked={
+                      a.paymentStatus === "pending"
+                        ? "Can't approve until the registration payment clears"
+                        : undefined
+                    }
+                  />
                 </div>
               </article>
             ))}

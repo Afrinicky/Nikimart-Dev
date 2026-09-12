@@ -6,6 +6,7 @@ import { LoginForm } from "@/components/auth/LoginForm";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { auth } from "@/lib/auth";
 import { isRole, ROLE_HOME } from "@/lib/roles";
+import { isAgentUser } from "@/lib/data-bundles/agents";
 
 export const metadata: Metadata = {
   title: "Sign in — Nickimart",
@@ -20,7 +21,15 @@ export default async function LoginPage({
   const { callbackUrl } = await searchParams;
   const cb = callbackUrl && callbackUrl.startsWith("/") && !callbackUrl.startsWith("//") ? callbackUrl : undefined;
   if (session?.user) {
-    redirect(cb ?? (isRole(session.user.role) ? ROLE_HOME[session.user.role] : "/account"));
+    // An agent's home is their console, not the customer account page — the
+    // same rule loginAction applies, so arriving here already signed in ends
+    // up in the same place as signing in does.
+    const role = isRole(session.user.role) ? session.user.role : "CUSTOMER";
+    const home =
+      role === "CUSTOMER" && session.user.id && (await isAgentUser(session.user.id))
+        ? "/agent"
+        : ROLE_HOME[role];
+    redirect(cb ?? home);
   }
 
   return (

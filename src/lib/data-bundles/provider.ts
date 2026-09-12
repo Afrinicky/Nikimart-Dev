@@ -208,3 +208,201 @@ export async function createProviderAfa(input: AfaInput): Promise<ProviderResult
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// The price list
+// ---------------------------------------------------------------------------
+
+/**
+ * What each bundle costs us, read from the provider's own package list.
+ *
+ * This is the one thing the API key cannot get at. `/api/*` is the order-taking
+ * surface — balance, order, AFA — and it has no price endpoint; the prices live
+ * behind the agent dashboard's own session, on `/packages/agent/tier`, which is
+ * the tier this account actually buys at. So this half signs in with the
+ * dashboard credentials rather than the key:
+ *
+ *   JUSTICE_AGENT_PHONE     the phone the agent dashboard is signed in with
+ *   JUSTICE_AGENT_PASSWORD  its password
+ *
+ * Both are optional. Without them the cost sync simply reports that it has no
+ * credentials and nothing else changes — orders keep being fulfilled on the API
+ * key exactly as before, and cost prices stay whatever an admin last typed.
+ *
+ * Note what these credentials are *not* used for: nothing here ever orders,
+ * transfers or changes anything upstream. It signs in and reads a price list.
+ */
+
+function agentCredentials(): { phoneNumber: string; password: string } | null {
+  const phoneNumber = process.env.JUSTICE_AGENT_PHONE?.trim();
+  const password = process.env.JUSTICE_AGENT_PASSWORD;
+  if (!phoneNumber || !password) return null;
+  return { phoneNumber, password };
+}
+
+/** True when the dashboard credentials are present and costs can be synced. */
+export function isProviderDashboardConfigured(): boolean {
+  return agentCredentials() !== null;
+}
+
+/**
+ * The dashboard session, cached for the life of the process.
+ *
+ * A sync is a handful of page requests; signing in for each of them would turn
+ * a daily job into a daily burst of failed-login alerts on somebody else's
+ * system. The window is deliberately short — an hour — because a token we
+ * cannot refresh is worse than one we re-fetch.
+ */
+let session: { token: string; expiresAt: number } | null = null;
+const SESSION_TTL_MS = 60 * 60_000;
+
+function tokenFrom(value: unknown, depth = 0): string | null {
+  if (typeof value === "string") return value.includes(".") ? value : null;
+  if (depth > 3 || typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  for (const key of ["token", "accessToken", "access_token", "jwt", "authToken"]) {
+    const found = record[key];
+    if (typeof found === "string" && found.trim()) return found.trim();
+  }
+  for (const key of ["payload", "data", "user", "agent", "result"]) {
+    const nested = tokenFrom(record[key], depth + 1);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+async function dashboardToken(): Promise<{ token: string | null; message: string }> {
+  const creds = agentCredentials();
+  if (!creds) {
+    return { token: null, message: "No dashboard credentials (JUSTICE_AGENT_PHONE / JUSTICE_AGENT_PASSWORD)." };
+  }
+  if (session && session.expiresAt > Date.now()) {
+    return { token: session.token, message: "OK" };
+  }
+
+  try {
+    const res = await fetch(`${providerBase()}/auth/login-agent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(creds),
+      cache: "no-store",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    const text = await res.text().catch(() => "");
+    let json: unknown = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      // Non-JSON body; the message below still says what happened.
+    }
+
+    const token = tokenFrom(json);
+    if (!token) {
+      // The usual cause is a one-time code: the dashboard can be set to send an
+      // OTP on sign-in, and a sign-in that needs a human cannot be automated.
+      // Say so plainly rather than reporting "wrong password".
+      const message =
+        (typeof json === "object" && json !== null
+          ? String((json as Record<string, unknown>).message ?? "")
+          : "") || `Sign-in returned HTTP ${res.status}.`;
+      return { token: null, message: `Could not sign in to the provider dashboard: ${message}` };
+    }
+
+    session = { token, expiresAt: Date.now() + SESSION_TTL_MS };
+    return { token, message: "OK" };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    console.error(`[data-bundles] provider dashboard sign-in failed: ${reason}`);
+    return { token: null, message: "Could not reach the provider dashboard." };
+  }
+}
+
+/** One package as the provider lists it. Sizes are theirs; we normalise later. */
+export interface RawProviderPackage {
+  network?: unknown;
+  size?: unknown;
+  price?: unknown;
+  available?: unknown;
+}
+
+/** Pull however the list is wrapped — an array, or a page object around one. */
+function rowsFrom(payload: unknown): RawProviderPackage[] {
+  if (Array.isArray(payload)) return payload as RawProviderPackage[];
+  if (typeof payload !== "object" || payload === null) return [];
+  const record = payload as Record<string, unknown>;
+  for (const key of ["data", "items", "packages", "results", "rows"]) {
+    const value = record[key];
+    if (Array.isArray(value)) return value as RawProviderPackage[];
+  }
+  return [];
+}
+
+const PAGE_SIZE = 100;
+/** Enough for several times the whole ladder; a guard, not a limit. */
+const MAX_PAGES = 10;
+
+/**
+ * Every package this account can buy, at the price it pays.
+ *
+ * `/packages/agent/tier` is the account's own tier — what it is actually
+ * charged — and `/packages` is the whole catalogue. The tier list is the one
+ * that answers "what does this cost me", so it is tried first and the
+ * catalogue is the fallback for an account that has no tier of its own.
+ */
+export async function listProviderPackages(): Promise<ProviderResult<RawProviderPackage[]>> {
+  const auth = await dashboardToken();
+  if (!auth.token) return { ok: false, message: auth.message, status: 0, payload: null };
+
+  for (const path of ["/packages/agent/tier", "/packages"]) {
+    const collected: RawProviderPackage[] = [];
+    let failed: ProviderResult<RawProviderPackage[]> | null = null;
+
+    for (let page = 1; page <= MAX_PAGES; page += 1) {
+      let rows: RawProviderPackage[] = [];
+      try {
+        const res = await fetch(
+          `${providerBase()}${path}?page=${page}&pageSize=${PAGE_SIZE}`,
+          {
+            headers: { Authorization: `Bearer ${auth.token}`, Accept: "application/json" },
+            cache: "no-store",
+            signal: AbortSignal.timeout(TIMEOUT_MS),
+          },
+        );
+        const text = await res.text().catch(() => "");
+        let json: Envelope<unknown> | null = null;
+        try {
+          json = text ? (JSON.parse(text) as Envelope<unknown>) : null;
+        } catch {
+          // as elsewhere: keep the raw body for the message
+        }
+        if (!res.ok || json?.status === false) {
+          failed = {
+            ok: false,
+            message: json?.message ?? `Provider returned HTTP ${res.status}`,
+            status: res.status,
+            payload: null,
+          };
+          break;
+        }
+        rows = rowsFrom(json?.payload ?? json);
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        console.error(`[data-bundles] GET ${path} failed: ${reason}`);
+        failed = { ok: false, message: "Could not reach the provider.", status: 0, payload: null };
+        break;
+      }
+
+      collected.push(...rows);
+      if (rows.length < PAGE_SIZE) break;
+    }
+
+    if (collected.length > 0) {
+      return { ok: true, message: "OK", status: 200, payload: collected };
+    }
+    // A tier endpoint that answered with nothing is not an error worth
+    // reporting on its own — fall through and try the full catalogue.
+    if (failed && path === "/packages") return failed;
+  }
+
+  return { ok: false, message: "The provider returned no packages.", status: 200, payload: [] };
+}

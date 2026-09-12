@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/session";
 import { isNetwork, type Network } from "@/lib/data-bundles/networks";
 import { dispatchDataOrder, refreshDataOrder, dispatchAfaRegistration } from "@/lib/data-bundles/fulfillment";
 import { runDataBundleSweep } from "@/lib/data-bundles/monitor";
+import { syncBundleCosts } from "@/lib/data-bundles/cost-sync";
 import { voidAgentCommission } from "@/lib/data-bundles/agent-ledger";
 import { voidTeamCommission } from "@/lib/data-bundles/referrals";
 
@@ -139,6 +140,25 @@ export async function saveBundlePrices(
 
   revalidateAll();
   return { ok: true, message: `Saved ${updates.length} ${updates.length === 1 ? "price" : "prices"}.` };
+}
+
+/**
+ * Pull today's cost prices from the provider, on demand.
+ *
+ * The same sync the daily sweep runs, on a button — because the day a provider
+ * moves a price is exactly the day you don't want to wait for tonight's cron.
+ * It only ever writes the cost column; retail prices, agent prices and what is
+ * on sale are left as they are.
+ */
+// The form has no fields — useActionState's two arguments are the price of
+// being able to show the result of the last run.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function refreshBundleCosts(_prev: DataAdminState, _fd: FormData): Promise<DataAdminState> {
+  await requireAdmin();
+  const result = await syncBundleCosts();
+  if (!result.ok) return { error: result.message };
+  if (result.updated > 0) revalidateAll();
+  return { ok: true, message: result.message };
 }
 
 /** Add a size that isn't in the ladder yet. */

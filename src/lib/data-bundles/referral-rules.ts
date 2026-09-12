@@ -184,6 +184,26 @@ export function waiverPercentFor(
 }
 
 /**
+ * The share of a recruit's registration fee that comes back to their recruiter.
+ *
+ * Same shape as the waiver above, and for the same reason: null follows the
+ * programme default as it changes, while an explicit 0 credits this agent
+ * nothing however generous the default becomes. The two are set together and
+ * answer different halves of one question — the waiver is what the recruit is
+ * charged, this is who keeps it.
+ */
+export function sharePercentFor(
+  agentSharePercent: number | null | undefined,
+  defaultPercent: number,
+): number {
+  return clampPercent(
+    agentSharePercent === null || agentSharePercent === undefined
+      ? defaultPercent
+      : agentSharePercent,
+  );
+}
+
+/**
  * What is still owed on a registration fee.
  *
  * The fee is charged as a debit, so what is outstanding is however far below

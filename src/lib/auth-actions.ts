@@ -9,6 +9,7 @@ import { termsAccepted, TERMS_REQUIRED_MESSAGE } from "@/lib/terms";
 import { prisma } from "@/lib/prisma";
 import { isRole, ROLE_HOME } from "@/lib/roles";
 import { findUserByIdentifier } from "@/lib/user-lookup";
+import { isAgentUser } from "@/lib/data-bundles/agents";
 import { clearRateLimit, rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 
 /** Best-effort client IP, for rate-limiting keys. */
@@ -59,6 +60,21 @@ const loginSchema = z.object({
 
 function homeForRole(role: string | undefined) {
   return role && isRole(role) ? ROLE_HOME[role] : "/account";
+}
+
+/**
+ * Where signing in should land this account.
+ *
+ * Reselling data is the thing an agent signs in to do. Sending them to the
+ * customer account page first and asking them to find their own console made
+ * every session two steps long, so membership of the agent programme wins over
+ * the role's own dashboard — with one exception: staff keep theirs, because an
+ * admin who also holds a storefront is signing in to run the site.
+ */
+async function homeForUser(user: { id: string; role: string } | null): Promise<string> {
+  if (!user) return "/account";
+  if (user.role === "CUSTOMER" && (await isAgentUser(user.id))) return "/agent";
+  return homeForRole(user.role);
 }
 
 /** Only allow same-site relative paths as a post-auth redirect target. */
@@ -214,7 +230,7 @@ export async function loginAction(
   }
 
   const user = await findUserByIdentifier(identifier);
-  const redirectTo = safeCallback(formData.get("callbackUrl")) ?? homeForRole(user?.role);
+  const redirectTo = safeCallback(formData.get("callbackUrl")) ?? (await homeForUser(user));
 
   try {
     await signIn("credentials", {

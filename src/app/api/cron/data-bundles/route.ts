@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { updateTag } from "next/cache";
 import { runDataBundleSweep } from "@/lib/data-bundles/monitor";
+import { BUNDLES_TAG } from "@/lib/data-bundles/catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,5 +26,11 @@ export async function GET(request: Request) {
   }
 
   const result = await runDataBundleSweep();
+
+  // The sweep refreshes cost prices from the provider, and the buyable ladder
+  // is cached by tag — without this the new costs would sit in the database
+  // while every screen kept quoting the old margin until the window expired.
+  if (result.costsUpdated > 0) updateTag(BUNDLES_TAG);
+
   return NextResponse.json({ ok: true, ...result });
 }

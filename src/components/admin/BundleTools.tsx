@@ -2,10 +2,15 @@
 
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { Loader2, Percent, Plus } from "lucide-react";
+import { Loader2, Percent, Plus, RefreshCw } from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { NETWORK_LIST } from "@/lib/data-bundles/networks";
-import { applyMarkup, createBundle, type DataAdminState } from "@/lib/data-bundles/admin-actions";
+import {
+  applyMarkup,
+  createBundle,
+  refreshBundleCosts,
+  type DataAdminState,
+} from "@/lib/data-bundles/admin-actions";
 
 function Submit({ label, busy }: { label: string; busy: string }) {
   const { pending } = useFormStatus();
@@ -38,6 +43,47 @@ function Result({ state }: { state: DataAdminState }) {
     );
   }
   return null;
+}
+
+/**
+ * Pull today's cost prices from the provider.
+ *
+ * Costs refresh themselves once a day, so this is for the rest of the day —
+ * the provider moves a price at noon and nobody wants to sell against last
+ * night's number until tonight.
+ */
+export function CostSyncTool({ syncedLabel }: { syncedLabel: string }) {
+  const [state, formAction] = useActionState<DataAdminState, FormData>(refreshBundleCosts, {});
+
+  return (
+    <form
+      action={formAction}
+      className="flex flex-wrap items-center gap-3 rounded-2xl bg-white px-5 py-4 ring-1 ring-niki-edge"
+    >
+      <div className="min-w-0 flex-1">
+        <p className="font-display text-sm font-bold text-niki-ink">Provider costs</p>
+        <p className="mt-0.5 text-xs text-niki-ink/55">
+          {state.error ?? (state.ok ? state.message : syncedLabel)}
+        </p>
+      </div>
+      <SyncButton />
+    </form>
+  );
+}
+
+function SyncButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending || undefined}
+      className="niki-press niki-focus flex shrink-0 items-center gap-2 rounded-full bg-niki-black px-4 py-2 text-xs font-bold text-white disabled:opacity-60"
+    >
+      <RefreshCw className={pending ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+      {pending ? "Fetching…" : "Fetch now"}
+    </button>
+  );
 }
 
 /**

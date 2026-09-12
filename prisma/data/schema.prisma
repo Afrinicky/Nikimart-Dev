@@ -304,6 +304,14 @@ model DataAgent {
    */
   referralWaiverPercent Float?
   /**
+   * Of whatever this agent's own recruits *do* pay towards their registration,
+   * the percentage credited back to this agent. Null means "use the programme
+   * default"; an explicit 0 means this agent is never credited a share,
+   * whatever the default becomes. The waiver above decides what a recruit is
+   * charged; this decides who keeps it.
+   */
+  referralSharePercent Float?
+  /**
    * The agent who recruited this one — their direct (level 1) upline. Set once,
    * when the account is created from an application that quoted a referral
    * code, and never changed after activation: `referralLockedAt` records when
@@ -668,6 +676,49 @@ model DataAgentApplication {
    */
   agentId        String?
 
+  // --- What the applicant set for themselves --------------------------------
+  /**
+   * The password they chose on the signup form, hashed. It is moved onto the
+   * Nickimart user account at approval and cleared here at the same moment, so
+   * a hash never outlives the application it was collected on.
+   *
+   * Collecting it up front is what lets an approved agent simply sign in: there
+   * is no setup link to deliver, and therefore no registration that can end
+   * with an account nobody can get into because a text never arrived.
+   */
+  passwordHash String?
+  firstName    String  @default("")
+  lastName     String  @default("")
+
+  // --- The registration fee, paid before anybody reviews this ---------------
+  /**
+   * What this applicant was quoted, after any referral waiver. Held on the
+   * application because it is what they actually paid, and the programme fee
+   * may change between paying and being approved.
+   */
+  feeAmount     Float   @default(0)
+  /**
+   * The rest of that quote, exactly as the signup form showed it: the fee at
+   * full price, the waiver their recruiter's code granted, what it was worth,
+   * and the share of what they pay that recruiter is owed. Kept because it is
+   * what they were charged — the programme's fee can move between paying and
+   * being approved, and a registration must always read back as the deal that
+   * was actually struck.
+   */
+  feeGross           Float @default(0)
+  feeWaiverPercent   Float @default(0)
+  feeWaived          Float @default(0)
+  feeReferrerShare   Float @default(0)
+  /**
+   * none    — there is nothing to pay (no fee, or it clears from commission).
+   * pending — a Paystack transaction was started and hasn't been confirmed.
+   * paid    — the money is in. Only then may the application be approved.
+   */
+  paymentStatus String  @default("none")
+  /** The Paystack reference of the payment, for verification and reconciliation. */
+  feeReference  String?
+  feePaidAt     DateTime?
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   /**
@@ -679,6 +730,7 @@ model DataAgentApplication {
   @@index([email])
   @@index([desiredSlug])
   @@index([referrerId])
+  @@index([feeReference])
 }
 
 // ---------------------------------------------------------------------------

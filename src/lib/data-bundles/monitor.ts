@@ -7,6 +7,7 @@ import { getStaffNotifyChannel } from "@/lib/settings";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { getProviderBalance, isDataProviderConfigured } from "@/lib/data-bundles/provider";
 import { dispatchAfaRegistration, dispatchDataOrder, refreshDataOrder } from "@/lib/data-bundles/fulfillment";
+import { syncBundleCosts } from "@/lib/data-bundles/cost-sync";
 import { sweepAgentCommissions } from "@/lib/data-bundles/agent-ledger";
 import { sweepReferralEarnings } from "@/lib/data-bundles/referrals";
 import { awardLeaderboardPoints } from "@/lib/data-bundles/points";
@@ -48,6 +49,8 @@ export interface SweepResult {
   teamCommissions: number;
   /** Leaderboard points paid out for a ranking period that has closed. */
   leaderboardPoints: number;
+  /** Bundle cost prices refreshed from the provider's own price list. */
+  costsUpdated: number;
   notes: string[];
 }
 
@@ -81,8 +84,16 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
     referralRewards: 0,
     teamCommissions: 0,
     leaderboardPoints: 0,
+    costsUpdated: 0,
     notes: [],
   };
+
+  // Costs first, and outside the provider-key guard below: it reads the
+  // provider's price list with the dashboard sign-in rather than the API key,
+  // so a site that has one and not the other still gets the half it can.
+  const costs = await syncBundleCosts();
+  result.costsUpdated = costs.updated;
+  if (!costs.ok) result.notes.push(`Cost sync: ${costs.message}`);
 
   if (!isDataProviderConfigured()) {
     result.notes.push("Provider not configured — nothing to sweep.");

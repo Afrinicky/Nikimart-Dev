@@ -88,6 +88,26 @@ export const getAgentForUser = cache(async (userId: string): Promise<AgentAccoun
   }
 });
 
+/**
+ * Does this person resell data?
+ *
+ * Only the question, not the account — it is asked on the sign-in path, where
+ * the answer decides which dashboard somebody lands on and nothing else is
+ * needed. A missing table means "no", so a site without the bundle schema
+ * signs everybody in exactly as it always did.
+ */
+export async function isAgentUser(userId: string): Promise<boolean> {
+  try {
+    const row = await dataDb.dataAgent.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    return Boolean(row);
+  } catch {
+    return false;
+  }
+}
+
 /** An agent by their public store slug, for /store/<slug>. */
 export async function getAgentBySlug(slug: string): Promise<AgentAccount | null> {
   try {

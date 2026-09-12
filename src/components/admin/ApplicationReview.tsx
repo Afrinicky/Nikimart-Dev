@@ -3,7 +3,6 @@
 import { useActionState, useState } from "react";
 import { Check, X } from "lucide-react";
 import { inputClass } from "@/components/ui/Field";
-import { CopyChip } from "@/components/agent/AgentCode";
 import { cn } from "@/lib/cn";
 import { SubmitButton } from "@/components/ui/motion";
 import {
@@ -15,12 +14,22 @@ import {
 /**
  * Approve or reject one application.
  *
- * Approving provisions a real account and charges a setup fee, so it is a
- * single deliberate button. Rejecting opens a reason box first — the applicant
- * is texted whatever is written there, and "no" with no explanation is the
- * thing that generates a support call.
+ * Approving is the activation: it creates the account, opens the storefront and
+ * lets them sign in with the password they chose when they registered. There is
+ * no link to pass on any more — which is the point, since a link that had to
+ * arrive by text was the one step of the old flow that could silently fail.
+ *
+ * Rejecting opens a reason box first: the applicant is texted whatever is
+ * written there, and "no" with no explanation is what generates a support call.
  */
-export function ApplicationReview({ id }: { id: string }) {
+export function ApplicationReview({
+  id,
+  blocked,
+}: {
+  id: string;
+  /** Set when the registration payment hasn't cleared — approval is refused. */
+  blocked?: string;
+}) {
   const [approveState, approve] = useActionState<ApplyState, FormData>(approveApplication, {});
   const [rejectState, reject] = useActionState<ApplyState, FormData>(rejectApplication, {});
   const [rejecting, setRejecting] = useState(false);
@@ -29,39 +38,17 @@ export function ApplicationReview({ id }: { id: string }) {
 
   if (state.ok) {
     return (
-      <div className="animate-fade-up space-y-3">
-        <p
-          className={cn(
-            "flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium",
-            state.delivered === false
-              ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200"
-              : "bg-niki-success/10 text-niki-success",
-          )}
-        >
-          <Check className="h-4 w-4 shrink-0" />
-          {state.message}
-        </p>
-
-        {/* The link, always — not only when sending failed. A text can be sent
-            and still not arrive, and this is the only way to set a password. */}
-        {state.setupUrl ? (
-          <div className="rounded-xl bg-niki-surface p-3 ring-1 ring-niki-edge-strong">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-niki-ink/50">
-              One-time setup link · valid 7 days
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded-lg bg-white px-3 py-2 font-mono text-xs text-niki-ink/75 ring-1 ring-niki-edge">
-                {state.setupUrl}
-              </code>
-              <CopyChip value={state.setupUrl} className="bg-white text-niki-ink/70 ring-1 ring-niki-edge-strong" />
-            </div>
-            <p className="mt-2 text-xs text-niki-ink/55">
-              Send this to them on WhatsApp if the text doesn&apos;t arrive. They choose a password
-              on it, and the link stops working once they have.
-            </p>
-          </div>
-        ) : null}
-      </div>
+      <p
+        className={cn(
+          "animate-fade-up flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium",
+          state.delivered === false
+            ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200"
+            : "bg-niki-success/10 text-niki-success",
+        )}
+      >
+        <Check className="h-4 w-4 shrink-0" />
+        {state.message}
+      </p>
     );
   }
 
@@ -106,17 +93,23 @@ export function ApplicationReview({ id }: { id: string }) {
           </div>
         </form>
       ) : (
-        <div className="flex flex-wrap gap-2">
-          <form action={approve}>
-            <input type="hidden" name="id" value={id} />
-            <SubmitButton
-              pendingLabel="Approving…"
-              icon={<Check className="h-3.5 w-3.5" />}
-              className="rounded-full bg-niki-success px-4 py-2 text-xs font-bold text-white"
-            >
-              Approve &amp; send setup link
-            </SubmitButton>
-          </form>
+        <div className="flex flex-wrap items-center gap-2">
+          {blocked ? (
+            <span className="rounded-full bg-amber-100 px-4 py-2 text-xs font-bold text-amber-800">
+              {blocked}
+            </span>
+          ) : (
+            <form action={approve}>
+              <input type="hidden" name="id" value={id} />
+              <SubmitButton
+                pendingLabel="Approving…"
+                icon={<Check className="h-3.5 w-3.5" />}
+                className="rounded-full bg-niki-success px-4 py-2 text-xs font-bold text-white"
+              >
+                Approve &amp; activate
+              </SubmitButton>
+            </form>
+          )}
           <button
             type="button"
             onClick={() => setRejecting(true)}
