@@ -119,56 +119,36 @@ export default async function AgentTeamPage() {
 
   return (
     <div className="space-y-6">
-      <AgentPageHeading
-        title="My Team"
-        subtitle="Bring other agents on board. Earn when they register, and keep earning from what they sell."
-      />
+      <AgentPageHeading title="My team" subtitle="Recruit agents and earn from what they sell." />
 
       {fee.payable ? (
         <p className="rounded-2xl bg-amber-50 px-5 py-4 text-sm text-amber-800 ring-1 ring-amber-200">
-          Your own registration fee of {formatMoney(fee.outstanding)} is still outstanding. Until it
-          is paid, whoever recruited you hasn&apos;t been paid for bringing you on board — and
-          neither will you be, for the people you recruit, until they pay theirs.
+          Your own registration fee of {formatMoney(fee.outstanding)} is outstanding. Referral
+          rewards only pay once it is settled.
         </p>
       ) : null}
 
       {!config.enabled ? (
         <p className="rounded-2xl bg-amber-50 px-5 py-4 text-sm text-amber-800 ring-1 ring-amber-200">
-          The referral programme is paused at the moment. Your team and everything you have already
-          earned from it are unchanged — nothing new is being recorded or paid until it reopens.
+          The referral programme is paused. Nothing you have already earned is affected.
         </p>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <ReferralShare code={team.code} link={link} />
-        <Card title="How it pays" description="Set by Nickimart, and always current" icon={HandCoins}>
+        <Card title="How it pays" icon={HandCoins}>
           <ul className="space-y-3 text-sm text-niki-ink/70">
-            <li className="flex gap-2.5">
-              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-niki-orange" />
-              <span>{referralRewardsLine(config)}</span>
-            </li>
-            <li className="flex gap-2.5">
-              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-niki-orange" />
-              <span>
-                A joining reward is paid once the person you recruited has actually paid their
-                registration fee — not when they apply, and not if Nickimart waives it for them.
-              </span>
-            </li>
-            <li className="flex gap-2.5">
-              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-niki-orange" />
-              <span>
-                You also earn a commission on every qualifying bundle your <strong>direct</strong>{" "}
-                recruits sell, credited when the bundle is delivered. Their recruits&apos; sales earn
-                them, not you.
-              </span>
-            </li>
-            <li className="flex gap-2.5">
-              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-niki-orange" />
-              <span>
-                Everything lands in your normal balance and shows on your wallet, alongside your own
-                commission.
-              </span>
-            </li>
+            {[
+              referralRewardsLine(config),
+              "Joining rewards pay once your recruit's registration fee is settled.",
+              "You also earn on every qualifying bundle your direct recruits sell.",
+              "Everything lands in your normal balance.",
+            ].map((line) => (
+              <li key={line} className="flex gap-2.5">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-niki-orange" />
+                <span>{line}</span>
+              </li>
+            ))}
           </ul>
           {config.pitch ? (
             <p className="mt-4 rounded-xl bg-niki-surface px-4 py-3 text-sm text-niki-ink/70">

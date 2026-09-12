@@ -77,7 +77,7 @@ export default async function AgentLeaderboardPage() {
     <div className="space-y-6">
       <AgentPageHeading
         title="Leaderboard"
-        subtitle={view.config.pitch || "Sell, climb the board, collect points, cash them in."}
+        subtitle={view.config.pitch}
       />
 
       {/* Points, and what they are worth next. */}

@@ -102,8 +102,7 @@ export function WithdrawPanel({
 
       {!canWithdraw ? (
         <p className="text-sm text-niki-ink/55">
-          Commission is credited as each order is delivered. Once your balance clears{" "}
-          {formatPrice(minWithdrawal + withdrawalFee)}, the withdraw button appears here.
+          Withdrawals open at {formatPrice(minWithdrawal + withdrawalFee)}.
         </p>
       ) : open ? (
         <form onSubmit={submit} className="animate-fade-up space-y-4" noValidate>
@@ -178,8 +177,7 @@ export function WithdrawPanel({
           </div>
 
           <p className="text-xs text-niki-ink/50">
-            Payouts are sent by hand, usually the same day. The amount leaves your balance now so it
-            can&apos;t be spent twice, and comes straight back if the request is rejected.
+            Paid by hand, usually the same day. Refunded to your balance if rejected.
           </p>
 
           <div className="flex gap-3">

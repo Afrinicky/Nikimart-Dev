@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
+import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
+import { prisma } from "@/lib/prisma";
 import { requireUser, type SessionUser } from "@/lib/session";
 import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { callbackOrigin } from "@/lib/site";
@@ -27,8 +29,8 @@ import { teamCommissionFor } from "@/lib/data-bundles/referrals";
 import { startRegistrationFeePayment } from "@/lib/data-bundles/registration-fee";
 
 /**
- * Everything an agent can do to their own account: rename their store, set
- * their prices, and ask for their commission on MoMo.
+ * Everything an agent can do to their own account: edit their own details,
+ * rename their store, set their prices, and ask for their commission on MoMo.
  *
  * Every action re-reads the agent from the signed-in user rather than trusting
  * an id from the browser, so one agent can never touch another's store.
@@ -56,6 +58,141 @@ async function currentAgent(): Promise<CurrentAgent> {
     return { agent: null, user, error: "Your agent account is suspended. Please contact support." };
   }
   return { agent, user, error: null };
+}
+
+// ---------------------------------------------------------------------------
+// The person behind the account
+// ---------------------------------------------------------------------------
+
+const profileSchema = z.object({
+  name: z.string().trim().min(2, "Enter your full name.").max(80),
+  phone: z.string().trim().min(1, "Enter your phone number."),
+  email: z.string().trim().email("Enter a valid email address."),
+});
+
+/**
+ * An agent editing their own details.
+ *
+ * These live on the Nickimart user account, not the agent row, so this is the
+ * one place in the agent console that writes to the retail database. It used
+ * to be a link to the customer account page — which is a strange place to send
+ * somebody who signs in to run a storefront, and stranger still now that
+ * signing in brings them straight here.
+ *
+ * The email is the thing they sign in with, so it is treated as one: changing
+ * it needs the current password, and it is refused if it belongs to somebody
+ * else. Name and phone are just details and need neither.
+ */
+export async function updateAgentProfile(input: {
+  name: string;
+  phone: string;
+  email: string;
+  currentPassword?: string;
+}): Promise<ActionResult> {
+  const { agent, user, error } = await currentAgent();
+  if (!agent) return { ok: false, error };
+
+  const parsed = profileSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Please check your details." };
+  }
+
+  const phone = parseGhPhone(parsed.data.phone);
+  if (!phone.ok) return { ok: false, error: phone.message };
+
+  const email = parsed.data.email.toLowerCase();
+
+  const account = await prisma.user
+    .findUnique({ where: { id: user.id }, select: { email: true, passwordHash: true } })
+    .catch(() => null);
+  if (!account) return { ok: false, error: "Couldn't load your account. Please try again." };
+
+  const changingEmail = email !== account.email.toLowerCase();
+  if (changingEmail) {
+    // The email is the sign-in identity. Taking it over with nothing but a
+    // logged-in session would turn a borrowed phone into a permanent account
+    // takeover, so the password is asked for — and only when it is changing.
+    if (account.passwordHash) {
+      const ok =
+        Boolean(input.currentPassword) &&
+        (await bcrypt.compare(input.currentPassword ?? "", account.passwordHash));
+      if (!ok) return { ok: false, error: "Enter your current password to change your email." };
+    }
+    const taken = await prisma.user
+      .findUnique({ where: { email }, select: { id: true } })
+      .catch(() => null);
+    if (taken && taken.id !== user.id) {
+      return { ok: false, error: "That email is already used by another Nickimart account." };
+    }
+  }
+
+  try {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { name: parsed.data.name, phone: phone.local, email },
+    });
+  } catch {
+    return { ok: false, error: "Couldn't save your details. Please try again." };
+  }
+
+  revalidatePath("/agent/settings");
+  return {
+    ok: true,
+    message: changingEmail
+      ? "Saved. Use your new email next time you sign in."
+      : "Your details have been saved.",
+  };
+}
+
+/**
+ * Change the sign-in password.
+ *
+ * The current one is required even though the session already proves who they
+ * are: a session is a device somebody may have walked away from, and a password
+ * change is the one action that locks its real owner out.
+ */
+export async function changeAgentPassword(input: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<ActionResult> {
+  const { agent, user, error } = await currentAgent();
+  if (!agent) return { ok: false, error };
+
+  if (input.newPassword.length < 6) {
+    return { ok: false, error: "Choose a password of at least 6 characters." };
+  }
+
+  const limit = await rateLimit(`agent-password:${user.id}`, 10, 15 * 60_000);
+  if (!limit.ok) {
+    return {
+      ok: false,
+      error: `Too many attempts. Please try again in ${retryAfterLabel(limit.retryAfter)}.`,
+    };
+  }
+
+  const account = await prisma.user
+    .findUnique({ where: { id: user.id }, select: { passwordHash: true } })
+    .catch(() => null);
+  if (!account) return { ok: false, error: "Couldn't load your account. Please try again." };
+
+  // An account with no password has never had one to prove — it was created by
+  // an approval and never set up. Letting them set one from a signed-in session
+  // is the same authority a setup link carried, and no weaker.
+  if (account.passwordHash) {
+    const ok = await bcrypt.compare(input.currentPassword, account.passwordHash);
+    if (!ok) return { ok: false, error: "That isn't your current password." };
+  }
+
+  try {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: await bcrypt.hash(input.newPassword, 10) },
+    });
+  } catch {
+    return { ok: false, error: "Couldn't change your password. Please try again." };
+  }
+
+  return { ok: true, message: "Your password has been changed." };
 }
 
 // ---------------------------------------------------------------------------
