@@ -11,7 +11,11 @@ import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { notify, sendSms } from "@/lib/notifications";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
-import { getAgentProgramConfig, getReferralConfig } from "@/lib/data-bundles/settings";
+import {
+  getAgentProgramConfig,
+  getReferralConfig,
+  type PaymentMode,
+} from "@/lib/data-bundles/settings";
 import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import { termsAccepted, TERMS_REQUIRED_MESSAGE } from "@/lib/terms";
 import { normaliseSlugClient } from "@/lib/data-bundles/slug";
@@ -20,6 +24,7 @@ import { generateAgentCode, slugProblem } from "@/lib/data-bundles/agents";
 import { userIdForEmail } from "@/lib/data-bundles/user-link";
 import {
   checkReferralLink,
+  quoteRegistrationFee,
   releaseReferralRewards,
   resolveReferralCode,
 } from "@/lib/data-bundles/referrals";
@@ -83,6 +88,24 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+/**
+ * How this registration fee will actually be settled.
+ *
+ * The admin decides what is on offer — pay up front, clear it out of
+ * commission, or let the applicant pick — and this is where that decision is
+ * enforced. A fee of zero settles as neither: there is nothing to collect.
+ */
+function settleMethodFor(
+  mode: PaymentMode,
+  chosen: string | undefined,
+  fee: number,
+): "BALANCE" | "UPFRONT" {
+  if (fee <= 0) return "BALANCE";
+  if (mode === "UPFRONT") return "UPFRONT";
+  if (mode === "COMMISSION") return "BALANCE";
+  return chosen === "UPFRONT" ? "UPFRONT" : "BALANCE";
+}
+
 async function clientIp(): Promise<string> {
   const h = await headers();
   return (h.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || "unknown";
@@ -138,6 +161,59 @@ export async function checkStoreName(raw: string): Promise<SlugCheck> {
     // Tables missing — don't promise availability we can't verify.
     return { state: "invalid", message: "Couldn't check that name right now. Please try again." };
   }
+}
+
+// ---------------------------------------------------------------------------
+// What it will cost to join
+// ---------------------------------------------------------------------------
+
+export interface FeeQuote {
+  /** The registration fee at full price. */
+  gross: number;
+  /** What this applicant would actually pay. */
+  payable: number;
+  /** How much of the fee their recruiter's code takes off. */
+  waiverPercent: number;
+  /** The recruiter, when the code resolved to a live agent. */
+  referrerName: string | null;
+}
+
+/**
+ * Quote the registration fee for a referral code, as it is typed.
+ *
+ * A waiver an applicant only finds out about after they have applied does not
+ * do the job it was set up to do — it is meant to be the reason they use
+ * their recruiter's code rather than signing up cold. So the discount is
+ * shown on the form, from the same function the approval commits, and a code
+ * that resolves to nothing simply quotes the full fee.
+ */
+export async function quoteRegistration(rawCode: string): Promise<FeeQuote> {
+  const config = await getAgentProgramConfig();
+  const full: FeeQuote = {
+    gross: config.setupFee,
+    payable: config.setupFee,
+    waiverPercent: 0,
+    referrerName: null,
+  };
+
+  const code = (rawCode ?? "").trim().toUpperCase();
+  if (!code) return full;
+
+  // Unauthenticated, and one lookup per call: capped so it can't be used to
+  // walk the space of agent codes.
+  const limit = await rateLimit(`fee-quote:${await clientIp()}`, 60, 5 * 60_000);
+  if (!limit.ok) return full;
+
+  const resolved = await resolveReferralCode(code);
+  if (!resolved.ok) return full;
+
+  const quote = await quoteRegistrationFee(resolved.agentId);
+  return {
+    gross: quote.gross,
+    payable: quote.payable,
+    waiverPercent: quote.waiverPercent,
+    referrerName: resolved.storeName,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -224,7 +300,10 @@ export async function applyToBeAgent(
     referrerId = resolved.agentId;
   }
 
-  const feeMethod = data.feeMethod === "UPFRONT" && config.setupFee > 0 ? "UPFRONT" : "BALANCE";
+  // What the applicant may choose is the admin's call, not the browser's. A
+  // form posting UPFRONT when the programme collects from commission — or the
+  // other way round — is corrected here rather than honoured.
+  const feeMethod = settleMethodFor(config.paymentMode, data.feeMethod, config.setupFee);
 
   try {
     // Someone already trading doesn't need to apply again. The email belongs to
@@ -343,6 +422,11 @@ export async function approveApplication(
   const code = await generateAgentCode(application.fullName);
   const token = randomBytes(32).toString("hex");
 
+  // Filled in once the fee is worked out, and quoted back in the welcome
+  // email — an agent who is told "nothing to pay" and then finds a payment
+  // waiting for them has been told the wrong thing by us, not by the form.
+  let feeLine = "";
+
   try {
     // The person and the agent are in different databases, so this is two
     // steps rather than one transaction. Order matters: the user comes first,
@@ -376,10 +460,20 @@ export async function approveApplication(
       }
     }
 
-    // A fee of zero is a waiver however it came about, and a waiver pays no
-    // referral reward — that is the whole point of tying the reward to the fee.
-    const feeMethod =
-      config.setupFee <= 0 ? "WAIVED" : application.feeMethod === "UPFRONT" ? "UPFRONT" : "BALANCE";
+    // What this registration actually costs, worked out once and committed
+    // here: the fee at full price, whatever their recruiter's waiver takes
+    // off it, and the share of the rest that recruiter is owed. Quoted from
+    // the same function the signup form quotes, so the applicant is charged
+    // what they were shown.
+    const quote = await quoteRegistrationFee(referrerId);
+
+    // Nothing left to pay is a waiver, however it came about — a fee of zero,
+    // or a referral that waived all of it. Whether that still pays a joining
+    // reward is the admin's call (referralFullWaiverPaysReward); the account
+    // is settled either way, because there is nothing outstanding on it.
+    const feeMethod = quote.free
+      ? "WAIVED"
+      : settleMethodFor(config.paymentMode, application.feeMethod, quote.payable);
 
     const agentId = await dataDb.$transaction(async (tx) => {
       const already = await tx.dataAgent.findUnique({ where: { userId: user.id } });
@@ -394,9 +488,19 @@ export async function approveApplication(
           supportPhone: application.phone,
           supportWhatsapp: application.phone,
           whatsappGroup: config.whatsappGroup,
-          setupFee: config.setupFee,
+          setupFee: quote.payable,
           balance: 0,
           setupFeeMethod: feeMethod,
+          // The breakdown, kept on the row: what it would have cost, what the
+          // waiver took off, and what the recruiter is owed out of what is
+          // paid. A settings change tomorrow never rewrites this registration.
+          setupFeeGross: quote.gross,
+          setupFeeWaiverPercent: quote.waiverPercent,
+          setupFeeWaived: quote.waived,
+          setupFeeReferrerShare: quote.referrerShare,
+          // A registration with nothing to pay is settled the moment it is
+          // approved. There is no payment to wait for and no balance to clear.
+          setupFeePaidAt: quote.free ? new Date() : null,
           // The relationship is recorded with the account and locked at the
           // same moment. There is no window in which it exists without a
           // referrer and could be given a different one.
@@ -430,15 +534,16 @@ export async function approveApplication(
     // their Paystack payment posts a matching credit, which brings them back to
     // zero and settles the fee in one visible pair of ledger lines rather than
     // a flag nobody can audit.
-    if (config.setupFee > 0) {
+    if (quote.payable > 0) {
       await postLedgerEntry({
         agentId,
         type: "SETUP_FEE",
-        amount: -config.setupFee,
+        amount: -quote.payable,
         narration:
-          feeMethod === "UPFRONT"
-            ? "Registration fee — payable before your store opens"
-            : "Storefront setup fee — clears automatically from your commissions",
+          `Registration fee${quote.waived > 0 ? ` (${quote.waiverPercent}% referral waiver)` : ""} — ` +
+          (feeMethod === "UPFRONT"
+            ? "payable before your store opens"
+            : "clears automatically from your commissions"),
         reference: code,
       });
     }
@@ -448,6 +553,17 @@ export async function approveApplication(
     // owes something immediately — an admin who set the fee to zero after the
     // application was made, leaving a balance already at zero.
     if (referrerId) await releaseReferralRewards(agentId);
+
+    feeLine = quote.free
+      ? `<p>Your registration fee has been waived in full${quote.waived > 0 ? " by the agent who recruited you" : ""} — there is nothing to pay.</p>`
+      : feeMethod === "UPFRONT"
+        ? `<p>Your registration fee is <strong>${formatMoney(quote.payable)}</strong>` +
+          `${quote.waived > 0 ? ` (${quote.waiverPercent}% off, thanks to the agent who recruited you)` : ""}. ` +
+          `Pay it from your dashboard — your store opens for business as soon as it clears.</p>`
+        : `<p>Opening the store cost ${formatMoney(quote.payable)}` +
+          `${quote.waived > 0 ? ` (${quote.waiverPercent}% off, thanks to the agent who recruited you)` : ""}, ` +
+          `charged to your balance rather than to you. It clears itself out of the commission you earn, ` +
+          `so there is nothing to pay up front.</p>`;
   } catch (err) {
     if (err instanceof Error && err.message === "ALREADY_AGENT") {
       return { error: "That person already has an agent account." };
@@ -471,8 +587,7 @@ export async function approveApplication(
           `<p>Your store link is <strong>${siteUrl()}/store/${application.desiredSlug}</strong><br>` +
           `Your agent code is <strong>${code}</strong>.</p>` +
           `<p><a href="${setupUrl}">Set your password and open your store</a> — the link is valid for 7 days.</p>` +
-          `<p>Opening the store cost ${formatMoney(config.setupFee)}, charged to your balance rather than to you. ` +
-          `It clears itself out of the commission you earn, so there is nothing to pay up front.</p>`,
+          feeLine,
       },
     ),
   ]);

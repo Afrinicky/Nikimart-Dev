@@ -68,12 +68,119 @@ export function rewardForLevel(rules: ReferralRules, level: 1 | 2): number {
 /**
  * Is a registration fee the kind that can release a referral reward?
  *
- * A waived fee never pays anybody — that is the rule that makes an invented
- * recruit cost more than they are worth — and neither does a fee of zero,
- * however it came to be zero.
+ * A fee somebody actually owes always can. A fee of zero normally cannot —
+ * that is the rule that makes an invented recruit cost more than they are
+ * worth — with exactly one exception, and only because an admin asked for it:
+ * a registration waived *in full through a referral* may still pay, when
+ * `fullWaiverPaysReward` is on. A fee that was zero for any other reason (the
+ * programme charges nothing, an admin zeroed it) pays nobody, because there
+ * was no waiver to reward.
  */
-export function feeCanReward(method: string, setupFee: number): boolean {
-  return method !== "WAIVED" && setupFee > 0;
+export function feeCanReward(input: {
+  method: string;
+  /** What the new agent owed after any waiver. */
+  payable: number;
+  /** The fee at full price, before the waiver. */
+  gross: number;
+  waiverPercent: number;
+  fullWaiverPaysReward: boolean;
+}): boolean {
+  if (input.method !== "WAIVED" && input.payable > 0) return true;
+  const waivedInFull = input.gross > 0 && input.waiverPercent >= 100;
+  return waivedInFull && input.fullWaiverPaysReward;
+}
+
+// ---------------------------------------------------------------------------
+// The registration fee, and who pays which part of it
+// ---------------------------------------------------------------------------
+
+/** Every part of one registration fee, in cedis. The parts always add up. */
+export interface RegistrationQuote {
+  /** The fee at full price, before anything is taken off. */
+  gross: number;
+  /** How much of it was waived, as a percentage. */
+  waiverPercent: number;
+  /** What that waiver was worth. */
+  waived: number;
+  /** What the new agent actually owes. */
+  payable: number;
+  /** Of what they pay, the part credited to whoever recruited them. */
+  referrerShare: number;
+  /** The rest of what they pay. */
+  nickimartKeeps: number;
+  /** True when nothing at all is owed. */
+  free: boolean;
+}
+
+/**
+ * Work out one registration fee.
+ *
+ * Worked as a pure function because it is the arithmetic three different
+ * screens quote and one approval commits, and quoting one number to an
+ * applicant and charging them another is the single worst thing this feature
+ * could do.
+ *
+ * The order is: take the waiver off the fee, and the recruiter's share out of
+ * what is left to pay. On a GH₵50 fee with a 40% waiver and a 50% share the
+ * new agent pays GH₵30, the recruiter is credited GH₵15, and Nickimart keeps
+ * GH₵15 — the waived GH₵20 is simply never collected from anybody.
+ *
+ * A waiver only exists where there is a recruiter to grant it, and a share
+ * only where there is somebody to pay it to.
+ */
+export function registrationQuote(input: {
+  /** The registration fee as the admin has it set. */
+  fee: number;
+  /** The waiver this recruit's referrer grants, 0–100. */
+  waiverPercent: number;
+  /** The share of the paid amount that goes to the referrer, 0–100. */
+  referrerSharePercent: number;
+  /** False when nobody recruited them: no waiver and no share. */
+  hasReferrer: boolean;
+}): RegistrationQuote {
+  const gross = round2(Math.max(0, input.fee));
+  const waiverPercent = input.hasReferrer ? clampPercent(input.waiverPercent) : 0;
+  const waived = round2((gross * waiverPercent) / 100);
+  // Subtracting the rounded waiver, rather than rounding the remainder
+  // separately, is what keeps waived + payable exactly equal to gross.
+  const payable = round2(gross - waived);
+  const referrerShare = input.hasReferrer
+    ? round2((payable * clampPercent(input.referrerSharePercent)) / 100)
+    : 0;
+  return {
+    gross,
+    waiverPercent,
+    waived,
+    payable,
+    referrerShare,
+    nickimartKeeps: round2(payable - referrerShare),
+    free: payable <= 0,
+  };
+}
+
+/** A percentage that can never waive more than the fee, or less than nothing. */
+export function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(100, Math.max(0, value));
+}
+
+/**
+ * The waiver a given referrer's recruits get.
+ *
+ * Per-agent when one is set, the programme default otherwise — and null is
+ * genuinely different from zero here: an agent with no setting of their own
+ * follows the default as it changes, while an agent explicitly set to 0%
+ * grants no waiver whatever the default becomes.
+ */
+export function waiverPercentFor(
+  agentWaiverPercent: number | null | undefined,
+  defaultPercent: number,
+): number {
+  return clampPercent(
+    agentWaiverPercent === null || agentWaiverPercent === undefined
+      ? defaultPercent
+      : agentWaiverPercent,
+  );
 }
 
 /**
@@ -110,4 +217,33 @@ export function referralRewardsLine(rules: ReferralRules): string {
   if (level1 > 0) parts.push(`${formatMoney(level1)} when someone you recruit registers`);
   if (level2 > 0) parts.push(`${formatMoney(level2)} when they recruit someone`);
   return `Earn ${parts.join(", and ")}.`;
+}
+
+/**
+ * The registration fee an agent was actually charged, read back off their row.
+ *
+ * Agents created before waivers existed carry a gross of zero, which is not
+ * "a free registration" — it is "nobody recorded a gross, because there was
+ * only ever one number". Their fee is that number, with nothing waived.
+ */
+export function registrationFeeBreakdown(agent: {
+  setupFee: number;
+  setupFeeGross: number;
+  setupFeeWaiverPercent: number;
+  setupFeeWaived: number;
+  setupFeeReferrerShare: number;
+}): RegistrationQuote {
+  const payable = round2(Math.max(0, agent.setupFee));
+  const gross = agent.setupFeeGross > 0 ? round2(agent.setupFeeGross) : payable;
+  const waived = round2(Math.max(0, agent.setupFeeWaived));
+  const referrerShare = round2(Math.max(0, agent.setupFeeReferrerShare));
+  return {
+    gross,
+    waiverPercent: clampPercent(agent.setupFeeWaiverPercent),
+    waived,
+    payable,
+    referrerShare,
+    nickimartKeeps: round2(payable - referrerShare),
+    free: payable <= 0,
+  };
 }

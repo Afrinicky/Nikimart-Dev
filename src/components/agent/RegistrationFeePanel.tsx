@@ -5,12 +5,14 @@ import { Loader2 } from "lucide-react";
 import { payRegistrationFee } from "@/lib/data-bundles/agent-actions";
 
 /**
- * Paying the registration fee, for an agent who chose to pay it up front.
+ * Paying the registration fee, for an agent settling it up front.
  *
- * It matters beyond their own balance: the fee is what releases the referral
- * reward to whoever recruited them, so the panel says so. An agent who does not
- * know that has no reason to hurry, and the person who brought them on board is
- * left wondering where their money is.
+ * It matters beyond their own balance, in two directions, and the panel says
+ * both. Their store is not open for business until it clears — that is what
+ * paying to register means — and the fee is also what releases the referral
+ * reward to whoever recruited them. An agent who knows neither has no reason
+ * to hurry, and the person who brought them on board is left wondering where
+ * their money is.
  */
 export function RegistrationFeePanel({ amount }: { amount: string }) {
   const [error, setError] = useState<string | null>(null);
@@ -37,9 +39,10 @@ export function RegistrationFeePanel({ amount }: { amount: string }) {
         Your registration fee of {amount} is still outstanding.
       </p>
       <p className="mt-1 text-sm text-amber-800">
-        You chose to pay it up front rather than clear it out of your commission. Paying it opens
-        your balance at zero — and it is what pays the agent who recruited you, so they are waiting
-        on it too.
+        Your registration is settled up front rather than out of your commission, so your
+        storefront stays closed to customers until it clears. Paying it opens your balance at zero
+        and puts your store live — and it is what pays the agent who recruited you, so they are
+        waiting on it too.
       </p>
       {error ? (
         <p role="alert" className="mt-3 text-sm font-medium text-niki-danger">

@@ -9,7 +9,9 @@ import { normaliseSlugClient } from "@/lib/data-bundles/slug";
 import {
   applyToBeAgent,
   checkStoreName,
+  quoteRegistration,
   type ApplyState,
+  type FeeQuote,
   type SlugCheck,
 } from "@/lib/data-bundles/agent-application-actions";
 import { cn } from "@/lib/cn";
@@ -33,6 +35,7 @@ export function ApplyAgentForm({
   referralCode = "",
   setupFee,
   referralOpen,
+  paymentMode,
 }: {
   origin: string;
   /** Prefilled from ?ref= on an invite link, and still editable. */
@@ -41,9 +44,13 @@ export function ApplyAgentForm({
   setupFee: number;
   /** False when the programme is closed — the code field is then pointless. */
   referralOpen: boolean;
+  /** How the admin collects the fee: up front, from commission, or either. */
+  paymentMode: "UPFRONT" | "COMMISSION" | "BOTH";
 }) {
   const [state, formAction] = useActionState<ApplyState, FormData>(applyToBeAgent, {});
   const [storeName, setStoreName] = useState("");
+  const [code, setCode] = useState(referralCode);
+  const [quote, setQuote] = useState<FeeQuote | null>(null);
   // The last verdict, tagged with the text it was for — see below.
   const [checked, setChecked] = useState<{ for: string; result: SlugCheck }>({
     for: "",
@@ -76,6 +83,25 @@ export function ApplyAgentForm({
   // an edit invalidates it without any state having to be reset.
   const slug: SlugCheck = checked.for === storeName ? checked.result : { state: "idle" };
   const checking = Boolean(storeName.trim()) && checked.for !== storeName;
+
+  // What the code is worth, quoted as it is typed. A recruiter's waiver is
+  // the reason to use their code rather than signing up cold, so it has to be
+  // visible before the form is submitted, not discovered on approval.
+  useEffect(() => {
+    if (!referralOpen || setupFee <= 0) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const result = await quoteRegistration(code);
+      if (!cancelled) setQuote(result);
+    }, 450);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [code, referralOpen, setupFee]);
+
+  const payable = quote ? quote.payable : setupFee;
+  const discounted = Boolean(quote && quote.waiverPercent > 0);
 
   if (state.ok) {
     return (
@@ -198,7 +224,8 @@ export function ApplyAgentForm({
           <input
             id="referralCode"
             name="referralCode"
-            defaultValue={referralCode}
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
             maxLength={20}
             autoCapitalize="characters"
             placeholder="e.g. NKM4821"
@@ -208,20 +235,78 @@ export function ApplyAgentForm({
       ) : null}
 
       {setupFee > 0 ? (
-        <Field
-          label="Registration fee"
-          htmlFor="feeMethod"
-          hint={`Opening a store costs ${money(setupFee)}. Either way there is nothing to pay before you're approved.`}
-        >
-          <select id="feeMethod" name="feeMethod" defaultValue="BALANCE" className={inputClass}>
-            <option value="BALANCE">
-              Take it from my commission — start selling with nothing to pay
-            </option>
-            <option value="UPFRONT">
-              I&apos;ll pay {money(setupFee)} up front once I&apos;m approved
-            </option>
-          </select>
-        </Field>
+        <div className="rounded-2xl bg-niki-surface p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-sm font-semibold text-niki-ink">Registration fee</p>
+            <p className="font-figures text-lg font-bold text-niki-ink">
+              {discounted ? (
+                <>
+                  <span className="mr-2 text-sm font-medium text-niki-ink/40 line-through">
+                    {money(setupFee)}
+                  </span>
+                  {payable > 0 ? money(payable) : "Free"}
+                </>
+              ) : (
+                money(setupFee)
+              )}
+            </p>
+          </div>
+
+          {discounted && quote ? (
+            <p className="mt-1 text-xs font-medium text-niki-success">
+              {quote.waiverPercent}% off
+              {quote.referrerName ? `, thanks to ${quote.referrerName}` : ""} — because you were
+              referred.
+            </p>
+          ) : null}
+
+          {/*
+            Which of the two the applicant may choose is the admin's call. With
+            only one on offer there is nothing to ask, so the form states what
+            will happen and posts it as a hidden field rather than showing a
+            select with a single option.
+          */}
+          {payable <= 0 ? (
+            <input type="hidden" name="feeMethod" value="BALANCE" />
+          ) : paymentMode === "BOTH" ? (
+            <div className="mt-3">
+              <Field label="How would you like to settle it?" htmlFor="feeMethod">
+                <select
+                  id="feeMethod"
+                  name="feeMethod"
+                  defaultValue="BALANCE"
+                  className={inputClass}
+                >
+                  <option value="BALANCE">
+                    Take it from my commission — start selling with nothing to pay
+                  </option>
+                  <option value="UPFRONT">
+                    I&apos;ll pay {money(payable)} up front once I&apos;m approved
+                  </option>
+                </select>
+              </Field>
+            </div>
+          ) : (
+            <>
+              <input
+                type="hidden"
+                name="feeMethod"
+                value={paymentMode === "UPFRONT" ? "UPFRONT" : "BALANCE"}
+              />
+              <p className="mt-2 text-xs text-niki-ink/60">
+                {paymentMode === "UPFRONT"
+                  ? `Payable once you're approved. Your storefront opens for business as soon as the ${money(payable)} clears.`
+                  : "Nothing to pay before you start — it comes out of the commission you earn."}
+              </p>
+            </>
+          )}
+
+          {payable <= 0 ? (
+            <p className="mt-2 text-xs font-medium text-niki-success">
+              Nothing to pay. Your registration is covered in full.
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       <Field

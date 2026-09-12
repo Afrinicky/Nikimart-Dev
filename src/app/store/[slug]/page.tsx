@@ -6,7 +6,7 @@ import { ActionLink } from "@/components/ui/motion";
 import { BundleStore, type NetworkGroup } from "@/components/data/BundleStore";
 import { formatPrice } from "@/lib/format";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
-import { getAgentBySlug, getAgentStorefrontGroups } from "@/lib/data-bundles/agents";
+import { agentIsSelling, getAgentBySlug, getAgentStorefrontGroups } from "@/lib/data-bundles/agents";
 
 export const dynamic = "force-dynamic";
 
@@ -42,9 +42,9 @@ export default async function AgentStorefrontPage({
 
   const store = await getDataStoreConfig();
 
-  // A closed store, a suspended agent, or a store outage all mean the same
-  // thing to a customer: come back later.
-  const closed = !store.enabled || agent.status !== "active" || !agent.storeOpen;
+  // A closed store, a suspended agent, an unpaid up-front registration or a
+  // store outage all mean the same thing to a customer: come back later.
+  const closed = !store.enabled || !agentIsSelling(agent);
   if (closed) {
     return (
       <Container className="py-16">

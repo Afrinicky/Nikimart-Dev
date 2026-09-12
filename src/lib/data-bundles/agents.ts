@@ -41,13 +41,40 @@ export interface AgentAccount {
   setupFee: number;
   /** BALANCE | UPFRONT | WAIVED — how the registration fee is being settled. */
   setupFeeMethod: string;
-  /** When it was settled in full. Null while outstanding, and null if waived. */
+  /** When it was settled in full. Null while it is still outstanding. */
   setupFeePaidAt: Date | null;
   setupFeeReference: string | null;
+  /** The fee at full price, before any referral waiver. */
+  setupFeeGross: number;
+  setupFeeWaiverPercent: number;
+  setupFeeWaived: number;
+  /** Of what this agent pays, the share owed to whoever recruited them. */
+  setupFeeReferrerShare: number;
+  /** The waiver this agent's own recruits get. Null = the programme default. */
+  referralWaiverPercent: number | null;
+  /** Leaderboard points in hand. */
+  pointsBalance: number;
   /** The agent who recruited this one, if any. */
   referredById: string | null;
   referralLockedAt: Date | null;
   createdAt: Date;
+}
+
+/**
+ * Is this agent's registration still standing between them and trading?
+ *
+ * Only for an agent who is settling it up front: their store is not open for
+ * business until the payment clears, which is what "pay to register" has to
+ * mean if it is to mean anything. An agent clearing the fee out of commission
+ * was promised the opposite — nothing to pay before they start — so their
+ * store opens immediately and the debit clears itself.
+ */
+export function registrationBlocksSelling(agent: {
+  setupFeeMethod: string;
+  setupFeePaidAt: Date | null;
+  setupFee: number;
+}): boolean {
+  return agent.setupFeeMethod === "UPFRONT" && !agent.setupFeePaidAt && agent.setupFee > 0;
 }
 
 /** The agent account attached to a user, or null if they aren't one. */
@@ -70,9 +97,12 @@ export async function getAgentBySlug(slug: string): Promise<AgentAccount | null>
   }
 }
 
-/** True when this agent may currently sell (active, and store not closed). */
+/**
+ * True when this agent may currently sell: active, store open, and registered
+ * — an up-front registration that has not been paid holds the store shut.
+ */
 export function agentIsSelling(agent: AgentAccount): boolean {
-  return agent.status === "active" && agent.storeOpen;
+  return agent.status === "active" && agent.storeOpen && !registrationBlocksSelling(agent);
 }
 
 // ---------------------------------------------------------------------------

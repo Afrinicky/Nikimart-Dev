@@ -619,12 +619,14 @@ behind the same `requireAdmin` guard:
 - **AFA** — registrations and their approval status.
 - **Agents** — the roster, the application queue, and per agent their wallet,
   ledger, orders and who recruited them.
-- **Referrals** — every number the referral programme pays on (see below), and
-  what those numbers have actually paid out.
+- **Referrals** — every number the referral programme pays on (see below),
+  registration waivers, and what those numbers have actually paid out.
+- **Leaderboard** — the boards as agents see them, the points a place pays, the
+  rewards points buy, and the queue of claims waiting to be handed over.
 - **Withdrawals / Announcements / Agent support** — the MoMo payout queue,
   broadcasts to agents, and their callback requests.
 - **Store settings** — store name, tagline, open/closed, support WhatsApp, the
-  AFA fee, and the default markup.
+  AFA fee, the default markup, the registration fee and how it is collected.
 
 Prices ship seeded with a **placeholder** ladder so the store is never empty.
 Check every row against your agent cost in **Admin → Data → Bundle prices**
@@ -650,11 +652,11 @@ Two levels, and only two. With `A → B → C`:
 Recruitment rewards reach two levels up; **sales commission reaches one.**
 
 **Nothing is paid on a promise.** A joining reward is released only once the new
-agent's registration fee has actually been paid — either up front through
-Paystack, or by clearing out of their commission, which the applicant chooses
-when they apply. A fee an admin **waives pays nobody, ever**. That is what makes
-an invented agent cost more than they are worth, and it is the rule the rest of
-the abuse story rests on.
+agent's registration fee has actually been paid — up front through Paystack, or
+by clearing out of their commission. A registration **nobody paid for pays
+nobody**: that is what makes an invented agent cost more than they are worth,
+and it is the rule the rest of the abuse story rests on. The single exception is
+a referral waived in full, and only when an admin switches that on.
 
 Everything lands in the existing agent balance and `DataAgentLedger` — there is
 no second wallet. Each row carries its commission type, the agent whose activity
@@ -669,7 +671,7 @@ Admins set every value in **Admin → Data Bundles → Referrals**: the two join
 rewards, whether the second level pays at all, the default team-sales
 commission, what counts as a qualifying sale (minimum sale amount, minimum
 commission to the seller, whether AFA counts), a daily cap on rewards per agent,
-and the programme switch. Per-bundle team commissions live on the Bundle prices
+the registration waivers below, and the programme switch. Per-bundle team commissions live on the Bundle prices
 tab, next to the margin they come out of. Every calculation reads the current
 values at the moment it runs, so a change takes effect on the next sale with no
 deploy — and amounts already earned are snapshotted on the order or in the
@@ -681,6 +683,83 @@ referrer changed after activation; a cycle between two agents; commission on a
 failed, cancelled or refunded sale; and — by a unique index on the ledger rather
 than by a code path — paying the same commission twice, however many retries,
 sweeps and webhooks reach it.
+
+### The registration fee, and who pays which part of it
+
+What it costs to open a storefront, and how that cost is collected, are both
+the admin's. **Store settings** carries the fee and one of three ways to
+collect it:
+
+- **Up front only** — the new agent pays before trading. Their storefront stays
+  closed to customers until the payment clears, which is what paying to
+  register has to mean if it is to mean anything.
+- **From commission only** — the fee is debited on approval and clears itself
+  out of what they earn. Nothing to pay before they start.
+- **Either** — the applicant picks one when they apply.
+
+A referral can bring that fee down. Each agent has a **waiver** their own
+recruits get — set per agent on their page under **Agents**, falling back to
+the programme default under **Referrals** — and of whatever the new agent still
+pays, a configurable share is credited to the recruiter once the payment
+clears. On a GH₵50 fee with a 40% waiver and a 50% referrer share:
+
+| | |
+| --- | --- |
+| Registration fee | GH₵50 |
+| Referral waiver (40%) | −GH₵20 |
+| **New agent pays** | **GH₵30** |
+| Credited to the recruiter | GH₵15 |
+| Nickimart keeps | GH₵15 |
+
+A 100% waiver means the new agent pays nothing, and there is then nothing to
+share — whether that registration still pays the recruiter their *joining
+reward* is a separate switch, off by default.
+
+The whole breakdown is recorded on the agent: the fee at full price, the
+percentage waived, what the waiver was worth, what they owe, and the share owed
+to their recruiter. It is written when the account is created and never
+recomputed, so changing a setting tomorrow cannot rewrite a registration from
+last month, and **Admin → Data Bundles → Agents → *agent*** shows it line by
+line alongside how much has actually been paid. The recruiter's share lands in
+the ordinary ledger as `REFERRAL_FEE_SHARE`, keyed on the recruit so it is paid
+exactly once.
+
+### Leaderboard, points and rewards
+
+Sell, rank, earn points, redeem — off by default, and one switch turns the
+whole thing on. Three boards, each of which an admin can show or hide:
+
+- **Top Sales** — successful sales, meaning orders that were paid for and
+  actually delivered.
+- **Top Recruiters** — recruits whose registration is settled. A name in the
+  queue that never paid is not a recruit.
+- **Current Performance** — sales inside a rolling window rather than lifetime
+  totals, so a newer agent can compete with an established one. An agent has to
+  have been trading a configurable number of days and made a configurable
+  number of sales in the window before they appear on it, or an account that
+  opened yesterday tops it on its first afternoon.
+
+**Nothing is stored.** Every board is counted out of the orders and referrals
+that already exist, so a place can never drift from the sales behind it and a
+refunded order simply stops counting. Agents see the top three plus their own
+neighbours on their dashboard — an agent in 40th place is shown the two people
+they are actually racing — and the full boards at `/agent/leaderboard`.
+
+Points are paid when a **ranking period** closes (weekly, monthly, or all-time,
+which never closes and so pays no places): a configurable amount for first,
+second and third on every board that is switched on, plus a bonus for an
+excellent or exceptional recent performance, because an agent can have their
+best month ever and still come fourth. Awards run from the same daily sweep as
+everything else and carry a dedupe key built from the board, the period and the
+agent, so a sweep that runs a hundred times pays once.
+
+Points buy **rewards** the admin sets up — cash, credited to the agent's
+balance on approval, or a data bundle sent to a number the agent gives. What
+each costs, what it pays, and whether it is on the shelf at all are all
+configurable, and none of it is in the code. Points leave the agent the moment
+a reward is claimed, exactly as cedis do on a withdrawal, so the same points
+cannot buy two rewards while the queue is being worked through; turning a claim
+down refunds them.
 
 ### Setup
 

@@ -17,7 +17,11 @@ export type LedgerType =
   | "COMMISSION"
   | "REFERRAL_L1"
   | "REFERRAL_L2"
+  /** A recruiter's share of the registration fee their recruit paid. */
+  | "REFERRAL_FEE_SHARE"
   | "TEAM_COMMISSION"
+  /** Cedis from a reward an agent spent points on. */
+  | "REWARD_PAYOUT"
   | "WITHDRAWAL"
   | "WITHDRAWAL_REVERSAL"
   | "ADJUSTMENT";

@@ -24,7 +24,9 @@ const TYPE_LABELS: Record<string, string> = {
   COMMISSION: "Commission earned",
   REFERRAL_L1: "Referral reward",
   REFERRAL_L2: "Second-level referral",
+  REFERRAL_FEE_SHARE: "Registration share",
   TEAM_COMMISSION: "Team commission",
+  REWARD_PAYOUT: "Reward",
   WITHDRAWAL: "Withdrawal",
   WITHDRAWAL_REVERSAL: "Withdrawal reversed",
   ADJUSTMENT: "Adjustment",
@@ -39,7 +41,11 @@ const TYPE_TONES: Record<string, string> = {
   // from without anybody having to read the narration.
   REFERRAL_L1: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
   REFERRAL_L2: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
+  REFERRAL_FEE_SHARE: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
   TEAM_COMMISSION: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
+  // A reward is points turned into cedis, so it gets the gold of the
+  // leaderboard rather than the green of a commission.
+  REWARD_PAYOUT: "bg-niki-gold/15 text-amber-700 ring-1 ring-niki-gold/40",
   WITHDRAWAL: "bg-niki-trust/10 text-niki-trust ring-1 ring-niki-trust/30",
   WITHDRAWAL_REVERSAL: "bg-niki-ink/10 text-niki-ink/70 ring-1 ring-niki-ink/20",
   ADJUSTMENT: "bg-niki-ink/10 text-niki-ink/70 ring-1 ring-niki-ink/20",

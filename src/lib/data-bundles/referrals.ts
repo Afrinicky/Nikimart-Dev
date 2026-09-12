@@ -4,11 +4,19 @@ import { getAgentUser } from "@/lib/data-bundles/user-link";
 import { round2 } from "@/lib/data-bundles/agent-pricing";
 import {
   feeCanReward,
+  registrationQuote,
   rewardForLevel,
   saleQualifies,
   teamCommissionAmount,
+  waiverPercentFor,
+  type RegistrationQuote,
 } from "@/lib/data-bundles/referral-rules";
-import { getReferralConfig, type ReferralConfig } from "@/lib/data-bundles/settings";
+import { formatMoney } from "@/lib/format";
+import {
+  getAgentProgramConfig,
+  getReferralConfig,
+  type ReferralConfig,
+} from "@/lib/data-bundles/settings";
 import {
   DuplicateLedgerEntryError,
   postLedgerEntry,
@@ -30,9 +38,15 @@ import {
  *
  * Nothing is paid on a promise. A referral reward is released only once the new
  * agent's registration fee has actually been paid — either up front through
- * Paystack or by clearing out of their commissions — and a fee an admin waived
- * pays nobody, ever. That is what makes an invented agent cost the person who
- * invented them more than it pays.
+ * Paystack or by clearing out of their commissions — and a registration nobody
+ * paid for pays nobody. That is what makes an invented agent cost the person
+ * who invented them more than it pays. The one exception is a referral the
+ * admin waived in full and has explicitly said should still reward.
+ *
+ * A recruiter can also be owed a *share* of the fee their recruit did pay. It
+ * is not a reward and does not follow the reward rules: it is a slice of money
+ * that changed hands, fixed on the recruit's row when their account was made,
+ * and released by the same payment.
  *
  * Every amount comes from the admin's current settings at the moment the
  * commission is calculated, never from a constant here. What is already earned
@@ -229,6 +243,41 @@ export async function linkReferral(agentId: string, referrerId: string): Promise
 // ---------------------------------------------------------------------------
 
 /**
+ * What one applicant will be charged to register, and who gets which part.
+ *
+ * The single source of that answer. The signup form quotes it, the approval
+ * commits it, and the admin console explains it afterwards — so it is worked
+ * out here once rather than three times, because quoting one number and
+ * charging another is the one thing a registration fee must never do.
+ *
+ * With no recruiter there is nothing to waive and nobody to share with, so it
+ * is simply the fee. Same when the referral programme is closed.
+ */
+export async function quoteRegistrationFee(
+  referrerId: string | null,
+): Promise<RegistrationQuote> {
+  const [program, config] = await Promise.all([getAgentProgramConfig(), getReferralConfig()]);
+
+  const referrer =
+    referrerId && config.enabled
+      ? await dataDb.dataAgent
+          .findUnique({
+            where: { id: referrerId },
+            select: { id: true, referralWaiverPercent: true, status: true },
+          })
+          .catch(() => null)
+      : null;
+
+  const active = Boolean(referrer && referrer.status === "active");
+  return registrationQuote({
+    fee: program.setupFee,
+    waiverPercent: active ? waiverPercentFor(referrer?.referralWaiverPercent, config.waiverDefaultPercent) : 0,
+    referrerSharePercent: config.referrerSharePercent,
+    hasReferrer: active,
+  });
+}
+
+/**
  * Has this agent's registration fee actually been paid?
  *
  * Two ways it can be, and one way it can't:
@@ -236,9 +285,12 @@ export async function linkReferral(agentId: string, referrerId: string): Promise
  *     the verification.
  *   • BALANCE — it was debited on approval and clears out of their commission.
  *     It is paid the moment their balance comes back to zero or above.
- *   • WAIVED, or a fee of zero — nothing was ever charged, so nothing is owed
- *     to anybody for recruiting them. This is the case the whole "pay on
- *     registration" rule exists for: a waived fee must not mint a reward.
+ *   • WAIVED, or a fee of zero — nothing was ever charged, so it is settled
+ *     the moment the account is created and there is nothing for this to do.
+ *     Whether it pays anybody is decided by `feeCanReward`, not here: normally
+ *     it does not, which is the rule the whole "pay on registration" idea
+ *     exists for, and a referral waived in full pays only if the admin has
+ *     said it should.
  */
 export async function settleSetupFee(agentId: string): Promise<boolean> {
   const agent = await dataDb.dataAgent
@@ -282,14 +334,32 @@ export async function releaseReferralRewards(agentId: string): Promise<number> {
       select: {
         id: true, code: true, storeName: true,
         setupFee: true, setupFeePaidAt: true, setupFeeMethod: true,
+        setupFeeGross: true, setupFeeWaiverPercent: true, setupFeeReferrerShare: true,
       },
     })
     .catch(() => null);
   if (!agent?.setupFeePaidAt) return 0;
-  if (!feeCanReward(agent.setupFeeMethod, agent.setupFee)) return 0;
+  if (
+    !feeCanReward({
+      method: agent.setupFeeMethod,
+      payable: agent.setupFee,
+      gross: agent.setupFeeGross,
+      waiverPercent: agent.setupFeeWaiverPercent,
+      fullWaiverPaysReward: config.fullWaiverPaysReward,
+    })
+  ) {
+    return 0;
+  }
 
   const { level1, level2 } = await getUpline(agentId);
   let paid = 0;
+
+  // The recruiter's cut of the fee this agent actually paid. Separate from the
+  // joining reward and paid alongside it: the reward is what recruiting is
+  // worth, this is a share of money that changed hands.
+  if (level1 && agent.setupFeeReferrerShare > 0) {
+    if (await payReferrerFeeShare(level1, agent)) paid++;
+  }
 
   const level1Reward = rewardForLevel(config, 1);
   const level2Reward = rewardForLevel(config, 2);
@@ -301,6 +371,49 @@ export async function releaseReferralRewards(agentId: string): Promise<number> {
     if (await payReferralReward(level2, agent, 2, level2Reward, config)) paid++;
   }
   return paid;
+}
+
+/**
+ * Credit a recruiter their share of the registration fee their recruit paid.
+ *
+ * The amount was fixed when the account was created and is stored on the
+ * recruit's row, so a settings change between joining and paying never
+ * rewrites it. Paid once, keyed on the recruit — a second attempt writes
+ * nothing, whether it comes from the payment, the sweep or an admin.
+ *
+ * The daily reward cap deliberately does not apply. It is a brake on rewards
+ * conjured out of signups; this is a share of money somebody actually paid, so
+ * withholding it would be keeping cedis that were never Nickimart's.
+ */
+async function payReferrerFeeShare(
+  recipientId: string,
+  source: { id: string; code: string; storeName: string; setupFeeReferrerShare: number },
+): Promise<boolean> {
+  const recipient = await dataDb.dataAgent
+    .findUnique({ where: { id: recipientId }, select: { status: true } })
+    .catch(() => null);
+  // A suspended recruiter stops earning; reactivating and running the sweep
+  // pays it, because the key is derived from the recruit.
+  if (!recipient || recipient.status !== "active") return false;
+
+  try {
+    await postLedgerEntry({
+      agentId: recipientId,
+      type: "REFERRAL_FEE_SHARE",
+      amount: round2(source.setupFeeReferrerShare),
+      narration:
+        `Your share of ${source.storeName} (${source.code})'s registration fee — ` +
+        formatMoney(round2(source.setupFeeReferrerShare)),
+      reference: source.code,
+      sourceAgentId: source.id,
+      referralLevel: 1,
+      dedupeKey: `REFERRAL_FEE_SHARE:${source.id}`,
+    });
+    return true;
+  } catch (err) {
+    if (err instanceof DuplicateLedgerEntryError) return false;
+    throw err;
+  }
 }
 
 /** One reward to one upline agent. Returns false when it was already paid. */
@@ -652,38 +765,50 @@ export async function voidTeamCommission(orderId: string): Promise<void> {
  * those referrers have a referrer of their own (which is what decides whether a
  * second-level reward is even applicable).
  */
-async function agentsOwedRewards(limit: number): Promise<string[]> {
+async function agentsOwedRewards(limit: number, config: ReferralConfig): Promise<string[]> {
   const candidates = await dataDb.dataAgent
     .findMany({
       where: {
         referredById: { not: null },
-        setupFeeMethod: { not: "WAIVED" },
+        // A waived registration is normally worth nothing to anybody, so those
+        // agents are skipped entirely — unless the admin has said a full
+        // waiver still pays, in which case they are exactly the ones a sweep
+        // has to reach.
+        ...(config.fullWaiverPaysReward ? {} : { setupFeeMethod: { not: "WAIVED" } }),
         // Either the fee is settled, or it is a BALANCE fee whose balance has
         // come back through zero and simply hasn't been stamped yet.
         OR: [
           { setupFeePaidAt: { not: null } },
           { setupFeeMethod: "BALANCE", setupFeePaidAt: null, balance: { gte: 0 } },
+          ...(config.fullWaiverPaysReward
+            ? [{ setupFeeMethod: "WAIVED", setupFeeWaiverPercent: { gte: 100 } } as const]
+            : []),
         ],
       },
-      select: { id: true, referredById: true },
+      select: { id: true, referredById: true, setupFeeReferrerShare: true },
       orderBy: { createdAt: "desc" },
       // A ceiling so one sweep can't read an unbounded table; far above the
       // number of agents any of this is likely to see.
       take: 5000,
     })
-    .catch((): Array<{ id: string; referredById: string | null }> => []);
+    .catch(
+      (): Array<{ id: string; referredById: string | null; setupFeeReferrerShare: number }> => [],
+    );
   if (candidates.length === 0) return [];
 
   const [paidRows, referrers] = await Promise.all([
     dataDb.dataAgentLedger
       .findMany({
         where: {
-          type: { in: ["REFERRAL_L1", "REFERRAL_L2"] },
+          type: { in: ["REFERRAL_L1", "REFERRAL_L2", "REFERRAL_FEE_SHARE"] },
           sourceAgentId: { in: candidates.map((c) => c.id) },
         },
-        select: { sourceAgentId: true, referralLevel: true },
+        select: { sourceAgentId: true, referralLevel: true, type: true },
       })
-      .catch((): Array<{ sourceAgentId: string | null; referralLevel: number | null }> => []),
+      .catch(
+        (): Array<{ sourceAgentId: string | null; referralLevel: number | null; type: string }> =>
+          [],
+      ),
     dataDb.dataAgent
       .findMany({
         where: {
@@ -694,12 +819,23 @@ async function agentsOwedRewards(limit: number): Promise<string[]> {
       .catch((): Array<{ id: string; referredById: string | null }> => []),
   ]);
 
-  const paid = new Set(paidRows.map((r) => `${r.sourceAgentId}:${r.referralLevel}`));
+  const paid = new Set(
+    paidRows.map((r) =>
+      r.type === "REFERRAL_FEE_SHARE" ? `${r.sourceAgentId}:share` : `${r.sourceAgentId}:${r.referralLevel}`,
+    ),
+  );
   const uplineOfUpline = new Map(referrers.map((r) => [r.id, r.referredById]));
 
   const owed: string[] = [];
   for (const c of candidates) {
     if (!paid.has(`${c.id}:1`)) {
+      owed.push(c.id);
+      continue;
+    }
+    // The recruiter's share of the fee can be outstanding on its own — they
+    // were suspended when it came round, and the joining reward it travels
+    // with has since been paid.
+    if (c.setupFeeReferrerShare > 0 && !paid.has(`${c.id}:share`)) {
       owed.push(c.id);
       continue;
     }
@@ -724,7 +860,7 @@ export async function sweepReferralEarnings(limit = 100): Promise<{ rewards: num
   if (!config.enabled) return { rewards: 0, team: 0 };
 
   let rewards = 0;
-  for (const agentId of await agentsOwedRewards(limit)) {
+  for (const agentId of await agentsOwedRewards(limit, config)) {
     rewards += await releaseReferralRewards(agentId);
   }
 
@@ -832,7 +968,12 @@ export async function getTeamSummary(agent: { id: string; code: string }): Promi
     dataDb.dataAgentLedger
       .groupBy({
         by: ["type"],
-        where: { agentId: agent.id, type: { in: ["REFERRAL_L1", "REFERRAL_L2", "TEAM_COMMISSION"] } },
+        where: {
+          agentId: agent.id,
+          type: {
+            in: ["REFERRAL_L1", "REFERRAL_L2", "REFERRAL_FEE_SHARE", "TEAM_COMMISSION"],
+          },
+        },
         _sum: { amount: true },
       })
       .catch((): Array<{ type: string; _sum: { amount: number | null } }> => []),
@@ -881,7 +1022,11 @@ export async function getTeamSummary(agent: { id: string; code: string }): Promi
 
   const sumOf = (type: string) =>
     round2(earnings.find((e) => e.type === type)?._sum.amount ?? 0);
-  const referralEarnings = round2(sumOf("REFERRAL_L1") + sumOf("REFERRAL_L2"));
+  // The joining rewards and the share of the registration fees those recruits
+  // paid are one number to an agent: what recruiting has earned them.
+  const referralEarnings = round2(
+    sumOf("REFERRAL_L1") + sumOf("REFERRAL_L2") + sumOf("REFERRAL_FEE_SHARE"),
+  );
   const teamSalesEarnings = sumOf("TEAM_COMMISSION");
 
   return {
@@ -960,7 +1105,9 @@ export async function getReferralOverview(take = 100): Promise<ReferralOverview>
         by: ["agentId", "type"],
         where: {
           agentId: { in: agents.map((a) => a.id) },
-          type: { in: ["REFERRAL_L1", "REFERRAL_L2", "TEAM_COMMISSION"] },
+          type: {
+            in: ["REFERRAL_L1", "REFERRAL_L2", "REFERRAL_FEE_SHARE", "TEAM_COMMISSION"],
+          },
         },
         _sum: { amount: true },
       })

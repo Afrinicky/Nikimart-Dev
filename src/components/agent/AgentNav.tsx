@@ -9,6 +9,7 @@ import {
   LifeBuoy,
   Settings,
   Store,
+  Trophy,
   Users,
   Wallet,
 } from "lucide-react";
@@ -29,6 +30,7 @@ const ITEMS = [
   { href: "/agent/orders", label: "Orders", icon: ListOrdered },
   { href: "/agent/wallet", label: "Wallet", icon: Wallet },
   { href: "/agent/team", label: "My Team", icon: Users },
+  { href: "/agent/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/agent/afa", label: "AFA", icon: BadgeCheck },
   { href: "/agent/store", label: "Store", icon: Store },
   { href: "/agent/notifications", label: "Notifications", icon: Bell },
@@ -40,10 +42,30 @@ function isActive(pathname: string, href: string, exact?: boolean): boolean {
   return exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/**
+ * The items an agent can actually reach right now.
+ *
+ * A tab for a feature the admin has switched off is a dead end, so AFA and
+ * the leaderboard are filtered out rather than left to redirect.
+ */
+function visibleItems(afaEnabled: boolean, leaderboardEnabled: boolean) {
+  return ITEMS.filter(
+    (i) =>
+      (afaEnabled || i.href !== "/agent/afa") &&
+      (leaderboardEnabled || i.href !== "/agent/leaderboard"),
+  );
+}
+
 /** The sticky sidebar, shown from `lg` up. */
-export function AgentSidebar({ afaEnabled = true }: { afaEnabled?: boolean }) {
+export function AgentSidebar({
+  afaEnabled = true,
+  leaderboardEnabled = false,
+}: {
+  afaEnabled?: boolean;
+  leaderboardEnabled?: boolean;
+}) {
   const pathname = usePathname();
-  const items = ITEMS.filter((i) => afaEnabled || i.href !== "/agent/afa");
+  const items = visibleItems(afaEnabled, leaderboardEnabled);
 
   return (
     <nav className="sticky top-6 space-y-1" aria-label="Agent platform">
@@ -72,9 +94,15 @@ export function AgentSidebar({ afaEnabled = true }: { afaEnabled?: boolean }) {
 }
 
 /** The mobile equivalent: a horizontally scrolling chip rail. */
-export function AgentRail({ afaEnabled = true }: { afaEnabled?: boolean }) {
+export function AgentRail({
+  afaEnabled = true,
+  leaderboardEnabled = false,
+}: {
+  afaEnabled?: boolean;
+  leaderboardEnabled?: boolean;
+}) {
   const pathname = usePathname();
-  const items = ITEMS.filter((i) => afaEnabled || i.href !== "/agent/afa");
+  const items = visibleItems(afaEnabled, leaderboardEnabled);
 
   return (
     <nav

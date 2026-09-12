@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Package, Receipt, Wallet } from "lucide-react";
+import { ArrowLeft, ExternalLink, Package, Receipt, ReceiptText, Wallet } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { BalanceAdjuster } from "@/components/admin/AgentAdminTools";
 import { AgentAccountTools, SetupLinkTool } from "@/components/admin/AgentAccountTools";
 import { ReferrerTool } from "@/components/admin/ReferrerTool";
+import { ReferralWaiverTool } from "@/components/admin/ReferralWaiverTool";
 import { siteUrl } from "@/lib/site";
 import { formatWhen } from "@/components/agent/AgentUi";
 import { dataDb } from "@/lib/data-db";
@@ -19,6 +20,8 @@ import {
 } from "@/lib/data-bundles/agents";
 import { getAgentUser } from "@/lib/data-bundles/user-link";
 import { setAgentStatus } from "@/lib/data-bundles/agent-admin-actions";
+import { getReferralConfig } from "@/lib/data-bundles/settings";
+import { registrationFeeBreakdown } from "@/lib/data-bundles/referral-rules";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Agent — Admin — Nickimart" };
@@ -61,14 +64,18 @@ export default async function AdminAgentDetailPage({
     dataDb.dataAgent.count({ where: { referredById: row.id } }).catch(() => 0),
   ]);
 
-  const [wallet, ledger, orders, withdrawals] = await Promise.all([
+  const [wallet, ledger, orders, withdrawals, referralConfig] = await Promise.all([
     getAgentWallet(agent),
     getAgentLedger(agent.id, 25),
     getAgentOrders(agent.id, { take: 10 }),
     getAgentWithdrawals(agent.id, 10),
+    getReferralConfig(),
   ]);
 
   const suspended = agent.status !== "active";
+  // What this registration was made of, read back off the row rather than
+  // recomputed: the settings may have changed a dozen times since.
+  const fee = registrationFeeBreakdown(agent);
 
   return (
     <Container className="py-8">
@@ -223,10 +230,104 @@ export default async function AdminAgentDetailPage({
         <div className="space-y-4">
           <BalanceAdjuster agentId={agent.id} />
 
+          {/*
+            The registration, in full. Somebody has to be able to answer "why
+            did this agent pay GH₵30 when the fee is GH₵50, and who got the
+            rest?" months later, and a single number on the row cannot.
+          */}
+          <section className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
+            <div className="mb-4 flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-niki-orange/10 text-niki-orange">
+                <ReceiptText className="h-4 w-4" />
+              </span>
+              <div>
+                <h2 className="font-display font-bold text-niki-ink">Registration</h2>
+                <p className="text-xs text-niki-ink/55">
+                  {agent.setupFeeMethod === "UPFRONT"
+                    ? "Paid up front"
+                    : agent.setupFeeMethod === "WAIVED"
+                      ? "Waived"
+                      : "Cleared from commission"}
+                  {" · "}
+                  {agent.setupFeePaidAt ? "settled" : "outstanding"}
+                </p>
+              </div>
+            </div>
+
+            <dl className="space-y-2 text-sm">
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-niki-ink/60">Registration fee</dt>
+                <dd className="font-figures font-semibold text-niki-ink">
+                  {formatMoney(fee.gross)}
+                </dd>
+              </div>
+              {fee.waived > 0 ? (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="text-niki-ink/60">
+                    Referral waiver
+                    <span className="ml-1 text-xs text-niki-ink/40">{fee.waiverPercent}%</span>
+                  </dt>
+                  <dd className="font-figures font-semibold text-niki-success">
+                    −{formatMoney(fee.waived)}
+                  </dd>
+                </div>
+              ) : null}
+              <div className="flex items-baseline justify-between gap-3 border-t border-niki-edge pt-2">
+                <dt className="font-medium text-niki-ink">
+                  {agent.setupFeeMethod === "UPFRONT"
+                    ? "Payable up front"
+                    : "Deducted from commission"}
+                </dt>
+                <dd className="font-figures font-bold text-niki-ink">{formatMoney(fee.payable)}</dd>
+              </div>
+              {fee.payable > 0 ? (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="text-niki-ink/60">Paid so far</dt>
+                  <dd className="font-figures font-semibold text-niki-ink">
+                    {formatMoney(fee.payable - wallet.outstandingSetup)}
+                  </dd>
+                </div>
+              ) : null}
+              {fee.referrerShare > 0 ? (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="text-niki-ink/60">
+                    Credited to {referrer?.storeName ?? "their recruiter"}
+                  </dt>
+                  <dd className="font-figures font-semibold text-niki-ink">
+                    {formatMoney(fee.referrerShare)}
+                  </dd>
+                </div>
+              ) : null}
+              {fee.payable > 0 ? (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="text-niki-ink/60">Nickimart keeps</dt>
+                  <dd className="font-figures font-semibold text-niki-ink">
+                    {formatMoney(fee.nickimartKeeps)}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+
+            <p className="mt-3 text-xs text-niki-ink/45">
+              {agent.setupFeePaidAt
+                ? `Settled ${formatWhen(agent.setupFeePaidAt)}. The recruiter's reward and share are released on payment.`
+                : agent.setupFeeMethod === "UPFRONT"
+                  ? "Their storefront stays closed to customers until this clears."
+                  : "Clearing itself out of the commission they earn."}
+            </p>
+          </section>
+
           <ReferrerTool
             agentId={agent.id}
             referrer={referrer ? { code: referrer.code, storeName: referrer.storeName } : null}
             recruits={recruitCount}
+          />
+
+          <ReferralWaiverTool
+            agentId={agent.id}
+            waiverPercent={agent.referralWaiverPercent}
+            defaultPercent={referralConfig.waiverDefaultPercent}
+            referrerSharePercent={referralConfig.referrerSharePercent}
           />
 
           {/* An agent whose account has no password has never been able to sign

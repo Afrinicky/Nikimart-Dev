@@ -139,9 +139,9 @@ export function DataStoreSettingsForm({ settings }: { settings: DataSettings }) 
             </select>
           </Field>
           <Field
-            label="Storefront setup fee (GH₵)"
+            label="Registration fee (GH₵)"
             htmlFor="agentSetupFee"
-            hint="Charged against the new agent's balance, not collected up front — it clears out of their commission."
+            hint="What it costs to open a storefront. A referral waiver can reduce it — see the Referrals tab."
           >
             <input
               id="agentSetupFee"
@@ -152,6 +152,24 @@ export function DataStoreSettingsForm({ settings }: { settings: DataSettings }) 
               defaultValue={settings.agentSetupFee}
               className={inputClass}
             />
+          </Field>
+          <Field
+            label="How the registration fee is collected"
+            htmlFor="agentPaymentMode"
+            hint="An up-front registration keeps the new agent's storefront closed until the payment clears."
+          >
+            <select
+              id="agentPaymentMode"
+              name="agentPaymentMode"
+              defaultValue={settings.agentPaymentMode.trim().toUpperCase() || "BOTH"}
+              className={inputClass}
+            >
+              <option value="BOTH">Either — the applicant chooses</option>
+              <option value="UPFRONT">Up front only — paid before the store opens</option>
+              <option value="COMMISSION">
+                From commission only — nothing to pay before they start
+              </option>
+            </select>
           </Field>
           <Field
             label="Withdrawal fee (GH₵)"

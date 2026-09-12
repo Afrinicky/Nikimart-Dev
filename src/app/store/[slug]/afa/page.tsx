@@ -5,7 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { AfaForm } from "@/components/data/AfaForm";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
-import { getAgentBySlug } from "@/lib/data-bundles/agents";
+import { agentIsSelling, getAgentBySlug } from "@/lib/data-bundles/agents";
 
 export const metadata: Metadata = { title: "AFA Registration — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export default async function StoreAfaPage({ params }: { params: Promise<{ slug:
 
   const store = await getDataStoreConfig();
   if (!store.enabled || !store.afaEnabled || !agent.afaEnabled) notFound();
-  if (agent.status !== "active" || !agent.storeOpen) notFound();
+  if (!agentIsSelling(agent)) notFound();
 
   const price = agent.afaPrice > 0 ? agent.afaPrice : store.afaPrice;
 

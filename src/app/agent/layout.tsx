@@ -7,7 +7,11 @@ import { AgentCode } from "@/components/agent/AgentCode";
 import { RegistrationFeePanel } from "@/components/agent/RegistrationFeePanel";
 import { requireUser } from "@/lib/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
-import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/settings";
+import {
+  getAgentProgramConfig,
+  getDataStoreConfig,
+  getLeaderboardConfig,
+} from "@/lib/data-bundles/settings";
 import { registrationFeeStatus } from "@/lib/data-bundles/registration-fee";
 import { formatMoney } from "@/lib/format";
 
@@ -23,10 +27,11 @@ export const dynamic = "force-dynamic";
  */
 export default async function AgentLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const [agent, program, store] = await Promise.all([
+  const [agent, program, store, leaderboard] = await Promise.all([
     getAgentForUser(user.id),
     getAgentProgramConfig(),
     getDataStoreConfig(),
+    getLeaderboardConfig(),
   ]);
 
   if (!agent) redirect("/become-an-agent");
@@ -83,12 +88,12 @@ export default async function AgentLayout({ children }: { children: React.ReactN
         ) : null}
 
         <div className="mt-5 lg:hidden">
-          <AgentRail afaEnabled={store.afaEnabled} />
+          <AgentRail afaEnabled={store.afaEnabled} leaderboardEnabled={leaderboard.enabled} />
         </div>
 
         <div className="mt-6 gap-6 lg:grid lg:grid-cols-[220px_minmax(0,1fr)]">
           <aside className="hidden lg:block">
-            <AgentSidebar afaEnabled={store.afaEnabled} />
+            <AgentSidebar afaEnabled={store.afaEnabled} leaderboardEnabled={leaderboard.enabled} />
             <p className="mt-6 px-4 text-[11px] leading-relaxed text-white/35">
               Commission is credited once a bundle is delivered. Withdrawals go to MoMo, minus a{" "}
               {program.withdrawalFee > 0 ? `GH₵${program.withdrawalFee.toFixed(2)} ` : ""}fee.

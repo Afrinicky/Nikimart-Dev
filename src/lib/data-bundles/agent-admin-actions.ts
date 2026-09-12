@@ -451,6 +451,60 @@ export async function setAgentReferrer(
   return { ok: true, message: `${resolved.storeName} (${resolved.code}) is now recorded as the referrer.` };
 }
 
+/**
+ * Set the registration waiver this agent's own recruits get.
+ *
+ * The lever behind "bring three people in and their registration is on us":
+ * a percentage off the registration fee for anybody who joins with this
+ * agent's code, set per agent because it is a reward for recruiting well
+ * rather than a rule of the programme. Leaving it blank puts them back on the
+ * programme default, which is different from setting it to 0% — one follows
+ * the default as it changes, the other never waives anything.
+ *
+ * It applies to registrations made from now on. A recruit already approved
+ * carries the waiver they were quoted, on their own row, and nothing here
+ * rewrites it.
+ */
+export async function setAgentReferralWaiver(
+  _prev: AgentAdminState,
+  fd: FormData,
+): Promise<AgentAdminState> {
+  await requireAdmin();
+  const agentId = str(fd, "agentId");
+  if (!agentId) return { error: "Missing agent." };
+
+  const raw = str(fd, "referralWaiverPercent");
+  let percent: number | null = null;
+  if (raw !== "") {
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0 || n > 100) {
+      return { error: "Enter a waiver between 0 and 100 percent, or leave it blank." };
+    }
+    percent = round2(n);
+  }
+
+  try {
+    await dataDb.dataAgent.update({
+      where: { id: agentId },
+      data: { referralWaiverPercent: percent },
+    });
+  } catch {
+    return { error: STORAGE_ERROR };
+  }
+
+  revalidateAgents(agentId);
+  revalidatePath("/become-an-agent");
+  return {
+    ok: true,
+    message:
+      percent === null
+        ? "This agent's recruits now follow the programme default."
+        : percent >= 100
+          ? "Recruits joining with this agent's code register free."
+          : `Recruits joining with this agent's code get ${percent}% off the registration fee.`,
+  };
+}
+
 const editSchema = z.object({
   storeName: z.string().trim().min(2, "Give the store a name.").max(60),
   slug: z.string().trim().min(3, "Choose a store link."),
