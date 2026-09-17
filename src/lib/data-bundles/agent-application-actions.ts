@@ -24,6 +24,8 @@ import { normaliseSlugClient } from "@/lib/data-bundles/slug";
 import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { generateAgentCode, slugProblem } from "@/lib/data-bundles/agents";
 import { userIdForEmail } from "@/lib/data-bundles/user-link";
+import { consumeAgentInvite, resolveAgentInvite } from "@/lib/data-bundles/invites";
+import { normaliseInviteCode } from "@/lib/data-bundles/invite-rules";
 import {
   settleRegistrationFee,
   startApplicationFeePayment,
@@ -238,6 +240,8 @@ const applySchema = z.object({
   storeName: z.string().trim().min(2, "Enter the store name you want."),
   /** The agent code of whoever recruited them. Optional — most people have none. */
   referralCode: z.string().trim().max(20).optional(),
+  /** The code from an admin-issued registration link, if they came through one. */
+  inviteCode: z.string().trim().max(16).optional(),
   /**
    * How they want to settle the registration fee, where the admin lets them
    * choose. BALANCE is debited on approval and clears out of commission;
@@ -279,6 +283,7 @@ export async function applyToBeAgent(
     email: existingUser?.email || fd.get("email"),
     storeName: fd.get("storeName"),
     referralCode: fd.get("referralCode") ?? undefined,
+    inviteCode: fd.get("inviteCode") ?? undefined,
     feeMethod: fd.get("feeMethod") ?? undefined,
   });
   if (!parsed.success) {
@@ -334,9 +339,20 @@ export async function applyToBeAgent(
   // form posting UPFRONT when the programme collects from commission — or the
   // other way round — is corrected here rather than honoured.
   const feeMethod = settleMethodFor(config.paymentMode, data.feeMethod, config.setupFee);
+
+  // A registration link from Nickimart itself. Re-resolved here rather than
+  // trusted from the form: the discount is a price, and a price a browser can
+  // choose is not a price. An expired or exhausted link is not an error — they
+  // simply pay the normal fee, which is what the form already told them if
+  // they loaded it after it lapsed.
+  const inviteCode = normaliseInviteCode(data.inviteCode);
+  const invite = inviteCode ? await resolveAgentInvite(inviteCode) : null;
+  const inviteWaiver = invite?.ok ? invite.invite.waiverPercent : 0;
+
   // What they will actually be charged, quoted from the same function the
-  // approval commits — including whatever their recruiter's code takes off.
-  const quote = await quoteRegistrationFee(referrerId);
+  // approval commits — including whatever their recruiter's code, or the link
+  // they arrived on, takes off.
+  const quote = await quoteRegistrationFee(referrerId, inviteWaiver);
   const payNow = feeMethod === "UPFRONT" && quote.payable > 0;
 
   let applicationId: string;
@@ -407,6 +423,7 @@ export async function applyToBeAgent(
         note: "",
         referralCode,
         referrerId,
+        inviteCode: invite?.ok ? invite.invite.code : "",
         feeMethod,
         feeAmount: quote.payable,
         feeGross: quote.gross,
@@ -425,6 +442,7 @@ export async function applyToBeAgent(
       select: { id: true },
     });
     applicationId = application.id;
+    if (invite?.ok) await consumeAgentInvite(invite.invite.code);
   } catch (err) {
     // A redirect is thrown, not returned — don't swallow the retry path above.
     if (isRedirectError(err)) throw err;

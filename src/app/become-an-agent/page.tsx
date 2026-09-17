@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Banknote, Link2, Store, Tags } from "lucide-react";
+import { BadgePercent, Banknote, Link2, Store, Tags } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { ApplyAgentForm } from "@/components/agent/ApplyAgentForm";
@@ -14,6 +14,8 @@ import {
   getReferralConfig,
 } from "@/lib/data-bundles/settings";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
+import { resolveAgentInvite } from "@/lib/data-bundles/invites";
+import { inviteProblemMessage, inviteWaiverLabel } from "@/lib/data-bundles/invite-rules";
 
 export const metadata: Metadata = {
   title: "Become a Data Agent — Nickimart",
@@ -34,7 +36,7 @@ const POINTS = [
 export default async function BecomeAnAgentPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ ref?: string }>;
+  searchParams?: Promise<{ ref?: string; invite?: string }>;
 }) {
   const session = await auth();
   const [program, store, referral] = await Promise.all([
@@ -47,7 +49,26 @@ export default async function BecomeAnAgentPage({
   // field — the code is resolved and checked server-side when the application
   // is submitted, and again when it is approved, so a link somebody edited
   // buys nothing.
-  const invitedBy = ((await searchParams)?.ref ?? "").trim().toUpperCase().slice(0, 20);
+  const params = await searchParams;
+  const invitedBy = (params?.ref ?? "").trim().toUpperCase().slice(0, 20);
+
+  // A registration link Nickimart issued itself. Resolved here so the fee on
+  // the form is the fee they will be charged — and re-resolved on submit, so a
+  // link edited in the address bar buys nothing.
+  const inviteLookup = params?.invite ? await resolveAgentInvite(params.invite) : null;
+  const invite = inviteLookup?.ok
+    ? {
+        code: inviteLookup.invite.code,
+        waiverPercent: inviteLookup.invite.waiverPercent,
+        label: inviteLookup.invite.label,
+      }
+    : null;
+  // A link that has lapsed is worth saying out loud: silently charging full
+  // price to somebody who was promised a discount is how support tickets start.
+  const inviteNotice =
+    inviteLookup && !inviteLookup.ok && inviteLookup.problem !== "unknown"
+      ? inviteProblemMessage(inviteLookup.problem)
+      : null;
 
   // Already an agent? There's nothing to pitch — send them to their console.
   let signedInAs: { name: string; email: string; phone: string } | null = null;
@@ -90,7 +111,18 @@ export default async function BecomeAnAgentPage({
             <p className="mt-1 text-sm text-niki-ink/60">
               Create your account and start selling data bundles.
             </p>
-            {open && program.setupFee > 0 ? (
+            {invite ? (
+              <p className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-niki-success/10 px-3 py-1.5 text-sm font-semibold text-niki-success ring-1 ring-niki-success/30">
+                <BadgePercent className="h-4 w-4" />
+                {inviteWaiverLabel(invite.waiverPercent) || "You were invited by Nickimart."}
+              </p>
+            ) : null}
+            {inviteNotice ? (
+              <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
+                {inviteNotice}
+              </p>
+            ) : null}
+            {open && program.setupFee > 0 && !invite ? (
               <p className="mt-2 text-sm font-semibold text-niki-orange">
                 {program.paymentMode === "COMMISSION"
                   ? `A ${formatMoney(program.setupFee)} registration fee clears from your commission.`
@@ -113,6 +145,7 @@ export default async function BecomeAnAgentPage({
               <ApplyAgentForm
                 origin={siteUrl()}
                 referralCode={invitedBy}
+                invite={invite}
                 setupFee={program.setupFee}
                 referralOpen={referral.enabled}
                 paymentMode={program.paymentMode}
