@@ -8,8 +8,9 @@ import {
   settleAfaRegistration,
   settleDataOrder,
 } from "@/lib/data-bundles/fulfillment";
-import { isRegistrationReference } from "@/lib/data-bundles/reference";
+import { isRegistrationReference, isWalletReference } from "@/lib/data-bundles/reference";
 import { verifyAndSettleRegistrationFee } from "@/lib/data-bundles/registration-fee";
+import { verifyAndSettleWalletTopup } from "@/lib/data-bundles/wallet";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,18 @@ export default async function VerifyAgentPaymentPage({
       // Couldn't reach Paystack — the webhook settles it independently.
     }
     redirect(settled ? "/agent/wallet?fee=paid" : "/agent/wallet?fee=pending");
+  }
+
+  // A top-up is not an order either: it buys nothing, it just moves money onto
+  // the balance the orders are then paid from.
+  if (isWalletReference(reference)) {
+    let credited = false;
+    try {
+      credited = await verifyAndSettleWalletTopup(reference);
+    } catch {
+      // Couldn't reach Paystack — the webhook credits it independently.
+    }
+    redirect(credited ? "/agent/wallet?topup=paid" : "/agent/wallet?topup=pending");
   }
 
   const isAfa = isAfaReference(reference);

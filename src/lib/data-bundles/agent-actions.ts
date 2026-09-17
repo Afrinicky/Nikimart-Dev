@@ -22,11 +22,13 @@ import {
   normaliseSlug,
   round2,
   slugProblem,
+  withdrawableFrom,
   type AgentAccount,
 } from "@/lib/data-bundles/agents";
 import { maxWithdrawal, priceAtMarkup } from "@/lib/data-bundles/agent-pricing";
 import { teamCommissionFor } from "@/lib/data-bundles/referrals";
 import { startRegistrationFeePayment } from "@/lib/data-bundles/registration-fee";
+import { MAX_TOPUP, MIN_TOPUP, startWalletTopup, type WalletTopupResult } from "@/lib/data-bundles/wallet";
 
 /**
  * Everything an agent can do to their own account: edit their own details,
@@ -479,6 +481,43 @@ export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): 
 }
 
 // ---------------------------------------------------------------------------
+// Wallet top-up
+// ---------------------------------------------------------------------------
+
+/**
+ * Put money into the wallet, so orders can be paid from a float rather than a
+ * card form per bundle.
+ *
+ * The mirror of a withdrawal, and read the same way in the ledger: one credit
+ * in, one debit out per order. The agent is taken from the session, so a top-up
+ * can only ever land on the balance of whoever is signed in.
+ */
+export async function topUpWallet(amount: number): Promise<WalletTopupResult> {
+  const { agent, user, error } = await currentAgent();
+  if (!agent) return { ok: false, error };
+
+  if (!Number.isFinite(amount) || amount < MIN_TOPUP || amount > MAX_TOPUP) {
+    return {
+      ok: false,
+      error: `Enter an amount between GH₵${MIN_TOPUP.toFixed(2)} and GH₵${MAX_TOPUP.toFixed(2)}.`,
+    };
+  }
+
+  const limit = await rateLimit(`agent-topup-wallet:${agent.id}`, 20, 60 * 60_000);
+  if (!limit.ok) {
+    return { ok: false, error: `Too many attempts. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
+  }
+
+  const result = await startWalletTopup(
+    agent,
+    user.email ?? `${agent.code.toLowerCase()}@agent.nikimart.app`,
+    amount,
+  );
+  if (result.ok) revalidatePath("/agent/wallet");
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // The registration fee
 // ---------------------------------------------------------------------------
 
@@ -600,20 +639,27 @@ const topupSchema = z.object({
   sizeGb: z.number().positive().max(1000),
   recipientPhone: z.string().min(9, "Enter the number to top up."),
   email: z.string().trim().email("Enter a valid email address.").optional().or(z.literal("")),
+  /** "wallet" spends the balance; "paystack" opens the card/MoMo form. */
+  payWith: z.enum(["paystack", "wallet"]).optional(),
 });
 
 export type AgentTopupResult =
-  | { ok: true; reference: string; authorizationUrl?: string }
+  | { ok: true; reference: string; authorizationUrl?: string; paidFromWallet?: boolean }
   | { ok: false; error: string };
 
 /**
  * The agent buying for a walk-in customer from their own dashboard.
  *
- * They pay their agent price — the wholesale rate — through Paystack, exactly
- * like any other buyer. No wallet is stocked and nothing is fronted: the money
- * is collected before the bundle is bought upstream. Whatever the agent charged
- * their customer in cash is between them and the customer, so there is no
- * commission on this route.
+ * They pay their agent price — the wholesale rate — either straight from their
+ * Nickimart wallet or through Paystack. Nothing is ever fronted: the money is
+ * collected, from one place or the other, before the bundle is bought upstream.
+ * Whatever the agent charged their customer in cash is between them and the
+ * customer, so there is no commission on this route.
+ *
+ * Paying from the wallet is what makes serving a queue of walk-ins practical —
+ * one top-up in the morning instead of a card form per bundle — and the debit
+ * is guarded by the balance itself, so two orders sent at the same moment can
+ * never both spend the same cedis.
  */
 export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<AgentTopupResult> {
   const { agent, error } = await currentAgent();
@@ -638,8 +684,26 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
   const row = rows.find((r) => r.network === data.network && r.sizeGb === data.sizeGb);
   if (!row) return { ok: false, error: "That bundle is not available right now." };
 
-  const collectPayment = isPaymentConfigured("data");
+  const fromWallet = data.payWith === "wallet";
+  const collectPayment = !fromWallet && isPaymentConfigured("data");
   const email = data.email?.trim() || null;
+
+  if (fromWallet) {
+    // Checked here for the error message the agent should see; the debit below
+    // re-tests it inside the update that spends it, which is what actually
+    // stops two orders spending one balance.
+    const wallet = await getAgentWallet(agent);
+    const available = withdrawableFrom(wallet);
+    if (available < row.agentPrice) {
+      return {
+        ok: false,
+        error:
+          available <= 0
+            ? "Your wallet is empty. Top it up, or pay with Paystack."
+            : `Your wallet has GH₵${available.toFixed(2)} available — this bundle costs GH₵${row.agentPrice.toFixed(2)}.`,
+      };
+    }
+  }
 
   // A walk-in served from the dashboard is still a sale the agent made, so it
   // still earns their recruiter a team commission. The agent's own commission
@@ -681,6 +745,37 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
           teamCommissionStatus: team.teamCommission > 0 ? "pending" : "void",
         },
       });
+
+      if (fromWallet) {
+        try {
+          await postLedgerEntry({
+            agentId: agent.id,
+            type: "WALLET_ORDER",
+            amount: -row.agentPrice,
+            requireBalance: row.agentPrice,
+            narration: `Order ${reference} paid from wallet — ${bundleLabel(row.sizeGb)} ${networkLabel(row.network)} to ${recipientPhone}`,
+            reference,
+            dedupeKey: `WALLET_ORDER:${order.id}`,
+          });
+        } catch (err) {
+          // Nothing was charged, so the order must not survive: an unpaid row
+          // here is an order the sweep would later try to dispatch for free.
+          await dataDb.dataOrder.delete({ where: { id: order.id } }).catch(() => {});
+          return {
+            ok: false,
+            error:
+              err instanceof InsufficientBalanceError
+                ? "Your balance changed while that was going through. Check your wallet and try again."
+                : "Could not take that from your wallet. Please try again.",
+          };
+        }
+        // Paid, so settle it exactly as a gateway payment settles: the flip to
+        // paid and the dispatch both live there. Awaited rather than deferred,
+        // because the money has already left the wallet — an order left unpaid
+        // by a settlement that never ran would be a bundle nobody sends.
+        await settleDataOrder(reference);
+        return { ok: true, reference, paidFromWallet: true };
+      }
 
       if (!collectPayment) {
         after(async () => {

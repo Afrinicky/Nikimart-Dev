@@ -6,6 +6,7 @@ import {
   isAfaReference,
   isDataReference,
   isRegistrationReference,
+  isWalletReference,
 } from "./data-bundles/reference.ts";
 
 /**
@@ -22,11 +23,15 @@ import {
 export type PaymentAccount = "retail" | "data";
 
 /**
- * The business a reference belongs to. "ND-"/"NA-"/"NR-" are bundle orders, AFA
- * registrations and agent registration fees; everything else is a mall order.
+ * The business a reference belongs to. "ND-"/"NA-"/"NR-"/"NT-" are bundle
+ * orders, AFA registrations, agent registration fees and agent wallet top-ups;
+ * everything else is a mall order.
  */
 export function accountForReference(reference: string): PaymentAccount {
-  return isDataReference(reference) || isAfaReference(reference) || isRegistrationReference(reference)
+  return isDataReference(reference) ||
+    isAfaReference(reference) ||
+    isRegistrationReference(reference) ||
+    isWalletReference(reference)
     ? "data"
     : "retail";
 }

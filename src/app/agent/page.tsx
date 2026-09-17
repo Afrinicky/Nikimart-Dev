@@ -21,6 +21,7 @@ import {
   getAgentBundleRows,
   getAgentForUser,
   getAgentWallet,
+  withdrawableFrom,
 } from "@/lib/data-bundles/agents";
 import { getLeaderboardView } from "@/lib/data-bundles/leaderboard";
 
@@ -244,7 +245,7 @@ export default async function AgentDashboardPage() {
         </div>
 
         <div className="mt-4">
-          <AgentTopup bundles={bundles} />
+          <AgentTopup bundles={bundles} balance={withdrawableFrom(wallet)} />
         </div>
       </section>
     </div>

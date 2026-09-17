@@ -4,6 +4,7 @@ import { ArrowDownLeft, ArrowUpRight, Banknote, TrendingUp, Wallet } from "lucid
 import { ActionLink } from "@/components/ui/motion";
 import { AgentPageHeading, Card, EmptyRow, TableScroll, formatWhen } from "@/components/agent/AgentUi";
 import { WithdrawPanel } from "@/components/agent/WithdrawPanel";
+import { TopupWalletPanel } from "@/components/agent/TopupWalletPanel";
 import { requireUser } from "@/lib/session";
 import { formatMoney } from "@/lib/format";
 import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
@@ -91,7 +92,12 @@ function Tile({
   );
 }
 
-export default async function AgentWalletPage() {
+export default async function AgentWalletPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ topup?: string; fee?: string }>;
+}) {
+  const params = await searchParams;
   const user = await requireUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
@@ -107,6 +113,7 @@ export default async function AgentWalletPage() {
   return (
     <div className="space-y-5">
       <AgentPageHeading title="Wallet" subtitle="Your balance, earnings and payouts.">
+        <TopupWalletPanel balance={wallet.balance} />
         <ActionLink
           href="/agent/store?tab=withdrawals"
           className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-black/5"
@@ -115,11 +122,24 @@ export default async function AgentWalletPage() {
         </ActionLink>
       </AgentPageHeading>
 
+      {params.topup === "paid" ? (
+        <p className="animate-fade-up rounded-2xl bg-niki-success/10 px-5 py-4 text-sm font-medium text-niki-success ring-1 ring-niki-success/30">
+          Top-up received — it&apos;s on your balance and ready to spend.
+        </p>
+      ) : params.topup === "pending" ? (
+        <p className="animate-fade-up rounded-2xl bg-amber-50 px-5 py-4 text-sm font-medium text-amber-800 ring-1 ring-amber-200">
+          We haven&apos;t had confirmation of that payment yet. If it was debited, it lands on your
+          balance within a few minutes.
+        </p>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Tile
           label="Balance"
           value={formatMoney(wallet.balance)}
-          hint={wallet.balance < 0 ? "Clearing from commissions" : "On your account"}
+          hint={
+            wallet.balance < 0 ? "Clearing from commissions" : "Spendable on orders"
+          }
           icon={Wallet}
           tone={wallet.balance < 0 ? "danger" : "success"}
         />
