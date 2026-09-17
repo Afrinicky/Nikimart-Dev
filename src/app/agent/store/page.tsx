@@ -1,7 +1,16 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { BadgeDollarSign, Link2, Package, Receipt, Store, TrendingUp, Wallet } from "lucide-react";
+import {
+  BadgeDollarSign,
+  ImageDown,
+  Link2,
+  Package,
+  Receipt,
+  Store,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 import { AgentPageHeading, Card, EmptyRow, TableScroll, formatWhen } from "@/components/agent/AgentUi";
 import { StoreTabs } from "@/components/agent/StoreTabs";
 import { isStoreTab } from "@/lib/data-bundles/store-tabs";
@@ -9,6 +18,7 @@ import { StoreLinkForm } from "@/components/agent/StoreLinkForm";
 import { StoreOpenToggle } from "@/components/agent/StoreOpenToggle";
 import { PricingTable } from "@/components/agent/PricingTable";
 import { AfaPricingForm } from "@/components/agent/AfaPricingForm";
+import { FlyerStudio } from "@/components/agent/FlyerStudio";
 import { requireUser } from "@/lib/session";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
@@ -94,6 +104,32 @@ export default async function AgentStorePage({
       {tab === "pricing" ? (
         <Card title="Package pricing" description="What you charge for each bundle." icon={Package}>
           <PricingTable rows={await getAgentBundleRows(agent.id)} />
+        </Card>
+      ) : null}
+
+      {tab === "flyer" ? (
+        <Card
+          title="Price flyer"
+          description="A ready-to-post price list, built from your live prices."
+          icon={ImageDown}
+        >
+          <FlyerStudio
+            data={{
+              storeName: agent.storeName,
+              storeLink: `${siteUrl().replace(/^https?:\/\//, "")}/store/${agent.slug}`,
+              phone: agent.supportWhatsapp || agent.supportPhone || "",
+              tagline: agent.storeTagline,
+              bundles: (await getAgentBundleRows(agent.id))
+                .filter((r) => r.isActive && r.price > 0)
+                .map((r) => ({ network: r.network, sizeGb: r.sizeGb, price: r.price })),
+              afaPrice:
+                store.afaEnabled && agent.afaEnabled
+                  ? agent.afaPrice > 0
+                    ? agent.afaPrice
+                    : store.afaPrice
+                  : null,
+            }}
+          />
         </Card>
       ) : null}
 
