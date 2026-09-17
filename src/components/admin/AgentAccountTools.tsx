@@ -131,7 +131,7 @@ export function AgentAccountTools({
           <button
             type="button"
             onClick={() => { setEditing((e) => !e); setConfirming(false); }}
-            className="niki-chip niki-focus flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold text-niki-ink/75"
+            className="niki-chip niki-focus flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold text-niki-ink/75"
           >
             {editing ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
             {editing ? "Cancel" : "Edit details"}
@@ -139,7 +139,7 @@ export function AgentAccountTools({
           <button
             type="button"
             onClick={() => { setConfirming((c) => !c); setEditing(false); }}
-            className="niki-press niki-focus flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-niki-danger ring-1 ring-niki-danger/40 hover:bg-niki-danger/5"
+            className="niki-press niki-focus flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-xs font-bold text-niki-danger ring-1 ring-niki-danger/40 hover:bg-niki-danger/5"
           >
             <Trash2 className="h-3.5 w-3.5" />
             Delete
@@ -257,14 +257,14 @@ export function AgentAccountTools({
               <SubmitButton
                 pendingLabel="Removing…"
                 icon={<Trash2 className="h-3.5 w-3.5" />}
-                className="rounded-full bg-niki-danger px-4 py-2 text-xs font-bold text-white hover:bg-red-700"
+                className="rounded-lg bg-niki-danger px-4 py-2 text-xs font-bold text-white hover:bg-red-700"
               >
                 Yes, remove the storefront
               </SubmitButton>
               <button
                 type="button"
                 onClick={() => setConfirming(false)}
-                className={cn("niki-chip niki-focus rounded-full px-4 py-2 text-xs font-bold text-niki-ink/75")}
+                className={cn("niki-chip niki-focus rounded-lg px-4 py-2 text-xs font-bold text-niki-ink/75")}
               >
                 Keep it
               </button>

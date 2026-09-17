@@ -72,7 +72,7 @@ export function EmailDeliveryPanel({
           <p className="text-sm text-niki-ink/60">Order confirmations, delivery updates, reset codes.</p>
         </div>
         <span
-          className={`ml-auto flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${tone.chip}`}
+          className={`ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-semibold ${tone.chip}`}
         >
           <Icon className="h-3.5 w-3.5" />
           {tone.label}

@@ -51,7 +51,7 @@ export default async function ShippingLocationsPage() {
           <ExportButton dataset="pickup" />
           <Link
             href="/admin/shipping/locations/new"
-            className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+            className="flex items-center gap-2 rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
           >
             <Plus className="h-4 w-4" />
             New location
@@ -69,7 +69,7 @@ export default async function ShippingLocationsPage() {
           </p>
           <Link
             href="/admin/shipping/locations/new"
-            className="mt-4 inline-flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white"
           >
             <Plus className="h-4 w-4" />
             Create the first one
@@ -103,13 +103,13 @@ export default async function ShippingLocationsPage() {
                     <td className="px-5 py-3">
                       <div className="flex flex-wrap gap-1.5">
                         {l.isPickup ? (
-                          <span className="flex items-center gap-1 rounded-full bg-niki-orange/10 px-2.5 py-1 text-xs font-semibold text-niki-orange">
+                          <span className="flex items-center gap-1 rounded-lg bg-niki-orange/10 px-2.5 py-1 text-xs font-semibold text-niki-orange">
                             <MapPin className="h-3 w-3" />
                             Buyers collect
                           </span>
                         ) : null}
                         {l.isConsolidation ? (
-                          <span className="flex items-center gap-1 rounded-full bg-niki-black/5 px-2.5 py-1 text-xs font-semibold text-niki-ink/70">
+                          <span className="flex items-center gap-1 rounded-lg bg-niki-black/5 px-2.5 py-1 text-xs font-semibold text-niki-ink/70">
                             <PackageOpen className="h-3 w-3" />
                             Goods gather
                           </span>
@@ -122,7 +122,7 @@ export default async function ShippingLocationsPage() {
                     </td>
                     <td className="px-5 py-3">
                       <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
                           l.isActive
                             ? "bg-niki-success/10 text-niki-success"
                             : "bg-niki-ink/10 text-niki-ink/60"

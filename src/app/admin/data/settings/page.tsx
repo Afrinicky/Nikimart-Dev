@@ -14,7 +14,8 @@ export default async function AdminDataSettingsPage() {
       <div>
         <h1 className="font-display text-2xl font-bold text-niki-ink">Data store settings</h1>
         <p className="mt-1 text-sm text-niki-ink/60">
-          Branding, availability and pricing defaults for the bundle storefront. Payments and SMS use
+          Branding, availability and pricing defaults for the bundle storefront. The agent
+          programme has its own settings under Agents → Programme settings. Payments and SMS use
           Nickimart&apos;s existing Paystack and Arkesel accounts — nothing extra to configure.
         </p>
       </div>

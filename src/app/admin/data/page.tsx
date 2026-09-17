@@ -156,7 +156,7 @@ export default async function AdminDataOverviewPage() {
           <form action={sweepDataOrders}>
             <button
               type="submit"
-              className="flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge transition-colors hover:bg-niki-black/5"
+              className="flex items-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge transition-colors hover:bg-niki-black/5"
             >
               <RefreshCw className="h-4 w-4" />
               Run checks now
@@ -164,7 +164,7 @@ export default async function AdminDataOverviewPage() {
           </form>
           <Link
             href="/admin/data/bundles"
-            className="rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+            className="rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
           >
             Set bundle prices
           </Link>
@@ -191,7 +191,7 @@ export default async function AdminDataOverviewPage() {
           href="https://justicedatashop.com"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1.5 rounded-full bg-white/10 px-4 py-2.5 text-sm font-semibold ring-1 ring-white/20 transition-colors hover:bg-white/20"
+          className="flex items-center gap-1.5 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-semibold ring-1 ring-white/20 transition-colors hover:bg-white/20"
         >
           <ExternalLink className="h-4 w-4" />
           Top up
@@ -262,7 +262,7 @@ export default async function AdminDataOverviewPage() {
           </div>
           <Link
             href="/admin/data/agents"
-            className="rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white"
+            className="rounded-lg bg-niki-black px-4 py-2 text-xs font-semibold text-white"
           >
             Manage agents
           </Link>

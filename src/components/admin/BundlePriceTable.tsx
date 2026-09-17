@@ -30,7 +30,7 @@ function SaveButton() {
       type="submit"
       disabled={pending}
       aria-busy={pending || undefined}
-      className="niki-press niki-focus flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white hover:bg-niki-orange-light disabled:cursor-not-allowed disabled:opacity-60"
+      className="niki-press niki-focus flex items-center gap-2 rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white hover:bg-niki-orange-light disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
       {pending ? "Saving…" : "Save prices"}

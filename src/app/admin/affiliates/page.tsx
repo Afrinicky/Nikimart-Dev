@@ -28,10 +28,10 @@ export default async function AdminAffiliatesPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExportButton dataset="affiliates" />
-          <Link href="/admin/settings" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
+          <Link href="/admin/settings" className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
             <Settings className="h-4 w-4" /> Program settings
           </Link>
-          <Link href="/admin/affiliates/new" className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white hover:bg-niki-orange-light">
+          <Link href="/admin/affiliates/new" className="flex items-center gap-2 rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white hover:bg-niki-orange-light">
             <Plus className="h-4 w-4" /> Add affiliate
           </Link>
         </div>
@@ -71,11 +71,11 @@ export default async function AdminAffiliatesPage() {
                 <tr key={a.id} className="hover:bg-niki-surface">
                   <td className="px-5 py-3 font-medium text-niki-ink">
                     {a.name}
-                    {a.isUser ? <span className="ml-2 rounded-full bg-niki-trust/10 px-2 py-0.5 text-[10px] font-semibold text-niki-trust">Self-registered</span> : null}
+                    {a.isUser ? <span className="ml-2 rounded-lg bg-niki-trust/10 px-2 py-0.5 text-[10px] font-semibold text-niki-trust">Self-registered</span> : null}
                   </td>
                   <td className="px-5 py-3 font-mono text-xs text-niki-orange">{a.code ?? "—"}</td>
                   <td className="px-5 py-3">
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${a.status === "active" ? "bg-niki-success/10 text-niki-success" : "bg-niki-danger/10 text-niki-danger"}`}>
+                    <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${a.status === "active" ? "bg-niki-success/10 text-niki-success" : "bg-niki-danger/10 text-niki-danger"}`}>
                       {a.status === "active" ? "Active" : "Suspended"}
                     </span>
                   </td>

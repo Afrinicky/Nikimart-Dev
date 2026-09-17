@@ -40,7 +40,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
         subtitle={`Placed ${order.createdAt.toLocaleString("en-GH", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}`}
         crumbs={[{ label: "Orders", href: "/admin/orders" }, { label: order.orderNumber }]}
       >
-        <Link href="/admin/orders" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
+        <Link href="/admin/orders" className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
           <ArrowLeft className="h-4 w-4" /> Orders
         </Link>
       </PageHeader>
@@ -59,7 +59,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
             <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
               <div className="flex items-center justify-between">
                 <h2 className="font-display text-lg font-bold text-niki-ink">Items</h2>
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone(order.status)}`}>
+                <span className={`rounded-lg px-3 py-1 text-xs font-semibold ${statusTone(order.status)}`}>
                   {ORDER_STATUS_LABELS[order.status] ?? order.status}
                 </span>
               </div>
@@ -122,15 +122,15 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
 
               <div className="mt-4 flex flex-wrap gap-2">
                 {wa ? (
-                  <a href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-full bg-niki-success/10 px-3 py-1.5 text-xs font-semibold text-niki-success">
+                  <a href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-lg bg-niki-success/10 px-3 py-1.5 text-xs font-semibold text-niki-success">
                     <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
                   </a>
                 ) : null}
                 {order.user.phone ? (
-                  <a href={`tel:${order.user.phone}`} className="flex items-center gap-1.5 rounded-full bg-niki-black/5 px-3 py-1.5 text-xs font-semibold text-niki-ink/70"><Phone className="h-3.5 w-3.5" /> Call</a>
+                  <a href={`tel:${order.user.phone}`} className="flex items-center gap-1.5 rounded-lg bg-niki-black/5 px-3 py-1.5 text-xs font-semibold text-niki-ink/70"><Phone className="h-3.5 w-3.5" /> Call</a>
                 ) : null}
                 {order.user.email ? (
-                  <a href={`mailto:${order.user.email}`} className="flex items-center gap-1.5 rounded-full bg-niki-black/5 px-3 py-1.5 text-xs font-semibold text-niki-ink/70"><Mail className="h-3.5 w-3.5" /> Email</a>
+                  <a href={`mailto:${order.user.email}`} className="flex items-center gap-1.5 rounded-lg bg-niki-black/5 px-3 py-1.5 text-xs font-semibold text-niki-ink/70"><Mail className="h-3.5 w-3.5" /> Email</a>
                 ) : null}
               </div>
             </div>

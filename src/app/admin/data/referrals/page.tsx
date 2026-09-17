@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import { Share2 } from "lucide-react";
-import { Container } from "@/components/ui/Container";
+import { PanelHeading } from "@/components/admin/ModuleHeader";
 import { ActionLink } from "@/components/ui/motion";
 import { formatMoney } from "@/lib/format";
 import { getDataSettings } from "@/lib/data-bundles/settings";
 import { getReferralOverview } from "@/lib/data-bundles/referrals";
-import { ReferralSettingsForm } from "@/components/admin/ReferralSettingsForm";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Referrals — Data Bundles — Nickimart" };
@@ -36,30 +35,15 @@ export default async function AdminReferralsPage() {
   const closed = ["0", "off", "false", "no"].includes(settings.referralEnabled.trim().toLowerCase());
 
   return (
-    <Container className="py-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-niki-ink">Referrals &amp; team earnings</h1>
-          <p className="mt-1 text-sm text-niki-ink/60">
-            Agents recruit agents with their own agent code. Two levels, and no further.
-          </p>
-        </div>
-        <ActionLink
-          href="/admin/data/agents"
-          className="rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white"
-        >
-          Agent roster
-        </ActionLink>
-      </div>
-
+    <div>
       {closed ? (
-        <p className="mt-5 rounded-2xl bg-amber-50 px-5 py-4 text-sm text-amber-800 ring-1 ring-amber-200">
+        <p className="mb-5 rounded-xl bg-amber-50 px-5 py-4 text-sm text-amber-800 ring-1 ring-amber-200">
           The referral programme is closed. No new relationships are recorded and nothing is paid.
           Relationships already recorded, and everything already earned, are untouched.
         </p>
       ) : null}
 
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Tile
           label="Referral earnings paid"
           value={formatMoney(overview.totalRewardsPaid)}
@@ -78,15 +62,11 @@ export default async function AdminReferralsPage() {
         />
       </div>
 
-      <div className="mt-8">
-        <ReferralSettingsForm settings={settings} />
-      </div>
-
-      <section className="mt-10">
-        <h2 className="font-display text-lg font-bold text-niki-ink">Who recruited whom</h2>
-        <p className="mt-1 text-sm text-niki-ink/60">
-          Every agent the programme touches — recruited, recruiting, or both.
-        </p>
+      <section className="mt-8">
+        <PanelHeading
+          title="Who recruited whom"
+          subtitle="Every agent the programme touches — recruited, recruiting, or both."
+        />
 
         {overview.rows.length === 0 ? (
           <div className="mt-4 rounded-2xl bg-white p-8 text-center ring-1 ring-niki-edge">
@@ -170,6 +150,6 @@ export default async function AdminReferralsPage() {
           </div>
         )}
       </section>
-    </Container>
+    </div>
   );
 }

@@ -78,7 +78,7 @@ export function PurchaseOrdersTable({
               </td>
               <td className="px-5 py-3">
                 <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
                     p.status === "received"
                       ? "bg-niki-success/10 text-niki-success"
                       : p.status === "cancelled"

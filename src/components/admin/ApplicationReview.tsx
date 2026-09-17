@@ -80,13 +80,13 @@ export function ApplicationReview({
             <button
               type="button"
               onClick={() => setRejecting(false)}
-              className="niki-press niki-focus rounded-full bg-niki-surface px-4 py-2 text-xs font-bold text-niki-ink/65"
+              className="niki-press niki-focus rounded-lg bg-niki-surface px-4 py-2 text-xs font-bold text-niki-ink/65"
             >
               Cancel
             </button>
             <SubmitButton
               pendingLabel="Rejecting…"
-              className="rounded-full bg-niki-danger px-4 py-2 text-xs font-bold text-white"
+              className="rounded-lg bg-niki-danger px-4 py-2 text-xs font-bold text-white"
             >
               Confirm rejection
             </SubmitButton>
@@ -95,7 +95,7 @@ export function ApplicationReview({
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           {blocked ? (
-            <span className="rounded-full bg-amber-100 px-4 py-2 text-xs font-bold text-amber-800">
+            <span className="rounded-lg bg-amber-100 px-4 py-2 text-xs font-bold text-amber-800">
               {blocked}
             </span>
           ) : (
@@ -104,7 +104,7 @@ export function ApplicationReview({
               <SubmitButton
                 pendingLabel="Approving…"
                 icon={<Check className="h-3.5 w-3.5" />}
-                className="rounded-full bg-niki-success px-4 py-2 text-xs font-bold text-white"
+                className="rounded-lg bg-niki-success px-4 py-2 text-xs font-bold text-white"
               >
                 Approve &amp; activate
               </SubmitButton>
@@ -113,7 +113,7 @@ export function ApplicationReview({
           <button
             type="button"
             onClick={() => setRejecting(true)}
-            className="niki-press niki-focus flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-niki-danger ring-1 ring-niki-danger/30"
+            className="niki-press niki-focus flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-xs font-bold text-niki-danger ring-1 ring-niki-danger/30"
           >
             <X className="h-3.5 w-3.5" />
             Reject

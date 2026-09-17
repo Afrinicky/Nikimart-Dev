@@ -1,42 +1,15 @@
-import { ShieldCheck } from "lucide-react";
-import { Container } from "@/components/ui/Container";
-import { LogoutButton } from "@/components/auth/LogoutButton";
-import { AdminNav } from "@/components/admin/AdminNav";
-import { ConsoleSwitcher } from "@/components/admin/ConsoleSwitcher";
+import { AdminShell } from "@/components/admin/AdminShell";
 import { requireDashboard } from "@/lib/session";
 
+/**
+ * The admin console's frame. The shell — sidebar, top bar, collapse — is a
+ * client component because it remembers how this browser likes it; the guard
+ * stays here, on the server, where it cannot be argued with.
+ */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await requireDashboard("/admin");
 
   return (
-    <>
-      <div className="border-b border-niki-edge bg-white">
-        <Container className="py-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-niki-black text-niki-orange">
-                <ShieldCheck className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="font-display text-lg font-bold text-niki-ink">Admin Console</p>
-                <p className="text-xs text-niki-ink/60">{user.name ?? user.email}</p>
-              </div>
-            </div>
-            <LogoutButton />
-          </div>
-          {/*
-            Two consoles, then that console's own tabs. The switcher is the only
-            navigation the retail mall and the bundle business share.
-          */}
-          <div className="mt-4">
-            <ConsoleSwitcher />
-          </div>
-          <div className="mt-3">
-            <AdminNav />
-          </div>
-        </Container>
-      </div>
-      {children}
-    </>
+    <AdminShell user={{ name: user.name, email: user.email }}>{children}</AdminShell>
   );
 }

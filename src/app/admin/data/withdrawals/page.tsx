@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Banknote } from "lucide-react";
+import { Users } from "lucide-react";
 import { Container } from "@/components/ui/Container";
+import { ModuleHeader } from "@/components/admin/ModuleHeader";
+import { ModuleTabs } from "@/components/admin/ModuleTabs";
+import { AGENT_MODULE_TABS, pendingApplicationCount } from "@/lib/data-bundles/agent-module";
 import { ActionLink } from "@/components/ui/motion";
 import { formatWhen } from "@/components/agent/AgentUi";
 import { dataDb } from "@/lib/data-db";
@@ -47,9 +51,18 @@ export default async function AdminWithdrawalsPage({
 
   return (
     <Container className="py-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <ModuleHeader
+        title="Agent management"
+        subtitle="Your reseller network: accounts, applications, payouts and the programme's rules."
+        icon={Users}
+      />
+      <div className="mt-5">
+        <ModuleTabs tabs={AGENT_MODULE_TABS(await pendingApplicationCount())} />
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold text-niki-ink">Withdrawals</h1>
+          <h2 className="font-display text-lg font-bold text-niki-ink">Withdrawals</h2>
           <p className="mt-1 text-sm text-niki-ink/60">
             Agent commission payouts waiting to be sent by MoMo.
           </p>
@@ -60,7 +73,7 @@ export default async function AdminWithdrawalsPage({
               key={s}
               href={`/admin/data/withdrawals?status=${s}`}
               className={cn(
-                "shrink-0 rounded-full px-4 py-2 text-xs font-semibold capitalize",
+                "shrink-0 rounded-lg px-4 py-2 text-xs font-semibold capitalize",
                 s === status
                   ? "bg-niki-orange text-white"
                   : "bg-white text-niki-ink/65 ring-1 ring-niki-edge hover:bg-niki-black/5",
@@ -141,7 +154,7 @@ export default async function AdminWithdrawalsPage({
                             <input type="hidden" name="withdrawalId" value={w.id} />
                             <button
                               type="submit"
-                              className="niki-press rounded-full bg-niki-success px-3 py-1.5 text-[11px] font-bold text-white"
+                              className="niki-press rounded-lg bg-niki-success px-3 py-1.5 text-[11px] font-bold text-white"
                             >
                               Mark sent
                             </button>
@@ -150,7 +163,7 @@ export default async function AdminWithdrawalsPage({
                             <input type="hidden" name="withdrawalId" value={w.id} />
                             <button
                               type="submit"
-                              className="niki-press rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-niki-danger ring-1 ring-niki-danger/30"
+                              className="niki-press rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-niki-danger ring-1 ring-niki-danger/30"
                             >
                               Reject
                             </button>
@@ -160,7 +173,7 @@ export default async function AdminWithdrawalsPage({
                         <div>
                           <span
                             className={cn(
-                              "inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase",
+                              "inline-flex rounded-lg px-2.5 py-1 text-[11px] font-semibold uppercase",
                               TONES[w.status],
                             )}
                           >

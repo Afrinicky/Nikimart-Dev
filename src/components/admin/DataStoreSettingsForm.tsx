@@ -115,6 +115,27 @@ export function DataStoreSettingsForm({ settings }: { settings: DataSettings }) 
         </div>
       </section>
 
+      <FormFeedback error={state.error} success={state.ok ? "Saved." : undefined} />
+      <SubmitButton>Save store settings</SubmitButton>
+    </form>
+  );
+}
+
+/**
+ * The sub-agent programme's own settings: what it costs to open a storefront,
+ * how that is collected, what agents pay for bundles, and where they go for
+ * help.
+ *
+ * A second form over the same settings table rather than a second section of
+ * the first one, because it belongs to a different module now — Agent
+ * management, beside the agents it governs. `updateDataSettings` writes only
+ * the keys a form actually submits, so saving one never disturbs the other.
+ */
+export function AgentProgrammeSettingsForm({ settings }: { settings: DataSettings }) {
+  const [state, formAction] = useActionState<DataSettingsState, FormData>(updateDataSettings, {});
+
+  return (
+    <form action={formAction} className="space-y-6" noValidate>
       <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Sub-agent programme</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
@@ -266,7 +287,7 @@ export function DataStoreSettingsForm({ settings }: { settings: DataSettings }) 
       </section>
 
       <FormFeedback error={state.error} success={state.ok ? "Saved." : undefined} />
-      <SubmitButton>Save data store settings</SubmitButton>
+      <SubmitButton>Save programme settings</SubmitButton>
     </form>
   );
 }

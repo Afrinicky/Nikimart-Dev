@@ -43,7 +43,7 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
         subtitle={affiliate.code ? `Referral code: ${affiliate.code}` : "Affiliate"}
         crumbs={[{ label: "Affiliates", href: "/admin/affiliates" }, { label: affiliate.name }]}
       >
-        <Link href="/admin/affiliates" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
+        <Link href="/admin/affiliates" className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
           <ArrowLeft className="h-4 w-4" /> Affiliates
         </Link>
       </PageHeader>
@@ -68,7 +68,7 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
                       <span className="text-niki-ink/70">{formatPrice(p.amount)} · {p.method}{p.note ? ` · ${p.note.replace("Pay to: ", "")}` : ""}</span>
                       <form action={markAffiliatePayoutPaid}>
                         <input type="hidden" name="id" value={p.id} />
-                        <button type="submit" className="rounded-full bg-niki-success px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90">Mark paid</button>
+                        <button type="submit" className="rounded-lg bg-niki-success px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90">Mark paid</button>
                       </form>
                     </div>
                   ))}
@@ -114,7 +114,7 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
                     <li key={p.id} className="flex items-center justify-between gap-2 py-2.5">
                       <span className="text-niki-ink/70">{(p.paidAt ?? p.createdAt).toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" })} · {p.method}</span>
                       <span className="flex items-center gap-2">
-                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${p.status === "paid" ? "bg-niki-success/10 text-niki-success" : "bg-niki-gold/20 text-niki-ink/70"}`}>{p.status === "paid" ? "Paid" : "Pending"}</span>
+                        <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${p.status === "paid" ? "bg-niki-success/10 text-niki-success" : "bg-niki-gold/20 text-niki-ink/70"}`}>{p.status === "paid" ? "Paid" : "Pending"}</span>
                         <span className="font-semibold text-niki-ink">{formatPrice(p.amount)}</span>
                       </span>
                     </li>
@@ -143,7 +143,7 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
               <form action={setAffiliateStatus}>
                 <input type="hidden" name="id" value={affiliate.id} />
                 <input type="hidden" name="status" value={suspended ? "active" : "suspended"} />
-                <button type="submit" className={`w-full rounded-full px-4 py-2.5 text-sm font-semibold text-white ${suspended ? "bg-niki-success hover:opacity-90" : "bg-niki-danger hover:opacity-90"}`}>
+                <button type="submit" className={`w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white ${suspended ? "bg-niki-success hover:opacity-90" : "bg-niki-danger hover:opacity-90"}`}>
                   {suspended ? "Reactivate affiliate" : "Suspend affiliate"}
                 </button>
               </form>

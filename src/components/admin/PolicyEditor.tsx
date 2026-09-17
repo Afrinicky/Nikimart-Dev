@@ -152,7 +152,7 @@ export function PolicyEditor({
               <input type="hidden" name="slug" value={slug} />
               <SubmitButton
                 pendingLabel="Reverting…"
-                className="rounded-full px-3 py-1.5 text-xs font-semibold text-niki-danger ring-1 ring-niki-danger/30 hover:bg-niki-danger/5"
+                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-niki-danger ring-1 ring-niki-danger/30 hover:bg-niki-danger/5"
               >
                 Discard edits and revert to the standard wording
               </SubmitButton>

@@ -66,7 +66,7 @@ export default async function EditPageBuilder({ params }: { params: Params }) {
             Published (visible on the site)
           </label>
         </div>
-        <button type="submit" className="mt-2 rounded-full bg-niki-black px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-niki-black-soft">
+        <button type="submit" className="mt-2 rounded-lg bg-niki-black px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-niki-black-soft">
           Save page settings
         </button>
       </form>
@@ -82,7 +82,7 @@ export default async function EditPageBuilder({ params }: { params: Params }) {
             <div className="min-w-0">
               <p className="flex items-center gap-2 font-semibold text-niki-ink">
                 {sectionTitle(s.type, s.parsed)}
-                <span className="rounded-full bg-niki-surface px-2 py-0.5 text-[11px] font-medium text-niki-ink/50">
+                <span className="rounded-lg bg-niki-surface px-2 py-0.5 text-[11px] font-medium text-niki-ink/50">
                   {blockDef(s.type)?.label ?? s.type}
                 </span>
               </p>
@@ -137,7 +137,7 @@ export default async function EditPageBuilder({ params }: { params: Params }) {
             </select>
           </Field>
         </div>
-        <button type="submit" className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light">
+        <button type="submit" className="flex items-center gap-2 rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light">
           <Plus className="h-4 w-4" />
           Add
         </button>

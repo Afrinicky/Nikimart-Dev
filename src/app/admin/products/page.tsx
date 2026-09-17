@@ -27,7 +27,7 @@ export default async function AdminProductsPage() {
           <ExportButton dataset="products" />
           <Link
             href="/admin/products/new"
-            className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+            className="flex items-center gap-2 rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
           >
             <Plus className="h-4 w-4" />
             New product
@@ -56,7 +56,7 @@ export default async function AdminProductsPage() {
                     <span aria-hidden>{p.emoji}</span>
                     {p.name}
                     {p.isArchived ? (
-                      <span className="rounded-full bg-niki-ink/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-niki-ink/60">
+                      <span className="rounded-lg bg-niki-ink/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-niki-ink/60">
                         Archived
                       </span>
                     ) : null}
@@ -68,7 +68,7 @@ export default async function AdminProductsPage() {
                 <td className="px-5 py-3 text-niki-ink/70">{p.stockQuantity}</td>
                 <td className="px-5 py-3">
                   {p.affiliateEnabled ? (
-                    <span className="rounded-full bg-niki-success/10 px-2.5 py-1 text-xs font-semibold text-niki-success">
+                    <span className="rounded-lg bg-niki-success/10 px-2.5 py-1 text-xs font-semibold text-niki-success">
                       {p.affiliateEnrolledBy === "admin" ? "Nickimart-funded" : "Seller-funded"}
                     </span>
                   ) : (

@@ -32,7 +32,7 @@ export default async function AdminLocationsPage() {
           <ExportButton dataset="locations" />
           <Link
             href="/admin/locations/new"
-            className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+            className="flex items-center gap-2 rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
           >
             <Plus className="h-4 w-4" />
             New location
@@ -66,7 +66,7 @@ export default async function AdminLocationsPage() {
                   <td className="px-5 py-3 text-niki-ink/70">{l.type}</td>
                   <td className="px-5 py-3 text-niki-ink/70">{l.region}</td>
                   <td className="px-5 py-3">
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${l.isActive ? "bg-niki-success/10 text-niki-success" : "bg-niki-ink/10 text-niki-ink/60"}`}>
+                    <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${l.isActive ? "bg-niki-success/10 text-niki-success" : "bg-niki-ink/10 text-niki-ink/60"}`}>
                       {l.isActive ? "Active" : "Hidden"}
                     </span>
                   </td>

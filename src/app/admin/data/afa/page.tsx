@@ -52,7 +52,7 @@ export default async function AdminAfaPage() {
                     ) : null}
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${DATA_STATUS_TONES[known]}`}>
+                    <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${DATA_STATUS_TONES[known]}`}>
                       {DATA_STATUS_LABELS[known]}
                     </span>
                     <span className="font-figures font-bold text-niki-ink">{formatPrice(r.price)}</span>

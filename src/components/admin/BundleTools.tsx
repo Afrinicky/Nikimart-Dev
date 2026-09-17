@@ -78,7 +78,7 @@ function SyncButton() {
       type="submit"
       disabled={pending}
       aria-busy={pending || undefined}
-      className="niki-press niki-focus flex shrink-0 items-center gap-2 rounded-full bg-niki-black px-4 py-2 text-xs font-bold text-white disabled:opacity-60"
+      className="niki-press niki-focus flex shrink-0 items-center gap-2 rounded-lg bg-niki-black px-4 py-2 text-xs font-bold text-white disabled:opacity-60"
     >
       <RefreshCw className={pending ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
       {pending ? "Fetching…" : "Fetch now"}

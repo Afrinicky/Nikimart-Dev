@@ -61,7 +61,7 @@ export function PurchaseQueueTable({
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-semibold text-niki-ink">{g.supplierName}</h3>
                   <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
                       ready
                         ? "bg-niki-success/10 text-niki-success"
                         : "bg-niki-gold/20 text-amber-900"
@@ -94,9 +94,9 @@ export function PurchaseQueueTable({
                 <p className="text-xs text-niki-ink/50">
                   {g.minCbm > 0 ? `of ${g.minCbm} m³ minimum` : "no minimum set"}
                 </p>
-                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-niki-black/10">
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-lg bg-niki-black/10">
                   <div
-                    className={`h-full rounded-full ${ready ? "bg-niki-success" : "bg-niki-orange"}`}
+                    className={`h-full rounded-lg ${ready ? "bg-niki-success" : "bg-niki-orange"}`}
                     style={{ width: `${Math.round(share * 100)}%` }}
                   />
                 </div>
@@ -118,7 +118,7 @@ export function PurchaseQueueTable({
                     href={g.supplierUrl}
                     target="_blank"
                     rel="noopener noreferrer nofollow"
-                    className="flex items-center gap-1.5 rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-black/85"
+                    className="flex items-center gap-1.5 rounded-lg bg-niki-black px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-black/85"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                     Supplier
@@ -128,7 +128,7 @@ export function PurchaseQueueTable({
                   type="button"
                   onClick={() => setOpen(expanded ? null : g.key)}
                   aria-expanded={expanded}
-                  className="flex items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold text-niki-ink/70 hover:bg-niki-black/5"
+                  className="flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold text-niki-ink/70 hover:bg-niki-black/5"
                 >
                   {g.lines.length} item{g.lines.length === 1 ? "" : "s"}
                   <ChevronDown

@@ -9,6 +9,7 @@ import { siteUrl } from "@/lib/site";
 import { TopBar } from "@/components/layout/TopBar";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { ChromeGate } from "@/components/layout/ChromeGate";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { AuthSession } from "@/components/providers/AuthSession";
 import { RouteProgress } from "@/components/ui/motion";
@@ -94,11 +95,15 @@ export default async function RootLayout({
         <AuthSession>
           <LocationProvider locations={locations}>
             <CartProvider>
-              <TopBar />
-              <Header />
+              <ChromeGate>
+                <TopBar />
+                <Header />
+              </ChromeGate>
               <main className="flex-1">{children}</main>
-              <Footer />
-              <MobileBottomNav />
+              <ChromeGate>
+                <Footer />
+                <MobileBottomNav />
+              </ChromeGate>
             </CartProvider>
           </LocationProvider>
         </AuthSession>

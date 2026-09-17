@@ -51,7 +51,7 @@ export default async function AdminVendorsPage({
           <ExportButton dataset="shops" />
           <Link
             href="/admin/vendors/new"
-            className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+            className="flex items-center gap-2 rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
           >
             <Plus className="h-4 w-4" />
             New shop
@@ -89,7 +89,7 @@ export default async function AdminVendorsPage({
                 <td className="px-5 py-3 text-niki-ink/70">{v.owner?.name ?? v.owner?.email ?? "—"}</td>
                 <td className="px-5 py-3 text-niki-ink/70">{v._count.products}</td>
                 <td className="px-5 py-3">
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_TONE[v.verificationStatus] ?? "bg-niki-ink/10 text-niki-ink/60"}`}>
+                  <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${STATUS_TONE[v.verificationStatus] ?? "bg-niki-ink/10 text-niki-ink/60"}`}>
                     {v.verificationStatus}
                   </span>
                 </td>
