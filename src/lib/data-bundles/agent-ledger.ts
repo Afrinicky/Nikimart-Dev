@@ -20,6 +20,12 @@ export type LedgerType =
   /** A recruiter's share of the registration fee their recruit paid. */
   | "REFERRAL_FEE_SHARE"
   | "TEAM_COMMISSION"
+  /** A queued order cancelled — the customer's money back into the wallet. */
+  | "ORDER_REFUND"
+  /** The agent putting their own money into the wallet through Paystack. */
+  | "WALLET_TOPUP"
+  /** An order paid for out of the wallet instead of a card. */
+  | "WALLET_ORDER"
   /** Cedis from a reward an agent spent points on. */
   | "REWARD_PAYOUT"
   | "WITHDRAWAL"

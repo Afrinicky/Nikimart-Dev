@@ -6,7 +6,14 @@
  * render. Anything exported from a "use client" file is a client reference, and
  * calling one from the server throws at request time.
  */
-export const STORE_TABS = ["overview", "link", "pricing", "afa", "withdrawals"] as const;
+export const STORE_TABS = [
+  "overview",
+  "link",
+  "pricing",
+  "flyer",
+  "afa",
+  "withdrawals",
+] as const;
 
 export type StoreTab = (typeof STORE_TABS)[number];
 

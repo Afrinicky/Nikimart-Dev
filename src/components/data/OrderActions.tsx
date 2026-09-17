@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Eye, MessageCircle, X } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Check, Eye, MessageCircle, RefreshCw, RotateCcw, Undo2, X } from "lucide-react";
 import {
   DATA_STATUS_LABELS,
   DATA_STATUS_TONES,
@@ -9,6 +10,7 @@ import {
   isDataOrderStatus,
   networkLabel,
 } from "@/lib/data-bundles/networks";
+import { cancelOrderAction } from "@/lib/data-bundles/order-actions";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
@@ -28,6 +30,12 @@ export interface OrderView {
   paymentStatus: string;
   /** Human label for where the order came from (e.g. "Nickimart", "Agent · Ama"). */
   sourceLabel: string;
+  /**
+   * True when an agent made this sale, so a refund has a wallet to land in.
+   * Nickimart's own orders are refunded in Paystack instead, and the dialog
+   * must not promise a credit that will never appear.
+   */
+  agentSale?: boolean;
   commission?: number | null;
   commissionStatus?: string | null;
   createdAt: string;
@@ -37,8 +45,26 @@ export interface OrderView {
   buyerPhone?: string | null;
   costPrice?: number | null;
   providerCode?: string | null;
+  /** Set once the order has been accepted upstream — the admin's retry gate. */
+  providerOrderId?: string | null;
   providerStatus?: string | null;
   providerMessage?: string | null;
+}
+
+/**
+ * The admin-only buttons, handed in as server actions from the console page.
+ *
+ * They are props rather than imports because this dialog is shared: the agent
+ * console renders the same component and must not be able to reach a dispatch
+ * or a bookkeeping flip, whatever a browser sends.
+ */
+export interface AdminOrderForms {
+  /** Send a paid order to the provider again. */
+  retry?: (fd: FormData) => Promise<void>;
+  /** Ask the provider where an order got to. */
+  refresh?: (fd: FormData) => Promise<void>;
+  /** Record that a failed order has been refunded in Paystack. */
+  markRefunded?: (fd: FormData) => Promise<void>;
 }
 
 function formatWhen(iso: string): string {
@@ -130,7 +156,7 @@ function Shell({
         </div>
         <div className="p-5">{children}</div>
         {footer ? (
-          <div className="flex items-center justify-end gap-2 border-t border-niki-edge px-5 py-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-niki-edge px-5 py-4">
             {footer}
           </div>
         ) : null}
@@ -157,25 +183,229 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function OrderDetailsModal({ order, onClose }: { order: OrderView; onClose: () => void }) {
+const ghostBtn =
+  "niki-press niki-focus rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/60 hover:text-niki-ink";
+const darkBtn =
+  "niki-press niki-focus rounded-full bg-niki-black px-5 py-2 text-sm font-semibold text-white";
+const dangerBtn =
+  "niki-press niki-focus inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-niki-danger hover:bg-niki-danger/10";
+const quietBtn =
+  "niki-press niki-focus inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/65 ring-1 ring-niki-edge hover:bg-niki-black/5";
+
+/**
+ * Cancel & refund, asked properly.
+ *
+ * It replaces the detail panels rather than stacking a second dialog on top of
+ * the first: a confirmation nobody can read past is a confirmation nobody
+ * reads. What the money does next is spelled out, because for an agent sale it
+ * does not go back to the card — it lands in the agent's wallet.
+ */
+function CancelPanel({
+  order,
+  onDone,
+  onBack,
+}: {
+  order: OrderView;
+  onDone: () => void;
+  onBack: () => void;
+}) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function confirm() {
+    setError(null);
+    startTransition(async () => {
+      const result = await cancelOrderAction(order.id);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+      onDone();
+    });
+  }
+
+  return (
+    <>
+      <div className="text-center">
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-niki-danger/10 text-niki-danger">
+          <Undo2 className="h-6 w-6" />
+        </span>
+        <p className="mt-3 font-display text-lg font-bold text-niki-ink">
+          Cancel this order and refund it?
+        </p>
+        <p className="mt-1 text-sm text-niki-ink/60">
+          The bundle is still queued, so it can be pulled back.{" "}
+          {order.agentSale === false
+            ? `${formatMoney(order.price)} then has to be sent back in Paystack — this only records it.`
+            : `${formatMoney(order.price)} is credited to the wallet — ready to withdraw or spend on another order.`}{" "}
+          This can&apos;t be undone.
+        </p>
+      </div>
+
+      {error ? (
+        <p className="animate-fade-up mt-4 rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
+          {error}
+        </p>
+      ) : null}
+
+      <div className="mt-4">
+        <Panel title="Order">
+          <DetailRow
+            label="Order ID"
+            value={<span className="font-mono text-xs">{order.reference}</span>}
+          />
+          <DetailRow label="Network" value={networkLabel(order.network)} />
+          <DetailRow label="Size" value={bundleLabel(order.sizeGb)} />
+          <DetailRow label="Refund" value={formatMoney(order.price)} />
+        </Panel>
+      </div>
+
+      <div className="mt-5 flex gap-3">
+        <button type="button" onClick={onBack} disabled={pending} className={cn(ghostBtn, "flex-1")}>
+          Keep order
+        </button>
+        <button
+          type="button"
+          onClick={confirm}
+          disabled={pending}
+          className="niki-press niki-focus flex-[1.4] rounded-full bg-niki-danger px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+        >
+          {pending ? "Refunding…" : "Cancel & Refund"}
+        </button>
+      </div>
+    </>
+  );
+}
+
+function OrderDetailsModal({
+  order,
+  whatsapp,
+  adminForms,
+  onReport,
+  onClose,
+}: {
+  order: OrderView;
+  whatsapp?: string;
+  adminForms?: AdminOrderForms;
+  onReport?: () => void;
+  onClose: () => void;
+}) {
+  const [view, setView] = useState<"details" | "cancel" | "done">("details");
   const admin = order.buyerPhone != null || order.providerCode != null || order.costPrice != null;
   const margin =
     order.costPrice != null && order.costPrice > 0
       ? Math.round((order.price - order.costPrice) * 100) / 100
       : null;
 
+  // What this order can still have done to it. Cancelling is queued-only — an
+  // order already with the network is not ours to pull back — and reporting is
+  // for a delivery the customer says never arrived.
+  const canCancel = order.status === "queued";
+  const canReport = order.status === "completed" && Boolean(whatsapp) && Boolean(onReport);
+
+  if (view === "cancel") {
+    return (
+      <Shell title="Cancel & Refund" onClose={onClose}>
+        <CancelPanel
+          order={order}
+          onBack={() => setView("details")}
+          onDone={() => setView("done")}
+        />
+      </Shell>
+    );
+  }
+
+  if (view === "done") {
+    return (
+      <Shell
+        title="Order cancelled"
+        onClose={onClose}
+        footer={
+          <button type="button" onClick={onClose} className={darkBtn}>
+            Done
+          </button>
+        }
+      >
+        <div className="animate-scale-in rounded-2xl bg-niki-success/10 p-6 text-center ring-1 ring-niki-success/30">
+          <Check className="mx-auto h-8 w-8 text-niki-success" />
+          <p className="mt-2 font-display font-bold text-niki-ink">
+            {order.agentSale === false ? "Order cancelled" : "Refunded to the wallet"}
+          </p>
+          <p className="mt-1 text-sm text-niki-ink/70">
+            {order.agentSale === false ? (
+              <>
+                Order <span className="font-mono font-semibold">{order.reference}</span> is marked
+                refunded. Send the {formatMoney(order.price)} back in Paystack.
+              </>
+            ) : (
+              <>
+                {formatMoney(order.price)} from order{" "}
+                <span className="font-mono font-semibold">{order.reference}</span> is now on the
+                balance.
+              </>
+            )}
+          </p>
+        </div>
+      </Shell>
+    );
+  }
+
   return (
     <Shell
       title="Order Details"
       onClose={onClose}
       footer={
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-full bg-niki-black px-5 py-2 text-sm font-semibold text-white"
-        >
-          Close
-        </button>
+        <>
+          {canCancel ? (
+            <button type="button" onClick={() => setView("cancel")} className={dangerBtn}>
+              <X className="h-4 w-4" />
+              Cancel & Refund
+            </button>
+          ) : null}
+
+          {canReport ? (
+            <button type="button" onClick={onReport} className={quietBtn}>
+              <MessageCircle className="h-4 w-4" />
+              Report Not received
+            </button>
+          ) : null}
+
+          {adminForms?.retry && order.paymentStatus === "paid" && !order.providerOrderId ? (
+            <form action={adminForms.retry}>
+              <input type="hidden" name="id" value={order.id} />
+              <button type="submit" className={quietBtn}>
+                <RotateCcw className="h-4 w-4" />
+                Send to provider
+              </button>
+            </form>
+          ) : null}
+
+          {adminForms?.refresh && order.providerOrderId ? (
+            <form action={adminForms.refresh}>
+              <input type="hidden" name="id" value={order.id} />
+              <button type="submit" className={quietBtn}>
+                <RefreshCw className="h-4 w-4" />
+                Refresh status
+              </button>
+            </form>
+          ) : null}
+
+          {adminForms?.markRefunded && order.status === "failed" ? (
+            <form action={adminForms.markRefunded}>
+              <input type="hidden" name="id" value={order.id} />
+              <button type="submit" className={quietBtn}>
+                <Undo2 className="h-4 w-4" />
+                Mark refunded
+              </button>
+            </form>
+          ) : null}
+
+          <button type="button" onClick={onClose} className={darkBtn}>
+            Close
+          </button>
+        </>
       }
     >
       <div className="space-y-3">
@@ -286,11 +516,7 @@ function ReportModal({
       onClose={onClose}
       footer={
         <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/60 hover:text-niki-ink"
-          >
+          <button type="button" onClick={onClose} className={ghostBtn}>
             Cancel
           </button>
           <a
@@ -298,7 +524,7 @@ function ReportModal({
             target="_blank"
             rel="noopener noreferrer"
             onClick={onClose}
-            className="inline-flex items-center gap-2 rounded-full bg-niki-success px-5 py-2 text-sm font-semibold text-white"
+            className="niki-press inline-flex items-center gap-2 rounded-full bg-niki-success px-5 py-2 text-sm font-semibold text-white"
           >
             <MessageCircle className="h-4 w-4" />
             Open WhatsApp
@@ -338,12 +564,21 @@ const iconBtn =
   "niki-press niki-focus inline-flex h-8 w-8 items-center justify-center rounded-full text-niki-trust ring-1 ring-niki-edge hover:bg-niki-trust/10";
 
 /**
- * The Actions cell for one order row: an eye (order details) and, when a
- * support number is supplied, a chat bubble (report not received). Both open a
- * dialog rendered from this client island so the surrounding table can stay a
- * server component.
+ * The Actions cell for one order row: an eye and a chat bubble, and nothing
+ * else. Everything that can be *done* to an order — cancel and refund, report
+ * a delivery that never arrived, the admin's dispatch and bookkeeping buttons
+ * — lives inside the dialog the eye opens, where there is room to say what
+ * each one means. A row of five icons cannot.
  */
-export function OrderActions({ order, whatsapp }: { order: OrderView; whatsapp?: string }) {
+export function OrderActions({
+  order,
+  whatsapp,
+  adminForms,
+}: {
+  order: OrderView;
+  whatsapp?: string;
+  adminForms?: AdminOrderForms;
+}) {
   const [open, setOpen] = useState<null | "details" | "report">(null);
 
   return (
@@ -370,7 +605,13 @@ export function OrderActions({ order, whatsapp }: { order: OrderView; whatsapp?:
       ) : null}
 
       {open === "details" ? (
-        <OrderDetailsModal order={order} onClose={() => setOpen(null)} />
+        <OrderDetailsModal
+          order={order}
+          whatsapp={whatsapp}
+          adminForms={adminForms}
+          onReport={whatsapp ? () => setOpen("report") : undefined}
+          onClose={() => setOpen(null)}
+        />
       ) : null}
       {open === "report" && whatsapp ? (
         <ReportModal order={order} whatsapp={whatsapp} onClose={() => setOpen(null)} />

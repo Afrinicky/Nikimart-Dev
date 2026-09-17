@@ -17,6 +17,7 @@ test("bundle, AFA and registration references belong to the data business", () =
   assert.equal(accountForReference("ND-ABC123"), "data");
   assert.equal(accountForReference("NA-ABC123"), "data");
   assert.equal(accountForReference("NR-ABC123"), "data");
+  assert.equal(accountForReference("NT-ABC123"), "data");
 });
 
 test("anything else is a mall order", () => {

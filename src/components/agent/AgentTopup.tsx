@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, CreditCard, X } from "lucide-react";
+import { Check, CreditCard, Wallet, X } from "lucide-react";
 import { inputClass } from "@/components/ui/Field";
 import { ActionLink, BusyButton } from "@/components/ui/motion";
 import { BundleCard, NetworkTabs } from "@/components/data/BundleCard";
@@ -24,11 +24,18 @@ export interface TopupBundle {
 /**
  * Data Topup: the agent serving a walk-in customer from their own dashboard.
  *
- * They pay the agent price through Paystack there and then — no wallet to
- * stock, nothing fronted. Each card shows both numbers: what it costs them and
- * what their store charges, so the margin is never a mental sum.
+ * They pay the agent price either from their wallet balance or through
+ * Paystack. Each card shows both numbers: what it costs them and what their
+ * store charges, so the margin is never a mental sum.
  */
-export function AgentTopup({ bundles }: { bundles: TopupBundle[] }) {
+export function AgentTopup({
+  bundles,
+  balance = 0,
+}: {
+  bundles: TopupBundle[];
+  /** What is actually spendable right now — pending withdrawals excluded. */
+  balance?: number;
+}) {
   const networks = useMemo(() => {
     const seen: Network[] = [];
     for (const b of bundles) if (!seen.includes(b.network)) seen.push(b.network);
@@ -84,18 +91,75 @@ export function AgentTopup({ bundles }: { bundles: TopupBundle[] }) {
         })}
       </div>
 
-      {selected ? <TopupDialog bundle={selected} onClose={() => setSelected(null)} /> : null}
+      {selected ? (
+        <TopupDialog bundle={selected} balance={balance} onClose={() => setSelected(null)} />
+      ) : null}
     </div>
   );
 }
 
-function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => void }) {
+/** One of the two ways to pay, as a tile rather than a radio nobody can hit. */
+function PayOption({
+  icon: Icon,
+  label,
+  hint,
+  selected,
+  disabled,
+  onSelect,
+}: {
+  icon: React.ElementType;
+  label: string;
+  hint: string;
+  selected: boolean;
+  disabled?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      disabled={disabled}
+      aria-pressed={selected}
+      className={cn(
+        "niki-press niki-focus rounded-xl px-3 py-3 text-left ring-1 transition-colors",
+        selected
+          ? "bg-niki-orange/10 ring-niki-orange"
+          : "bg-white ring-niki-edge hover:bg-niki-black/5",
+        disabled && "cursor-not-allowed opacity-50 hover:bg-white",
+      )}
+    >
+      <span className="flex items-center gap-1.5 text-sm font-bold text-niki-ink">
+        <Icon className={cn("h-4 w-4", selected ? "text-niki-orange" : "text-niki-ink/45")} />
+        {label}
+      </span>
+      <span className="mt-0.5 block text-[11px] leading-snug text-niki-ink/55">{hint}</span>
+    </button>
+  );
+}
+
+function TopupDialog({
+  bundle,
+  balance,
+  onClose,
+}: {
+  bundle: TopupBundle;
+  balance: number;
+  onClose: () => void;
+}) {
   const info = NETWORK_INFO[bundle.network];
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState<string | null>(null);
+
+  // The wallet is offered first when it can actually pay for this bundle —
+  // it is one tap against a whole card form, and it is how an agent serving a
+  // queue of walk-ins works.
+  const walletCovers = balance >= bundle.agentPrice;
+  const [payWith, setPayWith] = useState<"wallet" | "paystack">(
+    walletCovers ? "wallet" : "paystack",
+  );
 
   // The same check the server runs, so the button can be blocked before a
   // payment is ever started. Only complain once there's enough typed to judge —
@@ -125,6 +189,7 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
       sizeGb: bundle.sizeGb,
       recipientPhone: phone,
       email,
+      payWith,
     });
     if (!result.ok) {
       setError(result.error);
@@ -150,11 +215,11 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Pay with Paystack"
+        aria-label="Send data"
         className="animate-sheet-up relative z-10 max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-white pb-[max(env(safe-area-inset-bottom),4.5rem)] shadow-2xl sm:max-w-md sm:rounded-3xl sm:pb-0"
       >
         <div className="flex items-center justify-between gap-4 border-b border-niki-edge px-5 py-4">
-          <p className="font-display text-lg font-bold text-niki-ink">Pay with Paystack</p>
+          <p className="font-display text-lg font-bold text-niki-ink">Send data</p>
           <button
             type="button"
             onClick={() => !pending && onClose()}
@@ -198,6 +263,27 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
                   </dd>
                 </div>
               </dl>
+
+              <div>
+                <span className="mb-1.5 block text-sm font-medium text-niki-ink">Pay with</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <PayOption
+                    icon={Wallet}
+                    label="Wallet"
+                    hint={walletCovers ? `${formatMoney(balance)} available` : "Not enough balance"}
+                    selected={payWith === "wallet"}
+                    disabled={!walletCovers}
+                    onSelect={() => setPayWith("wallet")}
+                  />
+                  <PayOption
+                    icon={CreditCard}
+                    label="Paystack"
+                    hint="Card or Mobile Money"
+                    selected={payWith === "paystack"}
+                    onSelect={() => setPayWith("paystack")}
+                  />
+                </div>
+              </div>
 
               {error ? (
                 <p className="animate-fade-up rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
@@ -265,11 +351,17 @@ function TopupDialog({ bundle, onClose }: { bundle: TopupBundle; onClose: () => 
                   type="submit"
                   busy={pending}
                   disabled={!check.ok}
-                  pendingLabel="Opening Paystack…"
-                  icon={<CreditCard className="h-4 w-4" />}
+                  pendingLabel={payWith === "wallet" ? "Sending…" : "Opening Paystack…"}
+                  icon={
+                    payWith === "wallet" ? (
+                      <Wallet className="h-4 w-4" />
+                    ) : (
+                      <CreditCard className="h-4 w-4" />
+                    )
+                  }
                   className="flex-[1.6] whitespace-nowrap rounded-xl bg-niki-orange px-4 py-3 text-sm font-bold text-white hover:bg-niki-orange-light"
                 >
-                  Continue to Paystack
+                  {payWith === "wallet" ? "Send from wallet" : "Continue to Paystack"}
                 </BusyButton>
               </div>
             </form>

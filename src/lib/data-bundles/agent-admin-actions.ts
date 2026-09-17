@@ -15,6 +15,7 @@ import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { normaliseSlug, round2, slugProblem } from "@/lib/data-bundles/agents";
 import { getAgentUser } from "@/lib/data-bundles/user-link";
+import { reconcileWalletTopup } from "@/lib/data-bundles/wallet";
 import {
   checkReferralLink,
   linkReferral,
@@ -147,6 +148,34 @@ export async function adjustAgentBalance(
   } catch {
     return { error: STORAGE_ERROR };
   }
+}
+
+/**
+ * Credit a wallet top-up that Paystack captured but we never recorded.
+ *
+ * The admin pastes the reference; we ask Paystack whether it was really paid
+ * and, if it was, credit exactly what was captured. Safer than an adjustment
+ * typed from memory: the amount comes from the gateway, and the same dedupe key
+ * the normal path uses means a reference already credited cannot be paid twice.
+ */
+export async function reconcileTopup(
+  _prev: AgentAdminState,
+  fd: FormData,
+): Promise<AgentAdminState> {
+  await requireAdmin();
+
+  const reference = str(fd, "reference");
+  if (!reference) return { error: "Paste the Paystack reference (NT-…)." };
+
+  // An agent id on the form pins the credit to that agent, which is what makes
+  // a top-up started before we kept records recoverable at all.
+  const agentId = str(fd, "agentId") || null;
+
+  const result = await reconcileWalletTopup(reference, { agentId });
+  if (!result.ok) return { error: result.error };
+
+  if (agentId) revalidateAgents(agentId);
+  return { ok: true, message: result.message };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { BarChart3, BadgeDollarSign, Link2, Package, Receipt } from "lucide-react";
+import { BarChart3, BadgeDollarSign, ImageDown, Link2, Package, Receipt } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { cn } from "@/lib/cn";
 import type { StoreTab } from "@/lib/data-bundles/store-tabs";
@@ -13,6 +13,7 @@ const TABS: Array<{ value: StoreTab; label: string; icon: React.ElementType }> =
   { value: "overview", label: "Overview", icon: BarChart3 },
   { value: "link", label: "Store Link", icon: Link2 },
   { value: "pricing", label: "Pricing", icon: Package },
+  { value: "flyer", label: "Flyer", icon: ImageDown },
   { value: "afa", label: "AFA Pricing", icon: BadgeDollarSign },
   { value: "withdrawals", label: "Withdrawal History", icon: Receipt },
 ];

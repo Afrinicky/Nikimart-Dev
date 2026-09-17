@@ -59,7 +59,8 @@ test("provider statuses map onto ours, and unknown ones stay in flight", () => {
   assert.equal(mapProviderStatus("successful"), "completed");
   assert.equal(mapProviderStatus("FAILED"), "failed");
   assert.equal(mapProviderStatus("CANCELLED"), "failed");
-  assert.equal(mapProviderStatus("PENDING"), "processing");
+  assert.equal(mapProviderStatus("QUEUED"), "queued");
+  assert.equal(mapProviderStatus("PENDING"), "queued");
   // An unrecognised status must never read as delivered — that would stop us
   // chasing an order the buyer never received.
   assert.equal(mapProviderStatus("SOMETHING_NEW"), "processing");

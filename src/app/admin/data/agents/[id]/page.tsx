@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, Package, Receipt, ReceiptText, Wallet } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
-import { BalanceAdjuster } from "@/components/admin/AgentAdminTools";
+import { BalanceAdjuster, TopupReconciler } from "@/components/admin/AgentAdminTools";
 import { AgentAccountTools, SetupLinkTool } from "@/components/admin/AgentAccountTools";
 import { ReferrerTool } from "@/components/admin/ReferrerTool";
 import { ReferralWaiverTool } from "@/components/admin/ReferralWaiverTool";
@@ -22,6 +22,8 @@ import { getAgentUser } from "@/lib/data-bundles/user-link";
 import { setAgentStatus } from "@/lib/data-bundles/agent-admin-actions";
 import { getAgentProgramConfig, getReferralConfig } from "@/lib/data-bundles/settings";
 import { registrationFeeBreakdown } from "@/lib/data-bundles/referral-rules";
+import { ledgerTypeLabel } from "@/lib/data-bundles/ledger-labels";
+import { pendingTopupsFor } from "@/lib/data-bundles/wallet";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Agent — Admin — Nickimart" };
@@ -64,14 +66,16 @@ export default async function AdminAgentDetailPage({
     dataDb.dataAgent.count({ where: { referredById: row.id } }).catch(() => 0),
   ]);
 
-  const [wallet, ledger, orders, withdrawals, referralConfig, program] = await Promise.all([
-    getAgentWallet(agent),
-    getAgentLedger(agent.id, 25),
-    getAgentOrders(agent.id, { take: 10 }),
-    getAgentWithdrawals(agent.id, 10),
-    getReferralConfig(),
-    getAgentProgramConfig(),
-  ]);
+  const [wallet, ledger, orders, withdrawals, referralConfig, program, pendingTopups] =
+    await Promise.all([
+      getAgentWallet(agent),
+      getAgentLedger(agent.id, 25),
+      getAgentOrders(agent.id, { take: 10 }),
+      getAgentWithdrawals(agent.id, 10),
+      getReferralConfig(),
+      getAgentProgramConfig(),
+      pendingTopupsFor(agent.id),
+    ]);
 
   const suspended = agent.status !== "active";
   // What this registration was made of, read back off the row rather than
@@ -206,7 +210,9 @@ export default async function AdminAgentDetailPage({
                 {ledger.map((e) => (
                   <li key={e.id} className="flex items-start justify-between gap-4 py-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-niki-ink">{e.type}</p>
+                      <p className="text-sm font-semibold text-niki-ink">
+                        {ledgerTypeLabel(e.type)}
+                      </p>
                       <p className="truncate text-xs text-niki-ink/55">{e.narration}</p>
                     </div>
                     <div className="shrink-0 text-right">
@@ -230,6 +236,11 @@ export default async function AdminAgentDetailPage({
 
         <div className="space-y-4">
           <BalanceAdjuster agentId={agent.id} />
+
+          <TopupReconciler
+            agentId={agent.id}
+            pending={pendingTopups.map((t) => ({ reference: t.reference, amount: t.amount }))}
+          />
 
           {/*
             The registration, in full. Somebody has to be able to answer "why

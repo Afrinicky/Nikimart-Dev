@@ -117,6 +117,7 @@ export function bundleLabel(sizeGb: number): string {
 export const DATA_ORDER_STATUSES = [
   "pending",
   "paid",
+  "queued",
   "processing",
   "completed",
   "failed",
@@ -128,6 +129,11 @@ export type DataOrderStatus = (typeof DATA_ORDER_STATUSES)[number];
 /**
  * One vocabulary, everywhere.
  *
+ * "Queued" is the one the provider owns: the order has been accepted upstream
+ * and is waiting its turn to be sent. It is the only state an order can still
+ * be pulled out of, which is why it is the only one that can be cancelled and
+ * refunded.
+ *
  * "Paid" and "processing" both read as PROCESSING: the difference between
  * money having landed and the bundle being dispatched is ours to manage, not
  * something a customer can act on, and the admin sees payment state on its own
@@ -138,6 +144,7 @@ export type DataOrderStatus = (typeof DATA_ORDER_STATUSES)[number];
 export const DATA_STATUS_LABELS: Record<DataOrderStatus, string> = {
   pending: "AWAITING PAYMENT",
   paid: "PROCESSING",
+  queued: "QUEUED",
   processing: "PROCESSING",
   completed: "DELIVERED",
   failed: "FAILED",
@@ -149,6 +156,7 @@ export const DATA_STATUS_TONES: Record<DataOrderStatus, string> = {
   // Same words, so the same colour — two pills reading PROCESSING in different
   // colours would look like a difference the customer is meant to understand.
   paid: "bg-niki-trust/10 text-niki-trust ring-1 ring-niki-trust/30",
+  queued: "bg-sky-50 text-sky-700 ring-1 ring-sky-200",
   processing: "bg-niki-trust/10 text-niki-trust ring-1 ring-niki-trust/30",
   completed: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
   failed: "bg-niki-danger/10 text-niki-danger ring-1 ring-niki-danger/30",
@@ -174,6 +182,13 @@ export function mapProviderStatus(providerStatus: string | null | undefined): Da
       return "failed";
     case "REFUNDED":
       return "refunded";
+    // Accepted upstream but not sent yet. It reads as its own state because it
+    // is the one point at which an order can still be pulled back.
+    case "QUEUED":
+    case "PENDING":
+    case "WAITING":
+    case "IN_QUEUE":
+      return "queued";
     default:
       return "processing";
   }
