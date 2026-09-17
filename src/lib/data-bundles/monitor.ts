@@ -157,7 +157,7 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
   try {
     const inFlight = await dataDb.dataOrder.findMany({
       where: {
-        status: "processing",
+        status: { in: ["queued", "processing"] },
         providerOrderId: { not: null },
         updatedAt: { lt: cutoff },
       },

@@ -1,5 +1,10 @@
 import "server-only";
 import { dataDb } from "@/lib/data-db";
+import {
+  orderNetworkWhere,
+  orderSearchWhere,
+  orderStatusWhere,
+} from "@/lib/data-bundles/order-filters";
 
 /**
  * Admin figures for the data storefront. Every read is wrapped so the console
@@ -54,7 +59,7 @@ export async function getDataStats(): Promise<DataStats> {
           _sum: { price: true },
         }),
         dataDb.dataOrder.count({ where: { paymentStatus: "unpaid", status: "pending" } }),
-        dataDb.dataOrder.count({ where: { ...paidWhere, status: { in: ["paid", "processing"] } } }),
+        dataDb.dataOrder.count({ where: { ...paidWhere, status: { in: ["paid", "queued", "processing"] } } }),
         dataDb.dataOrder.count({ where: { status: "failed" } }),
         dataDb.dataOrder.count({ where: { status: "completed" } }),
         dataDb.dataOrder.aggregate({
@@ -138,31 +143,28 @@ export const ORDERS_PER_PAGE = 25;
 
 export async function getDataOrders(opts: {
   status?: string;
+  network?: string;
   query?: string;
   page?: number;
+  perPage?: number;
 }): Promise<OrderPage> {
   const page = Math.max(1, opts.page ?? 1);
+  const perPage = opts.perPage && opts.perPage > 0 ? opts.perPage : ORDERS_PER_PAGE;
   const query = (opts.query ?? "").trim();
 
-  const where: Record<string, unknown> = {};
-  if (opts.status && opts.status !== "all") where.status = opts.status;
-  if (query) {
-    const digits = query.replace(/\D/g, "");
-    where.OR = [
-      { reference: { contains: query.toUpperCase() } },
-      ...(digits
-        ? [{ recipientPhone: { contains: digits } }, { buyerPhone: { contains: digits } }]
-        : []),
-    ];
-  }
+  const where: Record<string, unknown> = {
+    ...orderStatusWhere(opts.status),
+    ...orderNetworkWhere(opts.network),
+    ...orderSearchWhere(query),
+  };
 
   try {
     const [rows, total] = await Promise.all([
       dataDb.dataOrder.findMany({
         where,
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * ORDERS_PER_PAGE,
-        take: ORDERS_PER_PAGE,
+        skip: (page - 1) * perPage,
+        take: perPage,
         include: { agent: { select: { storeName: true, code: true } } },
       }),
       dataDb.dataOrder.count({ where }),

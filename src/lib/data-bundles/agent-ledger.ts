@@ -20,6 +20,8 @@ export type LedgerType =
   /** A recruiter's share of the registration fee their recruit paid. */
   | "REFERRAL_FEE_SHARE"
   | "TEAM_COMMISSION"
+  /** A queued order cancelled — the customer's money back into the wallet. */
+  | "ORDER_REFUND"
   /** Cedis from a reward an agent spent points on. */
   | "REWARD_PAYOUT"
   | "WITHDRAWAL"

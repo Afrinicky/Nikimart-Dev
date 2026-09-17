@@ -10,6 +10,11 @@ import {
   round2,
 } from "@/lib/data-bundles/agent-pricing";
 import { withAgentUsers } from "@/lib/data-bundles/user-link";
+import {
+  orderNetworkWhere,
+  orderSearchWhere,
+  orderStatusWhere,
+} from "@/lib/data-bundles/order-filters";
 
 /**
  * Reads for the sub-agent platform.
@@ -325,10 +330,15 @@ export async function getAgentWithdrawals(agentId: string, take = 50) {
   }
 }
 
-export async function getAgentOrders(agentId: string, opts: { take?: number; skip?: number; status?: string } = {}) {
+export async function getAgentOrders(
+  agentId: string,
+  opts: { take?: number; skip?: number; status?: string; network?: string; query?: string } = {},
+) {
   const where = {
     agentId,
-    ...(opts.status && opts.status !== "all" ? { status: opts.status } : {}),
+    ...orderStatusWhere(opts.status),
+    ...orderNetworkWhere(opts.network),
+    ...orderSearchWhere(opts.query),
   };
   try {
     const [rows, total] = await Promise.all([

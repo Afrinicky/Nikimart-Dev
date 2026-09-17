@@ -31,7 +31,7 @@ function StatusPill({ status }: { status: string }) {
 
 /** A pulsing dot while work is still happening, a still one once it isn't. */
 function StatusDot({ status }: { status: DataOrderStatus }) {
-  const live = status === "paid" || status === "processing";
+  const live = status === "paid" || status === "queued" || status === "processing";
   return (
     <span className="relative flex h-2 w-2" aria-hidden>
       {live ? (
@@ -54,6 +54,7 @@ const STATUS_NOTE: Record<"bundle" | "afa", Record<DataOrderStatus, string>> = {
     pending:
       "This order hasn't been paid for yet. Nothing was charged — order it again to complete payment.",
     paid: "Payment received. Your bundle is on its way — this page updates as it goes.",
+    queued: "Payment received. Your bundle is queued and goes out shortly — this page updates as it goes.",
     processing: "Your bundle is being sent now — this page updates as it goes.",
     completed: "Sent. If the data hasn't shown on the number, dial your network's balance check.",
     failed:
@@ -64,6 +65,7 @@ const STATUS_NOTE: Record<"bundle" | "afa", Record<DataOrderStatus, string>> = {
     pending:
       "This registration hasn't been paid for yet. Nothing was charged — submit it again to complete payment.",
     paid: "Payment received. Your registration has been sent for approval.",
+    queued: "Payment received. Your registration is queued for approval.",
     processing: "Your registration is with the network for approval.",
     completed: "Approved. The number is registered and agent rates apply to it.",
     failed:

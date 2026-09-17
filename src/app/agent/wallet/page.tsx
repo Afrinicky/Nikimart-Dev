@@ -26,6 +26,9 @@ const TYPE_LABELS: Record<string, string> = {
   REFERRAL_L2: "Second-level referral",
   REFERRAL_FEE_SHARE: "Registration share",
   TEAM_COMMISSION: "Team commission",
+  ORDER_REFUND: "Order refund",
+  WALLET_TOPUP: "Wallet top-up",
+  WALLET_ORDER: "Paid from wallet",
   REWARD_PAYOUT: "Reward",
   WITHDRAWAL: "Withdrawal",
   WITHDRAWAL_REVERSAL: "Withdrawal reversed",
@@ -43,6 +46,11 @@ const TYPE_TONES: Record<string, string> = {
   REFERRAL_L2: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
   REFERRAL_FEE_SHARE: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
   TEAM_COMMISSION: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
+  // Money coming back or going in is neither earnings nor a payout — it gets
+  // the neutral trust blue so the wallet never reads a refund as a sale.
+  ORDER_REFUND: "bg-sky-50 text-sky-700 ring-1 ring-sky-200",
+  WALLET_TOPUP: "bg-niki-trust/10 text-niki-trust ring-1 ring-niki-trust/30",
+  WALLET_ORDER: "bg-niki-ink/10 text-niki-ink/70 ring-1 ring-niki-ink/20",
   // A reward is points turned into cedis, so it gets the gold of the
   // leaderboard rather than the green of a commission.
   REWARD_PAYOUT: "bg-niki-gold/15 text-amber-700 ring-1 ring-niki-gold/40",

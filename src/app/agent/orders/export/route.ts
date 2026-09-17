@@ -8,6 +8,11 @@ import {
   isDataOrderStatus,
   networkLabel,
 } from "@/lib/data-bundles/networks";
+import {
+  orderNetworkWhere,
+  orderSearchWhere,
+  orderStatusWhere,
+} from "@/lib/data-bundles/order-filters";
 import { workbookResponse, type Sheet } from "@/lib/xlsx";
 
 export const runtime = "nodejs";
@@ -32,10 +37,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const status = new URL(req.url).searchParams.get("status") ?? "all";
+  const sp = new URL(req.url).searchParams;
   const where = {
     agentId,
-    ...(status !== "all" && isDataOrderStatus(status) ? { status } : {}),
+    ...orderStatusWhere(sp.get("status")),
+    ...orderNetworkWhere(sp.get("network")),
+    ...orderSearchWhere(sp.get("q")),
   };
 
   try {

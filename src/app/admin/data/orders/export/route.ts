@@ -8,6 +8,11 @@ import {
   networkLabel,
 } from "@/lib/data-bundles/networks";
 import { orderSourceLabel } from "@/lib/data-bundles/reporting";
+import {
+  orderNetworkWhere,
+  orderSearchWhere,
+  orderStatusWhere,
+} from "@/lib/data-bundles/order-filters";
 import { workbookResponse, type Sheet } from "@/lib/xlsx";
 
 export const runtime = "nodejs";
@@ -26,20 +31,13 @@ export async function GET(req: Request) {
   }
 
   const sp = new URL(req.url).searchParams;
-  const status = sp.get("status") ?? "all";
-  const query = (sp.get("q") ?? "").trim();
-
-  const where: Record<string, unknown> = {};
-  if (status !== "all" && isDataOrderStatus(status)) where.status = status;
-  if (query) {
-    const digits = query.replace(/\D/g, "");
-    where.OR = [
-      { reference: { contains: query.toUpperCase() } },
-      ...(digits
-        ? [{ recipientPhone: { contains: digits } }, { buyerPhone: { contains: digits } }]
-        : []),
-    ];
-  }
+  // The same three filters the table applies, read the same way, so an export
+  // is always exactly what was on screen when the button was pressed.
+  const where: Record<string, unknown> = {
+    ...orderStatusWhere(sp.get("status")),
+    ...orderNetworkWhere(sp.get("network")),
+    ...orderSearchWhere(sp.get("q")),
+  };
 
   try {
     const orders = await dataDb.dataOrder.findMany({

@@ -97,7 +97,7 @@ model DataOrder {
   buyerEmail     String?
   buyerName      String?
 
-  // pending | paid | processing | completed | failed | refunded
+  // pending | paid | queued | processing | completed | failed | refunded
   status        String    @default("pending")
   // unpaid | paid — payment is separate from delivery, so a paid-but-undelivered
   // order is visible to the admin as exactly that.
@@ -387,8 +387,8 @@ model DataAgentLedger {
   agent   DataAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   // SETUP_FEE | SETUP_FEE_PAYMENT | COMMISSION | REFERRAL_L1 | REFERRAL_L2 |
-  // REFERRAL_FEE_SHARE | TEAM_COMMISSION | REWARD_PAYOUT | WITHDRAWAL |
-  // WITHDRAWAL_REVERSAL | ADJUSTMENT
+  // REFERRAL_FEE_SHARE | TEAM_COMMISSION | ORDER_REFUND | WALLET_TOPUP |
+  // WALLET_ORDER | REWARD_PAYOUT | WITHDRAWAL | WITHDRAWAL_REVERSAL | ADJUSTMENT
   type         String
   // Signed GH₵: negative debits the agent, positive credits them.
   amount       Float

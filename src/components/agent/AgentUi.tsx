@@ -4,7 +4,10 @@ import { cn } from "@/lib/cn";
 import {
   DATA_STATUS_LABELS,
   DATA_STATUS_TONES,
+  NETWORK_INFO,
   isDataOrderStatus,
+  isNetwork,
+  networkLabel,
 } from "@/lib/data-bundles/networks";
 
 /**
@@ -99,6 +102,25 @@ export function PaymentPill({ status }: { status: string }) {
       )}
     >
       {status === "paid" ? "Payment success" : "Payment pending"}
+    </span>
+  );
+}
+
+/**
+ * A network in a table cell: its own brand colour as a dot, then its name.
+ * The dot is what makes a long list scannable — MTN yellow, Telecel red and
+ * AirtelTigo blue are recognised before the word is read.
+ */
+export function NetworkCell({ network }: { network: string }) {
+  const dot = isNetwork(network) ? NETWORK_INFO[network].accentFrom : "#9ca3af";
+  return (
+    <span className="inline-flex items-center gap-2 whitespace-nowrap text-niki-ink/75">
+      <span
+        aria-hidden
+        className="h-2 w-2 shrink-0 rounded-full ring-1 ring-niki-black/10"
+        style={{ backgroundColor: dot }}
+      />
+      {networkLabel(network)}
     </span>
   );
 }
