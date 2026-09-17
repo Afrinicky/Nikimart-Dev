@@ -118,7 +118,7 @@ export function CurrencyForm({
                           <input type="hidden" name="code" value={c.code} />
                           <button
                             type="submit"
-                            className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+                            className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
                               c.autoUpdate
                                 ? "bg-niki-trust/10 text-niki-trust hover:bg-niki-trust/20"
                                 : "bg-niki-gold/20 text-amber-900 hover:bg-niki-gold/30"
@@ -136,7 +136,7 @@ export function CurrencyForm({
                     </td>
                     <td className="px-4 py-2.5">
                       <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
                           c.isActive
                             ? "bg-niki-success/10 text-niki-success"
                             : "bg-niki-black/5 text-niki-ink/60"
@@ -285,7 +285,7 @@ function RefreshButton() {
     <button
       type="submit"
       disabled={pending}
-      className="flex items-center gap-2 rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-black/85 disabled:opacity-60"
+      className="flex items-center gap-2 rounded-lg bg-niki-black px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-black/85 disabled:opacity-60"
     >
       <RefreshCw className={`h-3.5 w-3.5 ${pending ? "animate-spin" : ""}`} />
       {pending ? "Fetching…" : "Fetch today's rates"}

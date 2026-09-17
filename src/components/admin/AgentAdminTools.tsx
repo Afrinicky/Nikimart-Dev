@@ -127,7 +127,7 @@ export function TopupReconciler({
                   type="submit"
                   name="reference"
                   value={t.reference}
-                  className="niki-press niki-focus shrink-0 rounded-full bg-niki-black px-3 py-1.5 text-[11px] font-semibold text-white"
+                  className="niki-press niki-focus shrink-0 rounded-lg bg-niki-black px-3 py-1.5 text-[11px] font-semibold text-white"
                 >
                   Credit GH₵{t.amount.toFixed(2)}
                 </button>

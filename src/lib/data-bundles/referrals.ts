@@ -256,6 +256,8 @@ export async function linkReferral(agentId: string, referrerId: string): Promise
  */
 export async function quoteRegistrationFee(
   referrerId: string | null,
+  /** A discount from an admin-issued registration link, 0–100. */
+  inviteWaiverPercent = 0,
 ): Promise<RegistrationQuote> {
   const [program, config] = await Promise.all([getAgentProgramConfig(), getReferralConfig()]);
 
@@ -277,6 +279,7 @@ export async function quoteRegistrationFee(
   const active = Boolean(referrer && referrer.status === "active");
   return registrationQuote({
     fee: program.setupFee,
+    inviteWaiverPercent,
     waiverPercent: active ? waiverPercentFor(referrer?.referralWaiverPercent, config.waiverDefaultPercent) : 0,
     // Per recruiter where one is set, the programme default otherwise — the
     // waiver's twin, so "this recruiter brings people in at half price and

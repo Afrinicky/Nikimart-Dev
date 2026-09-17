@@ -683,6 +683,13 @@ model DataAgentApplication {
    */
   referralCode String @default("")
   /**
+   * The admin-issued registration link this applicant came through, if any.
+   * Kept beside the referral code and read the same way: what was claimed,
+   * with the discount it granted snapshotted into the fee columns below, so an
+   * invite edited or deleted later never rewrites what somebody was charged.
+   */
+  inviteCode   String @default("")
+  /**
    * The agent the code resolved to when the application was submitted. Held
    * here so the queue can show who is recruiting whom before anything is
    * approved; approval re-resolves it rather than trusting this.
@@ -771,6 +778,45 @@ model DataAgentApplication {
   @@index([desiredSlug])
   @@index([referrerId])
   @@index([feeReference])
+}
+
+/**
+ * A registration link issued by Nickimart itself.
+ *
+ * An agent's invite link carries their agent code and pays them a share of what
+ * their recruit is charged. This is the other kind: a link the admin hands out
+ * directly — at an event, to a partner, to somebody they simply want on board —
+ * where the discount is whatever they decided when they made the link and
+ * nobody earns a referral share, because nobody recruited them.
+ *
+ * `waiverPercent` is the whole configuration: 0 is full price, 100 waives the
+ * registration fee entirely. Usage is capped and dated so a link that leaks
+ * cannot go on discounting registrations forever.
+ */
+model DataAgentInvite {
+  id String @id @default(cuid())
+  /** The token in the URL: /become-an-agent?invite=<code>. */
+  code String @unique
+  /** What this link is for, in the admin's own words. */
+  label String @default("")
+
+  /** How much of the registration fee it takes off, 0–100. 100 waives it. */
+  waiverPercent Float @default(0)
+
+  /** How many registrations it may open. 0 is unlimited. */
+  maxUses   Int @default(0)
+  usedCount Int @default(0)
+
+  expiresAt DateTime?
+  isActive  Boolean   @default(true)
+
+  /** The `User.id` of the admin who issued it, for the audit trail. */
+  createdBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, createdAt])
 }
 
 // ---------------------------------------------------------------------------

@@ -127,6 +127,9 @@ export function orderSourceLabel(o: {
   agentName: string | null;
   agentCode: string | null;
 }): string {
+  // A bundle Nickimart bought for itself at the wholesale rate. It has no
+  // agent, so without its own name it would read as an ordinary web sale.
+  if (o.source === "ADMIN") return "Nickimart · Admin";
   if (o.source === "WEB" || !o.agentName) return "Nickimart";
   const where = o.source === "STOREFRONT" ? "Storefront" : "Dashboard";
   const who = o.agentCode ? `${o.agentName} (${o.agentCode})` : o.agentName;

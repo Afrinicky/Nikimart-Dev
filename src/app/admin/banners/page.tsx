@@ -20,7 +20,7 @@ export default async function AdminBannersPage() {
         </div>
         <Link
           href="/admin/banners/new"
-          className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+          className="flex items-center gap-2 rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
         >
           <Plus className="h-4 w-4" />
           New banner
@@ -40,7 +40,7 @@ export default async function AdminBannersPage() {
                 style={{ background: `linear-gradient(135deg, ${b.accentFrom}, ${b.accentTo})` }}
               >
                 {b.eventWindow ? (
-                  <span className="w-fit rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-bold uppercase text-white">{b.eventWindow}</span>
+                  <span className="w-fit rounded-lg bg-white/20 px-2 py-0.5 text-[9px] font-bold uppercase text-white">{b.eventWindow}</span>
                 ) : null}
                 <p className="max-w-[65%] font-display text-sm font-bold leading-tight text-white">{b.title}</p>
                 {b.image ? (
@@ -49,7 +49,7 @@ export default async function AdminBannersPage() {
                 ) : null}
               </div>
               <div className="flex items-center justify-between gap-2 p-3">
-                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${b.isActive ? "bg-niki-success/10 text-niki-success" : "bg-niki-ink/10 text-niki-ink/60"}`}>
+                <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${b.isActive ? "bg-niki-success/10 text-niki-success" : "bg-niki-ink/10 text-niki-ink/60"}`}>
                   {b.isActive ? "Active" : "Hidden"}
                 </span>
                 <div className="flex items-center gap-1">

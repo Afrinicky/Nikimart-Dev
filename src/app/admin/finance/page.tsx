@@ -35,7 +35,7 @@ export default async function AdminFinancePage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExportButton dataset="finance" />
-          <Link href="/admin/affiliates" className="flex items-center gap-2 rounded-full bg-niki-black px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-black-soft">
+          <Link href="/admin/affiliates" className="flex items-center gap-2 rounded-lg bg-niki-black px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-black-soft">
             <Users className="h-4 w-4" />
             Affiliates
           </Link>
@@ -157,7 +157,7 @@ export default async function AdminFinancePage() {
                 </div>
                 <form action={markPayoutPaid}>
                   <input type="hidden" name="id" value={p.id} />
-                  <button type="submit" className="rounded-full bg-niki-success px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90">
+                  <button type="submit" className="rounded-lg bg-niki-success px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90">
                     Mark paid
                   </button>
                 </form>
@@ -180,7 +180,7 @@ export default async function AdminFinancePage() {
                 </div>
                 <form action={markAffiliatePayoutPaid}>
                   <input type="hidden" name="id" value={p.id} />
-                  <button type="submit" className="rounded-full bg-niki-success px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90">Mark paid</button>
+                  <button type="submit" className="rounded-lg bg-niki-success px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90">Mark paid</button>
                 </form>
               </div>
             ))}
@@ -222,7 +222,7 @@ export default async function AdminFinancePage() {
                   <td className="px-5 py-3 font-semibold text-niki-ink">{formatPrice(s.earnings.available)}</td>
                   <td className="px-5 py-3 text-right">
                     {s.earnings.available > 0 ? (
-                      <Link href={`/admin/finance/sellers/${s.id}`} className="inline-flex items-center gap-1 rounded-full bg-niki-orange px-3 py-1.5 text-xs font-semibold text-white hover:bg-niki-orange-light">
+                      <Link href={`/admin/finance/sellers/${s.id}`} className="inline-flex items-center gap-1 rounded-lg bg-niki-orange px-3 py-1.5 text-xs font-semibold text-white hover:bg-niki-orange-light">
                         Pay out <ArrowUpRight className="h-3.5 w-3.5" />
                       </Link>
                     ) : (

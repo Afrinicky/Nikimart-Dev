@@ -33,6 +33,7 @@ import { FormFeedback } from "@/components/ui/FormFeedback";
 export function ApplyAgentForm({
   origin,
   referralCode = "",
+  invite,
   setupFee,
   referralOpen,
   paymentMode,
@@ -41,6 +42,12 @@ export function ApplyAgentForm({
   origin: string;
   /** Prefilled from ?ref= on an invite link, and still editable. */
   referralCode?: string;
+  /**
+   * A registration link Nickimart issued, already resolved on the server. Not
+   * editable and not a field: it came from the URL they were given, and the
+   * discount is re-resolved on submit, so nothing here decides a price.
+   */
+  invite?: { code: string; waiverPercent: number; label: string } | null;
   /** What it costs to open a store. 0 means there is no fee to choose about. */
   setupFee: number;
   /** False when the programme is closed — the code field is then pointless. */
@@ -104,8 +111,17 @@ export function ApplyAgentForm({
     };
   }, [code, referralOpen, setupFee]);
 
-  const payable = quote ? quote.payable : setupFee;
-  const discounted = Boolean(quote && quote.waiverPercent > 0);
+  // Two discounts can be in play — a recruiter's code and an admin link — and
+  // the larger one applies rather than the two stacking, exactly as the server
+  // works it out. Mirrored here so the number on the form is the number
+  // charged.
+  const inviteWaiver = invite ? Math.min(100, Math.max(0, invite.waiverPercent)) : 0;
+  const referralWaiver = quote?.waiverPercent ?? 0;
+  const waiverPercent = Math.max(referralWaiver, inviteWaiver);
+  const waived = Math.round(((setupFee * waiverPercent) / 100) * 100) / 100;
+  const payable =
+    waiverPercent > 0 ? Math.round((setupFee - waived) * 100) / 100 : (quote?.payable ?? setupFee);
+  const discounted = waiverPercent > 0;
   // With no choice on offer, the form states what will happen rather than
   // asking a question with one answer.
   const choosable = paymentMode === "BOTH" && payable > 0;
@@ -123,6 +139,7 @@ export function ApplyAgentForm({
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
+      {invite ? <input type="hidden" name="inviteCode" value={invite.code} /> : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="First name" htmlFor="firstName">
           <input
@@ -300,10 +317,14 @@ export function ApplyAgentForm({
             </p>
           </div>
 
-          {discounted && quote ? (
+          {discounted ? (
             <p className="mt-1 text-xs font-medium text-niki-success">
-              {quote.waiverPercent}% off
-              {quote.referrerName ? `, thanks to ${quote.referrerName}` : ""}
+              {waiverPercent >= 100 ? "Waived in full" : `${waiverPercent}% off`}
+              {inviteWaiver >= referralWaiver
+                ? " — your Nickimart invitation"
+                : quote?.referrerName
+                  ? `, thanks to ${quote.referrerName}`
+                  : ""}
             </p>
           ) : null}
 

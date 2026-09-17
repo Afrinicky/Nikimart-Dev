@@ -34,7 +34,7 @@ export default async function ForwardersPage() {
         </div>
         <Link
           href="/admin/shipping/forwarders/new"
-          className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+          className="flex items-center gap-2 rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
         >
           <Plus className="h-4 w-4" />
           Add new forwarder
@@ -100,7 +100,7 @@ export default async function ForwardersPage() {
                     <td className="px-5 py-3 font-figures text-niki-ink/70">{f.currency}</td>
                     <td className="px-5 py-3">
                       <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
                           priced > 0
                             ? "bg-niki-success/10 text-niki-success"
                             : "bg-niki-danger/10 text-niki-danger"

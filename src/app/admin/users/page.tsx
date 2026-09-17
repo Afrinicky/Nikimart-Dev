@@ -69,7 +69,7 @@ export default async function AdminUsersPage({
           <ExportButton dataset="users" />
           <Link
             href="/admin/users/new"
-            className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+            className="flex items-center gap-2 rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
           >
             <Plus className="h-4 w-4" />
             New user
@@ -135,7 +135,7 @@ export default async function AdminUsersPage({
                   <td className="px-5 py-3 text-niki-ink/70">{u.email}</td>
                   <td className="px-5 py-3">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-full bg-niki-surface px-2.5 py-1 text-xs font-semibold text-niki-ink/70">
+                      <span className="rounded-lg bg-niki-surface px-2.5 py-1 text-xs font-semibold text-niki-ink/70">
                         {isRole(u.role) ? ROLE_LABELS[u.role] : u.role}
                       </span>
                       {/* An agent account is a membership, not a role, so it
@@ -144,7 +144,7 @@ export default async function AdminUsersPage({
                         <Link
                           href={`/admin/data/agents/${u.dataAgent.id}`}
                           title={`Data agent ${u.dataAgent.code}`}
-                          className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+                          className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
                             u.dataAgent.status === "active"
                               ? "bg-niki-orange/10 text-niki-orange hover:bg-niki-orange/20"
                               : "bg-niki-danger/10 text-niki-danger hover:bg-niki-danger/20"

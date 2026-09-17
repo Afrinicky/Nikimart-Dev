@@ -20,7 +20,7 @@ export default async function FinanceBreakdownPage({ params }: { params: Promise
   return (
     <>
       <PageHeader title={data.title} subtitle={data.description} crumbs={[{ label: "Finance", href: "/admin/finance" }, { label: data.title }]}>
-        <Link href="/admin/finance" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
+        <Link href="/admin/finance" className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
           <ArrowLeft className="h-4 w-4" /> Finance
         </Link>
       </PageHeader>

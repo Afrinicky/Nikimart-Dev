@@ -137,9 +137,21 @@ export function registrationQuote(input: {
   referrerSharePercent: number;
   /** False when nobody recruited them: no waiver and no share. */
   hasReferrer: boolean;
+  /**
+   * A discount from a registration link Nickimart issued itself, 0–100.
+   *
+   * It is not a referral: nobody recruited this applicant, so nobody is owed a
+   * share of what they pay — Nickimart simply chose to charge them less. When
+   * somebody arrives holding both a recruiter's code and an admin link, the
+   * larger discount applies rather than the two stacking, because two
+   * discounts compounding to more than the fee is a bug with a refund on the
+   * end of it.
+   */
+  inviteWaiverPercent?: number;
 }): RegistrationQuote {
   const gross = round2(Math.max(0, input.fee));
-  const waiverPercent = input.hasReferrer ? clampPercent(input.waiverPercent) : 0;
+  const referrerWaiver = input.hasReferrer ? clampPercent(input.waiverPercent) : 0;
+  const waiverPercent = Math.max(referrerWaiver, clampPercent(input.inviteWaiverPercent ?? 0));
   const waived = round2((gross * waiverPercent) / 100);
   // Subtracting the rounded waiver, rather than rounding the remainder
   // separately, is what keeps waived + payable exactly equal to gross.

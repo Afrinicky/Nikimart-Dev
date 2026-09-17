@@ -951,7 +951,7 @@ function AddButton({ onClick, label }: { onClick: () => void; label: string }) {
     <button
       type="button"
       onClick={onClick}
-      className="mt-3 flex items-center gap-1.5 rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-black/85"
+      className="mt-3 flex items-center gap-1.5 rounded-lg bg-niki-black px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-niki-black/85"
     >
       <Plus className="h-3.5 w-3.5" />
       {label}

@@ -153,7 +153,7 @@ export function ShippingBaseFeeGrid({
               onClick={() => setLayer(id)}
               aria-pressed={layer === id}
               className={cn(
-                "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
+                "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors",
                 layer === id
                   ? "niki-chip-active bg-niki-black text-white"
                   : "niki-chip text-niki-ink/75 hover:text-niki-ink",

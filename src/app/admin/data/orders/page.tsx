@@ -76,7 +76,7 @@ export default async function AdminDataOrdersPage({
         {available && orders.length > 0 ? (
           <a
             href={exportHref}
-            className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-niki-black/5"
+            className="flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-niki-black/5"
           >
             <Download className="h-3.5 w-3.5" />
             Export
@@ -146,8 +146,8 @@ export default async function AdminDataOrdersPage({
                           title={label}
                           className={
                             house
-                              ? "inline-flex whitespace-nowrap rounded-full bg-niki-black/5 px-2.5 py-1 font-semibold text-niki-ink/70"
-                              : "inline-flex whitespace-nowrap rounded-full bg-niki-orange/10 px-2.5 py-1 font-semibold text-niki-orange"
+                              ? "inline-flex whitespace-nowrap rounded-lg bg-niki-black/5 px-2.5 py-1 font-semibold text-niki-ink/70"
+                              : "inline-flex whitespace-nowrap rounded-lg bg-niki-orange/10 px-2.5 py-1 font-semibold text-niki-orange"
                           }
                         >
                           {house ? "Nickimart" : o.agentName}

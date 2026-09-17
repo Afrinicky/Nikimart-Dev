@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, Package, Receipt, ReceiptText, Wallet } from "lucide-react";
-import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { BalanceAdjuster, TopupReconciler } from "@/components/admin/AgentAdminTools";
 import { AgentAccountTools, SetupLinkTool } from "@/components/admin/AgentAccountTools";
@@ -83,7 +82,7 @@ export default async function AdminAgentDetailPage({
   const fee = registrationFeeBreakdown(agent);
 
   return (
-    <Container className="py-8">
+    <div>
       <ActionLink
         href="/admin/data/agents"
         className="inline-flex items-center gap-1.5 text-sm font-semibold text-niki-ink/60 hover:text-niki-orange"
@@ -110,7 +109,7 @@ export default async function AdminAgentDetailPage({
             href={`/store/${agent.slug}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="niki-press niki-chip flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-niki-ink/75"
+            className="niki-press niki-chip flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold text-niki-ink/75"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             View store
@@ -121,7 +120,7 @@ export default async function AdminAgentDetailPage({
             <button
               type="submit"
               className={cn(
-                "niki-press rounded-full px-4 py-2 text-xs font-semibold text-white",
+                "niki-press rounded-lg px-4 py-2 text-xs font-semibold text-white",
                 suspended ? "bg-niki-success" : "bg-niki-danger",
               )}
             >
@@ -396,6 +395,6 @@ export default async function AdminAgentDetailPage({
           </section>
         </div>
       </div>
-    </Container>
+    </div>
   );
 }

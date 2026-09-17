@@ -92,7 +92,7 @@ export default async function AdminDashboardPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone(order.status)}`}
+                      className={`rounded-lg px-3 py-1 text-xs font-semibold ${statusTone(order.status)}`}
                     >
                       {ORDER_STATUS_LABELS[order.status] ?? order.status}
                     </span>
@@ -138,7 +138,7 @@ export default async function AdminDashboardPage() {
                       <td className="px-5 py-3">
                         <Link
                           href={`/admin/users?role=${u.role}`}
-                          className="rounded-full bg-niki-surface px-2.5 py-1 text-xs font-semibold text-niki-ink/70 transition-colors hover:bg-niki-black hover:text-white"
+                          className="rounded-lg bg-niki-surface px-2.5 py-1 text-xs font-semibold text-niki-ink/70 transition-colors hover:bg-niki-black hover:text-white"
                         >
                           {ROLE_LABELS[(u.role as Role)] ?? u.role}
                         </Link>

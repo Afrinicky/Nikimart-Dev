@@ -21,7 +21,7 @@ export default async function AdminPagesPage() {
         </div>
         <Link
           href="/admin/pages/new"
-          className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+          className="flex items-center gap-2 rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
         >
           <Plus className="h-4 w-4" />
           New page
@@ -38,7 +38,7 @@ export default async function AdminPagesPage() {
           <form action={ensureDefaultPages}>
             <button
               type="submit"
-              className="flex items-center gap-2 rounded-full bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
+              className="flex items-center gap-2 rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
             >
               <Sparkles className="h-4 w-4" />
               Create editable pages
@@ -75,7 +75,7 @@ export default async function AdminPagesPage() {
                   </td>
                   <td className="px-5 py-3 text-niki-ink/70">{p._count.sections}</td>
                   <td className="px-5 py-3">
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${p.isPublished ? "bg-niki-success/10 text-niki-success" : "bg-niki-ink/10 text-niki-ink/60"}`}>
+                    <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${p.isPublished ? "bg-niki-success/10 text-niki-success" : "bg-niki-ink/10 text-niki-ink/60"}`}>
                       {p.isPublished ? "Published" : "Draft"}
                     </span>
                   </td>
