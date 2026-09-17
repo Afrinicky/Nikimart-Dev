@@ -173,6 +173,7 @@ export default async function AgentOrdersPage({
                               status: o.status,
                               paymentStatus: o.paymentStatus,
                               sourceLabel: sourceLabel(o.source),
+                              agentSale: true,
                               commission: o.agentCommission,
                               commissionStatus: o.commissionStatus,
                               createdAt: o.createdAt.toISOString(),

@@ -30,6 +30,12 @@ export interface OrderView {
   paymentStatus: string;
   /** Human label for where the order came from (e.g. "Nickimart", "Agent · Ama"). */
   sourceLabel: string;
+  /**
+   * True when an agent made this sale, so a refund has a wallet to land in.
+   * Nickimart's own orders are refunded in Paystack instead, and the dialog
+   * must not promise a credit that will never appear.
+   */
+  agentSale?: boolean;
   commission?: number | null;
   commissionStatus?: string | null;
   createdAt: string;
@@ -230,9 +236,11 @@ function CancelPanel({
           Cancel this order and refund it?
         </p>
         <p className="mt-1 text-sm text-niki-ink/60">
-          The bundle is still queued, so it can be pulled back. {formatMoney(order.price)} is
-          credited to the wallet — ready to withdraw or spend on another order. This can&apos;t be
-          undone.
+          The bundle is still queued, so it can be pulled back.{" "}
+          {order.agentSale === false
+            ? `${formatMoney(order.price)} then has to be sent back in Paystack — this only records it.`
+            : `${formatMoney(order.price)} is credited to the wallet — ready to withdraw or spend on another order.`}{" "}
+          This can&apos;t be undone.
         </p>
       </div>
 
@@ -322,11 +330,22 @@ function OrderDetailsModal({
       >
         <div className="animate-scale-in rounded-2xl bg-niki-success/10 p-6 text-center ring-1 ring-niki-success/30">
           <Check className="mx-auto h-8 w-8 text-niki-success" />
-          <p className="mt-2 font-display font-bold text-niki-ink">Refunded to the wallet</p>
+          <p className="mt-2 font-display font-bold text-niki-ink">
+            {order.agentSale === false ? "Order cancelled" : "Refunded to the wallet"}
+          </p>
           <p className="mt-1 text-sm text-niki-ink/70">
-            {formatMoney(order.price)} from order{" "}
-            <span className="font-mono font-semibold">{order.reference}</span> is now on the
-            balance.
+            {order.agentSale === false ? (
+              <>
+                Order <span className="font-mono font-semibold">{order.reference}</span> is marked
+                refunded. Send the {formatMoney(order.price)} back in Paystack.
+              </>
+            ) : (
+              <>
+                {formatMoney(order.price)} from order{" "}
+                <span className="font-mono font-semibold">{order.reference}</span> is now on the
+                balance.
+              </>
+            )}
           </p>
         </div>
       </Shell>

@@ -190,6 +190,7 @@ export default async function AdminDataOrdersPage({
                               status: o.status,
                               paymentStatus: o.paymentStatus,
                               sourceLabel: label,
+                              agentSale: !house,
                               commission: o.agentCommission,
                               commissionStatus: o.commissionStatus,
                               createdAt: o.createdAt.toISOString(),
