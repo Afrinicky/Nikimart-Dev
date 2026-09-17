@@ -9,6 +9,7 @@ import { getProviderBalance, isDataProviderConfigured } from "@/lib/data-bundles
 import { dispatchAfaRegistration, dispatchDataOrder, refreshDataOrder } from "@/lib/data-bundles/fulfillment";
 import { syncBundleCosts } from "@/lib/data-bundles/cost-sync";
 import { sweepAgentCommissions } from "@/lib/data-bundles/agent-ledger";
+import { sweepWalletTopups } from "@/lib/data-bundles/wallet";
 import { sweepReferralEarnings } from "@/lib/data-bundles/referrals";
 import { awardLeaderboardPoints } from "@/lib/data-bundles/points";
 import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
@@ -43,6 +44,8 @@ export interface SweepResult {
   afaDispatched: number;
   /** Delivered agent orders whose commission had never been credited. */
   commissionsCredited: number;
+  /** Wallet top-ups Paystack had taken but the wallet never saw. */
+  topupsCredited: number;
   /** Referral rewards released for recruits whose registration fee had cleared. */
   referralRewards: number;
   /** Team-sales commissions credited to the sellers' recruiters. */
@@ -81,6 +84,7 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
     refreshed: 0,
     afaDispatched: 0,
     commissionsCredited: 0,
+    topupsCredited: 0,
     referralRewards: 0,
     teamCommissions: 0,
     leaderboardPoints: 0,
@@ -197,6 +201,13 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
   // a callback that arrived while the ledger was briefly down, or an agent
   // reactivated after their order landed. Catch those up here.
   result.commissionsCredited = await sweepAgentCommissions();
+
+  // A wallet top-up can be captured by Paystack and never reach us: a return
+  // URL that landed on a deployment without the code, a webhook that never
+  // arrived. Every top-up is written down before the agent reaches the gateway
+  // precisely so this can find it — the agent's money is not allowed to depend
+  // on somebody noticing.
+  result.topupsCredited = await sweepWalletTopups();
 
   // The referral programme needs the same safety net, and one more thing the
   // selling agent's commission doesn't: a reward can be owed for a registration

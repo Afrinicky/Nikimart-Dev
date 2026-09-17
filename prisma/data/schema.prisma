@@ -346,6 +346,7 @@ model DataAgent {
   afa         AfaRegistration[]
   points      DataAgentPoint[]
   redemptions DataRewardRedemption[]
+  topups      DataWalletTopup[]
   // Ledger rows this agent's own activity *paid someone else* — their upline's
   // referral and team-sales commissions.
   earnedFor   DataAgentLedger[]     @relation("LedgerSourceAgent")
@@ -430,6 +431,45 @@ model DataAgentLedger {
   @@index([reference])
   @@index([agentId, type, createdAt])
   @@index([sourceAgentId])
+}
+
+/**
+ * An agent putting money into their own wallet through Paystack.
+ *
+ * The row exists before the agent ever reaches the gateway, and that is its
+ * whole point. A top-up used to be nothing but a reference handed to Paystack
+ * with the agent id in the transaction metadata: if the money was captured but
+ * the settlement never ran — a callback that landed on a deployment without the
+ * code, a webhook dropped, metadata missing on a replay — there was no record
+ * anywhere that the agent had ever tried, and the payment could only be found
+ * by going through the Paystack dashboard by hand.
+ *
+ * With this, an unsettled top-up is a row somebody can see: the wallet shows
+ * it, the sweep re-checks it against Paystack, and crediting it needs nothing
+ * but the reference. `creditedAmount` is what Paystack actually captured, which
+ * is what was credited — never `amount`, which is only what was asked for.
+ */
+model DataWalletTopup {
+  id      String    @id @default(cuid())
+  agentId String
+  agent   DataAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  /** The Paystack reference (NT-…). Unique, so a top-up settles once. */
+  reference String @unique
+  /** What the agent asked to pay (GH₵). */
+  amount    Float
+  /** What was actually captured and credited. 0 until it settles. */
+  creditedAmount Float @default(0)
+
+  // pending | paid | abandoned
+  status String    @default("pending")
+  paidAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentId, createdAt])
+  @@index([status, createdAt])
 }
 
 // A commission withdrawal to MoMo. Admins process these by hand from the

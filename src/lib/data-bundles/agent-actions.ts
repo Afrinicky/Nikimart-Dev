@@ -28,7 +28,13 @@ import {
 import { maxWithdrawal, priceAtMarkup } from "@/lib/data-bundles/agent-pricing";
 import { teamCommissionFor } from "@/lib/data-bundles/referrals";
 import { startRegistrationFeePayment } from "@/lib/data-bundles/registration-fee";
-import { MAX_TOPUP, MIN_TOPUP, startWalletTopup, type WalletTopupResult } from "@/lib/data-bundles/wallet";
+import {
+  MAX_TOPUP,
+  MIN_TOPUP,
+  reconcileWalletTopup,
+  startWalletTopup,
+  type WalletTopupResult,
+} from "@/lib/data-bundles/wallet";
 
 /**
  * Everything an agent can do to their own account: edit their own details,
@@ -515,6 +521,32 @@ export async function topUpWallet(amount: number): Promise<WalletTopupResult> {
   );
   if (result.ok) revalidatePath("/agent/wallet");
   return result;
+}
+
+/**
+ * "I paid but it isn't showing."
+ *
+ * Asks Paystack about one of this agent's own pending top-ups and credits it if
+ * the money is really there. It exists because the alternative — an agent who
+ * has been debited waiting for somebody to go through a payment dashboard by
+ * hand — is the worst minute in the product, and because everything it calls is
+ * idempotent, so pressing it twice cannot pay twice.
+ */
+export async function checkWalletTopup(reference: string): Promise<ActionResult> {
+  const { agent, error } = await currentAgent();
+  if (!agent) return { ok: false, error };
+
+  const limit = await rateLimit(`agent-topup-check:${agent.id}`, 30, 10 * 60_000);
+  if (!limit.ok) {
+    return { ok: false, error: `Too many checks. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
+  }
+
+  const result = await reconcileWalletTopup(String(reference ?? ""), { agentId: agent.id });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/agent/wallet");
+  revalidatePath("/agent");
+  return { ok: true, message: result.message };
 }
 
 // ---------------------------------------------------------------------------

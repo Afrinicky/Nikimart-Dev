@@ -5,60 +5,22 @@ import { ActionLink } from "@/components/ui/motion";
 import { AgentPageHeading, Card, EmptyRow, TableScroll, formatWhen } from "@/components/agent/AgentUi";
 import { WithdrawPanel } from "@/components/agent/WithdrawPanel";
 import { TopupWalletPanel } from "@/components/agent/TopupWalletPanel";
+import { PendingTopups } from "@/components/agent/PendingTopups";
 import { requireUser } from "@/lib/session";
 import { formatMoney } from "@/lib/format";
 import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
+import { pendingTopupsFor } from "@/lib/data-bundles/wallet";
 import {
   getAgentForUser,
   getAgentLedger,
   getAgentWallet,
   withdrawableFrom,
 } from "@/lib/data-bundles/agents";
+import { ledgerTypeLabel, ledgerTypeTone } from "@/lib/data-bundles/ledger-labels";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Wallet — Agent — Nickimart" };
 export const dynamic = "force-dynamic";
-
-const TYPE_LABELS: Record<string, string> = {
-  SETUP_FEE: "Setup fee",
-  SETUP_FEE_PAYMENT: "Registration fee paid",
-  COMMISSION: "Commission earned",
-  REFERRAL_L1: "Referral reward",
-  REFERRAL_L2: "Second-level referral",
-  REFERRAL_FEE_SHARE: "Registration share",
-  TEAM_COMMISSION: "Team commission",
-  ORDER_REFUND: "Order refund",
-  WALLET_TOPUP: "Wallet top-up",
-  WALLET_ORDER: "Paid from wallet",
-  REWARD_PAYOUT: "Reward",
-  WITHDRAWAL: "Withdrawal",
-  WITHDRAWAL_REVERSAL: "Withdrawal reversed",
-  ADJUSTMENT: "Adjustment",
-};
-
-const TYPE_TONES: Record<string, string> = {
-  SETUP_FEE: "bg-niki-gold/15 text-amber-700 ring-1 ring-niki-gold/40",
-  SETUP_FEE_PAYMENT: "bg-niki-gold/15 text-amber-700 ring-1 ring-niki-gold/40",
-  COMMISSION: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
-  // Team earnings share the success tone — they are commission by another
-  // route — but keep their own label so the wallet says where each one came
-  // from without anybody having to read the narration.
-  REFERRAL_L1: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
-  REFERRAL_L2: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
-  REFERRAL_FEE_SHARE: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
-  TEAM_COMMISSION: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
-  // Money coming back or going in is neither earnings nor a payout — it gets
-  // the neutral trust blue so the wallet never reads a refund as a sale.
-  ORDER_REFUND: "bg-sky-50 text-sky-700 ring-1 ring-sky-200",
-  WALLET_TOPUP: "bg-niki-trust/10 text-niki-trust ring-1 ring-niki-trust/30",
-  WALLET_ORDER: "bg-niki-ink/10 text-niki-ink/70 ring-1 ring-niki-ink/20",
-  // A reward is points turned into cedis, so it gets the gold of the
-  // leaderboard rather than the green of a commission.
-  REWARD_PAYOUT: "bg-niki-gold/15 text-amber-700 ring-1 ring-niki-gold/40",
-  WITHDRAWAL: "bg-niki-trust/10 text-niki-trust ring-1 ring-niki-trust/30",
-  WITHDRAWAL_REVERSAL: "bg-niki-ink/10 text-niki-ink/70 ring-1 ring-niki-ink/20",
-  ADJUSTMENT: "bg-niki-ink/10 text-niki-ink/70 ring-1 ring-niki-ink/20",
-};
 
 function Tile({
   label,
@@ -102,10 +64,11 @@ export default async function AgentWalletPage({
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 
-  const [wallet, ledger, program] = await Promise.all([
+  const [wallet, ledger, program, pending] = await Promise.all([
     getAgentWallet(agent),
     getAgentLedger(agent.id, 60),
     getAgentProgramConfig(),
+    pendingTopupsFor(agent.id),
   ]);
 
   const available = withdrawableFrom(wallet);
@@ -122,14 +85,23 @@ export default async function AgentWalletPage({
         </ActionLink>
       </AgentPageHeading>
 
+      <PendingTopups
+        topups={pending.map((t) => ({
+          reference: t.reference,
+          amount: t.amount,
+          createdAt: t.createdAt.toISOString(),
+        }))}
+      />
+
       {params.topup === "paid" ? (
         <p className="animate-fade-up rounded-2xl bg-niki-success/10 px-5 py-4 text-sm font-medium text-niki-success ring-1 ring-niki-success/30">
           Top-up received — it&apos;s on your balance and ready to spend.
         </p>
       ) : params.topup === "pending" ? (
         <p className="animate-fade-up rounded-2xl bg-amber-50 px-5 py-4 text-sm font-medium text-amber-800 ring-1 ring-amber-200">
-          We haven&apos;t had confirmation of that payment yet. If it was debited, it lands on your
-          balance within a few minutes.
+          We haven&apos;t had confirmation of that payment yet. If you were debited, press
+          &ldquo;Check payment&rdquo; above — it lands on your balance as soon as Paystack confirms
+          it.
         </p>
       ) : null}
 
@@ -215,10 +187,10 @@ export default async function AgentWalletPage({
                       <span
                         className={cn(
                           "inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                          TYPE_TONES[e.type] ?? TYPE_TONES.ADJUSTMENT,
+                          ledgerTypeTone(e.type),
                         )}
                       >
-                        {TYPE_LABELS[e.type] ?? e.type}
+                        {ledgerTypeLabel(e.type)}
                       </span>
                     </td>
                     <td

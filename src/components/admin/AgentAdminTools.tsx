@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
-import { Megaphone, Scale, Send } from "lucide-react";
+import { Megaphone, Scale, Send, Wallet } from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/ui/motion";
 import {
   adjustAgentBalance,
+  reconcileTopup,
   saveAnnouncement,
   type AgentAdminState,
 } from "@/lib/data-bundles/agent-admin-actions";
@@ -77,6 +78,78 @@ export function BalanceAdjuster({ agentId }: { agentId: string }) {
         className="w-full rounded-xl bg-niki-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-niki-black-mute"
       >
         Post adjustment
+      </SubmitButton>
+    </form>
+  );
+}
+
+/**
+ * Credit a wallet top-up Paystack took but the wallet never saw.
+ *
+ * The amount is not asked for on purpose: it comes from the gateway, so this
+ * cannot credit a number somebody half-remembered, and the reference carries
+ * the same dedupe key the normal path uses — pressing it twice pays once.
+ */
+export function TopupReconciler({
+  agentId,
+  pending = [],
+}: {
+  agentId: string;
+  /** Top-ups this agent started that never landed, newest first. */
+  pending?: Array<{ reference: string; amount: number }>;
+}) {
+  const [state, formAction] = useActionState<AgentAdminState, FormData>(reconcileTopup, {});
+
+  return (
+    <form action={formAction} className="space-y-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
+      <div className="flex items-center gap-2">
+        <Wallet className="h-4 w-4 text-niki-orange" />
+        <h2 className="font-display font-bold text-niki-ink">Recover a top-up</h2>
+      </div>
+
+      <Result state={state} />
+      <input type="hidden" name="agentId" value={agentId} />
+
+      {pending.length > 0 ? (
+        <div className="rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+            Waiting to clear
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {pending.map((t) => (
+              <li key={t.reference} className="flex items-center justify-between gap-3">
+                <span className="min-w-0 truncate font-mono text-[11px] text-niki-ink/60">
+                  {t.reference}
+                </span>
+                {/* Submits the same action with this row's reference, so the
+                    common case needs no copying from the Paystack dashboard. */}
+                <button
+                  type="submit"
+                  name="reference"
+                  value={t.reference}
+                  className="niki-press niki-focus shrink-0 rounded-full bg-niki-black px-3 py-1.5 text-[11px] font-semibold text-white"
+                >
+                  Credit GH₵{t.amount.toFixed(2)}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <Field
+        label="Paystack reference"
+        htmlFor="reference"
+        hint="We ask Paystack what was really paid and credit exactly that."
+      >
+        <input id="reference" name="reference" placeholder="NT-…" className={inputClass} />
+      </Field>
+
+      <SubmitButton
+        pendingLabel="Checking Paystack…"
+        className="w-full rounded-xl bg-niki-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-niki-black-mute"
+      >
+        Check and credit
       </SubmitButton>
     </form>
   );
