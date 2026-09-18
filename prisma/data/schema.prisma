@@ -638,11 +638,27 @@ model DataAnnouncement {
   isActive Boolean @default(true)
   // Pinned notices sort above the rest regardless of date.
   isPinned Boolean @default(false)
+  /**
+   * Who it is for: AGENTS, CUSTOMERS or EVERYONE. A notice about commission is
+   * not a notice a customer buying a bundle should read.
+   */
+  audience String  @default("AGENTS")
+  /**
+   * When it starts mattering, and when it stops. Null publishAt means "now";
+   * null expiresAt means "until somebody hides it". Between them they cover
+   * the thing this is actually used for — writing on Sunday about a change
+   * that starts on Monday and is irrelevant by Friday.
+   */
+  publishAt DateTime?
+  expiresAt DateTime?
+  /** Who wrote it. A broadcast nobody can be asked about is one nobody owns. */
+  createdBy String  @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([isActive, createdAt])
+  @@index([audience, isActive])
 }
 
 // A callback request raised from the agent Support screen.

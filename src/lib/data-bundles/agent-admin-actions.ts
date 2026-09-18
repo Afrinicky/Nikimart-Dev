@@ -279,68 +279,6 @@ export async function rejectWithdrawal(fd: FormData): Promise<void> {
 // Announcements
 // ---------------------------------------------------------------------------
 
-export async function saveAnnouncement(
-  _prev: AgentAdminState,
-  fd: FormData,
-): Promise<AgentAdminState> {
-  await requireAdmin();
-
-  const title = str(fd, "title");
-  const body = str(fd, "body");
-  if (title.length < 3) return { error: "Give the announcement a title." };
-  if (body.length < 5) return { error: "Write the announcement." };
-
-  const tone = ["info", "warning", "success"].includes(str(fd, "tone")) ? str(fd, "tone") : "info";
-  const id = str(fd, "id");
-
-  try {
-    if (id) {
-      await dataDb.dataAnnouncement.update({
-        where: { id },
-        data: { title, body, tone, isPinned: fd.get("isPinned") === "on" },
-      });
-    } else {
-      await dataDb.dataAnnouncement.create({
-        data: { title, body, tone, isPinned: fd.get("isPinned") === "on" },
-      });
-    }
-    revalidatePath("/admin/data/announcements");
-    revalidatePath("/agent/notifications");
-    return { ok: true, message: id ? "Announcement updated." : "Announcement published." };
-  } catch {
-    return { error: STORAGE_ERROR };
-  }
-}
-
-export async function setAnnouncementActive(fd: FormData): Promise<void> {
-  await requireAdmin();
-  const id = str(fd, "id");
-  if (!id) return;
-  try {
-    await dataDb.dataAnnouncement.update({
-      where: { id },
-      data: { isActive: str(fd, "isActive") === "1" },
-    });
-    revalidatePath("/admin/data/announcements");
-    revalidatePath("/agent/notifications");
-  } catch {
-    // Gone, or not migrated.
-  }
-}
-
-export async function deleteAnnouncement(fd: FormData): Promise<void> {
-  await requireAdmin();
-  const id = str(fd, "id");
-  if (!id) return;
-  try {
-    await dataDb.dataAnnouncement.delete({ where: { id } });
-    revalidatePath("/admin/data/announcements");
-    revalidatePath("/agent/notifications");
-  } catch {
-    // Already gone.
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Support requests
 // ---------------------------------------------------------------------------

@@ -965,6 +965,36 @@ model SiteSetting {
   value String
 }
 
+/**
+ * A notice on the mall's own dashboards.
+ *
+ * Its own table, not one shared with the bundle side: different audiences,
+ * different people writing, separate databases. One table would make a notice
+ * to data agents appearing on a shop dashboard an accident waiting to happen
+ * rather than an impossibility.
+ */
+model Announcement {
+  id    String @id @default(cuid())
+  title String
+  body  String
+  /// info | warning | success — the accent on the notice card.
+  tone  String @default("info")
+  /// CUSTOMERS | VENDORS | EVERYONE.
+  audience String  @default("EVERYONE")
+  isActive Boolean @default(true)
+  isPinned Boolean @default(false)
+  /// Null publishAt means now; null expiresAt means until somebody hides it.
+  publishAt DateTime?
+  expiresAt DateTime?
+  createdBy String    @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, createdAt])
+  @@index([audience, isActive])
+}
+
 model Faq {
   id       String @id @default(cuid())
   question String

@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { dataDb } from "@/lib/data-db";
+import { announcementsFor } from "@/lib/data-bundles/announcements";
 import { getActiveBundles } from "@/lib/data-bundles/catalog";
 import { NETWORKS, type Network } from "@/lib/data-bundles/networks";
 import { normaliseSlugClient } from "@/lib/data-bundles/slug";
@@ -358,15 +359,10 @@ export async function getAgentOrders(
 
 /** Announcements every agent sees, pinned first. */
 export async function getAnnouncements(take = 30) {
-  try {
-    return await dataDb.dataAnnouncement.findMany({
-      where: { isActive: true },
-      orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
-      take,
-    });
-  } catch {
-    return [];
-  }
+  // The audience and the schedule are applied in one place, because a screen
+  // that forgets either shows a notice that expired last week or one addressed
+  // to somebody else.
+  return announcementsFor("AGENTS", take);
 }
 
 /** Admin-side roster with the numbers each row needs. */

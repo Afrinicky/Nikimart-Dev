@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Download } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { NetworkCell, StatusPill } from "@/components/agent/AgentUi";
 import { OrderActions, type OrderView } from "@/components/data/OrderActions";
@@ -63,12 +62,6 @@ export default async function AdminDataOrdersPage({
   });
   const pageCount = Math.max(1, Math.ceil(total / perPage));
 
-  const exportHref = `/admin/data/orders/export?${new URLSearchParams({
-    status,
-    network,
-    q: query,
-  }).toString()}`;
-
   // Orders still moving on this page. Nothing polls when there are none.
   const openOnPage = orders.filter(
     (o) => o.status === "queued" || o.status === "processing",
@@ -87,15 +80,6 @@ export default async function AdminDataOrdersPage({
               : "Tables not migrated yet"}
           </p>
         </div>
-        {available && orders.length > 0 ? (
-          <a
-            href={exportHref}
-            className="flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-niki-black/5"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Export
-          </a>
-        ) : null}
       </div>
 
       {available ? (
