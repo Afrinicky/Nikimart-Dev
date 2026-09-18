@@ -122,7 +122,7 @@ export function DataStoreSettingsForm({ settings }: { settings: DataSettings }) 
 }
 
 /**
- * The sub-agent programme's own settings: what it costs to open a storefront,
+ * The agent programme's own settings: what it costs to open a storefront,
  * how that is collected, what agents pay for bundles, and where they go for
  * help.
  *
@@ -137,7 +137,7 @@ export function AgentProgrammeSettingsForm({ settings }: { settings: DataSetting
   return (
     <form action={formAction} className="space-y-6" noValidate>
       <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
-        <h2 className="font-display text-lg font-bold text-niki-ink">Sub-agent programme</h2>
+        <h2 className="font-display text-lg font-bold text-niki-ink">Agent programme</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
           Recruiting resellers who run their own storefront at{" "}
           <code className="font-mono text-xs">/store/&lt;name&gt;</code>. Set an agent price on your

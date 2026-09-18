@@ -33,7 +33,7 @@ export const DATA_SETTINGS_DEFAULTS = {
   dataMarkupPercent: "25",
   dataLowBalanceThreshold: "50",
 
-  // --- Sub-agent programme --------------------------------------------------
+  // --- Agent programme ------------------------------------------------------
   agentProgramEnabled: "1",
   agentSetupFee: "30",
   agentWithdrawalFee: "1",

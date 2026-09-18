@@ -47,7 +47,7 @@ export const SETTINGS_DEFAULTS = {
   // fails every order *after* the customer has paid, so the alarm has to come
   // while there's still time to top up.
   dataLowBalanceThreshold: "50",
-  // --- Sub-agent programme --------------------------------------------------
+  // --- Agent programme ------------------------------------------------------
   // Master switch for recruiting agents. "0" hides the pitch page and closes
   // signup; existing agents keep trading.
   agentProgramEnabled: "1",
@@ -359,7 +359,7 @@ export async function getAbroadConfig(): Promise<AbroadConfig> {
 }
 
 // ---------------------------------------------------------------------------
-// Data bundles and the sub-agent programme
+// Data bundles and the agent programme
 //
 // Their settings moved to lib/data-bundles/settings.ts when the bundle business
 // was split onto its own database — they are stored there, in DataSetting,
