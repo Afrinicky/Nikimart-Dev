@@ -17,6 +17,7 @@ import {
   Menu,
   Package,
   PackageCheck,
+  Receipt,
   Scale,
   Settings,
   Settings2,
@@ -68,6 +69,7 @@ const RETAIL: NavItem[] = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
   { href: "/admin/finance", label: "Finance", icon: Wallet },
+  { href: "/admin/transactions", label: "Transactions", icon: Receipt },
   { href: "/admin/affiliates", label: "Affiliates", icon: Gift },
   { href: "/admin/purchasing", label: "Order placement", icon: ClipboardList },
   { href: "/admin/shipping", label: "Shipping", icon: Truck },
@@ -89,6 +91,7 @@ const DATA: NavItem[] = [
   { href: "/admin/data/referrals", label: "Referrals", icon: Share2 },
   { href: "/admin/data/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/admin/data/withdrawals", label: "Withdrawals", icon: Banknote },
+  { href: "/admin/data/transactions", label: "Transactions", icon: Receipt },
   { href: "/admin/data/settings", label: "Store settings", icon: Settings2 },
 ];
 
