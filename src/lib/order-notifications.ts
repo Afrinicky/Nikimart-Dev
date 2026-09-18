@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { notify, emailShell, type Recipient } from "@/lib/notifications";
+import { notifyTemplate } from "@/lib/messages";
+import { siteUrl } from "@/lib/site";
 import { getStaffNotifyChannel } from "@/lib/settings";
 import {
   confirmedIndex,
@@ -77,14 +79,12 @@ export async function notifyOrderConfirmed(orderId: string): Promise<void> {
     });
     if (!order) return;
     const first = order.user.name?.split(" ")[0] ?? "there";
-    const sms = `Hi ${first}, your Nickimart order ${order.orderNumber} is confirmed. Total ${money(order.total)}. Track it in your account.`;
-    await notify(order.user, {
-      sms,
-      emailSubject: `Order ${order.orderNumber} confirmed`,
-      emailHtml: emailShell(
-        `Your order <strong>${order.orderNumber}</strong> is confirmed and being prepared.<br/>Total: <strong>${money(order.total)}</strong>.<br/><br/>You can track its progress any time from your Nickimart account.`,
-        "Order confirmed 🎉",
-      ),
+    // The words are the admin's, from the Messages tab; these are the facts.
+    await notifyTemplate(order.user, "order.confirmed", {
+      name: first,
+      orderNumber: order.orderNumber,
+      total: money(order.total),
+      site: siteUrl().replace(/^https?:\/\//, ""),
     });
   } catch {
     // best-effort
@@ -267,29 +267,21 @@ export async function notifyShipmentUpdate(
         isDeferredPlan(order.paymentPlan) && order.balanceDue > 0
           ? ` Shipping of ${money(order.balanceDue)} is due when you collect.`
           : "";
-      await notify(order.user, {
-        sms: `Nickimart: good news ${first} — order ${order.orderNumber} has arrived in Ghana at ${landedAt}.${balanceLine} We'll tell you the moment it reaches ${point}.`,
-        emailSubject: `Order ${order.orderNumber} has arrived in Ghana`,
-        emailHtml: emailShell(
-          `Hi ${first}, your order <strong>${order.orderNumber}</strong> has landed in Ghana at <strong>${landedAt}</strong>.` +
-            (balanceLine
-              ? `<br/><br/>Because you chose to settle the shipping at collection, <strong>${money(order.balanceDue)}</strong> is due when you pick it up. You can also pay it in advance from your Nickimart account.`
-              : "") +
-            `<br/><br/>It now travels to <strong>${point}</strong>. We'll let you know as soon as it's ready to collect.`,
-          "It's in the country 🇬🇭",
-        ),
+      await notifyTemplate(order.user, "order.arrived", {
+        name: first,
+        orderNumber: order.orderNumber,
+        point,
+        landedAt,
+        balanceNote: balanceLine.trim(),
       });
       return;
     }
 
     if (stage === "delivered") {
-      await notify(order.user, {
-        sms: `Nickimart: order ${order.orderNumber} has been handed over at ${point}. Thank you for shopping with us — reply to your email if anything isn't right.`,
-        emailSubject: `Order ${order.orderNumber} delivered`,
-        emailHtml: emailShell(
-          `Your order <strong>${order.orderNumber}</strong> has been handed over at <strong>${point}</strong>.<br/><br/>Thank you for shopping with Nickimart. If anything isn't right with it, get in touch — Buyer Protection covers this order.`,
-          "Delivered ✅",
-        ),
+      await notifyTemplate(order.user, "order.delivered", {
+        name: first,
+        orderNumber: order.orderNumber,
+        point,
       });
       return;
     }

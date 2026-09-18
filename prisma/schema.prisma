@@ -995,6 +995,48 @@ model Announcement {
   @@index([audience, isActive])
 }
 
+/**
+ * An automatic message the admin has rewritten.
+ *
+ * Absent means "use the default in lib/message-templates.ts". Present means
+ * the admin has had their say, and the switches are explicit rather than
+ * inferred from empty text: silencing half a message is a decision, not a
+ * blank field.
+ */
+model MessageTemplate {
+  key          String  @id
+  sms          String  @default("")
+  emailSubject String  @default("")
+  emailBody    String  @default("")
+  smsEnabled   Boolean @default(true)
+  emailEnabled Boolean @default(true)
+  updatedBy    String  @default("")
+  updatedAt    DateTime @updatedAt @default(now())
+}
+
+/**
+ * A message the admin sent on purpose.
+ *
+ * A broadcast costs real money per recipient and cannot be recalled, so the
+ * record of one is part of sending it rather than an extra.
+ */
+model Broadcast {
+  id         String @id @default(cuid())
+  audience   String
+  /// sms | email | both
+  channel    String @default("sms")
+  subject    String @default("")
+  body       String
+  /// How many the audience resolved to, and how many the gateway accepted.
+  recipients Int    @default(0)
+  delivered  Int    @default(0)
+  failed     Int    @default(0)
+  sentBy     String @default("")
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model Faq {
   id       String @id @default(cuid())
   question String

@@ -1,9 +1,9 @@
 import "server-only";
 import bcrypt from "bcryptjs";
 import { dataDb } from "@/lib/data-db";
-import { notify, sendSms } from "@/lib/notifications";
 import { siteUrl } from "@/lib/site";
 import { temporaryPassword } from "@/lib/data-bundles/temp-password";
+import { notifyTemplate } from "@/lib/messages";
 
 /**
  * Sending somebody the account they never signed up for.
@@ -64,29 +64,20 @@ export async function issueAgentCredentials(applicationId: string): Promise<bool
   // the one that was sent.
   if (claimed.count === 0) return false;
 
-  const signIn = `${siteUrl()}/login?callbackUrl=%2Fagent`;
-  const name = application.firstName || application.fullName;
-  const line =
-    `Nickimart: your data agent account is ready. Sign in at ${signIn} with ` +
-    `${application.email} and the password ${password}. You'll be asked to change it.`;
-
-  await Promise.allSettled([
-    sendSms(application.phone, line),
-    notify(
-      { email: application.email, phone: null },
-      {
-        sms: line,
-        emailSubject: "Your Nickimart agent sign-in details",
-        emailHtml:
-          `<p>Hi ${name},</p>` +
-          `<p>Your Nickimart data agent account is ready. Your store will be <strong>${application.storeName || application.desiredSlug}</strong>, once we've approved it.</p>` +
-          `<p><strong>Username:</strong> ${application.email}<br>` +
-          `<strong>Password:</strong> ${password}</p>` +
-          `<p><a href="${signIn}">Sign in here</a>. We'll ask you to choose your own password straight away — this one only works until you do.</p>` +
-          `<p>Don't share these details with anyone.</p>`,
-      },
-    ),
-  ]);
+  // The words are the admin's — see the Messages tab. Only the facts are
+  // supplied here, and the password is one of them, which is why this send
+  // happens exactly once.
+  await notifyTemplate(
+    { phone: application.phone, email: application.email },
+    "agent.credentials",
+    {
+      name: application.firstName || application.fullName,
+      store: application.storeName || application.desiredSlug,
+      username: application.email,
+      password,
+      link: `${siteUrl()}/login?callbackUrl=%2Fagent`,
+    },
+  );
 
   return true;
 }

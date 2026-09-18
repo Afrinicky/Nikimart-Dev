@@ -397,6 +397,35 @@ export default async function AdminDataOverviewPage({
         </div>
       </div>
 
+      {/* The wallet every order is bought from. */}
+      <a
+        href="https://justicedatashop.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="niki-gradient-card mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl p-6 text-white transition-opacity hover:opacity-95"
+      >
+        <div>
+          <div className="flex items-center gap-2 text-white/60">
+            <Wallet className="h-4 w-4" />
+            <span className="text-xs font-semibold uppercase tracking-wide">
+              Provider wallet balance
+            </span>
+          </div>
+          <p className="mt-1 font-figures text-3xl font-bold">
+            {balance.balance === null ? "—" : formatPrice(balance.balance)}
+          </p>
+          <p className="mt-1 text-xs text-white/50">
+            {balance.balance === null
+              ? balance.message
+              : "Every bundle you sell is bought from this balance. Top it up on Justice Datashop."}
+          </p>
+        </div>
+        <span className="flex items-center gap-1.5 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-semibold ring-1 ring-white/20">
+          <ExternalLink className="h-4 w-4" />
+          Top up
+        </span>
+      </a>
+
       {/* The window everything below is measured over. */}
       <div className="mt-5 flex items-center gap-1.5">
         <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-niki-ink/40">
@@ -645,35 +674,6 @@ export default async function AdminDataOverviewPage({
           )}
         </Panel>
       </div>
-
-      {/* The wallet every order is bought from. */}
-      <a
-        href="https://justicedatashop.com"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="niki-gradient-card mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl p-6 text-white transition-opacity hover:opacity-95"
-      >
-        <div>
-          <div className="flex items-center gap-2 text-white/60">
-            <Wallet className="h-4 w-4" />
-            <span className="text-xs font-semibold uppercase tracking-wide">
-              Provider wallet balance
-            </span>
-          </div>
-          <p className="mt-1 font-figures text-3xl font-bold">
-            {balance.balance === null ? "—" : formatPrice(balance.balance)}
-          </p>
-          <p className="mt-1 text-xs text-white/50">
-            {balance.balance === null
-              ? balance.message
-              : "Every bundle you sell is bought from this balance. Top it up on Justice Datashop."}
-          </p>
-        </div>
-        <span className="flex items-center gap-1.5 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-semibold ring-1 ring-white/20">
-          <ExternalLink className="h-4 w-4" />
-          Top up
-        </span>
-      </a>
 
       {/* Setup checklist */}
       <section className="mt-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">

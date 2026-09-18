@@ -3,7 +3,8 @@ import { after } from "next/server";
 import { dataDb } from "@/lib/data-db";
 import { DATA_REFERENCE_PREFIX, AFA_REFERENCE_PREFIX } from "@/lib/data-bundles/reference";
 import { toPesewas } from "@/lib/payments";
-import { sendSms, notify } from "@/lib/notifications";
+import { sendSms } from "@/lib/notifications";
+import { notifyTemplate, smsTemplate } from "@/lib/messages";
 import { siteUrl } from "@/lib/site";
 import { callbackToken } from "@/lib/data-bundles/callback-token";
 import { formatPrice } from "@/lib/format";
@@ -295,46 +296,44 @@ async function orderForNotice(orderId: string) {
   return dataDb.dataOrder.findUnique({ where: { id: orderId } });
 }
 
+/**
+ * What every bundle notification is written out of.
+ *
+ * The words themselves live in the message templates, which an admin can edit
+ * in the console; this only supplies the facts to put in them.
+ */
+function bundleVars(o: { sizeGb: number; network: string; recipientPhone: string; reference: string; price: number }) {
+  return {
+    size: bundleLabel(o.sizeGb),
+    network: networkLabel(o.network),
+    recipient: o.recipientPhone,
+    reference: o.reference,
+    amount: formatPrice(o.price),
+    site: siteUrl().replace(/^https?:\/\//, ""),
+  };
+}
+
 /** Tell the buyer (and the recipient, when different) that data is on the way. */
 export async function notifyDataOrderDispatched(orderId: string): Promise<void> {
   const o = await orderForNotice(orderId);
   if (!o) return;
-  const size = bundleLabel(o.sizeGb);
-  const net = networkLabel(o.network);
-  const buyerText =
-    `Nickimart Data: ${size} ${net} for ${o.recipientPhone} is on its way. ` +
-    `Ref ${o.reference}. Track it at ${siteUrl()}/data-bundles/orders`;
-  await notify({ phone: o.buyerPhone, email: o.buyerEmail }, {
-    sms: buyerText,
-    emailSubject: `Your ${size} ${net} bundle — ${o.reference}`,
-  });
+  const vars = bundleVars(o);
+  await notifyTemplate({ phone: o.buyerPhone, email: o.buyerEmail }, "bundle.dispatched", vars);
   if (o.recipientPhone !== o.buyerPhone) {
-    await sendSms(o.recipientPhone, `Nickimart Data: ${size} ${net} is being credited to this number. Ref ${o.reference}.`);
+    await smsTemplate(o.recipientPhone, "bundle.recipient", vars);
   }
 }
 
 export async function notifyDataOrderCompleted(orderId: string): Promise<void> {
   const o = await orderForNotice(orderId);
   if (!o) return;
-  const size = bundleLabel(o.sizeGb);
-  const net = networkLabel(o.network);
-  await notify({ phone: o.buyerPhone, email: o.buyerEmail }, {
-    sms: `Nickimart Data: ${size} ${net} has been delivered to ${o.recipientPhone}. Ref ${o.reference}. Thank you!`,
-    emailSubject: `Delivered — ${size} ${net} (${o.reference})`,
-  });
+  await notifyTemplate({ phone: o.buyerPhone, email: o.buyerEmail }, "bundle.delivered", bundleVars(o));
 }
 
 export async function notifyDataOrderFailed(orderId: string): Promise<void> {
   const o = await orderForNotice(orderId);
   if (!o) return;
-  const size = bundleLabel(o.sizeGb);
-  const net = networkLabel(o.network);
-  await notify({ phone: o.buyerPhone, email: o.buyerEmail }, {
-    sms:
-      `Nickimart Data: we could not deliver ${size} ${net} to ${o.recipientPhone} (ref ${o.reference}). ` +
-      `Our team is on it — you will be credited or refunded ${formatPrice(o.price)}.`,
-    emailSubject: `Action needed — ${o.reference}`,
-  });
+  await notifyTemplate({ phone: o.buyerPhone, email: o.buyerEmail }, "bundle.failed", bundleVars(o));
 }
 
 // ---------------------------------------------------------------------------

@@ -3,6 +3,8 @@ import { Suspense } from "react";
 import { Megaphone, Plus } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { ModuleHeader } from "@/components/admin/ModuleHeader";
+import { ModuleTabs } from "@/components/admin/ModuleTabs";
+import { ANNOUNCEMENT_MODULE_TABS } from "@/lib/announcement-module";
 import { TableFilters } from "@/components/admin/TableFilters";
 import { TablePager } from "@/components/admin/TablePager";
 import { AnnouncementsTable } from "@/components/admin/AnnouncementsTable";
@@ -73,7 +75,7 @@ export default async function AdminRetailAnnouncementsPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <ModuleHeader
           title="Announcements"
-          subtitle="What every customer and shop is told, and when."
+          subtitle="What Nickimart says to people: on their screen, when something happens, and on purpose."
           icon={Megaphone}
         />
         <ActionLink
@@ -83,6 +85,10 @@ export default async function AdminRetailAnnouncementsPage({
           <Plus className="h-4 w-4" />
           New announcement
         </ActionLink>
+      </div>
+
+      <div className="mt-5">
+        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("retail")} />
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">

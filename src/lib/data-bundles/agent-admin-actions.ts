@@ -7,7 +7,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { dataDb } from "@/lib/data-db";
 import { requireAdmin } from "@/lib/session";
-import { notify, sendSms } from "@/lib/notifications";
+import { sendSms } from "@/lib/notifications";
 import { formatMoney } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
@@ -16,6 +16,7 @@ import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { normaliseSlug, round2, slugProblem } from "@/lib/data-bundles/agents";
 import { getAgentUser } from "@/lib/data-bundles/user-link";
 import { reconcileWalletTopup } from "@/lib/data-bundles/wallet";
+import { notifyTemplate, smsTemplate } from "@/lib/messages";
 import { normalisePaymentMode, paymentModeLabel } from "@/lib/data-bundles/payment-mode";
 import {
   checkReferralLink,
@@ -215,14 +216,15 @@ export async function processWithdrawal(fd: FormData): Promise<void> {
 
     const row = await dataDb.dataAgentWithdrawal.findUnique({
       where: { id },
-      select: { agentId: true, amount: true, momoPhone: true },
+      select: { agentId: true, amount: true, momoPhone: true, agent: { select: { storeName: true } } },
     });
     revalidateAgents(row?.agentId);
     if (row) {
-      await sendSms(
-        row.momoPhone,
-        `Nickimart: ${formatMoney(row.amount)} has been sent to ${row.momoPhone}. Thank you for selling with us.`,
-      );
+      await smsTemplate(row.momoPhone, "withdrawal.sent", {
+        amount: formatMoney(row.amount),
+        phone: row.momoPhone,
+        store: row.agent?.storeName ?? "",
+      });
     }
   } catch {
     // Not migrated — nothing to record.
@@ -365,16 +367,11 @@ export async function reissueSetupLink(fd: FormData): Promise<AgentAdminState> {
     return { error: "Couldn't issue a new link. Please try again." };
   }
 
-  await Promise.allSettled([
-    sendSms(user?.phone, `Nickimart: set your agent password here — ${setupUrl}`),
-    notify(
-      { email: user?.email ?? null, phone: null },
-      {
-        sms: `Set your Nickimart agent password: ${setupUrl}`,
-        emailSubject: "Set your Nickimart agent password",
-      },
-    ),
-  ]);
+  await notifyTemplate(
+    { phone: user?.phone ?? null, email: user?.email ?? null },
+    "agent.setupLink",
+    { name: user?.name ?? agent.storeName, link: setupUrl },
+  );
 
   revalidateAgents(agentId);
   return { ok: true, setupUrl, message: "New link issued — valid for 7 days." };
