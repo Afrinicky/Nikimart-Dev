@@ -17,7 +17,7 @@ import {
 } from "@/lib/data-bundles/order-filters";
 
 /**
- * Reads for the sub-agent platform.
+ * Reads for the agent platform.
  *
  * The money model in one paragraph: Nickimart buys from Justice Datashop and
  * resells to its own agents at `DataBundle.agentPrice`. An agent puts their own

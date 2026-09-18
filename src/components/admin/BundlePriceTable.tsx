@@ -13,7 +13,7 @@ export interface EditableBundle {
   sizeGb: number;
   price: number;
   costPrice: number;
-  /** What sub-agents pay. 0 keeps the bundle off agent storefronts. */
+  /** What agents pay. 0 keeps the bundle off agent storefronts. */
   agentPrice: number;
   /**
    * What the selling agent's recruiter earns on this bundle (GH₵ per sale).
@@ -166,7 +166,7 @@ export function BundlePriceTable({
                         onChange={(e) => set(b.id, "agent", e.target.value)}
                         placeholder="0.00"
                         aria-invalid={agentUnderCost || undefined}
-                        title="What sub-agents pay. Leave at 0 to keep this bundle off agent storefronts."
+                        title="What agents pay. Leave at 0 to keep this bundle off agent storefronts."
                         className={`${inputClass} max-w-[7.5rem] px-3 py-1.5 ${
                           agentUnderCost ? "border-niki-danger focus:border-niki-danger" : ""
                         }`}

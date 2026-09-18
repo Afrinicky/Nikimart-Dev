@@ -26,7 +26,7 @@ import {
 } from "@/lib/data-bundles/referrals";
 
 /**
- * Admin actions for the sub-agent programme: suspend an agent, correct a
+ * Admin actions for the agent programme: suspend an agent, correct a
  * balance, process a MoMo withdrawal, publish an announcement.
  *
  * Every one guards with `requireAdmin()` — these move real money — and every

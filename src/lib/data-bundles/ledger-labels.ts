@@ -23,7 +23,7 @@ export const LEDGER_TYPE_LABELS: Record<string, string> = {
   ORDER_REFUND: "Order refund",
   WALLET_TOPUP: "Wallet top-up",
   WALLET_ORDER: "Paid from wallet",
-  SUBAGENT_FEE: "Sub-agent registration",
+  SUBAGENT_FEE: "Recruit's registration",
   REWARD_PAYOUT: "Reward",
   WITHDRAWAL: "Withdrawal",
   WITHDRAWAL_REVERSAL: "Withdrawal reversed",

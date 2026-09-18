@@ -88,7 +88,7 @@ function SyncButton() {
 
 /**
  * Re-price a whole network from its recorded costs in one move — both the
- * retail price and, optionally, the price sub-agents pay.
+ * retail price and, optionally, the price agents pay.
  */
 export function MarkupTool({
   defaultMarkup,
@@ -187,7 +187,7 @@ export function NewBundleForm() {
         <Field
           label="Agent price (GH₵)"
           htmlFor="new-agent-price"
-          hint="What sub-agents pay. Leave blank to keep it off agent stores."
+          hint="What agents pay. Leave blank to keep it off agent stores."
         >
           <input id="new-agent-price" name="agentPrice" type="number" min="0" step="0.01" className={inputClass} />
         </Field>

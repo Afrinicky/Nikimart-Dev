@@ -11,7 +11,7 @@ export interface Bundle {
   price: number;
   costPrice: number;
   /**
-   * What Nickimart charges its own sub-agents. 0 means the bundle isn't resold
+   * What Nickimart charges its own agents. 0 means the bundle isn't resold
    * to agents, and it stays off every agent storefront.
    */
   agentPrice: number;

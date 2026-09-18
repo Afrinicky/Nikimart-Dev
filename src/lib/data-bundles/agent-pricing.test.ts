@@ -13,7 +13,7 @@ import { normaliseSlugClient } from "./slug.ts";
 import { formatMoney, formatPrice } from "../format.ts";
 
 /**
- * The money rules for the sub-agent programme.
+ * The money rules for the agent programme.
  *
  * Each of these is a place where being wrong costs someone real cedis: an agent
  * paid more than they earned, Nickimart funding an agent's discount, or a
