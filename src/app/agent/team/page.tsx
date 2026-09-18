@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Coins, HandCoins, Share2, Users } from "lucide-react";
+import { Coins, HandCoins, Share2, UserPlus, Users } from "lucide-react";
+import { ActionLink } from "@/components/ui/motion";
 import { AgentPageHeading, Card, EmptyRow, TableScroll, formatWhen } from "@/components/agent/AgentUi";
 import { ReferralShare } from "@/components/agent/ReferralShare";
 import { requireUser } from "@/lib/session";
@@ -119,7 +120,15 @@ export default async function AgentTeamPage() {
 
   return (
     <div className="space-y-6">
-      <AgentPageHeading title="My team" subtitle="Recruit agents and earn from what they sell." />
+      <AgentPageHeading title="My team" subtitle="Recruit agents and earn from what they sell.">
+        <ActionLink
+          href="/agent/team/new"
+          className="flex items-center gap-1.5 rounded-xl bg-niki-orange px-4 py-2 text-xs font-semibold text-white hover:bg-niki-orange-light"
+        >
+          <UserPlus className="h-3.5 w-3.5" />
+          Add an agent
+        </ActionLink>
+      </AgentPageHeading>
 
       {fee.payable ? (
         <p className="rounded-2xl bg-amber-50 px-5 py-4 text-sm text-amber-800 ring-1 ring-amber-200">

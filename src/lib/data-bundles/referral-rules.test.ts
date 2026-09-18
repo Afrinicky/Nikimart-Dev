@@ -242,3 +242,38 @@ test("with no joining rewards at all, the line still points at team sales", () =
   const line = referralRewardsLine({ ...RULES, level1Reward: 0, level2Reward: 0 });
   assert.match(line, /what your team sells/);
 });
+
+test("a discount Nickimart granted applies without a recruiter behind it", () => {
+  // An admin's registration link, or an admin registering somebody directly:
+  // nobody recruited them, so nobody is owed a share — but the fee still comes
+  // off. Losing this is how a registration promised free gets charged in full.
+  const quote = registrationQuote({
+    fee: 50,
+    waiverPercent: 0,
+    referrerSharePercent: 50,
+    hasReferrer: false,
+    inviteWaiverPercent: 100,
+  });
+  assert.equal(quote.payable, 0);
+  assert.equal(quote.waived, 50);
+  assert.equal(quote.referrerShare, 0);
+  assert.equal(quote.free, true);
+});
+
+test("two discounts don't stack — the larger one applies", () => {
+  // A recruiter's code and an admin link on the same registration. Compounding
+  // them can only produce a fee smaller than either party agreed to, and at
+  // 60% + 60% a negative one.
+  const quote = registrationQuote({
+    fee: 50,
+    waiverPercent: 60,
+    referrerSharePercent: 50,
+    hasReferrer: true,
+    inviteWaiverPercent: 40,
+  });
+  assert.equal(quote.waiverPercent, 60);
+  assert.equal(quote.waived, 30);
+  assert.equal(quote.payable, 20);
+  // The share is still the recruiter's, on what the recruit actually pays.
+  assert.equal(quote.referrerShare, 10);
+});

@@ -10,6 +10,7 @@ import type { ModuleTab } from "@/components/admin/ModuleTabs";
 export function AGENT_MODULE_TABS(waiting = 0): ModuleTab[] {
   return [
     { href: "/admin/data/agents", label: "Agents", icon: "users", exact: true },
+    { href: "/admin/data/agents/new", label: "Register", icon: "userplus" },
     {
       href: "/admin/data/agents/applications",
       label: "Applications",

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Pencil, Users } from "lucide-react";
+import { Pencil, UserPlus, Users } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { PanelHeading } from "@/components/admin/ModuleHeader";
 import { formatMoney } from "@/lib/format";
@@ -70,7 +70,15 @@ export default async function AdminAgentsPage({
       ) : null}
 
       <section className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
-        <PanelHeading title="Active agents" subtitle="Everyone reselling under their own storefront." />
+        <PanelHeading title="Active agents" subtitle="Everyone reselling under their own storefront.">
+          <ActionLink
+            href="/admin/data/agents/new"
+            className="flex items-center gap-1.5 rounded-lg bg-niki-black px-3.5 py-2 text-xs font-semibold text-white hover:bg-niki-black-mute"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            Register an agent
+          </ActionLink>
+        </PanelHeading>
         {agents.length === 0 ? (
           <div className="px-4 py-12 text-center">
             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-niki-surface text-niki-ink/35">

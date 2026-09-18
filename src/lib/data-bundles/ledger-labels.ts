@@ -23,6 +23,7 @@ export const LEDGER_TYPE_LABELS: Record<string, string> = {
   ORDER_REFUND: "Order refund",
   WALLET_TOPUP: "Wallet top-up",
   WALLET_ORDER: "Paid from wallet",
+  SUBAGENT_FEE: "Sub-agent registration",
   REWARD_PAYOUT: "Reward",
   WITHDRAWAL: "Withdrawal",
   WITHDRAWAL_REVERSAL: "Withdrawal reversed",
@@ -45,6 +46,7 @@ export const LEDGER_TYPE_TONES: Record<string, string> = {
   ORDER_REFUND: "bg-sky-50 text-sky-700 ring-1 ring-sky-200",
   WALLET_TOPUP: "bg-niki-trust/10 text-niki-trust ring-1 ring-niki-trust/30",
   WALLET_ORDER: "bg-niki-ink/10 text-niki-ink/70 ring-1 ring-niki-ink/20",
+  SUBAGENT_FEE: "bg-niki-ink/10 text-niki-ink/70 ring-1 ring-niki-ink/20",
   // A reward is points turned into cedis, so it gets the gold of the
   // leaderboard rather than the green of a commission.
   REWARD_PAYOUT: "bg-niki-gold/15 text-amber-700 ring-1 ring-niki-gold/40",

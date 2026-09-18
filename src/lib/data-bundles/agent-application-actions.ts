@@ -651,7 +651,14 @@ export async function approveApplication(
     // A fee already paid is read back off the application — that is the quote
     // they were shown and the money they sent, and the programme's fee may have
     // moved in the days since. One that will clear from commission is quoted
-    // fresh, because nothing has been charged yet.
+    // fresh against today's fee, because nothing has been charged yet.
+    //
+    // Fresh, but not from scratch: the *discount* on the row is carried into
+    // it. A waiver does not only come from a recruiter's code — an admin's
+    // registration link grants one, and so does an admin registering somebody
+    // directly — and re-quoting from the referrer alone silently threw those
+    // away, charging full price to somebody who had been promised free. The
+    // larger of the two applies, exactly as it did when they were quoted.
     const quote = feePaid
       ? {
           gross: application.feeGross || application.feeAmount,
@@ -661,7 +668,7 @@ export async function approveApplication(
           referrerShare: application.feeReferrerShare,
           free: application.feeAmount <= 0,
         }
-      : await quoteRegistrationFee(referrerId);
+      : await quoteRegistrationFee(referrerId, application.feeWaiverPercent);
 
     // Nothing left to pay is a waiver, however it came about — a fee of zero,
     // or a referral that waived all of it. Whether that still pays a joining

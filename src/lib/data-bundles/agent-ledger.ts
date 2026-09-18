@@ -26,6 +26,8 @@ export type LedgerType =
   | "WALLET_TOPUP"
   /** An order paid for out of the wallet instead of a card. */
   | "WALLET_ORDER"
+  /** A recruit's registration fee, settled by the agent who brought them in. */
+  | "SUBAGENT_FEE"
   /** Cedis from a reward an agent spent points on. */
   | "REWARD_PAYOUT"
   | "WITHDRAWAL"
