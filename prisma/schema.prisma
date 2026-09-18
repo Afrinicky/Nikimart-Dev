@@ -24,6 +24,13 @@ model User {
   image             String?
   phone             String?
   passwordHash      String?
+  /**
+   * True when the password on this account was issued rather than chosen — an
+   * agent registered by another agent is sent one with their username. It has
+   * been through an SMS gateway and an inbox and two people know it, so the
+   * console will not show them anything until they have replaced it.
+   */
+  mustChangePassword Boolean @default(false)
   // Role gates every dashboard. SQLite has no enums, so we store the role as a
   // string constrained by the Role helper in src/lib/roles.ts.
   role              String    @default("CUSTOMER")
