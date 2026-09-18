@@ -60,9 +60,23 @@ test("provider statuses map onto ours, and unknown ones stay in flight", () => {
   assert.equal(mapProviderStatus("FAILED"), "failed");
   assert.equal(mapProviderStatus("CANCELLED"), "failed");
   assert.equal(mapProviderStatus("QUEUED"), "queued");
-  assert.equal(mapProviderStatus("PENDING"), "queued");
   // An unrecognised status must never read as delivered — that would stop us
   // chasing an order the buyer never received.
   assert.equal(mapProviderStatus("SOMETHING_NEW"), "processing");
   assert.equal(mapProviderStatus(null), "processing");
+});
+
+test("queued and pending are not the same thing upstream", () => {
+  // The provider offers to cancel a QUEUED order and not a PENDING one, so
+  // reading them as one state put a Cancel & Refund button on orders the
+  // provider had already picked up and would not have given back.
+  assert.equal(mapProviderStatus("QUEUED"), "queued");
+  assert.equal(mapProviderStatus("IN_QUEUE"), "queued");
+  assert.equal(mapProviderStatus("WAITING"), "queued");
+
+  assert.equal(mapProviderStatus("PENDING"), "processing");
+  assert.equal(mapProviderStatus("pending"), "processing");
+  assert.equal(mapProviderStatus("PROCESSING"), "processing");
+  assert.equal(mapProviderStatus("IN_PROGRESS"), "processing");
+  assert.equal(mapProviderStatus("ACCEPTED"), "processing");
 });

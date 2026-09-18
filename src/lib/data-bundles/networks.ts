@@ -167,7 +167,21 @@ export function isDataOrderStatus(value: unknown): value is DataOrderStatus {
   return typeof value === "string" && (DATA_ORDER_STATUSES as readonly string[]).includes(value);
 }
 
-/** Map a provider status string onto ours. Unknown values stay "processing". */
+/**
+ * Map a provider status string onto ours.
+ *
+ * QUEUED and PENDING are two different things upstream and were being read as
+ * one here, which was wrong twice over. The provider offers to cancel a QUEUED
+ * order and not a PENDING one, because QUEUED is "accepted, not started" and
+ * PENDING is "started, not finished" — so an order the provider had already
+ * picked up showed here as queued, with a Cancel & Refund button on it that
+ * the provider would not have honoured.
+ *
+ * So QUEUED alone is queued, and everything the provider is actively working
+ * on — PENDING included — is processing. Unknown values stay processing too:
+ * a status nobody has taught this function about is safer read as "in flight"
+ * than as "still cancellable".
+ */
 export function mapProviderStatus(providerStatus: string | null | undefined): DataOrderStatus {
   switch ((providerStatus ?? "").trim().toUpperCase()) {
     case "COMPLETED":
@@ -182,13 +196,20 @@ export function mapProviderStatus(providerStatus: string | null | undefined): Da
       return "failed";
     case "REFUNDED":
       return "refunded";
-    // Accepted upstream but not sent yet. It reads as its own state because it
-    // is the one point at which an order can still be pulled back.
+    // Accepted upstream and not started. The one point at which an order can
+    // still be pulled back — here and at the provider alike.
     case "QUEUED":
-    case "PENDING":
-    case "WAITING":
     case "IN_QUEUE":
+    case "WAITING":
       return "queued";
+    // Underway. Nothing to pull back any more.
+    case "PENDING":
+    case "PROCESSING":
+    case "IN_PROGRESS":
+    case "ACCEPTED":
+    case "SENT":
+    case "SUBMITTED":
+      return "processing";
     default:
       return "processing";
   }

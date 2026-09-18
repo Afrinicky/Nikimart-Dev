@@ -7,6 +7,7 @@ import {
   voidAgentCommission,
 } from "@/lib/data-bundles/agent-ledger";
 import { voidTeamCommission } from "@/lib/data-bundles/referrals";
+import { syncOpenOrders } from "@/lib/data-bundles/order-sync";
 
 /**
  * Pulling a queued order back, and putting the money somewhere it can be used.
@@ -79,6 +80,25 @@ export async function cancelAndRefundOrder(
         order.status === "refunded"
           ? "That order has already been cancelled and refunded."
           : "Only a queued order can be cancelled — this one has already moved on.",
+    };
+  }
+
+  // Our "queued" is a memory of what the provider last told us, and the
+  // provider does not always say when it changes its mind. Ask it now, because
+  // this is the one action where being a minute out of date means refunding a
+  // bundle that is already being delivered — the buyer keeps the data and the
+  // money both.
+  await syncOpenOrders({ references: [order.reference], limit: 1 });
+  const now = await dataDb.dataOrder
+    .findUnique({ where: { id: orderId }, select: { status: true } })
+    .catch(() => null);
+  if (now && now.status !== "queued") {
+    return {
+      ok: false,
+      error:
+        now.status === "refunded"
+          ? "That order has already been cancelled and refunded."
+          : "The provider has already picked this order up, so it can't be cancelled now.",
     };
   }
 
