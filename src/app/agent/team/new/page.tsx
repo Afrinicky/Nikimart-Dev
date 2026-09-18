@@ -4,9 +4,9 @@ import { UserPlus } from "lucide-react";
 import { AgentPageHeading } from "@/components/agent/AgentUi";
 import { SubAgentForm } from "@/components/agent/SubAgentForm";
 import { requireUser } from "@/lib/session";
-import { getAgentForUser, getAgentWallet, withdrawableFrom } from "@/lib/data-bundles/agents";
+import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { getReferralConfig } from "@/lib/data-bundles/settings";
-import { quoteRegistrationFee } from "@/lib/data-bundles/referrals";
+import { quoteRegistrationFee, recruitPaymentMode } from "@/lib/data-bundles/referrals";
 import { formatMoney } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Add an agent — Agent — Nickimart" };
@@ -18,17 +18,19 @@ export default async function AddSubAgentPage() {
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 
-  const [quote, wallet, referral] = await Promise.all([
+  const [quote, referral, mode] = await Promise.all([
     quoteRegistrationFee(agent.id),
-    getAgentWallet(agent),
     getReferralConfig(),
+    // What this agent's recruits are allowed to do — the programme's rule, or
+    // the exception an admin has written against this agent.
+    recruitPaymentMode(agent.id),
   ]);
 
   return (
     <div className="mx-auto max-w-xl space-y-5">
       <AgentPageHeading
         title="Add an agent"
-        subtitle="Register somebody into your team. They join the approval queue with you as their recruiter."
+        subtitle="Take their details once. They get a link to set their password, and join the approval queue with you as their recruiter."
       />
 
       {!referral.enabled ? (
@@ -59,7 +61,11 @@ export default async function AddSubAgentPage() {
         </p>
       </div>
 
-      <SubAgentForm payable={quote.payable} walletAvailable={withdrawableFrom(wallet)} />
+      <SubAgentForm
+        payable={quote.payable}
+        canPayNow={mode !== "COMMISSION"}
+        canPayFromCommission={mode !== "UPFRONT"}
+      />
     </div>
   );
 }

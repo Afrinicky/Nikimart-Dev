@@ -1,6 +1,6 @@
 "use server";
 
-import { createHash } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
@@ -13,11 +13,8 @@ import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { notify, sendSms } from "@/lib/notifications";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
-import {
-  getAgentProgramConfig,
-  getReferralConfig,
-  type PaymentMode,
-} from "@/lib/data-bundles/settings";
+import { getAgentProgramConfig, getReferralConfig } from "@/lib/data-bundles/settings";
+import { settleMethodFor } from "@/lib/data-bundles/payment-mode";
 import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import { termsAccepted, TERMS_REQUIRED_MESSAGE } from "@/lib/terms";
 import { normaliseSlugClient } from "@/lib/data-bundles/slug";
@@ -33,6 +30,7 @@ import {
 import {
   checkReferralLink,
   quoteRegistrationFee,
+  recruitPaymentMode,
   releaseReferralRewards,
   resolveReferralCode,
 } from "@/lib/data-bundles/referrals";
@@ -98,24 +96,6 @@ function storeNameFor(application: { storeName: string; desiredSlug: string }): 
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
-}
-
-/**
- * How this registration fee will actually be settled.
- *
- * The admin decides what is on offer — pay up front, clear it out of
- * commission, or let the applicant pick — and this is where that decision is
- * enforced. A fee of zero settles as neither: there is nothing to collect.
- */
-function settleMethodFor(
-  mode: PaymentMode,
-  chosen: string | undefined,
-  fee: number,
-): "BALANCE" | "UPFRONT" {
-  if (fee <= 0) return "BALANCE";
-  if (mode === "UPFRONT") return "UPFRONT";
-  if (mode === "COMMISSION") return "BALANCE";
-  return chosen === "UPFRONT" ? "UPFRONT" : "BALANCE";
 }
 
 async function clientIp(): Promise<string> {
@@ -335,10 +315,15 @@ export async function applyToBeAgent(
     referrerId = resolved.agentId;
   }
 
-  // What the applicant may choose is the admin's call, not the browser's. A
-  // form posting UPFRONT when the programme collects from commission — or the
-  // other way round — is corrected here rather than honoured.
-  const feeMethod = settleMethodFor(config.paymentMode, data.feeMethod, config.setupFee);
+  // What the applicant may choose is not the browser's call. It is the
+  // programme's, or — where the admin has allowed it — their recruiter's, and
+  // a form posting UPFRONT into a commission-only arrangement is corrected
+  // here rather than honoured.
+  const feeMethod = settleMethodFor(
+    await recruitPaymentMode(referrerId),
+    data.feeMethod,
+    config.setupFee,
+  );
 
   // A registration link from Nickimart itself. Re-resolved here rather than
   // trusted from the form: the discount is a price, and a price a browser can
@@ -678,7 +663,14 @@ export async function approveApplication(
       ? "WAIVED"
       : feePaid
         ? "UPFRONT"
-        : settleMethodFor(config.paymentMode, application.feeMethod, quote.payable);
+        : settleMethodFor(
+            // Their recruiter's arrangement, not only the programme's — the
+            // same resolution the signup quoted them, re-run now because the
+            // admin may have changed it since.
+            await recruitPaymentMode(referrerId),
+            application.feeMethod,
+            quote.payable,
+          );
 
     const agentId = await dataDb.$transaction(async (tx) => {
       const already = await tx.dataAgent.findUnique({ where: { userId: user.id } });
@@ -707,6 +699,9 @@ export async function approveApplication(
           // approved. A paid one is settled below, through the ledger, so the
           // wallet carries both halves of it.
           setupFeePaidAt: quote.free ? new Date() : null,
+          // Nothing to pay means nothing was paid — recorded so the reward
+          // rules can tell a waived registration from a settled one.
+          setupFeeSettledBy: quote.free ? "WAIVED" : null,
           setupFeeReference: application.feeReference,
           // The relationship is recorded with the account and locked at the
           // same moment. There is no window in which it exists without a
@@ -1025,4 +1020,123 @@ export async function getSetupApplication(token: string) {
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Setting a password before approval
+// ---------------------------------------------------------------------------
+
+/**
+ * Issue a one-time link for an application that has not been approved yet.
+ *
+ * The approved-account link above exists for recovery. This is the other half:
+ * somebody an agent registered from their console never filled in a form, so
+ * they have no password and nothing to sign in with. They get a link the
+ * moment they are registered, choose a password on it, and wait — the hash
+ * lives on the application and approval moves it onto their account, exactly
+ * as it does for somebody who signed up on the public form.
+ *
+ * Returns the URL to send. The token itself is never stored, only its hash, so
+ * this is the one and only copy.
+ */
+export async function issueApplicationSetupLink(applicationId: string): Promise<string | null> {
+  const token = randomBytes(32).toString("hex");
+  try {
+    await dataDb.dataAgentApplication.update({
+      where: { id: applicationId },
+      data: {
+        setupTokenHash: hashToken(token),
+        setupExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60_000),
+      },
+    });
+  } catch {
+    return null;
+  }
+  return `${siteUrl()}/agent-setup?token=${token}`;
+}
+
+/** The pending application behind a setup token, for rendering its form. */
+export async function getRecruitSetup(token: string) {
+  if (!token) return null;
+  try {
+    const row = await dataDb.dataAgentApplication.findFirst({
+      where: { setupTokenHash: hashToken(token), status: "pending" },
+      select: {
+        fullName: true,
+        email: true,
+        storeName: true,
+        desiredSlug: true,
+        setupExpiresAt: true,
+        passwordHash: true,
+        feeAmount: true,
+        feeMethod: true,
+        paymentStatus: true,
+      },
+    });
+    if (!row) return null;
+    if (row.setupExpiresAt && row.setupExpiresAt.getTime() < Date.now()) return null;
+    return row;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Choose a password on an application that is still waiting for approval.
+ *
+ * Nothing goes live here — no account, no storefront. The hash is held on the
+ * application and moved onto their Nickimart account the moment an admin
+ * approves them, so "set your password" and "you're approved" are two events
+ * rather than one link that has to survive until somebody gets round to it.
+ */
+export async function completeRecruitSetup(
+  _prev: SetupState,
+  fd: FormData,
+): Promise<SetupState> {
+  const token = String(fd.get("token") ?? "").trim();
+  const password = String(fd.get("password") ?? "");
+  const confirm = String(fd.get("confirmPassword") ?? "");
+
+  if (!token) return { error: "This link is missing its token." };
+  if (password.length < 6) return { error: "Choose a password of at least 6 characters." };
+  if (password !== confirm) return { error: "Both passwords must match." };
+
+  const limit = await rateLimit(`recruit-setup:${await clientIp()}`, 10, 15 * 60_000);
+  if (!limit.ok) {
+    return { error: `Too many attempts. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
+  }
+
+  let application;
+  try {
+    application = await dataDb.dataAgentApplication.findFirst({
+      where: { setupTokenHash: hashToken(token), status: "pending" },
+      select: { id: true, setupExpiresAt: true },
+    });
+  } catch {
+    return { error: STORAGE_ERROR };
+  }
+  if (!application) return { error: "That link is not valid. Ask whoever registered you for a new one." };
+  if (application.setupExpiresAt && application.setupExpiresAt.getTime() < Date.now()) {
+    return { error: "That link has expired. Ask whoever registered you for a new one." };
+  }
+
+  try {
+    await dataDb.dataAgentApplication.update({
+      where: { id: application.id },
+      data: {
+        passwordHash: await bcrypt.hash(password, 10),
+        // Single-use, like every other setup link.
+        setupTokenHash: null,
+        setupExpiresAt: null,
+      },
+    });
+  } catch {
+    return { error: "Couldn't save your password. Please try again." };
+  }
+
+  return {
+    ok: true,
+    message:
+      "Your password is set. We're reviewing your registration — we'll text you the moment your store is live, and you sign in with this password.",
+  };
 }

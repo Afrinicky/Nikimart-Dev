@@ -280,6 +280,15 @@ model DataAgent {
   // Paystack reference for an upfront payment, so it can be verified and never
   // credited twice.
   setupFeeReference String?
+  /**
+   * How the fee was actually settled — PAYMENT, COMMISSION, ADJUSTMENT or
+   * WAIVED. It exists because only the first two are somebody paying: a
+   * balance an admin credited to clear the fee is Nickimart writing it off,
+   * and writing a fee off must not pay the recruiter a reward for a
+   * registration nobody paid for. Null on rows settled before this was
+   * recorded, which are read as genuinely paid.
+   */
+  setupFeeSettledBy String?
 
   // --- What the registration fee was made of --------------------------------
   // `setupFee` above is what this agent actually owes. These four say how that
@@ -311,6 +320,15 @@ model DataAgent {
    * charged; this decides who keeps it.
    */
   referralSharePercent Float?
+  /**
+   * How the people *this* agent recruits may settle their own registration
+   * fee: UPFRONT, COMMISSION or BOTH. Null means "follow the programme", which
+   * is what every agent does unless an admin says otherwise — and the
+   * programme setting decides whether a per-agent value is consulted at all.
+   * This is the exception mechanism behind "everyone pays up front, except
+   * the people these three bring in".
+   */
+  recruitPaymentMode String?
   /**
    * The agent who recruited this one — their direct (level 1) upline. Set once,
    * when the account is created from an application that quoted a referral

@@ -8,6 +8,7 @@ import {
   registrationQuote,
   rewardForLevel,
   saleQualifies,
+  settlementSource,
   teamCommissionAmount,
   waiverPercentFor,
 } from "./referral-rules.ts";
@@ -113,6 +114,42 @@ test("a full waiver pays nothing unless the admin has said it should", () => {
   const waived = { method: "WAIVED", payable: 0, gross: 30, waiverPercent: 100 };
   assert.equal(feeCanReward({ ...waived, fullWaiverPaysReward: false }), false);
   assert.equal(feeCanReward({ ...waived, fullWaiverPaysReward: true }), true);
+});
+
+test("a fee an admin cleared off the balance pays nobody", () => {
+  // The bug this exists for: an admin credits GH₵50 to clear a GH₵50
+  // registration, the balance comes back to zero, and the recruiter is paid a
+  // joining reward for a registration nobody paid for.
+  assert.equal(
+    feeCanReward({ ...FEE, method: "BALANCE", payable: 50, settledBy: "ADJUSTMENT" }),
+    false,
+  );
+  assert.equal(
+    feeCanReward({ ...FEE, method: "UPFRONT", payable: 50, settledBy: "ADJUSTMENT" }),
+    false,
+  );
+});
+
+test("a fee somebody actually paid still pays, however it was settled", () => {
+  assert.equal(feeCanReward({ ...FEE, method: "UPFRONT", payable: 50, settledBy: "PAYMENT" }), true);
+  assert.equal(
+    feeCanReward({ ...FEE, method: "BALANCE", payable: 50, settledBy: "COMMISSION" }),
+    true,
+  );
+  // Registrations settled before this was recorded are read as paid: taking
+  // back rewards already credited would be worse than the bug.
+  assert.equal(feeCanReward({ ...FEE, method: "BALANCE", payable: 50, settledBy: null }), true);
+});
+
+test("an admin's credit is what settled the fee when the rest is still in the red", () => {
+  // GH₵50 fee, GH₵50 credited by hand: back to zero on the admin's money.
+  assert.equal(settlementSource({ balance: 0, adjustmentCredits: 50 }), "ADJUSTMENT");
+  // Commission covered it; the goodwill credit was beside the point.
+  assert.equal(settlementSource({ balance: 10, adjustmentCredits: 10 }), "COMMISSION");
+  // Half commission, half admin — the admin's half is what closed it.
+  assert.equal(settlementSource({ balance: 5, adjustmentCredits: 25 }), "ADJUSTMENT");
+  // Nothing was ever adjusted, so it cleared itself.
+  assert.equal(settlementSource({ balance: 0, adjustmentCredits: 0 }), "COMMISSION");
 });
 
 test("that switch does not turn a programme with no fee at all into a reward machine", () => {

@@ -170,7 +170,10 @@ export async function settleRegistrationFee(
   await dataDb.dataAgent
     .updateMany({
       where: { id: agent.id, setupFeePaidAt: null },
-      data: { setupFeePaidAt: new Date(), setupFeeReference: reference },
+      // Stamped PAYMENT here and nowhere else: this is the one path money
+      // actually travelled down, and it is what separates a fee that was paid
+      // from one an admin cleared off the balance by hand.
+      data: { setupFeePaidAt: new Date(), setupFeeReference: reference, setupFeeSettledBy: "PAYMENT" },
     })
     .catch(() => {});
 
@@ -249,12 +252,21 @@ export function applicationIdFromMetadata(metadata: unknown): string | null {
  * marked paid directly, so the flow this gates — approval, activation, the
  * recruiter's reward — stays exercisable end to end without a gateway.
  */
-export async function startApplicationFeePayment(application: {
-  id: string;
-  email: string;
-  fullName: string;
-  feeAmount: number;
-}): Promise<StartPaymentResult> {
+export async function startApplicationFeePayment(
+  application: {
+    id: string;
+    email: string;
+    fullName: string;
+    feeAmount: number;
+  },
+  /**
+   * Where Paystack returns the payer. The public signup's own confirmation by
+   * default; an agent paying for somebody they have just registered is sent
+   * back into their console instead, because dropping them on a public page is
+   * how the old flow lost people.
+   */
+  callbackPath = "/become-an-agent/verify",
+): Promise<StartPaymentResult> {
   if (application.feeAmount <= 0) {
     return { ok: false, error: "There is nothing to pay on this application." };
   }
@@ -278,7 +290,7 @@ export async function startApplicationFeePayment(application: {
         email: application.email,
         amountPesewas: toPesewas(application.feeAmount),
         reference,
-        callbackUrl: `${callbackOrigin()}/become-an-agent/verify`,
+        callbackUrl: `${callbackOrigin()}${callbackPath}`,
         metadata: {
           kind: "agent-application-fee",
           applicationId: application.id,

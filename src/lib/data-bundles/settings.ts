@@ -3,6 +3,7 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { dataDb } from "@/lib/data-db";
 import { getSettings as getRetailSettings } from "@/lib/settings";
+import { programPaymentMode, type PaymentMode } from "@/lib/data-bundles/payment-mode";
 
 /**
  * Settings for the data-bundle business, stored in the data-bundle database.
@@ -86,6 +87,11 @@ export const DATA_SETTINGS_DEFAULTS = {
   //   COMMISSION — it is debited on approval and clears out of commission.
   //   BOTH       — the applicant picks one of the two.
   agentPaymentMode: "BOTH",
+  // Whether an individual agent may be given a mode of their own, different
+  // from the one above. On, so that "everyone pays up front, except the people
+  // these three bring in" is expressible; off puts the whole network back on
+  // the programme setting without unpicking a single agent's row.
+  agentPaymentModeOverrides: "1",
   // The waiver a referred applicant gets when their recruiter has no waiver of
   // their own set. A percentage of the fee: 0 is no discount, 100 is free.
   referralWaiverDefaultPercent: "0",
@@ -266,27 +272,18 @@ export async function getDataStoreConfig(): Promise<DataStoreConfig> {
   };
 }
 
-/**
- * How a new agent may settle the registration fee.
- *
- *   UPFRONT    — they pay before the store opens, and it does not open until
- *                the payment is confirmed.
- *   COMMISSION — it is debited on approval and clears out of their commission.
- *   BOTH       — the applicant chooses.
- */
-export type PaymentMode = "UPFRONT" | "COMMISSION" | "BOTH";
-
-function paymentMode(raw: string): PaymentMode {
-  const value = raw.trim().toUpperCase();
-  if (value === "UPFRONT" || value === "COMMISSION") return value;
-  return "BOTH";
-}
+export type { PaymentMode };
 
 export interface AgentProgramConfig {
   enabled: boolean;
   setupFee: number;
-  /** How the registration fee may be settled. */
+  /** How the registration fee may be settled, across the whole programme. */
   paymentMode: PaymentMode;
+  /**
+   * Whether one agent may be given a mode of their own. False means the
+   * programme mode above applies to everybody, whatever is on their row.
+   */
+  perAgentOverrides: boolean;
   withdrawalFee: number;
   minWithdrawal: number;
   /** Suggested discount (percent off retail) for the agent price. */
@@ -307,7 +304,8 @@ export async function getAgentProgramConfig(): Promise<AgentProgramConfig> {
   return {
     enabled: on(s.agentProgramEnabled),
     setupFee: numOr(s.agentSetupFee, 30),
-    paymentMode: paymentMode(s.agentPaymentMode),
+    paymentMode: programPaymentMode(s.agentPaymentMode),
+    perAgentOverrides: on(s.agentPaymentModeOverrides),
     withdrawalFee: numOr(s.agentWithdrawalFee, 1),
     minWithdrawal: numOr(s.agentMinWithdrawal, 10),
     agentDiscountPercent: numOr(s.agentAgentMarkupPercent, 12),

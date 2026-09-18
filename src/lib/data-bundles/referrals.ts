@@ -5,6 +5,8 @@ import { round2 } from "@/lib/data-bundles/agent-pricing";
 import {
   feeCanReward,
   registrationQuote,
+  settlementSource,
+  type SettlementSource,
   rewardForLevel,
   saleQualifies,
   teamCommissionAmount,
@@ -12,6 +14,10 @@ import {
   waiverPercentFor,
   type RegistrationQuote,
 } from "@/lib/data-bundles/referral-rules";
+import {
+  resolveRecruitPaymentMode,
+  type PaymentMode,
+} from "@/lib/data-bundles/payment-mode";
 import { formatMoney } from "@/lib/format";
 import {
   getAgentProgramConfig,
@@ -244,6 +250,33 @@ export async function linkReferral(agentId: string, referrerId: string): Promise
 // ---------------------------------------------------------------------------
 
 /**
+ * How the people one agent recruits may settle their registration fee.
+ *
+ * The chain of command, resolved in one place so every screen that asks gets
+ * the same answer: the programme's own mode, then the exception an admin has
+ * written against this particular recruiter — and only where the admin has
+ * left per-agent exceptions switched on at all. Nobody recruiting means
+ * nobody's exception, so it is simply the programme's mode.
+ *
+ * `resolveRecruitPaymentMode` holds the precedence itself and is tested
+ * directly; this is the database half of it.
+ */
+export async function recruitPaymentMode(referrerId: string | null): Promise<PaymentMode> {
+  const program = await getAgentProgramConfig();
+  if (!referrerId || !program.perAgentOverrides) return program.paymentMode;
+
+  const referrer = await dataDb.dataAgent
+    .findUnique({ where: { id: referrerId }, select: { recruitPaymentMode: true } })
+    .catch(() => null);
+
+  return resolveRecruitPaymentMode({
+    programMode: program.paymentMode,
+    agentMode: referrer?.recruitPaymentMode ?? null,
+    perAgentOverrides: program.perAgentOverrides,
+  });
+}
+
+/**
  * What one applicant will be charged to register, and who gets which part.
  *
  * The single source of that answer. The signup form quotes it, the approval
@@ -293,16 +326,16 @@ export async function quoteRegistrationFee(
 }
 
 /**
- * Has this agent's registration fee actually been paid?
+ * Has this agent's registration fee been settled, and by whom?
  *
  * Two ways it can be, and one way it can't:
  *   • UPFRONT — normally they paid it through Paystack and `setupFeePaidAt` was
  *     stamped by the verification. It can also be settled from this side: an
  *     admin waiving the rest of a fee credits the balance, which clears the
- *     debt in the ledger without any payment to verify. That has to count, or
- *     an agent whose fee was forgiven is left owing nobody anything with their
- *     recruiter still unpaid. The debit must actually have been posted first —
- *     see below.
+ *     debt in the ledger without any payment to verify. That still has to
+ *     count as settled, or an agent whose fee was forgiven is left owing
+ *     nobody anything with their storefront shut. The debit must actually have
+ *     been posted first — see below.
  *   • BALANCE — it was debited on approval and clears out of their commission.
  *     It is paid the moment their balance comes back to zero or above.
  *   • WAIVED, or a fee of zero — nothing was ever charged, so it is settled
@@ -311,6 +344,12 @@ export async function quoteRegistrationFee(
  *     it does not, which is the rule the whole "pay on registration" idea
  *     exists for, and a referral waived in full pays only if the admin has
  *     said it should.
+ *
+ * Settling it and paying for it are two different things, and this records
+ * which happened. A balance that climbed back to zero on commission is the
+ * agent paying; a balance an admin credited to clear the fee is Nickimart
+ * writing it off. Both open the storefront. Only the first earns anybody a
+ * referral reward — see `feeCanReward`.
  */
 export async function settleSetupFee(agentId: string): Promise<boolean> {
   const agent = await dataDb.dataAgent
@@ -337,13 +376,47 @@ export async function settleSetupFee(agentId: string): Promise<boolean> {
 
   if (agent.balance < 0) return false; // still clearing
 
+  // Whose money cleared it. An admin's credits come back out of the balance
+  // first: if what remains is still in the red, those credits are what carried
+  // it over the line, and a fee carried by an adjustment was written off
+  // rather than paid.
+  const adjusted = await dataDb.dataAgentLedger
+    .aggregate({
+      where: { agentId, type: "ADJUSTMENT", amount: { gt: 0 } },
+      _sum: { amount: true },
+    })
+    .catch(() => ({ _sum: { amount: 0 } }));
+  const settledBy = settlementSource({
+    balance: agent.balance,
+    adjustmentCredits: adjusted._sum.amount ?? 0,
+  });
+
   const claimed = await dataDb.dataAgent
     .updateMany({
       where: { id: agentId, setupFeePaidAt: null, balance: { gte: 0 } },
-      data: { setupFeePaidAt: new Date() },
+      data: { setupFeePaidAt: new Date(), setupFeeSettledBy: settledBy },
     })
     .catch(() => ({ count: 0 }));
   return claimed.count > 0;
+}
+
+/**
+ * Stamp how a fee settled when the caller already knows — a Paystack payment,
+ * a recruiter paying from their wallet, a registration with nothing to pay.
+ *
+ * Only ever fills a blank. A registration records how it was settled once, at
+ * the moment it settles, and nothing later rewrites it.
+ */
+export async function recordSettlementSource(
+  agentId: string,
+  source: SettlementSource,
+): Promise<void> {
+  await dataDb.dataAgent
+    .updateMany({
+      where: { id: agentId, setupFeeSettledBy: null },
+      data: { setupFeeSettledBy: source },
+    })
+    .catch(() => {});
 }
 
 /**
@@ -352,6 +425,11 @@ export async function settleSetupFee(agentId: string): Promise<boolean> {
  * Safe to call whenever something might have changed: after the fee is paid,
  * after any commission lands, from the sweep. It works out what is owed, pays
  * what has not been paid, and does nothing at all the rest of the time.
+ *
+ * "Joining" means a registration somebody paid for. An admin crediting a new
+ * agent's wallet to clear their fee is not that, however the balance ends up
+ * looking afterwards — it settles the registration and pays the recruiter
+ * nothing.
  */
 export async function releaseReferralRewards(agentId: string): Promise<number> {
   const config = await getReferralConfig();
@@ -367,6 +445,7 @@ export async function releaseReferralRewards(agentId: string): Promise<number> {
         id: true, code: true, storeName: true,
         setupFee: true, setupFeePaidAt: true, setupFeeMethod: true,
         setupFeeGross: true, setupFeeWaiverPercent: true, setupFeeReferrerShare: true,
+        setupFeeSettledBy: true,
       },
     })
     .catch(() => null);
@@ -378,6 +457,7 @@ export async function releaseReferralRewards(agentId: string): Promise<number> {
       gross: agent.setupFeeGross,
       waiverPercent: agent.setupFeeWaiverPercent,
       fullWaiverPaysReward: config.fullWaiverPaysReward,
+      settledBy: agent.setupFeeSettledBy as SettlementSource | null,
     })
   ) {
     return 0;
