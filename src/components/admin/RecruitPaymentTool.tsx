@@ -1,9 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { CreditCard } from "lucide-react";
 import { inputClass } from "@/components/ui/Field";
-import { SubmitButton } from "@/components/ui/motion";
 import { FormFeedback } from "@/components/ui/FormFeedback";
 import {
   setAgentRecruitPaymentMode,
@@ -15,13 +14,18 @@ import { paymentModeLabel, type PaymentMode } from "@/lib/data-bundles/payment-m
  * How the people this agent recruits settle their registration fee.
  *
  * The exception to the programme's own rule, written against one agent:
- * "everyone pays up front, except the people this agent brings in". Blank
- * follows the programme as it changes, which is not the same as picking
- * whatever the programme happens to say today.
+ * "everyone pays up front, except the people this agent brings in".
  *
- * It does nothing at all while per-agent exceptions are switched off under
- * Programme settings, and says so rather than letting an admin set something
- * that quietly has no effect.
+ * It saves the moment the choice is made, with no Save button. That is not a
+ * flourish — a select and a separate button is how a setting gets chosen and
+ * then left unsaved, and the whole failure this control has to rule out is an
+ * exception that looks set and does nothing. What is on screen is what is in
+ * the database, and the line underneath says so in words.
+ *
+ * Blank follows the programme as it changes, which is not the same as picking
+ * whatever the programme happens to say today. And the whole thing is inert
+ * while per-agent exceptions are switched off — it says so rather than letting
+ * an admin set something that quietly has no effect.
  */
 export function RecruitPaymentTool({
   agentId,
@@ -30,16 +34,18 @@ export function RecruitPaymentTool({
   allowed,
 }: {
   agentId: string;
-  /** Null when this agent follows the programme. */
+  /** What is stored on the agent. Null when they follow the programme. */
   mode: string | null;
   programMode: PaymentMode;
   /** False when the admin has switched per-agent exceptions off. */
   allowed: boolean;
 }) {
-  const [state, formAction] = useActionState<AgentAdminState, FormData>(
+  const [state, formAction, pending] = useActionState<AgentAdminState, FormData>(
     setAgentRecruitPaymentMode,
     {},
   );
+  const form = useRef<HTMLFormElement>(null);
+  const stored = (mode ?? "").toUpperCase();
 
   return (
     <section className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
@@ -62,7 +68,7 @@ export function RecruitPaymentTool({
         </p>
       ) : null}
 
-      <form action={formAction} className="mt-4 space-y-3">
+      <form ref={form} action={formAction} className="mt-4 space-y-2">
         <input type="hidden" name="agentId" value={agentId} />
 
         <label htmlFor="recruitPaymentMode" className="block">
@@ -72,8 +78,13 @@ export function RecruitPaymentTool({
           <select
             id="recruitPaymentMode"
             name="recruitPaymentMode"
-            defaultValue={(mode ?? "").toUpperCase()}
-            disabled={!allowed}
+            // Keyed on what is stored, so a value written by this form — or by
+            // anybody else — replaces whatever is on screen rather than being
+            // masked by a stale uncontrolled default.
+            key={stored}
+            defaultValue={stored}
+            disabled={!allowed || pending}
+            onChange={() => form.current?.requestSubmit()}
             className={inputClass}
           >
             <option value="">Follow the programme</option>
@@ -83,15 +94,15 @@ export function RecruitPaymentTool({
           </select>
         </label>
 
-        <FormFeedback error={state.error} success={state.ok ? state.message : undefined} />
+        <p className="text-xs text-niki-ink/50">
+          {pending
+            ? "Saving…"
+            : stored
+              ? `Stored on this agent: ${paymentModeLabel(stored as PaymentMode).toLowerCase()}.`
+              : "Nothing stored on this agent — they follow the programme."}
+        </p>
 
-        <SubmitButton
-          pendingLabel="Saving…"
-          disabled={!allowed}
-          className="w-full rounded-xl bg-niki-black px-4 py-2.5 text-sm font-bold text-white hover:bg-niki-black-mute disabled:opacity-40"
-        >
-          Save
-        </SubmitButton>
+        <FormFeedback error={state.error} success={state.ok ? state.message : undefined} />
       </form>
     </section>
   );

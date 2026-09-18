@@ -531,11 +531,19 @@ export async function setAgentRecruitPaymentMode(
   revalidateAgents(agentId);
   revalidatePath("/become-an-agent");
 
+  // Read back rather than echoed: the only answer worth showing an admin is
+  // what the row now actually says, because "saved" and "stored" coming apart
+  // is exactly the failure this control has to rule out.
+  const stored = await dataDb.dataAgent
+    .findUnique({ where: { id: agentId }, select: { recruitPaymentMode: true } })
+    .catch(() => null);
+  const saved = normalisePaymentMode(stored?.recruitPaymentMode);
+
   return {
     ok: true,
-    message: mode
-      ? `Their recruits: ${paymentModeLabel(mode).toLowerCase()}.`
-      : "Their recruits follow the programme.",
+    message: saved
+      ? `Saved. Their recruits: ${paymentModeLabel(saved).toLowerCase()}.`
+      : "Saved. Their recruits follow the programme.",
   };
 }
 
