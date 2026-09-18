@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Check, Copy, UserPlus, Wallet } from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
-import { SubmitButton } from "@/components/ui/motion";
+import { ActionLink, SubmitButton } from "@/components/ui/motion";
 import { registerSubAgent, type SubAgentState } from "@/lib/data-bundles/subagent-actions";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -57,12 +57,12 @@ export function SubAgentForm({
           </button>
         ) : null}
 
-        <a
+        <ActionLink
           href="/agent/team"
           className="mt-4 block text-sm font-semibold text-niki-trust hover:underline"
         >
           Back to my team
-        </a>
+        </ActionLink>
       </div>
     );
   }

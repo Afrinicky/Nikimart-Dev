@@ -12,6 +12,7 @@ import {
   SlidersHorizontal,
   Ticket,
   Trophy,
+  UserPlus,
   Users,
 } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
@@ -38,6 +39,7 @@ import { cn } from "@/lib/cn";
 
 const ICONS = {
   users: Users,
+  userplus: UserPlus,
   inbox: Inbox,
   ticket: Ticket,
   banknote: Banknote,
