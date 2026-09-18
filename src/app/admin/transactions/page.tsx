@@ -142,6 +142,7 @@ export default async function AdminRetailTransactionsPage({
             page={page}
             pageCount={pageCount}
             noun="transactions"
+            exportHref="/admin/transactions/export"
           />
         </Suspense>
       </div>

@@ -7,7 +7,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { dataDb } from "@/lib/data-db";
 import { requireAdmin } from "@/lib/session";
-import { notify, sendSms } from "@/lib/notifications";
+import { sendSms } from "@/lib/notifications";
 import { formatMoney } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
@@ -16,6 +16,7 @@ import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { normaliseSlug, round2, slugProblem } from "@/lib/data-bundles/agents";
 import { getAgentUser } from "@/lib/data-bundles/user-link";
 import { reconcileWalletTopup } from "@/lib/data-bundles/wallet";
+import { notifyTemplate, smsTemplate } from "@/lib/messages";
 import { normalisePaymentMode, paymentModeLabel } from "@/lib/data-bundles/payment-mode";
 import {
   checkReferralLink,
@@ -215,14 +216,15 @@ export async function processWithdrawal(fd: FormData): Promise<void> {
 
     const row = await dataDb.dataAgentWithdrawal.findUnique({
       where: { id },
-      select: { agentId: true, amount: true, momoPhone: true },
+      select: { agentId: true, amount: true, momoPhone: true, agent: { select: { storeName: true } } },
     });
     revalidateAgents(row?.agentId);
     if (row) {
-      await sendSms(
-        row.momoPhone,
-        `Nickimart: ${formatMoney(row.amount)} has been sent to ${row.momoPhone}. Thank you for selling with us.`,
-      );
+      await smsTemplate(row.momoPhone, "withdrawal.sent", {
+        amount: formatMoney(row.amount),
+        phone: row.momoPhone,
+        store: row.agent?.storeName ?? "",
+      });
     }
   } catch {
     // Not migrated — nothing to record.
@@ -278,68 +280,6 @@ export async function rejectWithdrawal(fd: FormData): Promise<void> {
 // ---------------------------------------------------------------------------
 // Announcements
 // ---------------------------------------------------------------------------
-
-export async function saveAnnouncement(
-  _prev: AgentAdminState,
-  fd: FormData,
-): Promise<AgentAdminState> {
-  await requireAdmin();
-
-  const title = str(fd, "title");
-  const body = str(fd, "body");
-  if (title.length < 3) return { error: "Give the announcement a title." };
-  if (body.length < 5) return { error: "Write the announcement." };
-
-  const tone = ["info", "warning", "success"].includes(str(fd, "tone")) ? str(fd, "tone") : "info";
-  const id = str(fd, "id");
-
-  try {
-    if (id) {
-      await dataDb.dataAnnouncement.update({
-        where: { id },
-        data: { title, body, tone, isPinned: fd.get("isPinned") === "on" },
-      });
-    } else {
-      await dataDb.dataAnnouncement.create({
-        data: { title, body, tone, isPinned: fd.get("isPinned") === "on" },
-      });
-    }
-    revalidatePath("/admin/data/announcements");
-    revalidatePath("/agent/notifications");
-    return { ok: true, message: id ? "Announcement updated." : "Announcement published." };
-  } catch {
-    return { error: STORAGE_ERROR };
-  }
-}
-
-export async function setAnnouncementActive(fd: FormData): Promise<void> {
-  await requireAdmin();
-  const id = str(fd, "id");
-  if (!id) return;
-  try {
-    await dataDb.dataAnnouncement.update({
-      where: { id },
-      data: { isActive: str(fd, "isActive") === "1" },
-    });
-    revalidatePath("/admin/data/announcements");
-    revalidatePath("/agent/notifications");
-  } catch {
-    // Gone, or not migrated.
-  }
-}
-
-export async function deleteAnnouncement(fd: FormData): Promise<void> {
-  await requireAdmin();
-  const id = str(fd, "id");
-  if (!id) return;
-  try {
-    await dataDb.dataAnnouncement.delete({ where: { id } });
-    revalidatePath("/admin/data/announcements");
-    revalidatePath("/agent/notifications");
-  } catch {
-    // Already gone.
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Support requests
@@ -427,16 +367,11 @@ export async function reissueSetupLink(fd: FormData): Promise<AgentAdminState> {
     return { error: "Couldn't issue a new link. Please try again." };
   }
 
-  await Promise.allSettled([
-    sendSms(user?.phone, `Nickimart: set your agent password here — ${setupUrl}`),
-    notify(
-      { email: user?.email ?? null, phone: null },
-      {
-        sms: `Set your Nickimart agent password: ${setupUrl}`,
-        emailSubject: "Set your Nickimart agent password",
-      },
-    ),
-  ]);
+  await notifyTemplate(
+    { phone: user?.phone ?? null, email: user?.email ?? null },
+    "agent.setupLink",
+    { name: user?.name ?? agent.storeName, link: setupUrl },
+  );
 
   revalidateAgents(agentId);
   return { ok: true, setupUrl, message: "New link issued — valid for 7 days." };

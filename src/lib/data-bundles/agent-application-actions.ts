@@ -10,7 +10,8 @@ import { prisma } from "@/lib/prisma";
 import { dataDb } from "@/lib/data-db";
 import { requireAdmin } from "@/lib/session";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
-import { notify, sendSms } from "@/lib/notifications";
+import { notify } from "@/lib/notifications";
+import { notifyTemplate, smsTemplate } from "@/lib/messages";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
 import { getAgentProgramConfig, getReferralConfig } from "@/lib/data-bundles/settings";
@@ -766,13 +767,13 @@ export async function approveApplication(
     }
 
     feeLine = feePaid
-      ? `<p>Your registration fee of <strong>${formatMoney(quote.payable)}</strong> is paid and settled.</p>`
+      ? `Your registration fee of ${formatMoney(quote.payable)} is paid and settled.`
       : quote.free
-        ? `<p>Your registration fee has been waived in full${quote.waived > 0 ? " by the agent who recruited you" : ""} — there is nothing to pay.</p>`
-        : `<p>Opening the store cost ${formatMoney(quote.payable)}` +
+        ? `Your registration fee has been waived in full${quote.waived > 0 ? " by the agent who recruited you" : ""} — there is nothing to pay.`
+        : `Opening the store cost ${formatMoney(quote.payable)}` +
           `${quote.waived > 0 ? ` (${quote.waiverPercent}% off, thanks to the agent who recruited you)` : ""}, ` +
           `charged to your balance rather than to you. It clears itself out of the commission you earn, ` +
-          `so there is nothing to pay up front.</p>`;
+          `so there is nothing to pay up front.`;
   } catch (err) {
     if (err instanceof Error && err.message === "ALREADY_AGENT") {
       return { error: "That person already has an agent account." };
@@ -790,34 +791,17 @@ export async function approveApplication(
     ? "We'll send your sign-in details shortly."
     : `Sign in at ${signIn} with the password you chose.`;
 
-  const sent = await Promise.allSettled([
-    sendSms(
-      application.phone,
-      `Nickimart: your agent application is approved. Your store ${siteUrl()}/store/${application.desiredSlug} ` +
-        `is live and your agent code is ${code}. ${howToGetIn}`,
-    ),
-    notify(
-      { email: application.email, phone: null },
-      {
-        sms: `Your Nickimart agent account is approved. ${howToGetIn}`,
-        emailSubject: "Your Nickimart agent account is approved",
-        emailHtml:
-          `<p>Welcome aboard — your application has been approved and your store is live.</p>` +
-          `<p>Your store link is <strong>${siteUrl()}/store/${application.desiredSlug}</strong><br>` +
-          `Your agent code is <strong>${code}</strong>.</p>` +
-          (needsSetupLink
-            ? `<p>We'll send your sign-in details shortly.</p>`
-            : `<p><a href="${signIn}">Sign in</a> with the email and password you registered with.</p>`) +
-          feeLine,
-      },
-    ),
-  ]);
-
-  const delivered = sent.some(
-    (r) =>
-      r.status === "fulfilled" &&
-      (r.value === true || (typeof r.value === "object" && r.value !== null && (r.value.sms || r.value.email))),
-  );
+  // The words are the admin's, from the Messages tab; these are the facts to
+  // fill them with.
+  await notifyTemplate({ phone: application.phone, email: application.email }, "agent.approved", {
+    name: application.firstName || application.fullName,
+    store: storeNameFor(application),
+    storeLink: `${siteUrl()}/store/${application.desiredSlug}`,
+    code,
+    link: signIn,
+    howToGetIn,
+    feeNote: feeLine,
+  });
 
   // No revalidatePath. Refreshing this route remounts the review panel and
   // throws away the state it is about to return. The queue catches up on the
@@ -825,12 +809,10 @@ export async function approveApplication(
   // above, so a stale row is harmless.
   return {
     ok: true,
-    delivered: delivered && !needsSetupLink,
+    delivered: !needsSetupLink,
     message: needsSetupLink
       ? `Approved — but ${application.fullName} applied before passwords were collected at signup and has none. Send them a setup link from their agent page.`
-      : delivered
-        ? `Approved. ${application.fullName} can sign in now and has been told so.`
-        : `Approved — ${application.fullName} can sign in now, but the text and email couldn't be sent. Let them know.`,
+      : `Approved. ${application.fullName} can sign in now and has been told so.`,
   };
 }
 
@@ -860,10 +842,10 @@ export async function rejectApplication(
       select: { phone: true, fullName: true, paymentStatus: true, feeAmount: true, feeReference: true },
     });
     if (application) {
-      await sendSms(
-        application.phone,
-        `Nickimart: thanks for applying to become a data agent. We can't approve it at this time${reason ? ` — ${reason}` : ""}.`,
-      ).catch(() => {});
+      await smsTemplate(application.phone, "agent.rejected", {
+        name: application.fullName,
+        reason: reason || "",
+      });
 
       // Somebody who paid and was turned down is owed their money back. There
       // is no account to credit it to, so it has to be a refund somebody makes

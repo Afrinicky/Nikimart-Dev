@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { Download } from "lucide-react";
 import {
   AgentPageHeading,
   Card,
@@ -81,7 +80,6 @@ export default async function AgentOrdersPage({
   const sourceLabel = (source: string) =>
     source === "STOREFRONT" ? "Storefront" : source === "AGENT" ? "Dashboard" : "Web";
 
-  const exportHref = `/agent/orders/export?${new URLSearchParams({ status, network, q: query }).toString()}`;
   // The agent's own support line is who a "not received" report goes to; when
   // they haven't set one, Nickimart's own support takes it.
   const whatsapp = agent.supportWhatsapp || store.whatsapp || undefined;
@@ -94,13 +92,6 @@ export default async function AgentOrdersPage({
       <LiveOrders open={openOnPage} />
 
       <AgentPageHeading title="Orders" subtitle="View and manage your data bundle orders.">
-        <a
-          href={exportHref}
-          className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-black/5"
-        >
-          <Download className="h-3.5 w-3.5" />
-          Export
-        </a>
       </AgentPageHeading>
 
       {/* Suspense because the filter bar reads the query string. */}
@@ -115,6 +106,7 @@ export default async function AgentOrdersPage({
           total={total}
           page={page}
           pageCount={pageCount}
+          exportHref="/agent/orders/export"
         />
       </Suspense>
 

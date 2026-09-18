@@ -1,13 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
-import { Megaphone, Scale, Send, Wallet } from "lucide-react";
+import { Scale, Wallet } from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/ui/motion";
 import {
   adjustAgentBalance,
   reconcileTopup,
-  saveAnnouncement,
   type AgentAdminState,
 } from "@/lib/data-bundles/agent-admin-actions";
 
@@ -156,78 +155,3 @@ export function TopupReconciler({
 }
 
 /** Publish an announcement to every agent's Notifications screen. */
-export function AnnouncementForm({
-  initial,
-}: {
-  initial?: { id: string; title: string; body: string; tone: string; isPinned: boolean };
-}) {
-  const [state, formAction] = useActionState<AgentAdminState, FormData>(saveAnnouncement, {});
-
-  return (
-    <form action={formAction} className="space-y-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
-      <div className="flex items-center gap-2">
-        <Megaphone className="h-4 w-4 text-niki-orange" />
-        <h2 className="font-display font-bold text-niki-ink">
-          {initial ? "Edit announcement" : "New announcement"}
-        </h2>
-      </div>
-
-      <Result state={state} />
-      {initial ? <input type="hidden" name="id" value={initial.id} /> : null}
-
-      <Field label="Title" htmlFor="title">
-        <input
-          id="title"
-          name="title"
-          required
-          defaultValue={initial?.title}
-          placeholder="MTN UPDATE"
-          className={inputClass}
-        />
-      </Field>
-
-      <Field
-        label="Message"
-        htmlFor="body"
-        hint="Plain text. Leave a blank line between paragraphs."
-      >
-        <textarea
-          id="body"
-          name="body"
-          required
-          rows={6}
-          defaultValue={initial?.body}
-          className={`${inputClass} resize-y`}
-        />
-      </Field>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Tone" htmlFor="tone">
-          <select id="tone" name="tone" defaultValue={initial?.tone ?? "info"} className={inputClass}>
-            <option value="info">Info</option>
-            <option value="warning">Warning</option>
-            <option value="success">Good news</option>
-          </select>
-        </Field>
-
-        <label className="flex items-end gap-2 pb-2.5 text-sm text-niki-ink/70">
-          <input
-            type="checkbox"
-            name="isPinned"
-            defaultChecked={initial?.isPinned}
-            className="h-4 w-4 rounded"
-          />
-          Pin above other notices
-        </label>
-      </div>
-
-      <SubmitButton
-        pendingLabel="Publishing…"
-        icon={<Send className="h-4 w-4" />}
-        className="w-full rounded-xl bg-niki-orange px-4 py-2.5 text-sm font-semibold text-white hover:bg-niki-orange-light"
-      >
-        {initial ? "Save announcement" : "Publish to all agents"}
-      </SubmitButton>
-    </form>
-  );
-}

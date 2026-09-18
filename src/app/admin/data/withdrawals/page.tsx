@@ -165,6 +165,7 @@ export default async function AdminWithdrawalsPage({
             page={page}
             pageCount={pageCount}
             noun="withdrawals"
+            exportHref="/admin/data/withdrawals/export"
           />
         </Suspense>
       </div>

@@ -638,11 +638,27 @@ model DataAnnouncement {
   isActive Boolean @default(true)
   // Pinned notices sort above the rest regardless of date.
   isPinned Boolean @default(false)
+  /**
+   * Who it is for: AGENTS, CUSTOMERS or EVERYONE. A notice about commission is
+   * not a notice a customer buying a bundle should read.
+   */
+  audience String  @default("AGENTS")
+  /**
+   * When it starts mattering, and when it stops. Null publishAt means "now";
+   * null expiresAt means "until somebody hides it". Between them they cover
+   * the thing this is actually used for — writing on Sunday about a change
+   * that starts on Monday and is irrelevant by Friday.
+   */
+  publishAt DateTime?
+  expiresAt DateTime?
+  /** Who wrote it. A broadcast nobody can be asked about is one nobody owns. */
+  createdBy String  @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([isActive, createdAt])
+  @@index([audience, isActive])
 }
 
 // A callback request raised from the agent Support screen.
@@ -858,6 +874,48 @@ model DataAgentInvite {
 // programme and the referral rates all come back together, in step with the
 // orders they priced.
 // ---------------------------------------------------------------------------
+/**
+ * An automatic message the admin has rewritten.
+ *
+ * Absent means "use the default in lib/message-templates.ts". Present means
+ * the admin has had their say, and the switches are explicit rather than
+ * inferred from empty text: silencing half a message is a decision, not a
+ * blank field.
+ */
+model DataMessageTemplate {
+  key          String  @id
+  sms          String  @default("")
+  emailSubject String  @default("")
+  emailBody    String  @default("")
+  smsEnabled   Boolean @default(true)
+  emailEnabled Boolean @default(true)
+  updatedBy    String  @default("")
+  updatedAt    DateTime @updatedAt @default(now())
+}
+
+/**
+ * A message the admin sent on purpose.
+ *
+ * A broadcast costs real money per recipient and cannot be recalled, so the
+ * record of one is part of sending it rather than an extra.
+ */
+model DataBroadcast {
+  id         String @id @default(cuid())
+  audience   String
+  /// sms | email | both
+  channel    String @default("sms")
+  subject    String @default("")
+  body       String
+  /// How many the audience resolved to, and how many the gateway accepted.
+  recipients Int    @default(0)
+  delivered  Int    @default(0)
+  failed     Int    @default(0)
+  sentBy     String @default("")
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model DataSetting {
   key   String @id
   value String
