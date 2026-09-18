@@ -8,6 +8,7 @@ import { dataDb } from "@/lib/data-db";
 import { formatMoney } from "@/lib/format";
 import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
+import { syncOpenOrders } from "@/lib/data-bundles/order-sync";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Order — Agent — Nickimart" };
@@ -32,6 +33,14 @@ export default async function AgentOrderDetailPage({
   if (!agent) redirect("/become-an-agent");
 
   const { reference } = await params;
+
+  // Somebody is looking at exactly this order, so ask the provider about it
+  // before reading it back. Nothing to do when it has already landed.
+  await syncOpenOrders({
+    agentId: agent.id,
+    references: [decodeURIComponent(reference)],
+    limit: 1,
+  });
 
   // Scoped to this agent, so one agent can never read another's order by
   // guessing a reference.

@@ -6,6 +6,7 @@ import { NetworkCell, StatusPill } from "@/components/agent/AgentUi";
 import { OrderActions, type OrderView } from "@/components/data/OrderActions";
 import { OrderFilters } from "@/components/data/OrderFilters";
 import { OrderPager } from "@/components/data/OrderPager";
+import { LiveOrders } from "@/components/data/LiveOrders";
 import { formatMoney } from "@/lib/format";
 import { bundleLabel } from "@/lib/data-bundles/networks";
 import {
@@ -15,6 +16,7 @@ import {
   perPageFrom,
 } from "@/lib/data-bundles/order-filters";
 import { getDataOrders, orderSourceLabel } from "@/lib/data-bundles/reporting";
+import { syncOpenOrders } from "@/lib/data-bundles/order-sync";
 import {
   markDataOrderRefunded,
   refreshDataOrderStatus,
@@ -47,6 +49,11 @@ export default async function AdminDataOrdersPage({
   const perPage = perPageFrom(params.per, 25);
   const page = Math.max(1, Number(params.page) || 1);
 
+  // Re-ask the provider about anything still moving before the page is built.
+  // The provider's own callback is unreliable, so a status that changed
+  // upstream would otherwise sit here until the nightly sweep.
+  await syncOpenOrders();
+
   const { orders, total, available } = await getDataOrders({
     status,
     network,
@@ -62,8 +69,15 @@ export default async function AdminDataOrdersPage({
     q: query,
   }).toString()}`;
 
+  // Orders still moving on this page. Nothing polls when there are none.
+  const openOnPage = orders.filter(
+    (o) => o.status === "queued" || o.status === "processing",
+  ).length;
+
   return (
     <Container className="py-8">
+      <LiveOrders open={openOnPage} />
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-figures text-2xl font-bold text-niki-ink">Bundle orders</h1>

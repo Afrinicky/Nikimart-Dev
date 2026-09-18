@@ -15,6 +15,7 @@ import {
 import { OrderActions, type OrderView } from "@/components/data/OrderActions";
 import { OrderFilters } from "@/components/data/OrderFilters";
 import { OrderPager } from "@/components/data/OrderPager";
+import { LiveOrders } from "@/components/data/LiveOrders";
 import { requireUser } from "@/lib/session";
 import { formatMoney } from "@/lib/format";
 import { bundleLabel } from "@/lib/data-bundles/networks";
@@ -25,6 +26,7 @@ import {
   perPageFrom,
 } from "@/lib/data-bundles/order-filters";
 import { getAgentForUser, getAgentOrders } from "@/lib/data-bundles/agents";
+import { syncOpenOrders } from "@/lib/data-bundles/order-sync";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 
 export const metadata: Metadata = { title: "Orders — Agent — Nickimart" };
@@ -57,6 +59,13 @@ export default async function AgentOrdersPage({
   const perPage = perPageFrom(params.per);
   const page = Math.max(1, Number(params.page) || 1);
 
+  // Before anything is read, re-ask the provider about this agent's orders that
+  // are still moving. The provider's callback is not something to rely on: an
+  // order can change status several times upstream and tell us about none of
+  // them, which is how a bundle it had been processing for an hour still read
+  // "queued" here.
+  await syncOpenOrders({ agentId: agent.id });
+
   const [{ rows, total }, store] = await Promise.all([
     getAgentOrders(agent.id, {
       take: perPage,
@@ -77,8 +86,13 @@ export default async function AgentOrdersPage({
   // they haven't set one, Nickimart's own support takes it.
   const whatsapp = agent.supportWhatsapp || store.whatsapp || undefined;
 
+  // Orders still moving on this page. Nothing polls when there are none.
+  const openOnPage = rows.filter((o) => o.status === "queued" || o.status === "processing").length;
+
   return (
     <div className="space-y-4">
+      <LiveOrders open={openOnPage} />
+
       <AgentPageHeading title="Orders" subtitle="View and manage your data bundle orders.">
         <a
           href={exportHref}

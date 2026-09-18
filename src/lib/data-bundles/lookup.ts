@@ -4,6 +4,7 @@ import { dataDb } from "@/lib/data-db";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { toLocalGhPhone } from "@/lib/data-bundles/networks";
 import { AFA_REFERENCE_PREFIX } from "@/lib/data-bundles/fulfillment";
+import { syncOpenOrders } from "@/lib/data-bundles/order-sync";
 
 /**
  * Public order lookup for the bundle storefront.
@@ -115,6 +116,28 @@ export async function lookupOrders(rawQuery: string | undefined): Promise<Lookup
     });
 
     if (rows.length === 0) return { state: "empty" };
+
+    // Somebody is standing there asking where their bundle is, which is the
+    // one moment the answer has to be current. Ask the provider about this one
+    // order — it does nothing once the order has landed, and the lookup is
+    // already rate limited per address.
+    const row = rows[0];
+    if (row.status === "queued" || row.status === "processing") {
+      const moved = await syncOpenOrders({ references: [row.reference], limit: 1 });
+      if (moved > 0) {
+        const fresh = await dataDb.dataOrder
+          .findUnique({
+            where: { reference: row.reference },
+            select: { status: true, providerCode: true },
+          })
+          .catch(() => null);
+        if (fresh) {
+          row.status = fresh.status;
+          row.providerCode = fresh.providerCode;
+        }
+      }
+    }
+
     return { state: "found", hits: rows.map((r) => ({ kind: "bundle" as const, ...r })) };
   } catch {
     return {
