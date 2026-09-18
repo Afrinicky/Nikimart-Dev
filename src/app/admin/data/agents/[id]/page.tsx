@@ -32,7 +32,8 @@ import { getAgentUser } from "@/lib/data-bundles/user-link";
 import { setAgentStatus } from "@/lib/data-bundles/agent-admin-actions";
 import { getAgentProgramConfig, getReferralConfig } from "@/lib/data-bundles/settings";
 import { registrationFeeBreakdown } from "@/lib/data-bundles/referral-rules";
-import { resolveRecruitPaymentMode } from "@/lib/data-bundles/payment-mode";
+import { recruitPaymentRule } from "@/lib/data-bundles/referrals";
+
 import { ledgerTypeLabel } from "@/lib/data-bundles/ledger-labels";
 import { pendingTopupsFor } from "@/lib/data-bundles/wallet";
 import { cn } from "@/lib/cn";
@@ -162,12 +163,10 @@ export default async function AdminAgentDetailPage({
   // recomputed: the settings may have changed a dozen times since.
   const fee = registrationFeeBreakdown(agent);
   // What their recruits actually get, once the programme and this agent's own
-  // exception have both had their say.
-  const effectiveMode = resolveRecruitPaymentMode({
-    programMode: program.paymentMode,
-    agentMode: agent.recruitPaymentMode,
-    perAgentOverrides: program.perAgentOverrides,
-  });
+  // exception have both had their say — read back through the same function
+  // the agent's own screen uses, rather than recomputed here, so the two can
+  // never disagree about what is in force.
+  const rule = await recruitPaymentRule(agent.id);
 
   const settledLabel =
     agent.setupFeeSettledBy === "ADJUSTMENT"
@@ -589,14 +588,40 @@ export default async function AdminAgentDetailPage({
                     registrationFee={program.setupFee}
                   />
 
-                  <p className="px-1 text-xs text-niki-ink/45">
-                    In force right now: people joining with {agent.code}{" "}
-                    {effectiveMode === "UPFRONT"
-                      ? "must pay their registration up front."
-                      : effectiveMode === "COMMISSION"
-                        ? "clear their registration out of commission."
-                        : "choose how to settle their registration."}
-                  </p>
+                  {/*
+                    Read back from the database through the same resolution the
+                    agent's own screen runs. A setting that saved but is not
+                    being applied — an exception written while exceptions are
+                    switched off, most of all — is otherwise invisible from
+                    here, and looks to everybody like a bug in the form.
+                  */}
+                  <div
+                    className={cn(
+                      "rounded-xl px-4 py-3 text-xs",
+                      rule.source === "ignored" || rule.source === "unreadable"
+                        ? "bg-amber-50 text-amber-800"
+                        : "bg-niki-surface text-niki-ink/60",
+                    )}
+                  >
+                    <p className="font-semibold text-niki-ink">In force right now</p>
+                    <p className="mt-0.5">
+                      People joining with {agent.code}{" "}
+                      {rule.mode === "UPFRONT"
+                        ? "must pay their registration up front."
+                        : rule.mode === "COMMISSION"
+                          ? "clear their registration out of commission."
+                          : "choose how to settle their registration."}
+                    </p>
+                    <p className="mt-1">
+                      {rule.source === "agent"
+                        ? "From this agent's own exception."
+                        : rule.source === "ignored"
+                          ? "Their exception is being ignored — per-agent exceptions are switched off under Programme settings, so the programme rule applies."
+                          : rule.source === "unreadable"
+                            ? "Their exception couldn't be read, so the programme rule applies. The database may be missing the latest migration — anything saved here won't take effect until it is."
+                            : "From the programme rule; this agent has no exception."}
+                    </p>
+                  </div>
                 </div>
               </div>
             ),

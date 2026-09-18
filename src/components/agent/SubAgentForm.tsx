@@ -1,34 +1,39 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
-import { Check, CreditCard, UserPlus, Wallet } from "lucide-react";
+import { useActionState, useEffect } from "react";
+import { Check, CreditCard, Send, UserPlus } from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { ActionLink, SubmitButton } from "@/components/ui/motion";
+import { FormFeedback } from "@/components/ui/FormFeedback";
 import { registerSubAgent, type SubAgentState } from "@/lib/data-bundles/subagent-actions";
 import { formatMoney } from "@/lib/format";
-import { cn } from "@/lib/cn";
 
 /**
  * Registering somebody into your team, on the spot.
  *
- * One form, filled in once: the recruit gives their details to the person
- * standing in front of them rather than to a link they have to open later and
- * fill in again. Their password is not asked for here — they choose that
- * themselves, on the link they are sent the moment this is submitted.
+ * Built to read like the public registration form, because it is the same
+ * form — the same fields in the same order, and the fee settled the same way,
+ * with one difference that matters: the recruit is not here to choose a
+ * password, so one is generated and sent to them with their username once the
+ * registration is settled.
  *
- * The payment is a single step. Where the admin allows nothing else it is one
- * button; where they have allowed this agent's recruits to clear the fee out
- * of their commission, that appears beside it. Nothing else is on offer,
- * because what is collected is the programme's decision rather than the
- * recruiter's.
+ * What may be chosen at the fee is not the recruiter's decision. Where the
+ * admin allows only one way, that one way is stated rather than offered; where
+ * both are allowed, the select appears. Either way the form posts what it was
+ * given and the server checks it again.
  */
 export function SubAgentForm({
   payable,
+  fullFee,
+  waiverPercent,
   canPayFromCommission,
   canPayNow,
 }: {
   /** What this agent's recruits are charged, after their waiver. */
   payable: number;
+  /** The fee at full price, for the struck-through original. */
+  fullFee: number;
+  waiverPercent: number;
   /** The admin allows this agent's recruits to clear the fee from commission. */
   canPayFromCommission: boolean;
   /** The admin allows it to be paid up front. */
@@ -36,9 +41,7 @@ export function SubAgentForm({
 }) {
   const [state, formAction] = useActionState<SubAgentState, FormData>(registerSubAgent, {});
   const choosable = payable > 0 && canPayNow && canPayFromCommission;
-  const [payWith, setPayWith] = useState<"paystack" | "commission">(
-    canPayNow ? "paystack" : "commission",
-  );
+  const discounted = waiverPercent > 0 && payable < fullFee;
 
   // A registration that needs paying goes straight to the gateway. Anything
   // else is a checkout somebody has to remember to come back to.
@@ -55,12 +58,11 @@ export function SubAgentForm({
     return (
       <div className="animate-scale-in rounded-2xl bg-white p-6 text-center ring-1 ring-niki-edge">
         <span
-          className={cn(
-            "mx-auto flex h-12 w-12 items-center justify-center rounded-2xl",
+          className={`mx-auto flex h-12 w-12 items-center justify-center rounded-2xl ${
             state.payUrl
               ? "bg-niki-orange/10 text-niki-orange"
-              : "bg-niki-success/10 text-niki-success",
-          )}
+              : "bg-niki-success/10 text-niki-success"
+          }`}
         >
           {state.payUrl ? <CreditCard className="h-6 w-6" /> : <Check className="h-6 w-6" />}
         </span>
@@ -69,9 +71,13 @@ export function SubAgentForm({
         </p>
         <p className="mx-auto mt-1 max-w-sm text-sm text-niki-ink/65">{state.message}</p>
 
-        <p className="mx-auto mt-3 max-w-sm rounded-xl bg-niki-surface px-4 py-3 text-xs text-niki-ink/60">
-          {state.name} has been sent a link by SMS and email to set their password. Their store
-          goes live once we approve it.
+        <p className="mx-auto mt-3 flex max-w-sm items-start gap-2 rounded-xl bg-niki-surface px-4 py-3 text-left text-xs text-niki-ink/60">
+          <Send className="mt-0.5 h-3.5 w-3.5 shrink-0 text-niki-ink/40" />
+          <span>
+            {state.credentialsSent
+              ? `${state.name} has been texted and emailed their username and password. They'll be asked to change it when they sign in.`
+              : "Once the payment clears we'll text and email them their username and password. Nothing is sent before then."}
+          </span>
         </p>
 
         {state.payUrl ? (
@@ -95,13 +101,7 @@ export function SubAgentForm({
   }
 
   return (
-    <form action={formAction} className="space-y-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
-      {state.error ? (
-        <p className="animate-fade-up rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
-          {state.error}
-        </p>
-      ) : null}
-
+    <form action={formAction} className="space-y-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge sm:p-6">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="First name" htmlFor="firstName">
           <input id="firstName" name="firstName" required maxLength={40} className={inputClass} />
@@ -111,7 +111,7 @@ export function SubAgentForm({
         </Field>
       </div>
 
-      <Field label="Phone number" htmlFor="phone" hint="Their setup link is texted here.">
+      <Field label="Phone number" htmlFor="phone" hint="Their sign-in details are texted here.">
         <input
           id="phone"
           name="phone"
@@ -122,88 +122,102 @@ export function SubAgentForm({
         />
       </Field>
 
-      <Field label="Email" htmlFor="email" hint="They sign in with this.">
-        <input id="email" name="email" type="email" required className={inputClass} />
+      <Field label="Email" htmlFor="email" hint="This becomes their username.">
+        <input
+          id="email"
+          name="email"
+          type="email"
+          required
+          placeholder="you@example.com"
+          className={inputClass}
+        />
       </Field>
 
-      <Field label="Store name" htmlFor="storeName" hint="Their public store address.">
-        <input id="storeName" name="storeName" required maxLength={60} className={inputClass} />
+      <Field label="Store name" htmlFor="storeName" hint="This becomes their public store link.">
+        <input
+          id="storeName"
+          name="storeName"
+          required
+          maxLength={60}
+          placeholder="e.g. Nickland Data"
+          className={inputClass}
+        />
       </Field>
 
-      {payable > 0 ? (
-        <div>
-          <span className="mb-1.5 block text-sm font-medium text-niki-ink">
-            Registration fee · {formatMoney(payable)}
-          </span>
-          <input type="hidden" name="payWith" value={payWith} />
-          {choosable ? (
-            <div className="grid grid-cols-2 gap-2">
-              <PayTile
-                selected={payWith === "paystack"}
-                onSelect={() => setPayWith("paystack")}
-                icon={<CreditCard className="h-3.5 w-3.5" />}
-                title="Pay now"
-                note="Card or mobile money"
-              />
-              <PayTile
-                selected={payWith === "commission"}
-                onSelect={() => setPayWith("commission")}
-                icon={<Wallet className="h-3.5 w-3.5" />}
-                title="From commission"
-                note="Nothing to pay now"
-              />
+      {fullFee > 0 ? (
+        <div className="rounded-2xl bg-niki-surface p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-sm font-semibold text-niki-ink">Registration fee</p>
+            <p className="font-figures text-lg font-bold text-niki-ink">
+              {discounted ? (
+                <>
+                  <span className="mr-2 text-sm font-medium text-niki-ink/40 line-through">
+                    {formatMoney(fullFee)}
+                  </span>
+                  {payable > 0 ? formatMoney(payable) : "Free"}
+                </>
+              ) : (
+                formatMoney(payable)
+              )}
+            </p>
+          </div>
+
+          {discounted ? (
+            <p className="mt-1 text-xs font-medium text-niki-success">
+              {waiverPercent >= 100 ? "Waived in full" : `${waiverPercent}% off`} — your code
+            </p>
+          ) : null}
+
+          {payable <= 0 ? (
+            <>
+              <input type="hidden" name="payWith" value="commission" />
+              <p className="mt-2 text-xs font-medium text-niki-success">Nothing to pay.</p>
+            </>
+          ) : choosable ? (
+            <div className="mt-3">
+              <Field label="How would you like to settle it?" htmlFor="payWith">
+                <select
+                  id="payWith"
+                  name="payWith"
+                  defaultValue="paystack"
+                  className={inputClass}
+                >
+                  <option value="paystack">Pay {formatMoney(payable)} now</option>
+                  <option value="commission">Take it from their commission</option>
+                </select>
+              </Field>
             </div>
           ) : (
-            <p className="rounded-xl bg-niki-surface px-4 py-3 text-xs text-niki-ink/65">
-              {canPayNow
-                ? "Paid now by mobile money or card. Their registration is confirmed as soon as it clears."
-                : "Charged to their account and cleared out of the commission they earn — nothing to pay now."}
-            </p>
+            <>
+              <input
+                type="hidden"
+                name="payWith"
+                value={canPayNow ? "paystack" : "commission"}
+              />
+              <p className="mt-2 text-xs text-niki-ink/60">
+                {canPayNow
+                  ? "Payable now, on the next screen."
+                  : "Taken from the commission they earn — nothing to pay now."}
+              </p>
+            </>
           )}
         </div>
       ) : null}
 
+      <FormFeedback error={state.error} />
+
       <SubmitButton
-        pendingLabel="Registering…"
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-niki-orange px-4 py-3 text-sm font-bold text-white hover:bg-niki-orange-light"
+        pendingLabel={canPayNow && payable > 0 ? "Taking you to payment…" : "Registering…"}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-niki-orange px-4 py-3.5 text-sm font-bold text-white hover:bg-niki-orange-light"
       >
         <UserPlus className="h-4 w-4" />
         Register agent
       </SubmitButton>
-    </form>
-  );
-}
 
-function PayTile({
-  selected,
-  onSelect,
-  icon,
-  title,
-  note,
-}: {
-  selected: boolean;
-  onSelect: () => void;
-  icon: React.ReactNode;
-  title: string;
-  note: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={cn(
-        "niki-press niki-focus rounded-xl px-3 py-3 text-left text-sm font-bold ring-1 transition-colors",
-        selected
-          ? "bg-niki-orange/10 text-niki-ink ring-niki-orange"
-          : "bg-white text-niki-ink/70 ring-niki-edge hover:bg-niki-black/5",
-      )}
-    >
-      <span className="flex items-center gap-1.5">
-        {icon}
-        {title}
-      </span>
-      <span className="mt-0.5 block text-[11px] font-medium text-niki-ink/50">{note}</span>
-    </button>
+      <p className="text-center text-[11px] leading-relaxed text-niki-ink/45">
+        They get their sign-in details once the registration is settled, and choose their own
+        password the first time they sign in.
+      </p>
+    </form>
   );
 }

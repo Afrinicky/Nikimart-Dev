@@ -752,6 +752,18 @@ model DataAgentApplication {
    * with an account nobody can get into because a text never arrived.
    */
   passwordHash String?
+  /**
+   * True when that hash is of a password *we* generated and sent, rather than
+   * one the applicant typed. It rides through approval onto the account, which
+   * is then made to change it at first sign-in.
+   */
+  passwordIsTemporary Boolean @default(false)
+  /**
+   * When the username and that password were sent. Null means they have not
+   * been, and the guarded write that sets it is what keeps a webhook and a
+   * redirect settling the same payment from sending two different passwords.
+   */
+  credentialsSentAt DateTime?
   firstName    String  @default("")
   lastName     String  @default("")
 

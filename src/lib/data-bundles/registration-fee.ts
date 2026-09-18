@@ -10,6 +10,7 @@ import { registrationOutstanding } from "@/lib/data-bundles/referral-rules";
 import { round2 } from "@/lib/data-bundles/agent-pricing";
 import { DuplicateLedgerEntryError, postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { releaseReferralRewards } from "@/lib/data-bundles/referrals";
+import { issueAgentCredentials } from "@/lib/data-bundles/agent-credentials";
 
 /**
  * Paying the registration fee up front.
@@ -346,6 +347,12 @@ export async function settleApplicationFee(
   // happened to look. Guarded by the update above, so a webhook and a redirect
   // arriving together still send one message.
   await notifyAdminsOfPayment(application.fullName, application.desiredSlug);
+
+  // And this is when somebody an agent registered gets their sign-in details.
+  // Not when the checkout opened — a registration nobody paid for must not put
+  // a working password in an inbox. Does nothing for a public signup, where the
+  // applicant chose their own password.
+  await issueAgentCredentials(application.id);
   return true;
 }
 

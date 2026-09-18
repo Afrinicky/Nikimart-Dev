@@ -6,14 +6,11 @@ import { dataDb } from "@/lib/data-db";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
-import { notify, sendSms } from "@/lib/notifications";
 import { formatMoney } from "@/lib/format";
 import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
-import {
-  checkStoreName,
-  issueApplicationSetupLink,
-} from "@/lib/data-bundles/agent-application-actions";
+import { checkStoreName } from "@/lib/data-bundles/agent-application-actions";
+import { issueAgentCredentials } from "@/lib/data-bundles/agent-credentials";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { quoteRegistrationFee, recruitPaymentMode } from "@/lib/data-bundles/referrals";
 import { canChoosePaymentMethod, settleMethodFor } from "@/lib/data-bundles/payment-mode";
@@ -36,9 +33,14 @@ import { startApplicationFeePayment } from "@/lib/data-bundles/registration-fee"
  *     offered where the programme — or an exception the admin has written
  *     against this particular recruiter — allows it.
  *
- * Either way the recruit is texted and emailed a one-time link the moment they
- * are registered, where they choose their own password and then wait. It
- * creates an application, never an account: a store slug is a public address
+ * The recruit is then texted and emailed a username and a working password —
+ * not a link to come and choose one, which is a second errand that expires.
+ * They sign in with it and are made to replace it immediately. Nothing is sent
+ * until the registration is actually settled: for a fee clearing from
+ * commission that is now, and for one being paid at a gateway it is when the
+ * money lands, never when the checkout opens.
+ *
+ * It creates an application, never an account: a store slug is a public address
  * under Nickimart's domain and an admin still decides who gets one.
  */
 
@@ -50,6 +52,8 @@ export type SubAgentState =
       payable: number;
       /** Send the recruiter here to pay, when there is a payment to make. */
       payUrl?: string;
+      /** True once the recruit has their sign-in details. */
+      credentialsSent: boolean;
       /** Their name, for the confirmation. */
       name: string;
       message: string;
@@ -123,9 +127,46 @@ export async function registerSubAgent(
     if (already) return { error: "That email already has an agent account." };
   }
   const open = await dataDb.dataAgentApplication
-    .findFirst({ where: { email, status: "pending" }, select: { id: true } })
+    .findFirst({
+      where: { email, status: "pending" },
+      select: {
+        id: true,
+        referrerId: true,
+        paymentStatus: true,
+        feeAmount: true,
+        fullName: true,
+        credentialsSentAt: true,
+      },
+    })
     .catch(() => null);
-  if (open) return { error: "There is already an application waiting on that email." };
+  if (open) {
+    // Registered by this agent a moment ago and never paid for — the commonest
+    // way this ends half-finished, because the gateway is a page you can close.
+    // Send them back to it rather than refusing a duplicate they cannot clear
+    // and cannot retry.
+    if (
+      open.referrerId === agent.id &&
+      open.paymentStatus === "pending" &&
+      open.feeAmount > 0 &&
+      !open.credentialsSentAt
+    ) {
+      const retry = await startApplicationFeePayment(
+        { id: open.id, email, fullName: open.fullName, feeAmount: open.feeAmount },
+        "/agent/team/verify",
+      );
+      if (retry.ok) {
+        return {
+          ok: true,
+          payable: open.feeAmount,
+          payUrl: retry.authorizationUrl,
+          credentialsSent: false,
+          name: open.fullName,
+          message: `They're already registered and waiting on the ${formatMoney(open.feeAmount)} registration.`,
+        };
+      }
+    }
+    return { error: "There is already an application waiting on that email." };
+  }
 
   // Priced through the same function the approval commits, with this agent as
   // the referrer — so their waiver applies exactly as it would on their link.
@@ -165,9 +206,11 @@ export async function registerSubAgent(
         feeWaived: quote.waived,
         feeReferrerShare: quote.referrerShare,
         paymentStatus: payNow ? "pending" : "none",
-        // No password: they set their own on the link below, which is the
-        // whole point of sending it.
+        // Nobody has chosen a password here, and nobody will: one is generated
+        // and sent once this registration is settled, and the account it
+        // becomes is made to replace it at first sign-in.
         passwordHash: null,
+        passwordIsTemporary: true,
       },
       select: { id: true },
     });
@@ -196,15 +239,11 @@ export async function registerSubAgent(
     payUrl = started.authorizationUrl;
   }
 
-  // Sent now, not on approval: the recruit is standing there, and a link that
-  // arrives while they are still in the room is a link that gets used.
-  await sendSetupLink({
-    applicationId,
-    firstName: data.firstName,
-    phone: phone.local,
-    email,
-    storeName: agent.storeName,
-  });
+  // Their sign-in details, but only where there is nothing left to pay. A
+  // registration still sitting at a checkout gets nothing: `settleApplicationFee`
+  // sends them the moment the money lands, from the webhook or the return page,
+  // whichever arrives first.
+  const credentialsSent = payUrl ? false : await issueAgentCredentials(applicationId);
 
   revalidatePath("/agent/team");
 
@@ -212,53 +251,14 @@ export async function registerSubAgent(
     ok: true,
     payable: quote.payable,
     payUrl,
+    credentialsSent,
     name: `${data.firstName} ${data.lastName}`,
     message: payNow
       ? payUrl
         ? `Registered. Pay their ${formatMoney(quote.payable)} registration to finish.`
-        : `Registered and their ${formatMoney(quote.payable)} registration is paid. They're in the queue for approval.`
+        : `Registered and their ${formatMoney(quote.payable)} registration is paid.`
       : quote.payable > 0
         ? `Registered. Their ${formatMoney(quote.payable)} registration clears from the commission they earn — nothing to pay now.`
-        : "Registered, with nothing to pay. They're in the queue for approval.",
+        : "Registered, with nothing to pay.",
   };
-}
-
-/**
- * Text and email the recruit their one-time link.
- *
- * Neither channel is allowed to fail the registration: the application exists
- * and an admin can reissue the link from the agent's own page. A recruit with
- * no link is a support message; a registration rolled back because an SMS
- * gateway blinked is lost work.
- */
-async function sendSetupLink(input: {
-  applicationId: string;
-  firstName: string;
-  phone: string;
-  email: string;
-  storeName: string;
-}): Promise<void> {
-  const url = await issueApplicationSetupLink(input.applicationId);
-  if (!url) return;
-
-  const line =
-    `Nickimart: ${input.storeName} has registered you as a data agent. ` +
-    `Set your password here — ${url}`;
-
-  await Promise.allSettled([
-    sendSms(input.phone, line),
-    notify(
-      { email: input.email, phone: null },
-      {
-        sms: line,
-        emailSubject: "Set your Nickimart agent password",
-        emailHtml:
-          `<p>Hi ${input.firstName},</p>` +
-          `<p><strong>${input.storeName}</strong> has registered you as a Nickimart data agent.</p>` +
-          `<p>Choose your password here — the link works once and lasts seven days:</p>` +
-          `<p><a href="${url}">${url}</a></p>` +
-          `<p>We'll review your registration and text you the moment your store is live.</p>`,
-      },
-    ),
-  ]);
 }

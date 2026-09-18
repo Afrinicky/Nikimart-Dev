@@ -15,6 +15,7 @@ import {
   type RegistrationQuote,
 } from "@/lib/data-bundles/referral-rules";
 import {
+  normalisePaymentMode,
   resolveRecruitPaymentMode,
   type PaymentMode,
 } from "@/lib/data-bundles/payment-mode";
@@ -261,19 +262,66 @@ export async function linkReferral(agentId: string, referrerId: string): Promise
  * `resolveRecruitPaymentMode` holds the precedence itself and is tested
  * directly; this is the database half of it.
  */
-export async function recruitPaymentMode(referrerId: string | null): Promise<PaymentMode> {
+export interface RecruitPaymentRule {
+  /** What actually applies to this agent's recruits. */
+  mode: PaymentMode;
+  /**
+   * Where that came from. Worth carrying rather than inferring, because
+   * "follows the programme" and "has an exception that happens to match the
+   * programme" look identical in the answer and are not the same arrangement —
+   * and because an exception being ignored is otherwise invisible.
+   *
+   *   programme  — this agent has no exception.
+   *   agent      — this agent's own exception decided it.
+   *   ignored    — they have one, but per-agent exceptions are switched off.
+   *   unreadable — their row could not be read at all, so the programme rule
+   *                stands. Worth its own value rather than quietly looking
+   *                like "no exception": a database that has not had the
+   *                migration applied produces exactly that symptom, and an
+   *                exception that saves and then does nothing is otherwise
+   *                impossible to tell apart from one that never saved.
+   */
+  source: "programme" | "agent" | "ignored" | "unreadable";
+  /** The programme's own rule, for a screen that wants to show both. */
+  programMode: PaymentMode;
+}
+
+export async function recruitPaymentRule(referrerId: string | null): Promise<RecruitPaymentRule> {
   const program = await getAgentProgramConfig();
-  if (!referrerId || !program.perAgentOverrides) return program.paymentMode;
+  const base: RecruitPaymentRule = {
+    mode: program.paymentMode,
+    source: "programme",
+    programMode: program.paymentMode,
+  };
+  if (!referrerId) return base;
 
   const referrer = await dataDb.dataAgent
     .findUnique({ where: { id: referrerId }, select: { recruitPaymentMode: true } })
-    .catch(() => null);
+    .catch(() => "unreadable" as const);
+  if (referrer === "unreadable") return { ...base, source: "unreadable" };
 
-  return resolveRecruitPaymentMode({
+  const agentMode = normalisePaymentMode(referrer?.recruitPaymentMode);
+  if (!agentMode) return base;
+
+  // They have one. Whether it is heard is the admin's switch, and saying which
+  // of the two happened is the difference between "this is set up wrong" and
+  // "this is switched off".
+  if (!program.perAgentOverrides) return { ...base, source: "ignored" };
+
+  return {
+    mode: resolveRecruitPaymentMode({
+      programMode: program.paymentMode,
+      agentMode,
+      perAgentOverrides: program.perAgentOverrides,
+    }),
+    source: "agent",
     programMode: program.paymentMode,
-    agentMode: referrer?.recruitPaymentMode ?? null,
-    perAgentOverrides: program.perAgentOverrides,
-  });
+  };
+}
+
+/** Just the answer, for the callers that only enforce it. */
+export async function recruitPaymentMode(referrerId: string | null): Promise<PaymentMode> {
+  return (await recruitPaymentRule(referrerId)).mode;
 }
 
 /**

@@ -57,8 +57,8 @@ export default async function TeamPaymentVerifyPage({
         </p>
         <p className="mx-auto mt-1 max-w-sm text-sm text-niki-ink/65">
           {paid
-            ? "Their registration is paid and waiting for approval. They set their password on the link we sent them."
-            : "We haven't seen this confirmed yet. If it went through it will land shortly — nothing needs paying again."}
+            ? "Their registration is paid and waiting for approval. We've texted and emailed them their username and password — they'll be asked to change it when they sign in."
+            : "We haven't seen this confirmed yet. If it went through it will land shortly, and their sign-in details go out then — nothing needs paying again."}
         </p>
 
         <p className="mt-4 font-mono text-xs text-niki-ink/40">{reference}</p>
