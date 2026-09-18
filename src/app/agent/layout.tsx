@@ -1,12 +1,8 @@
 import { redirect } from "next/navigation";
-import { ExternalLink, Store } from "lucide-react";
-import { Container } from "@/components/ui/Container";
-import { ActionLink } from "@/components/ui/motion";
-import { AgentRail, AgentSidebar } from "@/components/agent/AgentNav";
-import { AgentCode } from "@/components/agent/AgentCode";
+import { AgentShell } from "@/components/agent/AgentShell";
 import { RegistrationFeePanel } from "@/components/agent/RegistrationFeePanel";
 import { requireUser } from "@/lib/session";
-import { getAgentForUser } from "@/lib/data-bundles/agents";
+import { getAgentForUser, getAnnouncements } from "@/lib/data-bundles/agents";
 import { getDataStoreConfig, getLeaderboardConfig } from "@/lib/data-bundles/settings";
 import { registrationFeeStatus } from "@/lib/data-bundles/registration-fee";
 import { formatMoney } from "@/lib/format";
@@ -17,16 +13,21 @@ export const dynamic = "force-dynamic";
  * The agent platform shell.
  *
  * Membership, not role, is what gates this: an agent is any signed-in user with
- * a DataAgent row, so someone can be a customer and an agent at once without a
- * `/become-an-agent` sits outside this shell — it is where people go *before*
- * they have an account to show.
+ * a DataAgent row, so someone can be a customer and an agent at once.
+ * `/become-an-agent` sits outside it — that is where people go *before* they
+ * have an account to show.
+ *
+ * The frame itself is a client component, because it remembers how this browser
+ * likes the sidebar and which notices this person has already read. The guard
+ * and the reads stay here, on the server.
  */
 export default async function AgentLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const [agent, store, leaderboard] = await Promise.all([
+  const [agent, store, leaderboard, notices] = await Promise.all([
     getAgentForUser(user.id),
     getDataStoreConfig(),
     getLeaderboardConfig(),
+    getAnnouncements(10),
   ]);
 
   if (!agent) redirect("/become-an-agent");
@@ -35,68 +36,41 @@ export default async function AgentLayout({ children }: { children: React.ReactN
   const fee = registrationFeeStatus(agent);
 
   return (
-    <div className="niki-gradient-hero min-h-[calc(100vh-4rem)] pb-12">
-      <Container className="pt-6">
-        {/* Store identity + the shortcut to the public storefront. */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-niki-gold ring-1 ring-white/15">
-              <Store className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="font-display text-lg font-bold text-white sm:text-xl">
-                {agent.storeName}
-              </p>
-              <p className="text-xs text-white/50">Agent platform · Nickimart Data</p>
-            </div>
-          </div>
+    <AgentShell
+      store={{
+        name: agent.storeName,
+        slug: agent.slug,
+        code: agent.code,
+        afaEnabled: store.afaEnabled,
+        leaderboardEnabled: leaderboard.enabled,
+      }}
+      announcements={notices.map((n) => ({
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        tone: n.tone,
+        createdAt: n.createdAt.toISOString(),
+      }))}
+    >
+      {suspended ? (
+        <p className="animate-fade-up mb-5 rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger ring-1 ring-niki-danger/30">
+          Your account is suspended and your store is closed. Please contact support.
+        </p>
+      ) : null}
 
-          <div className="flex flex-wrap items-center gap-2">
-            <AgentCode code={agent.code} />
-            <ActionLink
-              href={`/store/${agent.slug}`}
-              className="flex items-center gap-1.5 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-white ring-1 ring-white/15 hover:bg-white/20"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              View my store
-            </ActionLink>
-          </div>
+      {/*
+        An agent who chose to pay their registration fee up front sees it on
+        every screen until they have: it is the one thing outstanding against
+        their account, and somebody else — whoever recruited them — is waiting
+        on it.
+      */}
+      {fee.payable ? (
+        <div className="animate-fade-up mb-5">
+          <RegistrationFeePanel amount={formatMoney(fee.outstanding)} />
         </div>
+      ) : null}
 
-        {suspended ? (
-          <p className="animate-fade-up mt-5 rounded-2xl bg-niki-danger/15 px-4 py-3 text-sm font-medium text-white ring-1 ring-niki-danger/40">
-            Your account is suspended and your store is closed. Please contact support.
-          </p>
-        ) : null}
-
-        {/*
-          An agent who chose to pay their registration fee up front sees it on
-          every screen until they have. It is in the shell rather than on one
-          page because it is the one thing outstanding against their account,
-          and because somebody else — whoever recruited them — is waiting on it.
-        */}
-        {fee.payable ? (
-          <div className="animate-fade-up mt-5">
-            <RegistrationFeePanel amount={formatMoney(fee.outstanding)} />
-          </div>
-        ) : null}
-
-        <div className="mt-5 lg:hidden">
-          <AgentRail afaEnabled={store.afaEnabled} leaderboardEnabled={leaderboard.enabled} />
-        </div>
-
-        <div className="mt-6 gap-6 lg:grid lg:grid-cols-[220px_minmax(0,1fr)]">
-          <aside className="hidden lg:block">
-            <AgentSidebar afaEnabled={store.afaEnabled} leaderboardEnabled={leaderboard.enabled} />
-          </aside>
-
-          {/* The content sits on a light card so the existing page components
-              (tables, forms, stat tiles) read exactly as they do elsewhere. */}
-          <main className="animate-fade-up min-w-0 rounded-3xl bg-niki-surface p-4 shadow-2xl shadow-black/20 sm:p-6">
-            {children}
-          </main>
-        </div>
-      </Container>
-    </div>
+      {children}
+    </AgentShell>
   );
 }
