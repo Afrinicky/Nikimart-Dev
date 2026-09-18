@@ -66,6 +66,41 @@ export function rewardForLevel(rules: ReferralRules, level: 1 | 2): number {
 }
 
 /**
+ * How a registration fee came to be settled.
+ *
+ *   PAYMENT    — money moved: Paystack, or a recruiter's wallet.
+ *   COMMISSION — it cleared itself out of what the agent earned.
+ *   ADJUSTMENT — an admin credited the balance, and that is what cleared it.
+ *   WAIVED     — there was nothing to pay.
+ *
+ * Only the first two are somebody paying, which is the only distinction that
+ * costs anybody money.
+ */
+export type SettlementSource = "PAYMENT" | "COMMISSION" | "ADJUSTMENT" | "WAIVED";
+
+/**
+ * Did this balance clear the fee on its own, or did an admin clear it?
+ *
+ * The fee is charged as a debit and settles when the balance climbs back to
+ * zero. Commission climbing it back is the agent paying; an admin adjustment
+ * climbing it back is Nickimart writing it off, and the two must not be
+ * confused — a written-off registration is not a paid one.
+ *
+ * Take the admin's credits back out of the balance. If what is left is still
+ * below zero, those credits are what carried it over the line and this is a
+ * write-off, however much commission also happens to be in there.
+ */
+export function settlementSource(input: {
+  /** The balance now, at the moment the fee settles. */
+  balance: number;
+  /** Everything an admin has credited by hand, as a positive total. */
+  adjustmentCredits: number;
+}): "COMMISSION" | "ADJUSTMENT" {
+  const withoutAdmin = round2(input.balance - Math.max(0, input.adjustmentCredits));
+  return withoutAdmin < 0 ? "ADJUSTMENT" : "COMMISSION";
+}
+
+/**
  * Is a registration fee the kind that can release a referral reward?
  *
  * A fee somebody actually owes always can. A fee of zero normally cannot —
@@ -75,6 +110,12 @@ export function rewardForLevel(rules: ReferralRules, level: 1 | 2): number {
  * `fullWaiverPaysReward` is on. A fee that was zero for any other reason (the
  * programme charges nothing, an admin zeroed it) pays nobody, because there
  * was no waiver to reward.
+ *
+ * And a fee an admin cleared by crediting the agent's wallet pays nobody at
+ * all. It reads as settled — the storefront opens, the agent owes nothing —
+ * but nobody paid it, so there is no registration for a recruiter to earn on.
+ * That is the difference between waiving a fee and paying one, and it used to
+ * cost a referral reward every time an admin adjusted a new agent's balance.
  */
 export function feeCanReward(input: {
   method: string;
@@ -84,7 +125,14 @@ export function feeCanReward(input: {
   gross: number;
   waiverPercent: number;
   fullWaiverPaysReward: boolean;
+  /**
+   * How it settled. Undefined on registrations from before this was recorded,
+   * which are read as paid: taking back rewards already credited would be a
+   * worse error than the one this fixes.
+   */
+  settledBy?: SettlementSource | null;
 }): boolean {
+  if (input.settledBy === "ADJUSTMENT") return false;
   if (input.method !== "WAIVED" && input.payable > 0) return true;
   const waivedInFull = input.gross > 0 && input.waiverPercent >= 100;
   return waivedInFull && input.fullWaiverPaysReward;

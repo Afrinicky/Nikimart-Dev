@@ -7,13 +7,13 @@ import { ApplyAgentForm } from "@/components/agent/ApplyAgentForm";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { siteUrl } from "@/lib/site";
-import { formatMoney } from "@/lib/format";
 import {
   getAgentProgramConfig,
   getDataStoreConfig,
   getReferralConfig,
 } from "@/lib/data-bundles/settings";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
+import { recruitPaymentMode, resolveReferralCode } from "@/lib/data-bundles/referrals";
 import { resolveAgentInvite } from "@/lib/data-bundles/invites";
 import { inviteProblemMessage, inviteWaiverLabel } from "@/lib/data-bundles/invite-rules";
 
@@ -70,6 +70,13 @@ export default async function BecomeAnAgentPage({
       ? inviteProblemMessage(inviteLookup.problem)
       : null;
 
+  // How this applicant may settle the fee. Their recruiter can have an
+  // arrangement of their own where the admin has allowed it, so the choice the
+  // form offers is resolved against the code they arrived on rather than read
+  // straight off the programme — the same resolution the submit enforces.
+  const resolved = invitedBy ? await resolveReferralCode(invitedBy) : null;
+  const paymentMode = await recruitPaymentMode(resolved?.ok ? resolved.agentId : null);
+
   // Already an agent? There's nothing to pitch — send them to their console.
   let signedInAs: { name: string; email: string; phone: string } | null = null;
   if (session?.user?.id) {
@@ -122,13 +129,6 @@ export default async function BecomeAnAgentPage({
                 {inviteNotice}
               </p>
             ) : null}
-            {open && program.setupFee > 0 && !invite ? (
-              <p className="mt-2 text-sm font-semibold text-niki-orange">
-                {program.paymentMode === "COMMISSION"
-                  ? `A ${formatMoney(program.setupFee)} registration fee clears from your commission.`
-                  : `A one-time ${formatMoney(program.setupFee)} registration fee is required.`}
-              </p>
-            ) : null}
           </div>
 
           <div className="mt-6">
@@ -148,7 +148,7 @@ export default async function BecomeAnAgentPage({
                 invite={invite}
                 setupFee={program.setupFee}
                 referralOpen={referral.enabled}
-                paymentMode={program.paymentMode}
+                paymentMode={paymentMode}
                 signedInAs={signedInAs}
               />
             )}

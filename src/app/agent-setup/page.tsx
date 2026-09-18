@@ -4,7 +4,11 @@ import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ActionLink } from "@/components/ui/motion";
 import { AgentSetupForm } from "@/components/agent/AgentSetupForm";
-import { getSetupApplication } from "@/lib/data-bundles/agent-application-actions";
+import { RecruitSetupForm } from "@/components/agent/RecruitSetupForm";
+import {
+  getRecruitSetup,
+  getSetupApplication,
+} from "@/lib/data-bundles/agent-application-actions";
 import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
@@ -13,7 +17,12 @@ export const metadata: Metadata = { title: "Set up your agent account — Nickim
 export const dynamic = "force-dynamic";
 
 /**
- * The one-time setup link an approved applicant receives.
+ * The one-time setup link, for both kinds of person who get one.
+ *
+ * An approved applicant with no password redeems it and their store opens.
+ * Somebody an agent registered from their console redeems the same link
+ * *before* approval — they never filled in a form, so this is where they
+ * choose a password — and then wait for the store to be approved.
  *
  * Deliberately outside the /agent shell, and outside the /agent path entirely:
  * the account exists but has no password yet, so the person following this link
@@ -27,8 +36,9 @@ export default async function AgentSetupPage({
   searchParams: Promise<{ token?: string }>;
 }) {
   const { token } = await searchParams;
-  const [application, program] = await Promise.all([
+  const [application, recruit, program] = await Promise.all([
     getSetupApplication((token ?? "").trim()),
+    getRecruitSetup((token ?? "").trim()),
     getAgentProgramConfig(),
   ]);
 
@@ -36,14 +46,34 @@ export default async function AgentSetupPage({
     <>
       <PageHeader
         title="Set up your agent account"
-        subtitle="One step left — choose a password and your store goes live."
+        subtitle={
+          recruit
+            ? "Choose a password. We'll text you the moment your store is approved."
+            : "One step left — choose a password and your store goes live."
+        }
         crumbs={[{ label: "Become an agent", href: "/become-an-agent" }, { label: "Set up" }]}
         tone="dark"
       />
 
       <Container className="py-8">
         <div className="mx-auto max-w-lg">
-          {!application ? (
+          {recruit ? (
+            <div className="rounded-3xl bg-white p-6 ring-1 ring-niki-edge sm:p-8">
+              <RecruitSetupForm
+                token={(token ?? "").trim()}
+                fullName={recruit.fullName}
+                email={recruit.email}
+                storeName={recruit.storeName}
+                slug={recruit.desiredSlug}
+                origin={siteUrl()}
+              />
+              <p className="mt-5 border-t border-niki-edge pt-4 text-xs leading-relaxed text-niki-ink/50">
+                {recruit.feeAmount > 0 && recruit.feeMethod === "BALANCE"
+                  ? `Your ${formatMoney(recruit.feeAmount)} registration is charged to your account and clears itself out of the commission you earn — there is nothing to pay up front.`
+                  : "The agent who registered you has already settled your registration. There is nothing to pay here."}
+              </p>
+            </div>
+          ) : !application ? (
             <div className="rounded-3xl bg-white p-8 text-center ring-1 ring-niki-edge">
               <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
                 <AlertTriangle className="h-5 w-5" />

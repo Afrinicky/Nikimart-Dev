@@ -13,7 +13,12 @@ import {
   checkStoreName,
 } from "@/lib/data-bundles/agent-application-actions";
 import { reissueSetupLink } from "@/lib/data-bundles/agent-admin-actions";
-import { quoteRegistrationFee, resolveReferralCode } from "@/lib/data-bundles/referrals";
+import {
+  quoteRegistrationFee,
+  recruitPaymentMode,
+  resolveReferralCode,
+} from "@/lib/data-bundles/referrals";
+import { settleMethodFor } from "@/lib/data-bundles/payment-mode";
 import { clampPercent, registrationQuote } from "@/lib/data-bundles/referral-rules";
 
 /**
@@ -129,6 +134,10 @@ export async function adminRegisterAgent(
     inviteWaiverPercent: clampPercent(data.waiverPercent),
   });
 
+  // Resolved before the row is written so the message below is the truth, not
+  // an assumption the approval then quietly contradicts.
+  const feeMethod = settleMethodFor(await recruitPaymentMode(referrerId), undefined, quote.payable);
+
   let applicationId: string;
   try {
     const application = await dataDb.dataAgentApplication.create({
@@ -143,10 +152,13 @@ export async function adminRegisterAgent(
         note: "Registered from the admin console",
         referralCode,
         referrerId,
-        // Nothing is collected here: an admin taking somebody on does not stand
-        // over them at a card form. Whatever is left to pay clears from their
-        // commission, exactly as the BALANCE route always has.
-        feeMethod: "BALANCE",
+        // Nothing is collected here — an admin taking somebody on does not
+        // stand over them at a card form — but how the fee is settled is still
+        // the programme's decision, resolved exactly as the approval will
+        // resolve it. Under an up-front programme the account opens owing it
+        // and their storefront waits; under anything else it clears from
+        // commission, as this route always has.
+        feeMethod,
         feeAmount: quote.payable,
         feeGross: quote.gross,
         feeWaiverPercent: quote.waiverPercent,
@@ -197,8 +209,10 @@ export async function adminRegisterAgent(
     setupUrl,
     storeName: data.storeName,
     message:
-      quote.payable > 0
-        ? `${data.storeName} is live. Their ${formatMoney(quote.payable)} registration fee clears from commission.`
-        : `${data.storeName} is live, with no registration fee to pay.`,
+      quote.payable <= 0
+        ? `${data.storeName} is live, with no registration fee to pay.`
+        : feeMethod === "UPFRONT"
+          ? `${data.storeName} is registered. Their ${formatMoney(quote.payable)} registration is payable up front — their storefront opens once it clears.`
+          : `${data.storeName} is live. Their ${formatMoney(quote.payable)} registration fee clears from commission.`,
   };
 }

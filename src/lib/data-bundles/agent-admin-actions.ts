@@ -16,10 +16,12 @@ import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { normaliseSlug, round2, slugProblem } from "@/lib/data-bundles/agents";
 import { getAgentUser } from "@/lib/data-bundles/user-link";
 import { reconcileWalletTopup } from "@/lib/data-bundles/wallet";
+import { normalisePaymentMode, paymentModeLabel } from "@/lib/data-bundles/payment-mode";
 import {
   checkReferralLink,
   linkReferral,
   releaseReferralRewards,
+  settleSetupFee,
   resolveReferralCode,
 } from "@/lib/data-bundles/referrals";
 
@@ -135,10 +137,17 @@ export async function adjustAgentBalance(
       reference: null,
     });
     // A credit is how a registration fee gets waived in practice, so check
-    // whether this one just settled it. That opens the storefront and releases
-    // the recruiter's reward now rather than on the next nightly sweep — and
-    // does nothing at all when the adjustment was for something else.
-    if (amount > 0) await releaseReferralRewards(agentId);
+    // whether this one just settled it — that opens the storefront now rather
+    // than on the next nightly sweep, and does nothing at all when the
+    // adjustment was for something else.
+    //
+    // Settling it is all it does. A fee an admin cleared by hand was written
+    // off, not paid, and writing a fee off must not pay the recruiter a
+    // referral reward for a registration nobody paid for: `settleSetupFee`
+    // records that it was an adjustment that cleared it, and the reward stays
+    // where it is. Real payments release rewards from their own settlement
+    // paths, which is where they belong.
+    if (amount > 0) await settleSetupFee(agentId);
 
     revalidateAgents(agentId);
     return {
@@ -484,6 +493,50 @@ export async function setAgentReferrer(
 
   revalidateAgents(agentId);
   return { ok: true, message: `${resolved.storeName} (${resolved.code}) is now recorded as the referrer.` };
+}
+
+/**
+ * Decide how the people this agent recruits settle their registration fee.
+ *
+ * The exception mechanism behind "everyone pays up front, except the people
+ * these three bring in". Blank puts them back on the programme's own rule,
+ * which is not the same as choosing the rule that happens to be set today —
+ * one follows the programme as it changes, the other stays where it is put.
+ *
+ * It is an exception, not an override: the programme setting decides whether
+ * exceptions are heard at all, so switching them off at the top puts the whole
+ * network back on one rule without anybody having to come here and unpick it.
+ */
+export async function setAgentRecruitPaymentMode(
+  _prev: AgentAdminState,
+  fd: FormData,
+): Promise<AgentAdminState> {
+  await requireAdmin();
+  const agentId = str(fd, "agentId");
+  if (!agentId) return { error: "Missing agent." };
+
+  const raw = str(fd, "recruitPaymentMode");
+  const mode = raw ? normalisePaymentMode(raw) : null;
+  if (raw && !mode) return { error: "Choose how their recruits pay." };
+
+  try {
+    await dataDb.dataAgent.update({
+      where: { id: agentId },
+      data: { recruitPaymentMode: mode },
+    });
+  } catch {
+    return { error: STORAGE_ERROR };
+  }
+
+  revalidateAgents(agentId);
+  revalidatePath("/become-an-agent");
+
+  return {
+    ok: true,
+    message: mode
+      ? `Their recruits: ${paymentModeLabel(mode).toLowerCase()}.`
+      : "Their recruits follow the programme.",
+  };
 }
 
 /**

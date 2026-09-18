@@ -1,19 +1,25 @@
 import type { Metadata } from "next";
-import { Pencil, UserPlus, Users } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { PanelHeading } from "@/components/admin/ModuleHeader";
+import { AgentRoster } from "@/components/admin/AgentRoster";
 import { formatMoney } from "@/lib/format";
 import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import { listAgents } from "@/lib/data-bundles/agents";
-import { cn } from "@/lib/cn";
+import { paymentModeLabel } from "@/lib/data-bundles/payment-mode";
 
 export const metadata: Metadata = { title: "Agents — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
-const th = "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-niki-ink/45";
-const td = "px-4 py-3.5 align-middle";
-
-/** The roster: who's selling, what they've sold, and what they're owed. */
+/**
+ * Agent management: the whole network at a glance, and one door into each
+ * agent.
+ *
+ * What was here before was a wide table of nine columns, most of which nobody
+ * reads, with an Edit link at the end of a horizontal scroll. The numbers that
+ * matter for the network sit at the top; everything that matters about one
+ * agent is in that agent's own window, one click away.
+ */
 export default async function AdminAgentsPage({
   searchParams,
 }: {
@@ -24,12 +30,14 @@ export default async function AdminAgentsPage({
 
   const totals = agents.reduce(
     (acc, a) => ({
+      active: acc.active + (a.status === "active" ? 1 : 0),
       sales: acc.sales + a.totalSales,
       commission: acc.commission + a.totalCommission,
       owed: acc.owed + Math.max(0, a.balance),
       outstanding: acc.outstanding + Math.max(0, -a.balance),
+      pending: acc.pending + (a.canSignIn ? 0 : 1),
     }),
-    { sales: 0, commission: 0, owed: 0, outstanding: 0 },
+    { active: 0, sales: 0, commission: 0, owed: 0, outstanding: 0, pending: 0 },
   );
 
   return (
@@ -48,29 +56,35 @@ export default async function AdminAgentsPage({
       ) : null}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        {[
-          { label: "Agents", value: String(agents.length) },
-          { label: "Agent sales", value: formatMoney(totals.sales) },
-          { label: "Commission earned", value: formatMoney(totals.commission) },
-          { label: "Balances owed", value: formatMoney(totals.owed) },
-        ].map((t) => (
-          <div key={t.label} className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-niki-ink/45 sm:text-xs">
-              {t.label}
-            </p>
-            <p className="mt-2 font-figures text-xl font-bold text-niki-ink sm:text-2xl">{t.value}</p>
-          </div>
-        ))}
+        <Tile
+          label="Agents"
+          value={String(agents.length)}
+          note={`${totals.active} active`}
+        />
+        <Tile label="Agent sales" value={formatMoney(totals.sales)} note={`${agents.length ? "across the network" : "nothing yet"}`} />
+        <Tile
+          label="Commission earned"
+          value={formatMoney(totals.commission)}
+          note="by agents, on delivered orders"
+        />
+        <Tile
+          label="Balances owed"
+          value={formatMoney(totals.owed)}
+          note={
+            totals.outstanding > 0
+              ? `${formatMoney(totals.outstanding)} of fees still clearing`
+              : "nothing outstanding"
+          }
+        />
       </div>
 
-      {totals.outstanding > 0 ? (
-        <p className="mt-3 text-xs text-niki-ink/50">
-          {formatMoney(totals.outstanding)} of setup fees is still clearing across all agents.
-        </p>
-      ) : null}
-
       <section className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
-        <PanelHeading title="Active agents" subtitle="Everyone reselling under their own storefront.">
+        <PanelHeading
+          title="Agents"
+          subtitle={`Registration: ${paymentModeLabel(program.paymentMode).toLowerCase()}${
+            program.perAgentOverrides ? ", exceptions allowed per agent" : ", no exceptions"
+          }.`}
+        >
           <ActionLink
             href="/admin/data/agents/new"
             className="flex items-center gap-1.5 rounded-lg bg-niki-black px-3.5 py-2 text-xs font-semibold text-white hover:bg-niki-black-mute"
@@ -79,101 +93,42 @@ export default async function AdminAgentsPage({
             Register an agent
           </ActionLink>
         </PanelHeading>
-        {agents.length === 0 ? (
-          <div className="px-4 py-12 text-center">
-            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-niki-surface text-niki-ink/35">
-              <Users className="h-5 w-5" />
-            </span>
-            <p className="mt-3 font-display font-bold text-niki-ink">No agents yet</p>
-            <p className="mt-1 text-sm text-niki-ink/55">
-              Share a registration link to start recruiting. Set an agent price on your bundles
-              first, or there&apos;ll be nothing for them to sell.
-            </p>
-          </div>
-        ) : (
-          <div className="-mx-5 overflow-x-auto px-5">
-            <table className="w-full min-w-[880px] border-separate border-spacing-0 text-sm">
-              <thead>
-                <tr className="bg-niki-surface/70">
-                  <th className={`${th} rounded-l-lg`}>Store</th>
-                  <th className={th}>Code</th>
-                  <th className={th}>Contact</th>
-                  <th className={th}>Orders</th>
-                  <th className={th}>Sales</th>
-                  <th className={th}>Commission</th>
-                  <th className={th}>Balance</th>
-                  <th className={th}>Status</th>
-                  <th className={`${th} rounded-r-lg`}>Manage</th>
-                </tr>
-              </thead>
-              <tbody>
-                {agents.map((a) => (
-                  <tr
-                    key={a.id}
-                    className="border-b border-niki-edge transition-colors last:border-0 hover:bg-niki-surface/50"
-                  >
-                    <td className={td}>
-                      <ActionLink
-                        href={`/admin/data/agents/${a.id}`}
-                        className="font-semibold text-niki-trust hover:underline"
-                      >
-                        {a.storeName}
-                      </ActionLink>
-                      <p className="font-mono text-[11px] text-niki-ink/40">/store/{a.slug}</p>
-                    </td>
-                    <td className={`${td} font-mono text-xs text-niki-ink/70`}>{a.code}</td>
-                    <td className={`${td} text-xs text-niki-ink/65`}>
-                      {a.user?.name ?? "—"}
-                      <br />
-                      <span className="font-mono">{a.supportPhone || a.user?.phone || "—"}</span>
-                      {!a.canSignIn ? (
-                        <span className="mt-1 flex w-fit items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                          Never signed in
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className={`${td} text-niki-ink/70`}>{a.orderCount}</td>
-                    <td className={`${td} font-semibold text-niki-ink`}>
-                      {formatMoney(a.totalSales)}
-                    </td>
-                    <td className={`${td} text-niki-ink/70`}>{formatMoney(a.totalCommission)}</td>
-                    <td
-                      className={cn(
-                        td,
-                        "font-semibold",
-                        a.balance < 0 ? "text-niki-danger" : "text-niki-success",
-                      )}
-                    >
-                      {formatMoney(a.balance)}
-                    </td>
-                    <td className={td}>
-                      <span
-                        className={cn(
-                          "inline-flex rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase",
-                          a.status === "active"
-                            ? "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30"
-                            : "bg-niki-danger/10 text-niki-danger ring-1 ring-niki-danger/30",
-                        )}
-                      >
-                        {a.status}
-                      </span>
-                    </td>
-                    <td className={td}>
-                      <ActionLink
-                        href={`/admin/data/agents/${a.id}`}
-                        className="niki-focus inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold text-niki-ink/75 ring-1 ring-niki-edge hover:bg-niki-black/5"
-                      >
-                        <Pencil className="h-3 w-3" />
-                        Edit
-                      </ActionLink>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+
+        {totals.pending > 0 ? (
+          <p className="mb-3 rounded-xl bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800">
+            {totals.pending} {totals.pending === 1 ? "agent has" : "agents have"} never signed in —
+            their setup link can be reissued from their window.
+          </p>
+        ) : null}
+
+        <AgentRoster
+          agents={agents.map((a) => ({
+            id: a.id,
+            storeName: a.storeName,
+            slug: a.slug,
+            code: a.code,
+            ownerName: a.user?.name ?? "",
+            phone: a.supportPhone || a.user?.phone || "",
+            status: a.status,
+            balance: a.balance,
+            totalSales: a.totalSales,
+            orderCount: a.orderCount,
+            canSignIn: a.canSignIn,
+          }))}
+        />
       </section>
+    </div>
+  );
+}
+
+function Tile({ label, value, note }: { label: string; value: string; note?: string }) {
+  return (
+    <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-niki-ink/45 sm:text-xs">
+        {label}
+      </p>
+      <p className="mt-2 font-figures text-xl font-bold text-niki-ink sm:text-2xl">{value}</p>
+      {note ? <p className="mt-1 truncate text-[11px] text-niki-ink/45">{note}</p> : null}
     </div>
   );
 }

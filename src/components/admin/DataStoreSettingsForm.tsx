@@ -193,6 +193,21 @@ export function AgentProgrammeSettingsForm({ settings }: { settings: DataSetting
             </select>
           </Field>
           <Field
+            label="Per-agent exceptions"
+            htmlFor="agentPaymentModeOverrides"
+            hint="Lets you give one agent's recruits a different arrangement, from that agent's own page. Off puts everyone back on the rule above without unpicking a single agent."
+          >
+            <select
+              id="agentPaymentModeOverrides"
+              name="agentPaymentModeOverrides"
+              defaultValue={settings.agentPaymentModeOverrides === "0" ? "0" : "1"}
+              className={inputClass}
+            >
+              <option value="1">Allowed — I can set it per agent</option>
+              <option value="0">Not allowed — the rule above applies to everyone</option>
+            </select>
+          </Field>
+          <Field
             label="Withdrawal fee (GH₵)"
             htmlFor="agentWithdrawalFee"
             hint="Flat fee deducted with each MoMo payout"
