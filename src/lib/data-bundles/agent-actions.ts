@@ -8,7 +8,9 @@ import { dataDb } from "@/lib/data-db";
 import { prisma } from "@/lib/prisma";
 import { requireUser, type SessionUser } from "@/lib/session";
 import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/settings";
-import { callbackOrigin } from "@/lib/site";
+import { callbackOrigin, siteUrl } from "@/lib/site";
+import { formatMoney } from "@/lib/format";
+import { notifyAdmins } from "@/lib/data-bundles/admin-alerts";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { initializeTransaction, isPaymentConfigured, toPesewas } from "@/lib/payments";
 import { newDataReference, settleDataOrder } from "@/lib/data-bundles/fulfillment";
@@ -407,7 +409,7 @@ const withdrawSchema = z.object({
  * automatically if the request is rejected.
  */
 export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): Promise<ActionResult> {
-  const { agent, error } = await currentAgent();
+  const { agent, user, error } = await currentAgent();
   if (!agent) return { ok: false, error };
 
   const parsed = withdrawSchema.safeParse(input);
@@ -447,6 +449,7 @@ export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): 
   // The check above is for the error message. The balance is re-tested inside
   // the debit itself, because two requests submitted at the same moment would
   // otherwise both read the same balance, both pass, and both be paid.
+  let withdrawalId = "";
   try {
     await dataDb.$transaction(async (tx) => {
       const row = await tx.dataAgentWithdrawal.create({
@@ -470,6 +473,7 @@ export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): 
         },
         tx,
       );
+      withdrawalId = row.id;
     });
   } catch (err) {
     if (err instanceof InsufficientBalanceError) {
@@ -483,6 +487,21 @@ export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): 
 
   revalidatePath("/agent/wallet");
   revalidatePath("/agent/store");
+
+  // The request is already saved and the balance already moved, so this runs
+  // after the response: the agent should not wait on an SMS gateway to be told
+  // their request went through.
+  after(async () => {
+    await notifyAdmins("withdrawal.requested", {
+      amount: formatMoney(amount),
+      store: agent.storeName,
+      agent: user.name ?? agent.storeName,
+      phone: momoPhone,
+      network: data.momoNetwork,
+      link: `${siteUrl()}/admin/data/withdrawals/${withdrawalId}`,
+    });
+  });
+
   return { ok: true, message: "Withdrawal requested. We'll send it to your MoMo shortly." };
 }
 

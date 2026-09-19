@@ -222,7 +222,11 @@ export function AgentProgrammeSettingsForm({ settings }: { settings: DataSetting
               className={inputClass}
             />
           </Field>
-          <Field label="Minimum withdrawal (GH₵)" htmlFor="agentMinWithdrawal">
+          <Field
+            label="Minimum withdrawal (GH₵)"
+            htmlFor="agentMinWithdrawal"
+            hint="The smallest payout an agent may request. Their Withdraw button stays closed until they have this much clear of the fee."
+          >
             <input
               id="agentMinWithdrawal"
               name="agentMinWithdrawal"

@@ -20,6 +20,7 @@ import { AGENT_MODULE_TABS, pendingApplicationCount } from "@/lib/data-bundles/a
 import { formatMoney } from "@/lib/format";
 import { getWithdrawal } from "@/lib/data-bundles/withdrawals";
 import { processWithdrawal, rejectWithdrawal } from "@/lib/data-bundles/agent-admin-actions";
+import { WithdrawalAmountForm } from "@/components/admin/WithdrawalAmountForm";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Withdrawal — Admin — Nickimart" };
@@ -197,6 +198,13 @@ export default async function AdminWithdrawalDetailPage({
                 value={<span className="font-figures">{formatMoney(total)}</span>}
               />
             </dl>
+            {pending ? (
+              <WithdrawalAmountForm
+                withdrawalId={w.id}
+                amount={w.amount}
+                available={w.agent.balance}
+              />
+            ) : null}
             {w.momoName && w.user?.name && w.momoName.toLowerCase() !== w.user.name.toLowerCase() ? (
               <p className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-800">
                 The MoMo account is in a different name from the agent&apos;s own

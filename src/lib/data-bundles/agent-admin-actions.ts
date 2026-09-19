@@ -12,11 +12,11 @@ import { formatMoney } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
-import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
+import { InsufficientBalanceError, postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { normaliseSlug, round2, slugProblem } from "@/lib/data-bundles/agents";
 import { getAgentUser } from "@/lib/data-bundles/user-link";
 import { reconcileWalletTopup } from "@/lib/data-bundles/wallet";
-import { notifyTemplate, smsTemplate } from "@/lib/messages";
+import { notifyTemplate } from "@/lib/messages";
 import { normalisePaymentMode, paymentModeLabel } from "@/lib/data-bundles/payment-mode";
 import {
   checkReferralLink,
@@ -209,26 +209,160 @@ export async function processWithdrawal(fd: FormData): Promise<void> {
         status: "processed",
         processedBy: admin.name ?? admin.email ?? admin.id,
         processedAt: new Date(),
-        adminNote: str(fd, "note"),
+        // Only when something was actually typed — an empty box is not an
+        // instruction to erase the record of an amount being changed.
+        ...(str(fd, "note") ? { adminNote: str(fd, "note") } : {}),
       },
     });
     if (claimed.count === 0) return;
 
     const row = await dataDb.dataAgentWithdrawal.findUnique({
       where: { id },
-      select: { agentId: true, amount: true, momoPhone: true, agent: { select: { storeName: true } } },
+      select: {
+        agentId: true,
+        amount: true,
+        momoPhone: true,
+        agent: { select: { storeName: true, userId: true } },
+      },
     });
     revalidateAgents(row?.agentId);
     if (row) {
-      await smsTemplate(row.momoPhone, "withdrawal.sent", {
-        amount: formatMoney(row.amount),
-        phone: row.momoPhone,
-        store: row.agent?.storeName ?? "",
-      });
+      // Both channels, not just the text. A payout is the one message an agent
+      // keeps — and the MoMo number they gave is not always a phone they read
+      // mail on, so the email goes to the address on their account.
+      const user = row.agent ? await getAgentUser(row.agent.userId) : null;
+      await notifyTemplate(
+        { phone: row.momoPhone, email: user?.email ?? null },
+        "withdrawal.sent",
+        {
+          amount: formatMoney(row.amount),
+          phone: row.momoPhone,
+          store: row.agent?.storeName ?? "",
+        },
+      );
     }
   } catch {
     // Not migrated — nothing to record.
   }
+}
+
+/**
+ * Change what a pending withdrawal will actually pay out.
+ *
+ * An agent asks for a round number; the admin sending it on MoMo sometimes has
+ * a reason to send a different one — the float is short this morning, or half
+ * of it was already handed over in cash. Without this the only way through was
+ * to reject the whole request and ask them to submit it again, which reads to
+ * the agent as a refusal.
+ *
+ * The balance follows the figure. The money left the agent when they asked, so
+ * lowering the payout has to put the difference back and raising it has to take
+ * the extra — each as its own ledger entry rather than an edit, so their wallet
+ * shows what happened rather than only where it ended up. Raising it is refused
+ * when the balance cannot cover the increase, tested inside the debit itself.
+ *
+ * The programme minimum is not applied here. It is a rule about what an agent
+ * may ask for, and this is an admin correcting a request that has already been
+ * made and accepted.
+ */
+export async function updateWithdrawalAmount(
+  _prev: AgentAdminState,
+  fd: FormData,
+): Promise<AgentAdminState> {
+  const admin = await requireAdmin();
+  const id = str(fd, "withdrawalId");
+  if (!id) return { error: "Missing withdrawal." };
+
+  const amount = num(fd, "amount");
+  if (amount === null || amount <= 0) return { error: "Enter the amount to pay out." };
+  const next = round2(amount);
+  if (next > 100000) return { error: "That amount looks too large." };
+
+  const reason = str(fd, "reason");
+  if (reason.length < 4) return { error: "Say why the amount is being changed." };
+
+  const row = await dataDb.dataAgentWithdrawal
+    .findUnique({
+      where: { id },
+      select: {
+        id: true,
+        agentId: true,
+        amount: true,
+        status: true,
+        momoPhone: true,
+        adminNote: true,
+      },
+    })
+    .catch(() => null);
+  if (!row) return { error: "That withdrawal no longer exists." };
+  if (row.status !== "pending") {
+    return { error: "This withdrawal has already been handled — the amount can't be changed." };
+  }
+
+  const difference = round2(next - row.amount);
+  if (difference === 0) return { error: "That is already the amount on this request." };
+
+  // Appended rather than replaced: a request changed twice has to read as two
+  // decisions, not as whichever one was made last.
+  const trail = [
+    row.adminNote,
+    `${formatMoney(row.amount)} → ${formatMoney(next)} by ${admin.name ?? admin.email ?? admin.id}: ${reason}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    await dataDb.$transaction(async (tx) => {
+      await tx.dataAgentWithdrawal.update({
+        where: { id: row.id },
+        data: {
+          amount: next,
+          adminNote: trail,
+        },
+      });
+      if (difference < 0) {
+        await postLedgerEntry(
+          {
+            agentId: row.agentId,
+            type: "WITHDRAWAL_REVERSAL",
+            amount: -difference,
+            narration: `Withdrawal to ${row.momoPhone} changed to ${formatMoney(next)} — ${formatMoney(-difference)} returned to your balance`,
+            reference: row.id,
+          },
+          tx,
+        );
+      } else {
+        await postLedgerEntry(
+          {
+            agentId: row.agentId,
+            type: "WITHDRAWAL",
+            amount: -difference,
+            requireBalance: difference,
+            narration: `Withdrawal to ${row.momoPhone} increased to ${formatMoney(next)} — ${formatMoney(difference)} taken from your balance`,
+            reference: row.id,
+          },
+          tx,
+        );
+      }
+    });
+  } catch (err) {
+    if (err instanceof InsufficientBalanceError) {
+      return {
+        error: `Their balance won't cover the extra ${formatMoney(difference)}. Lower the amount, or credit them first.`,
+      };
+    }
+    return { error: "Couldn't change that amount. Please try again." };
+  }
+
+  revalidateAgents(row.agentId);
+  revalidatePath(`/admin/data/withdrawals/${row.id}`);
+  return {
+    ok: true,
+    message:
+      difference < 0
+        ? `Now paying ${formatMoney(next)}. ${formatMoney(-difference)} went back to their balance.`
+        : `Now paying ${formatMoney(next)}. ${formatMoney(difference)} more came off their balance.`,
+  };
 }
 
 /**

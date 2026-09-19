@@ -223,6 +223,28 @@ export const MESSAGE_TEMPLATES: MessageTemplate[] = [
     hasEmail: true,
   },
   {
+    key: "withdrawal.requested",
+    scope: "data",
+    group: "Agents",
+    name: "Withdrawal requested (to the admins)",
+    description:
+      "To every admin, the moment an agent asks for a payout. The money has already left their balance, so this is the thing waiting on a person.",
+    variables: [
+      { name: "amount", note: "What they asked for", example: "GH₵140.00" },
+      { name: "store", note: "Their store name", example: "Ama Telecom" },
+      { name: "agent", note: "The agent's own name", example: "Ama Mensah" },
+      { name: "phone", note: "The MoMo number to pay", example: "0241234567" },
+      { name: "network", note: "The MoMo network", example: "MTN" },
+      { name: "link", note: "The request in the console", example: "https://nickimart.com/admin/data/withdrawals/abc" },
+    ],
+    sms: "Nickimart: {{store}} has requested a withdrawal of {{amount}} to {{phone}} ({{network}}). Review it at {{link}}",
+    emailSubject: "Withdrawal request — {{amount}} from {{store}}",
+    emailBody:
+      "{{store}} ({{agent}}) has requested a withdrawal of {{amount}}.\n\n" +
+      "Send it to {{phone}} on {{network}}, then mark it sent here: {{link}}",
+    hasEmail: true,
+  },
+  {
     key: "withdrawal.sent",
     scope: "data",
     group: "Agents",
