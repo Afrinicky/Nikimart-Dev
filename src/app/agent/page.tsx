@@ -13,8 +13,10 @@ import { ActionLink } from "@/components/ui/motion";
 import { AgentTopup, type TopupBundle } from "@/components/agent/AgentTopup";
 import { QuickActions } from "@/components/agent/QuickActions";
 import { AgentTour } from "@/components/agent/AgentTour";
+import { AgentAlerts, type AgentAlert } from "@/components/agent/AgentAlerts";
 import { BoardCard } from "@/components/agent/LeaderboardUi";
 import { requireUser } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
 import {
@@ -25,6 +27,7 @@ import {
 } from "@/lib/data-bundles/agents";
 import { getLeaderboardView } from "@/lib/data-bundles/leaderboard";
 import { referralLink } from "@/lib/data-bundles/referral-rules";
+import { getPostsForMember } from "@/lib/data-bundles/team/communication";
 
 export const metadata: Metadata = { title: "Agent Dashboard — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -97,8 +100,49 @@ export default async function AgentDashboardPage() {
 
   const storeLink = `${siteUrl()}/store/${agent.slug}`;
 
+  // What the strip has to say today. A list rather than a banner, because the
+  // next thing worth saying should be a row added here.
+  const [security, fromLeader] = await Promise.all([
+    prisma.user
+      .findUnique({ where: { id: user.id }, select: { twoFactorEnabled: true } })
+      .catch(() => null),
+    getPostsForMember(agent.id, 1),
+  ]);
+
+  const alerts: AgentAlert[] = [];
+
+  // What their own recruiter has told them. The key carries the post id, so a
+  // new one shows even after the last was waved away.
+  const latest = fromLeader[0];
+  if (latest) {
+    alerts.push({
+      key: `team-post:${latest.id}`,
+      tone: "success",
+      icon: "megaphone",
+      title: latest.title,
+      body: latest.body.length > 140 ? `${latest.body.slice(0, 140)}…` : latest.body,
+      href: "/agent/team",
+      cta: "Read it",
+    });
+  }
+
+  if (security && !security.twoFactorEnabled) {
+    alerts.push({
+      key: "two-factor",
+      tone: "info",
+      icon: "shield",
+      title: "Protect your account with two-step verification",
+      body: "A code by text or email each time you sign in. Your commission lives behind this password.",
+      href: "/agent/settings",
+      cta: "Turn it on",
+    });
+  }
+
   return (
     <div className="space-y-5">
+      {/* Things worth a moment before the numbers. */}
+      <AgentAlerts alerts={alerts} />
+
       {/*
         What an agent logs in to do, before anything they log in to read: the
         three things they are always being asked to send, and the four screens

@@ -20,7 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
-import { BrandLogo } from "@/components/ui/BrandLogo";
+import { AgentAccountMenu } from "@/components/agent/AgentAccountMenu";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import {
   AnnouncementPopup,
@@ -145,18 +145,8 @@ export function AgentShell({
           drawerOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         )}
       >
-        <div className={cn("flex items-center gap-2.5 px-4 py-5", collapsed && "justify-center px-2")}>
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-niki-orange">
-            <BrandLogo className="h-5 w-auto" />
-          </span>
-          {!collapsed ? (
-            <div className="min-w-0">
-              <p className="truncate font-display text-sm font-bold leading-tight">{store.name}</p>
-              <p className="truncate font-mono text-[11px] leading-tight text-white/45">
-                {store.code}
-              </p>
-            </div>
-          ) : null}
+        <div className={cn("flex items-center gap-2.5 px-3 py-5", collapsed && "justify-center px-2")}>
+          <AgentAccountMenu name={store.name} code={store.code} collapsed={collapsed} />
           <button
             type="button"
             onClick={closeDrawer}
