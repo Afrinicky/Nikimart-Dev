@@ -5,6 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { ModuleHeader } from "@/components/admin/ModuleHeader";
 import { ModuleTabs } from "@/components/admin/ModuleTabs";
 import { ANNOUNCEMENT_MODULE_TABS } from "@/lib/announcement-module";
+import { unreadNotificationCount } from "@/lib/data-bundles/notifications";
 import { TableFilters } from "@/components/admin/TableFilters";
 import { TablePager } from "@/components/admin/TablePager";
 import { AnnouncementsTable } from "@/components/admin/AnnouncementsTable";
@@ -62,13 +63,10 @@ export default async function AdminDataAnnouncementsPage({
   const perPage = perPageFrom(params.per, 25);
   const page = Math.max(1, Number(params.page) || 1);
 
-  const { rows, total, counts } = await listAnnouncements({
-    status,
-    audience,
-    query,
-    page,
-    perPage,
-  });
+  const [{ rows, total, counts }, unread] = await Promise.all([
+    listAnnouncements({ status, audience, query, page, perPage }),
+    unreadNotificationCount(),
+  ]);
   const pageCount = Math.max(1, Math.ceil(total / perPage));
 
   return (
@@ -89,7 +87,7 @@ export default async function AdminDataAnnouncementsPage({
       </div>
 
       <div className="mt-5">
-        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("data")} />
+        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("data", unread)} />
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">

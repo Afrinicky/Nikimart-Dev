@@ -11,6 +11,7 @@ import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/se
 import { callbackOrigin, siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
 import { notifyAdmins } from "@/lib/data-bundles/admin-alerts";
+import { recordNotification } from "@/lib/data-bundles/notifications";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { initializeTransaction, isPaymentConfigured, toPesewas } from "@/lib/payments";
 import { newDataReference, settleDataOrder } from "@/lib/data-bundles/fulfillment";
@@ -492,6 +493,14 @@ export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): 
   // after the response: the agent should not wait on an SMS gateway to be told
   // their request went through.
   after(async () => {
+    await recordNotification({
+      kind: "WITHDRAWAL",
+      tone: "warning",
+      title: `${agent.storeName} requested ${formatMoney(amount)}`,
+      body: `To ${momoPhone} on ${data.momoNetwork}. The amount has already left their balance.`,
+      href: `/admin/data/withdrawals/${withdrawalId}`,
+      dedupeKey: `WITHDRAWAL:${withdrawalId}`,
+    });
     await notifyAdmins("withdrawal.requested", {
       amount: formatMoney(amount),
       store: agent.storeName,
@@ -632,7 +641,7 @@ export async function requestCallback(input: z.infer<typeof callbackSchema>): Pr
     return { ok: false, error: `You've already asked us to call. We'll be in touch shortly.` };
   }
 
-  await dataDb.dataSupportRequest.create({
+  const request = await dataDb.dataSupportRequest.create({
     data: {
       agentId: agent?.id ?? null,
       fullName: data.fullName,
@@ -640,6 +649,16 @@ export async function requestCallback(input: z.infer<typeof callbackSchema>): Pr
       language: data.language?.trim() || "English",
       message: data.message,
     },
+  });
+
+  after(async () => {
+    await recordNotification({
+      kind: "SUPPORT",
+      title: `${data.fullName} asked for a callback`,
+      body: `${phone} · ${data.message}`,
+      href: "/admin/data/support",
+      dedupeKey: `SUPPORT:${request.id}`,
+    });
   });
 
   return { ok: true, message: "Thanks — we'll call you back shortly." };

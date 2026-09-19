@@ -6,6 +6,7 @@ import { ModuleTabs } from "@/components/admin/ModuleTabs";
 import { BroadcastComposer } from "@/components/admin/BroadcastComposer";
 import { formatWhen } from "@/components/agent/AgentUi";
 import { ANNOUNCEMENT_MODULE_TABS } from "@/lib/announcement-module";
+import { unreadNotificationCount } from "@/lib/data-bundles/notifications";
 import { audienceLabel, broadcastAudiences, listBroadcasts } from "@/lib/broadcasts";
 import { cn } from "@/lib/cn";
 
@@ -24,7 +25,10 @@ const CHANNELS: Record<string, string> = { sms: "Text", email: "Email", both: "T
  * what several thousand people were told.
  */
 export default async function AdminDataBroadcastsPage() {
-  const sent = await listBroadcasts("data");
+  const [sent, unread] = await Promise.all([
+    listBroadcasts("data"),
+    unreadNotificationCount(),
+  ]);
 
   return (
     <Container className="py-8">
@@ -34,7 +38,7 @@ export default async function AdminDataBroadcastsPage() {
         icon={Megaphone}
       />
       <div className="mt-5">
-        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("data")} />
+        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("data", unread)} />
       </div>
 
       <div className="mt-6">
