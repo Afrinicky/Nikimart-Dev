@@ -527,3 +527,23 @@ export async function deleteOrder(fd: FormData): Promise<void> {
   await prisma.order.delete({ where: { id } });
   revalidatePath("/admin/orders");
 }
+
+/**
+ * Switch off somebody's two-step verification.
+ *
+ * The way back in for a lost phone or an abandoned inbox. It only ever turns
+ * it off — an admin cannot turn it on for somebody else, because enabling it
+ * means proving a code can be received, and that is not a thing you can prove
+ * on another person's behalf.
+ */
+export async function clearUserTwoFactor(userId: string): Promise<void> {
+  await requireAdmin();
+  await prisma.user.update({
+    where: { id: userId },
+    data: { twoFactorEnabled: false },
+  });
+  await prisma.twoFactorChallenge
+    .deleteMany({ where: { userId, consumedAt: null } })
+    .catch(() => undefined);
+  revalidatePath(`/admin/users/${userId}`);
+}

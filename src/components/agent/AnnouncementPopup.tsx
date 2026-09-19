@@ -77,13 +77,16 @@ export function AnnouncementPopup({ announcements }: { announcements: PopupAnnou
   const dismiss = () => seenAnnouncements.markSeen(current.id);
 
   return (
-    <div className="animate-fade-in fixed inset-0 z-[60] flex items-end justify-center bg-niki-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+    <div className="animate-fade-in fixed inset-0 z-[60] flex items-center justify-center bg-niki-black/70 p-4 backdrop-blur-sm">
       <button type="button" aria-label="Close" className="absolute inset-0" onClick={dismiss} />
+      {/* A card in the middle at every width, not a sheet stuck to the bottom
+          edge. A long notice grows downwards and then scrolls inside itself, so
+          it gets taller than it is wide rather than taking the whole screen. */}
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="announcement-title"
-        className="animate-sheet-up relative z-10 flex max-h-[85dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-w-lg sm:rounded-3xl"
+        className="animate-scale-in relative z-10 flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
       >
         <div className="flex items-center justify-between gap-4 border-b border-niki-edge px-5 py-4">
           <p className="font-display text-lg font-bold text-niki-ink">Announcement</p>
@@ -126,7 +129,7 @@ export function AnnouncementPopup({ announcements }: { announcements: PopupAnnou
           ) : null}
         </div>
 
-        <div className="flex justify-end border-t border-niki-edge px-5 py-4 pb-[max(env(safe-area-inset-bottom),1rem)] sm:pb-4">
+        <div className="flex justify-end border-t border-niki-edge px-5 py-4">
           <button
             type="button"
             onClick={dismiss}
