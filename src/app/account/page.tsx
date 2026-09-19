@@ -5,6 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { TwoFactorSettings } from "@/components/auth/TwoFactorSettings";
 import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/format";
@@ -45,7 +46,14 @@ export default async function AccountPage() {
 
   // Being a data agent is orthogonal to role — a customer can be one too — so
   // it gets its own entry point rather than riding on ROLE_HOME.
-  const [agent, program] = await Promise.all([getAgentForUser(user.id), getAgentProgramConfig()]);
+  const [agent, program, security] = await Promise.all([
+    getAgentForUser(user.id),
+    getAgentProgramConfig(),
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { twoFactorEnabled: true, twoFactorChannel: true, phone: true },
+    }),
+  ]);
 
   return (
     <>
@@ -109,6 +117,15 @@ export default async function AccountPage() {
           <StatCard label="Active orders" value={activeOrders} />
           <StatCard label="Total spent" value={formatPrice(totalSpent)} />
           <StatCard label="Saved items" value={0} />
+        </div>
+
+        <h2 className="mt-8 font-display text-lg font-bold text-niki-ink">Security</h2>
+        <div className="mt-4">
+          <TwoFactorSettings
+            enabled={security?.twoFactorEnabled ?? false}
+            channel={security?.twoFactorChannel ?? "email"}
+            hasPhone={Boolean(security?.phone)}
+          />
         </div>
 
         <h2 className="mt-8 font-display text-lg font-bold text-niki-ink">Recent orders</h2>

@@ -11,6 +11,8 @@ import { isRole, ROLE_HOME } from "@/lib/roles";
 import { findUserByIdentifier } from "@/lib/user-lookup";
 import { isAgentUser } from "@/lib/data-bundles/agents";
 import { clearRateLimit, rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+import { challengeState, issueChallenge } from "@/lib/two-factor";
+import { usableChannel, type TwoFactorChannel } from "@/lib/two-factor-rules";
 
 /** Best-effort client IP, for rate-limiting keys. */
 async function clientIp(): Promise<string> {
@@ -29,6 +31,12 @@ export type AuthFormState = {
    * sent back.
    */
   values?: { email?: string; name?: string; phone?: string };
+  /**
+   * Present when the password was right and a code has been sent. It carries
+   * nothing secret: the challenge is useless without the code, and the
+   * password is not held anywhere between the two steps.
+   */
+  twoFactor?: { challengeId: string; channel: TwoFactorChannel; hint: string };
 };
 
 const registerSchema = z.object({
@@ -232,6 +240,21 @@ export async function loginAction(
   const user = await findUserByIdentifier(identifier);
   const redirectTo = safeCallback(formData.get("callbackUrl")) ?? (await homeForUser(user));
 
+  // An account with a second step gets its password checked here rather than
+  // inside the provider, because what follows is a code rather than a session.
+  // The same wrong-password wording either way: which accounts have a second
+  // step is not something a sign-in form should disclose.
+  if (user?.twoFactorEnabled && user.passwordHash) {
+    if (!(await bcrypt.compare(parsed.data.password, user.passwordHash))) {
+      return { error: "Invalid email or password.", values };
+    }
+    const channel = usableChannel(user, user.twoFactorChannel);
+    const challenge = await issueChallenge(user, "SIGN_IN", channel);
+    // The password was right, so the guessing counters have done their job.
+    await clearRateLimit(accountKey);
+    return { values, twoFactor: challenge };
+  }
+
   try {
     await signIn("credentials", {
       email: identifier,
@@ -247,6 +270,56 @@ export async function loginAction(
     await clearRateLimit(accountKey);
     await clearRateLimit(ipKey);
     throw error;
+  }
+
+  return {};
+}
+
+const EXPIRED = "That code has expired. Enter your password again to get a new one.";
+
+/**
+ * The second step: spend the code and finish signing in.
+ *
+ * Rate-limited in its own right. The five attempts on the challenge stop one
+ * code being brute-forced; this stops somebody churning through challenges to
+ * get five fresh guesses at a time.
+ */
+export async function verifyTwoFactorAction(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const challengeId = String(formData.get("challengeId") ?? "").trim();
+  const code = String(formData.get("code") ?? "").trim();
+  const channel = String(formData.get("channel") ?? "email") as TwoFactorChannel;
+  const hint = String(formData.get("hint") ?? "");
+  const again: AuthFormState = { twoFactor: { challengeId, channel, hint } };
+
+  if (!challengeId) return { error: EXPIRED };
+  if (!/^\d{6}$/.test(code)) {
+    return { ...again, error: "Enter the 6-digit code.", fieldErrors: { code: "6 digits." } };
+  }
+
+  const limit = await rateLimit(`login-2fa:ip:${await clientIp()}`, 20, 15 * 60 * 1000);
+  if (!limit.ok) {
+    return { error: `Too many attempts. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
+  }
+
+  // Read-only, so the screen can say "expired" rather than "incorrect" without
+  // spending one of the five attempts to find out.
+  const state = await challengeState(challengeId, "SIGN_IN");
+  if (state === "missing" || state === "expired") return { error: EXPIRED };
+  if (state === "locked") {
+    return { error: "Too many wrong codes. Enter your password again to start over." };
+  }
+
+  const redirectTo = safeCallback(formData.get("callbackUrl")) ?? "/account";
+  try {
+    await signIn("two-factor", { challengeId, code, redirectTo });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return { ...again, error: "Incorrect code.", fieldErrors: { code: "Incorrect." } };
+    }
+    throw error; // NEXT_REDIRECT — the code was right
   }
 
   return {};

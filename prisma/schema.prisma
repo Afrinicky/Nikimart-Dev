@@ -31,6 +31,14 @@ model User {
    * console will not show them anything until they have replaced it.
    */
   mustChangePassword Boolean @default(false)
+  /**
+   * Whether a code is asked for after the password. Off unless the owner turns
+   * it on — a second step nobody chose is a lockout waiting to happen, and the
+   * people on this platform sign in from one phone with one SIM.
+   */
+  twoFactorEnabled   Boolean @default(false)
+  /// email | sms — where that code is sent.
+  twoFactorChannel   String  @default("email")
   // Role gates every dashboard. SQLite has no enums, so we store the role as a
   // string constrained by the Role helper in src/lib/roles.ts.
   role              String    @default("CUSTOMER")
@@ -48,6 +56,7 @@ model User {
   preferredPickup PickupPoint?         @relation("PreferredPickup", fields: [preferredPickupId], references: [id], onDelete: SetNull)
   shipments       Shipment[]           @relation("FreightAgent")
   passwordResets  PasswordResetToken[]
+  twoFactorChallenges TwoFactorChallenge[]
   affiliate       Affiliate?
   // No `dataAgent` relation: agent accounts live in the data-bundle database
   // (prisma/data/schema.prisma), which Postgres cannot reference from here.
@@ -73,6 +82,39 @@ model PasswordResetToken {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/**
+ * A code that has been sent and is waiting to be typed back.
+ *
+ * Two jobs, told apart by `purpose`, because a challenge raised to prove
+ * somebody can receive codes must not be spendable as a sign-in: SIGN_IN is
+ * created only once a password has already been checked, and ENABLE only for
+ * somebody already signed in.
+ *
+ * The code is stored as a SHA-256 hash, never itself. `attempts` is what makes
+ * six digits worth anything — without a cap they are a million guesses, which
+ * is an afternoon.
+ */
+model TwoFactorChallenge {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// SIGN_IN | ENABLE
+  purpose   String   @default("SIGN_IN")
+  codeHash  String
+  /// Where it was sent, so the screen can say so without guessing again.
+  channel   String   @default("email")
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  /// Set the moment it is spent. A consumed challenge is never valid again.
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Account {

@@ -9,6 +9,8 @@ export interface LookedUpUser {
   image: string | null;
   role: string;
   passwordHash: string | null;
+  twoFactorEnabled: boolean;
+  twoFactorChannel: string;
 }
 
 /**
@@ -23,7 +25,17 @@ export async function findUserByIdentifier(identifier: string): Promise<LookedUp
   if (looksLikeEmail(id)) {
     return prisma.user.findUnique({
       where: { email: id.toLowerCase() },
-      select: { id: true, name: true, email: true, phone: true, image: true, role: true, passwordHash: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        image: true,
+        role: true,
+        passwordHash: true,
+        twoFactorEnabled: true,
+        twoFactorChannel: true,
+      },
     });
   }
 
@@ -32,7 +44,8 @@ export async function findUserByIdentifier(identifier: string): Promise<LookedUp
 
   // Phone isn't stored in a normalised form, so match on trailing digits.
   const rows = await prisma.$queryRaw<LookedUpUser[]>`
-    SELECT "id", "name", "email", "phone", "image", "role", "passwordHash"
+    SELECT "id", "name", "email", "phone", "image", "role", "passwordHash",
+           "twoFactorEnabled", "twoFactorChannel"
     FROM "User"
     WHERE "phone" IS NOT NULL
       AND right(regexp_replace("phone", '[^0-9]', '', 'g'), 9) = ${last9}
