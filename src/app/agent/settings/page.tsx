@@ -4,6 +4,7 @@ import { BadgeCheck } from "lucide-react";
 import { AgentPageHeading, Card, formatWhen } from "@/components/agent/AgentUi";
 import { AgentPasswordForm, AgentProfileForm } from "@/components/agent/AgentProfileForm";
 import { CopyChip } from "@/components/agent/AgentCode";
+import { TwoFactorSettings } from "@/components/auth/TwoFactorSettings";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
@@ -18,7 +19,16 @@ export default async function AgentSettingsPage() {
   if (!agent) redirect("/become-an-agent");
 
   const profile = await prisma.user
-    .findUnique({ where: { id: user.id }, select: { name: true, email: true, phone: true } })
+    .findUnique({
+      where: { id: user.id },
+      select: {
+        name: true,
+        email: true,
+        phone: true,
+        twoFactorEnabled: true,
+        twoFactorChannel: true,
+      },
+    })
     .catch(() => null);
 
   return (
@@ -34,6 +44,12 @@ export default async function AgentSettingsPage() {
       />
 
       <AgentPasswordForm />
+
+      <TwoFactorSettings
+        enabled={profile?.twoFactorEnabled ?? false}
+        channel={profile?.twoFactorChannel ?? "email"}
+        hasPhone={Boolean(profile?.phone ?? agent.supportPhone)}
+      />
 
       <Card title="Account" icon={BadgeCheck}>
         <dl className="grid gap-4 sm:grid-cols-3">

@@ -19,6 +19,12 @@ import { isChannel, usableChannel, type TwoFactorChannel } from "@/lib/two-facto
  * which is the same proof the second step exists to ask for.
  */
 
+/** The two screens the security card is shown on. */
+function revalidateSecurity() {
+  revalidatePath("/account");
+  revalidatePath("/agent/settings");
+}
+
 export type TwoFactorState = {
   ok?: boolean;
   error?: string;
@@ -83,7 +89,7 @@ export async function confirmTwoFactorSetup(
     where: { id: session.id },
     data: { twoFactorEnabled: true, twoFactorChannel: channel },
   });
-  revalidatePath("/account");
+  revalidateSecurity();
   return {
     ok: true,
     message: `Two-step verification is on. You'll be asked for a code at ${hint || "sign-in"}.`,
@@ -100,5 +106,5 @@ export async function disableTwoFactor(): Promise<void> {
   await prisma.twoFactorChallenge
     .deleteMany({ where: { userId: session.id, consumedAt: null } })
     .catch(() => undefined);
-  revalidatePath("/account");
+  revalidateSecurity();
 }

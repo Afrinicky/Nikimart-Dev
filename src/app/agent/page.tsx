@@ -13,8 +13,10 @@ import { ActionLink } from "@/components/ui/motion";
 import { AgentTopup, type TopupBundle } from "@/components/agent/AgentTopup";
 import { QuickActions } from "@/components/agent/QuickActions";
 import { AgentTour } from "@/components/agent/AgentTour";
+import { AgentAlerts, type AgentAlert } from "@/components/agent/AgentAlerts";
 import { BoardCard } from "@/components/agent/LeaderboardUi";
 import { requireUser } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
 import {
@@ -97,8 +99,30 @@ export default async function AgentDashboardPage() {
 
   const storeLink = `${siteUrl()}/store/${agent.slug}`;
 
+  // What the strip has to say today. A list rather than a banner, because the
+  // next thing worth saying should be a row added here.
+  const security = await prisma.user
+    .findUnique({ where: { id: user.id }, select: { twoFactorEnabled: true } })
+    .catch(() => null);
+
+  const alerts: AgentAlert[] = [];
+  if (security && !security.twoFactorEnabled) {
+    alerts.push({
+      key: "two-factor",
+      tone: "info",
+      icon: "shield",
+      title: "Protect your account with two-step verification",
+      body: "A code by text or email each time you sign in. Your commission lives behind this password.",
+      href: "/agent/settings",
+      cta: "Turn it on",
+    });
+  }
+
   return (
     <div className="space-y-5">
+      {/* Things worth a moment before the numbers. */}
+      <AgentAlerts alerts={alerts} />
+
       {/*
         What an agent logs in to do, before anything they log in to read: the
         three things they are always being asked to send, and the four screens
