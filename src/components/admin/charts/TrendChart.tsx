@@ -11,9 +11,11 @@ import { cn } from "@/lib/cn";
  * than a block: it is there to show the shape, and the numbers that matter are
  * printed above it and in the tooltip.
  *
- * Every day in the window is a point, including the ones that sold nothing.
+ * Every stretch of the window is a point, including the ones that sold nothing.
  * Drawing only the days that traded compresses a quiet week into a single step
  * and turns a dip into a plateau, which is the one thing a trend must not do.
+ * Long windows arrive bucketed into weeks or months rather than as hundreds of
+ * one-pixel days, and a bucketed point says its span in the tooltip.
  *
  * The plot is stretched to its container rather than letterboxed inside it, so
  * the marks keep their real thickness through `vector-effect` and the end
@@ -23,6 +25,15 @@ import { cn } from "@/lib/cn";
 
 export interface TrendPoint {
   day: string;
+  /**
+   * The last day this point covers, when it covers more than one.
+   *
+   * A window of two years drawn as daily points is a mark a pixel wide that
+   * nothing can hover, so long windows arrive already bucketed into weeks or
+   * months. The tooltip then has to say so — a point labelled "1 Mar" that is
+   * really the whole of March is a figure read wrong.
+   */
+  endDay?: string;
   /** What is plotted. */
   value: number;
   /**
@@ -67,7 +78,7 @@ export function TrendChart({ points, countLabel }: { points: TrendPoint[]; count
           preserveAspectRatio="none"
           className="h-full w-full"
           role="img"
-          aria-label={`Daily trend over ${points.length} days`}
+          aria-label={`Trend over ${points.length} points`}
         >
           {/* Recessive baseline and midline. Hairline, solid, one step off the
               surface — enough to read a height against, not to look at. */}
@@ -147,7 +158,11 @@ export function TrendChart({ points, countLabel }: { points: TrendPoint[]; count
             hover! > points.length / 2 ? "left-2" : "right-2",
           )}
         >
-          <p className="font-semibold">{longDay(active.day)}</p>
+          <p className="font-semibold">
+            {active.endDay && active.endDay !== active.day
+              ? spanOfDays(active.day, active.endDay)
+              : longDay(active.day)}
+          </p>
           <p className="font-figures text-sm font-bold">{active.label}</p>
           <p className="text-white/60">
             {active.count} {countLabel}
@@ -161,6 +176,18 @@ export function TrendChart({ points, countLabel }: { points: TrendPoint[]; count
 function shortDay(iso: string): string {
   const [, m, d] = iso.split("-");
   return `${d} ${MONTHS[Number(m) - 1]}`;
+}
+
+/** "1–7 Mar 2026", "28 Feb – 6 Mar 2026". */
+function spanOfDays(from: string, to: string): string {
+  const [fy, fm, fd] = from.split("-");
+  const [ty, tm, td] = to.split("-");
+  const left =
+    fy === ty && fm === tm
+      ? String(Number(fd))
+      : `${Number(fd)} ${MONTHS[Number(fm) - 1]}${fy === ty ? "" : ` ${fy}`}`;
+  const joiner = fy === ty && fm === tm ? "–" : " – ";
+  return `${left}${joiner}${Number(td)} ${MONTHS[Number(tm) - 1]} ${ty}`;
 }
 
 function longDay(iso: string): string {

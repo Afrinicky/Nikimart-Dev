@@ -12,6 +12,7 @@ import {
   Inbox,
   LifeBuoy,
   ListOrdered,
+  PiggyBank,
   RefreshCw,
   TrendingUp,
   Users,
@@ -32,9 +33,9 @@ import {
   getSourceMix,
   getStatusMix,
   getWindowTotals,
-  overviewRange,
-  OVERVIEW_RANGES,
+  resolveWindow,
 } from "@/lib/data-bundles/overview";
+import { OverviewRange } from "@/components/admin/OverviewRange";
 import { getProviderBalance, isDataProviderConfigured, providerBase } from "@/lib/data-bundles/provider";
 import { isPaymentConfigured } from "@/lib/payments";
 import { emailStatus, isSmsConfigured } from "@/lib/notifications";
@@ -64,6 +65,12 @@ export const dynamic = "force-dynamic";
  * it, every number leads to the rows it was counted from, and the shape of the
  * business is drawn rather than listed — the same figures, but as something
  * you can read at a glance instead of arithmetic you have to do in your head.
+ *
+ * The window is the admin's to choose. Three preset lengths could not answer
+ * the two questions people kept bringing here — what has this business done in
+ * total, and what did it do in that fortnight in March — so all time and an
+ * arbitrary pair of dates are windows like any other, and the comparison is
+ * simply left off where there is nothing honest to compare against.
  */
 
 /** The reserved status colours, a step darker than the text tokens. A fill
@@ -202,9 +209,9 @@ function Panel({
 export default async function AdminDataOverviewPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ days?: string }>;
+  searchParams?: Promise<{ days?: string; from?: string; to?: string }>;
 }) {
-  const days = overviewRange((await searchParams)?.days);
+  const period = resolveWindow(await searchParams);
   const providerReady = isDataProviderConfigured();
 
   const [
@@ -241,12 +248,12 @@ export default async function AdminDataOverviewPage({
       .catch(() => null),
     pendingApplicationCount(),
     dataDb.dataSupportRequest.count({ where: { status: "open" } }).catch(() => 0),
-    getWindowTotals(days),
-    getDailySeries(days),
-    getNetworkMix(days),
-    getSourceMix(days),
-    getStatusMix(days),
-    getAgentPerformance(days),
+    getWindowTotals(period),
+    getDailySeries(period),
+    getNetworkMix(period),
+    getSourceMix(period),
+    getStatusMix(period),
+    getAgentPerformance(period),
     getWithdrawalTotals(),
     getBellState(),
   ]);
@@ -260,7 +267,7 @@ export default async function AdminDataOverviewPage({
   const owedToAgents = agents.reduce((sum, a) => sum + Math.max(0, a.balance), 0);
   const activeAgents = agents.filter((a) => a.status === "active").length;
 
-  const windowLabel = days === 7 ? "last 7 days" : days === 30 ? "last 30 days" : "last 90 days";
+  const windowLabel = period.label;
 
   const statusSlices = [
     {
@@ -496,25 +503,13 @@ export default async function AdminDataOverviewPage({
       </a>
 
       {/* The window everything below is measured over. */}
-      <div className="mt-5 flex items-center gap-1.5">
-        <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-niki-ink/40">
-          Showing
-        </span>
-        {OVERVIEW_RANGES.map((r) => (
-          <ActionLink
-            key={r}
-            href={`/admin/data?days=${r}`}
-            aria-current={r === days ? "page" : undefined}
-            className={cn(
-              "niki-focus rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
-              r === days
-                ? "bg-niki-black text-white"
-                : "bg-white text-niki-ink/60 ring-1 ring-niki-edge hover:text-niki-ink",
-            )}
-          >
-            {r} days
-          </ActionLink>
-        ))}
+      <div className="mt-5">
+        <OverviewRange
+          active={period.key}
+          label={period.label}
+          from={period.from}
+          to={period.to}
+        />
       </div>
 
       {/* Trading, over the window. */}
@@ -525,7 +520,7 @@ export default async function AdminDataOverviewPage({
           hint={windowLabel}
           href="/admin/data/orders"
           icon={TrendingUp}
-          delta={changePercent(totals.revenue, totals.previous.revenue)}
+          delta={changePercent(totals.revenue, totals.previous?.revenue)}
         />
         <Stat
           label="Orders"
@@ -533,7 +528,7 @@ export default async function AdminDataOverviewPage({
           hint={`${stats.todayOrders} today`}
           href="/admin/data/orders"
           icon={ListOrdered}
-          delta={changePercent(totals.orders, totals.previous.orders)}
+          delta={changePercent(totals.orders, totals.previous?.orders)}
         />
         <Stat
           label="Gross margin"
@@ -606,6 +601,7 @@ export default async function AdminDataOverviewPage({
           <TrendChart
             points={series.map((d) => ({
               day: d.day,
+              endDay: d.endDay,
               value: d.revenue,
               label: formatPrice(d.revenue),
               count: d.orders,
@@ -650,7 +646,7 @@ export default async function AdminDataOverviewPage({
       </div>
 
       {/* The agent network. */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Stat
           label="Agents"
           value={String(agents.length)}
@@ -664,6 +660,22 @@ export default async function AdminDataOverviewPage({
           hint="All time, through agent storefronts"
           href="/admin/data/agents"
           icon={TrendingUp}
+        />
+        {/* What the network is actually worth to Nickimart. "Agent sales" is
+            what customers paid, and most of that is the agent's own cut and the
+            provider's — the figure that says whether recruiting is paying for
+            itself is what is left after both. */}
+        <Stat
+          label="Income from agents"
+          value={formatPrice(totals.agentIncome)}
+          hint={
+            totals.agentOrders > 0
+              ? `${windowLabel} · after commission and cost, on ${totals.agentOrders} ${totals.agentOrders === 1 ? "sale" : "sales"}`
+              : "No agent sold anything in this window"
+          }
+          href="/admin/data/agents"
+          icon={PiggyBank}
+          tone={totals.agentIncome > 0 ? "success" : "ink"}
         />
         <Stat
           label="Owed to agents"
