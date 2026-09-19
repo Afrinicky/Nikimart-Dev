@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import {
   Coins,
   HandCoins,
+  Activity,
+  Network,
   ReceiptText,
   TrendingUp,
   UserPlus,
@@ -12,6 +14,8 @@ import { AgentPageHeading, Card, formatWhen } from "@/components/agent/AgentUi";
 import { ReferralShare } from "@/components/agent/ReferralShare";
 import { TeamRange } from "@/components/agent/TeamRange";
 import { TeamTable } from "@/components/agent/TeamTable";
+import { TeamTree } from "@/components/agent/TeamTree";
+import { TeamPosts } from "@/components/agent/TeamPosts";
 import { requireUser } from "@/lib/session";
 import { formatMoney } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
@@ -21,6 +25,7 @@ import { referralLink, referralRewardsLine } from "@/lib/data-bundles/referral-r
 import { registrationFeeStatus } from "@/lib/data-bundles/registration-fee";
 import { dayKey, resolveWindow } from "@/lib/data-bundles/overview-window";
 import { getTeamIncomeEntries, getTeamView } from "@/lib/data-bundles/team/metrics";
+import { getTeamActivity, getTeamPosts } from "@/lib/data-bundles/team/communication";
 import { TEAM_INCOME_LABELS, type TeamIncomeType } from "@/lib/data-bundles/team/rules";
 import { cn } from "@/lib/cn";
 
@@ -84,10 +89,12 @@ export default async function AgentTeamPage({
   const active =
     period.key === "custom" && period.from === today && period.to === today ? "today" : period.key;
 
-  const [team, entries, config] = await Promise.all([
+  const [team, entries, config, posts, activity] = await Promise.all([
     getTeamView(agent.id, period),
     getTeamIncomeEntries(agent.id, period, { take: 8 }),
     getReferralConfig(),
+    getTeamPosts(agent.id, 10),
+    getTeamActivity(agent.id, 12),
   ]);
 
   const fee = registrationFeeStatus(agent);
@@ -180,6 +187,53 @@ export default async function AgentTeamPage({
         <TeamTable
           rows={team.rows}
           empty="Share your link and the people who join with it appear here."
+        />
+      </Card>
+
+      <TeamPosts posts={posts} />
+
+      {/* Derived from the members, orders and ledger entries that exist anyway,
+          so the feed cannot say something the records do not. */}
+      <Card title="Team activity" description="What they have been doing" icon={Activity}>
+        {activity.length === 0 ? (
+          <p className="rounded-xl bg-niki-surface px-4 py-8 text-center text-sm text-niki-ink/55">
+            Nothing yet. Activity shows up here as your team trades.
+          </p>
+        ) : (
+          <ul className="divide-y divide-niki-edge">
+            {activity.map((a) => (
+              <li key={a.id} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-niki-ink/80">{a.text}</p>
+                  <p className="truncate text-[11px] text-niki-ink/45">{formatWhen(a.at)}</p>
+                </div>
+                {a.amount === undefined ? null : (
+                  <span
+                    className={cn(
+                      "shrink-0 font-figures text-sm font-bold",
+                      a.kind === "earned" ? "text-niki-success" : "text-niki-ink/60",
+                    )}
+                  >
+                    {a.kind === "earned" ? "+" : ""}
+                    {formatMoney(a.amount)}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card
+        title="Team structure"
+        description="Who brought in whom"
+        icon={Network}
+      >
+        <TeamTree
+          leaderName={agent.storeName}
+          leaderCode={agent.code}
+          nodes={team.rows}
+          empty="Nobody has joined with your code yet."
         />
       </Card>
 

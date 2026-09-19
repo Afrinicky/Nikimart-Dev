@@ -311,6 +311,10 @@ model DataAgent {
    * call (see the referralFullWaiverPaysReward setting). Set per agent, so a
    * recruiter who has earned it can bring people in cheaper than the rest.
    */
+  teamPosts      DataTeamPost[] @relation("TeamPostAuthor")
+  teamNotesWritten DataTeamNote[] @relation("TeamNoteAuthor")
+  teamNotesAbout   DataTeamNote[] @relation("TeamNoteSubject")
+
   referralWaiverPercent Float?
   /**
    * Of whatever this agent's own recruits *do* pay towards their registration,
@@ -957,6 +961,53 @@ model DataNotification {
   @@index([readAt, createdAt])
   @@index([kind, createdAt])
   @@index([createdAt])
+}
+
+/**
+ * Something a team leader wrote to their own team.
+ *
+ * Distinct from a Nickimart announcement, which comes from the platform and
+ * goes to everybody. This one belongs to one leader and reaches their own two
+ * levels — the difference between "the store is closed on Friday" and "well
+ * done Ama, and here is what worked".
+ */
+model DataTeamPost {
+  id       String @id @default(cuid())
+  /// The agent who wrote it. Their own team is who can read it.
+  leaderId String
+  leader   DataAgent @relation("TeamPostAuthor", fields: [leaderId], references: [id], onDelete: Cascade)
+
+  title String
+  body  String
+  /// Pinned posts sit above the rest whatever their date.
+  isPinned Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([leaderId, createdAt])
+}
+
+/**
+ * A leader's private note about one of their members.
+ *
+ * Mentorship is mostly remembering: what was agreed last time, what they were
+ * struggling with, what they asked for. Visible only to the leader who wrote
+ * it — a member reading their own coaching notes changes what gets written
+ * down, and then the notes stop being useful.
+ */
+model DataTeamNote {
+  id       String @id @default(cuid())
+  leaderId String
+  leader   DataAgent @relation("TeamNoteAuthor", fields: [leaderId], references: [id], onDelete: Cascade)
+  memberId String
+  member   DataAgent @relation("TeamNoteSubject", fields: [memberId], references: [id], onDelete: Cascade)
+
+  body String
+
+  createdAt DateTime @default(now())
+
+  @@index([leaderId, memberId, createdAt])
 }
 
 model DataSetting {

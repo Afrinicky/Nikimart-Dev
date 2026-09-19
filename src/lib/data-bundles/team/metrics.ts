@@ -53,6 +53,8 @@ export interface TeamMemberRow {
   storeName: string;
   ownerName: string;
   level: MemberLevel;
+  /** Who brought them in — the leader themselves, or one of their recruits. */
+  recruitedById: string | null;
   status: string;
   activity: MemberActivity;
   joinedAt: Date;
@@ -116,6 +118,7 @@ export async function getTeamView(leaderId: string, w: OverviewWindow): Promise<
           storeName: true,
           status: true,
           userId: true,
+          referredById: true,
           createdAt: true,
           setupFeePaidAt: true,
         },
@@ -187,6 +190,7 @@ export async function getTeamView(leaderId: string, w: OverviewWindow): Promise<
           storeName: a.storeName,
           ownerName: user?.name ?? "",
           level: level.get(a.id) ?? 1,
+          recruitedById: a.referredById,
           status: a.status,
           activity: memberActivity(lastSoldAt, now),
           joinedAt: a.createdAt,
@@ -283,6 +287,8 @@ export interface MemberProfile {
   ownerEmail: string;
   supportPhone: string;
   level: MemberLevel;
+  /** Who brought them in — the leader themselves, or one of their recruits. */
+  recruitedById: string | null;
   status: string;
   activity: MemberActivity;
   joinedAt: Date;
@@ -338,6 +344,7 @@ export async function getMemberProfile(
         status: true,
         userId: true,
         supportPhone: true,
+        referredById: true,
         createdAt: true,
         setupFeePaidAt: true,
       },
@@ -423,6 +430,7 @@ export async function getMemberProfile(
     ownerEmail: user?.email ?? "",
     supportPhone: agent.supportPhone ?? "",
     level,
+    recruitedById: agent.referredById,
     status: agent.status,
     activity: memberActivity(lastSoldAt),
     joinedAt: agent.createdAt,

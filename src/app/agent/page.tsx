@@ -27,6 +27,7 @@ import {
 } from "@/lib/data-bundles/agents";
 import { getLeaderboardView } from "@/lib/data-bundles/leaderboard";
 import { referralLink } from "@/lib/data-bundles/referral-rules";
+import { getPostsForMember } from "@/lib/data-bundles/team/communication";
 
 export const metadata: Metadata = { title: "Agent Dashboard — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -101,11 +102,30 @@ export default async function AgentDashboardPage() {
 
   // What the strip has to say today. A list rather than a banner, because the
   // next thing worth saying should be a row added here.
-  const security = await prisma.user
-    .findUnique({ where: { id: user.id }, select: { twoFactorEnabled: true } })
-    .catch(() => null);
+  const [security, fromLeader] = await Promise.all([
+    prisma.user
+      .findUnique({ where: { id: user.id }, select: { twoFactorEnabled: true } })
+      .catch(() => null),
+    getPostsForMember(agent.id, 1),
+  ]);
 
   const alerts: AgentAlert[] = [];
+
+  // What their own recruiter has told them. The key carries the post id, so a
+  // new one shows even after the last was waved away.
+  const latest = fromLeader[0];
+  if (latest) {
+    alerts.push({
+      key: `team-post:${latest.id}`,
+      tone: "success",
+      icon: "megaphone",
+      title: latest.title,
+      body: latest.body.length > 140 ? `${latest.body.slice(0, 140)}…` : latest.body,
+      href: "/agent/team",
+      cta: "Read it",
+    });
+  }
+
   if (security && !security.twoFactorEnabled) {
     alerts.push({
       key: "two-factor",

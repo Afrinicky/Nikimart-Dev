@@ -17,6 +17,8 @@ import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { resolveWindow } from "@/lib/data-bundles/overview-window";
 import { memberLevelFor } from "@/lib/data-bundles/team/hierarchy";
 import { getMemberProfile, getTeamIncomeEntries } from "@/lib/data-bundles/team/metrics";
+import { getMemberNotes } from "@/lib/data-bundles/team/communication";
+import { MemberNotes } from "@/components/agent/MemberNotes";
 import {
   ACTIVITY_LABELS,
   ACTIVITY_TONES,
@@ -77,9 +79,10 @@ export default async function TeamMemberPage({
   if (!level) notFound();
 
   const period = resolveWindow(await searchParams);
-  const [member, entries] = await Promise.all([
+  const [member, entries, notes] = await Promise.all([
     getMemberProfile(agent.id, id, level, period),
     getTeamIncomeEntries(agent.id, period, { memberId: id, take: 20 }),
+    getMemberNotes(agent.id, id),
   ]);
   if (!member) notFound();
 
@@ -243,6 +246,8 @@ export default async function TeamMemberPage({
               <Line label="Store" value={`/store/${member.slug}`} />
             </dl>
           </Card>
+
+          <MemberNotes memberId={member.id} notes={notes} />
 
           {/* The point of a team screen: being able to pick up the phone. */}
           <Card title="Reach them" icon={Phone}>
