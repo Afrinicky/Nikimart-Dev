@@ -69,13 +69,33 @@ export function TrendChart({ points, countLabel }: { points: TrendPoint[]; count
   const x = (i: number) => (points.length === 1 ? W / 2 : (i / (points.length - 1)) * W);
   const y = (v: number) => PAD.top + innerH - (v / max) * innerH;
 
-  const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(p.value)}`).join(" ");
-  const area = `${line} L${x(points.length - 1)},${H} L${x(0)},${H} Z`;
+  /**
+   * The hovered index, but only while it still names a point.
+   *
+   * Clicking a point navigates, and the chart it lands on is the same
+   * component in the same place — so React keeps this state while `points`
+   * is replaced underneath it. A day picked out of a month leaves an index of
+   * 12 pointing into an array of one, and everything downstream reads
+   * `points[12].value` off undefined. Derived rather than reset in an effect,
+   * because the bad render is the one that happens before an effect could run.
+   */
+  const hovered = hover !== null && hover >= 0 && hover < points.length ? hover : null;
 
-  const active = hover === null ? null : points[hover];
+  // A window of one day is a level, not a slope: drawn as a point alone it is
+  // a dot in an empty box that reads as a chart that failed to load.
+  const line =
+    points.length === 1
+      ? `M0,${y(points[0].value)} L${W},${y(points[0].value)}`
+      : points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(p.value)}`).join(" ");
+  const area =
+    points.length === 1
+      ? `${line} L${W},${H} L0,${H} Z`
+      : `${line} L${x(points.length - 1)},${H} L${x(0)},${H} Z`;
+
+  const active = hovered === null ? null : points[hovered];
   const peak = points.reduce((best, p, i) => (p.value > points[best].value ? i : best), 0);
-  const marked = [points.length - 1, peak, hover ?? -1].filter(
-    (i, idx, all) => i >= 0 && all.indexOf(i) === idx,
+  const marked = [points.length - 1, peak, hovered ?? -1].filter(
+    (i, idx, all) => i >= 0 && i < points.length && all.indexOf(i) === idx,
   );
 
   return (
@@ -116,8 +136,8 @@ export function TrendChart({ points, countLabel }: { points: TrendPoint[]; count
 
           {active ? (
             <line
-              x1={x(hover!)}
-              x2={x(hover!)}
+              x1={x(hovered!)}
+              x2={x(hovered!)}
               y1={PAD.top}
               y2={H}
               stroke="var(--color-niki-ink)"
@@ -173,7 +193,7 @@ export function TrendChart({ points, countLabel }: { points: TrendPoint[]; count
                 : "translate-y-[0.6rem]",
             )}
             style={{
-              left: `clamp(5.75rem, ${(x(hover!) / W) * 100}%, calc(100% - 5.75rem))`,
+              left: `clamp(5.75rem, ${(x(hovered!) / W) * 100}%, calc(100% - 5.75rem))`,
               top: `${(y(active.value) / H) * 100}%`,
             }}
           >
