@@ -306,6 +306,13 @@ export interface AgentPerformance {
   orders: number;
   sales: number;
   commission: number;
+  /**
+   * What Nickimart kept on their sales: what the customer paid, less this
+   * agent's commission, less their recruiter's cut, less the bundle's cost.
+   * The figures are the ones snapshotted on each order, so a later price or
+   * rate change never rewrites what a past sale made.
+   */
+  income: number;
   recruits: number;
   status: string;
 }
@@ -331,7 +338,7 @@ export async function getAgentPerformance(
         ...within(w),
       },
       _count: { _all: true },
-      _sum: { price: true, agentCommission: true },
+      _sum: { price: true, costPrice: true, agentCommission: true, teamCommission: true },
     });
     if (sales.length === 0) return { rows: [], sellingAgents: 0 };
 
@@ -341,6 +348,12 @@ export async function getAgentPerformance(
         orders: s._count._all,
         sales: round2(s._sum.price ?? 0),
         commission: round2(s._sum.agentCommission ?? 0),
+        income: round2(
+          (s._sum.price ?? 0) -
+            (s._sum.costPrice ?? 0) -
+            (s._sum.agentCommission ?? 0) -
+            (s._sum.teamCommission ?? 0),
+        ),
       }))
       .sort((a, b) => b.sales - a.sales)
       .slice(0, limit);

@@ -10,6 +10,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const user = await requireDashboard("/admin");
 
   return (
-    <AdminShell user={{ name: user.name, email: user.email }}>{children}</AdminShell>
+    <AdminShell user={{ id: user.id, name: user.name, email: user.email }}>{children}</AdminShell>
   );
 }

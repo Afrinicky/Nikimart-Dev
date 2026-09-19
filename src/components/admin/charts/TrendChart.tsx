@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 
 /**
@@ -45,6 +46,12 @@ export interface TrendPoint {
   label: string;
   /** A second figure for the tooltip, e.g. how many orders made that revenue. */
   count: number;
+  /**
+   * Where this point's figures come from. Given, the column is clickable and
+   * opens them — a number you can see the shape of but not get behind is only
+   * half a chart.
+   */
+  href?: string;
 }
 
 const W = 720;
@@ -52,6 +59,7 @@ const H = 180;
 const PAD = { top: 12, bottom: 12 };
 
 export function TrendChart({ points, countLabel }: { points: TrendPoint[]; countLabel: string }) {
+  const router = useRouter();
   const [hover, setHover] = useState<number | null>(null);
 
   if (points.length === 0) return null;
@@ -120,7 +128,8 @@ export function TrendChart({ points, countLabel }: { points: TrendPoint[]; count
           ) : null}
 
           {/* Hit targets: a full-height band per day, so the crosshair catches
-              a cursor anywhere in the column rather than only on the mark. */}
+              a cursor anywhere in the column rather than only on the mark — and
+              so a click lands on the column rather than on a two-pixel dot. */}
           {points.map((p, i) => (
             <rect
               key={p.day}
@@ -129,7 +138,9 @@ export function TrendChart({ points, countLabel }: { points: TrendPoint[]; count
               width={W / points.length}
               height={H}
               fill="transparent"
+              className={p.href ? "cursor-pointer" : undefined}
               onMouseEnter={() => setHover(i)}
+              onClick={p.href ? () => router.push(p.href!) : undefined}
             />
           ))}
         </svg>
@@ -144,31 +155,45 @@ export function TrendChart({ points, countLabel }: { points: TrendPoint[]; count
             style={{ left: `${(x(i) / W) * 100}%`, top: `${(y(points[i].value) / H) * 100}%` }}
           />
         ))}
+
+        {/* The tooltip sits on the point it is describing. Parked in a corner it
+            reads as a caption for the whole chart, and the crosshair becomes the
+            only thing saying which day you are actually looking at.
+
+            It flips below the mark near the top of the plot rather than running
+            up over the panel's own heading, and `clamp` keeps it inside the
+            chart at either end — a tooltip half off the screen is worse than one
+            slightly off-centre. */}
+        {active ? (
+          <div
+            className={cn(
+              "pointer-events-none absolute z-10 w-max max-w-[calc(100%-1rem)] -translate-x-1/2 rounded-xl bg-niki-black px-3 py-2 text-xs text-white shadow-lg",
+              y(active.value) > H * 0.42
+                ? "-translate-y-[calc(100%+0.6rem)]"
+                : "translate-y-[0.6rem]",
+            )}
+            style={{
+              left: `clamp(5.75rem, ${(x(hover!) / W) * 100}%, calc(100% - 5.75rem))`,
+              top: `${(y(active.value) / H) * 100}%`,
+            }}
+          >
+            <p className="font-semibold">
+              {active.endDay && active.endDay !== active.day
+                ? spanOfDays(active.day, active.endDay)
+                : longDay(active.day)}
+            </p>
+            <p className="font-figures text-sm font-bold">{active.label}</p>
+            <p className="text-white/60">
+              {active.count} {countLabel}
+            </p>
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-1 flex items-center justify-between px-1 text-[11px] text-niki-ink/40">
         <span>{shortDay(points[0].day)}</span>
         <span>{shortDay(points[points.length - 1].day)}</span>
       </div>
-
-      {active ? (
-        <div
-          className={cn(
-            "pointer-events-none absolute top-0 rounded-xl bg-niki-black px-3 py-2 text-xs text-white shadow-lg",
-            hover! > points.length / 2 ? "left-2" : "right-2",
-          )}
-        >
-          <p className="font-semibold">
-            {active.endDay && active.endDay !== active.day
-              ? spanOfDays(active.day, active.endDay)
-              : longDay(active.day)}
-          </p>
-          <p className="font-figures text-sm font-bold">{active.label}</p>
-          <p className="text-white/60">
-            {active.count} {countLabel}
-          </p>
-        </div>
-      ) : null}
     </div>
   );
 }

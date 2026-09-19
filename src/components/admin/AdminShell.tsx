@@ -37,6 +37,7 @@ import {
 import { ActionLink } from "@/components/ui/motion";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { AdminUserMenu } from "@/components/admin/AdminUserMenu";
 import { cn } from "@/lib/cn";
 
 /**
@@ -162,7 +163,7 @@ export function AdminShell({
   user,
   children,
 }: {
-  user: { name: string | null; email: string | null };
+  user: { id: string; name: string | null; email: string | null };
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -332,13 +333,7 @@ export function AdminShell({
             </div>
 
             <div className="ml-auto flex items-center gap-2.5">
-              <span className="hidden text-right sm:block">
-                <span className="block text-sm font-semibold leading-tight text-niki-ink">{who}</span>
-                <span className="block text-[11px] leading-tight text-niki-ink/45">Administrator</span>
-              </span>
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-niki-black text-sm font-bold text-niki-orange">
-                {who.slice(0, 1).toUpperCase()}
-              </span>
+              <AdminUserMenu name={who} email={user.email ?? ""} userId={user.id} />
             </div>
           </div>
         </header>

@@ -605,6 +605,10 @@ export default async function AdminDataOverviewPage({
               value: d.revenue,
               label: formatPrice(d.revenue),
               count: d.orders,
+              // Clicking a point narrows the whole overview onto it, so every
+              // panel below — the networks, the channels, who sold what — is
+              // describing that day rather than the window it sat inside.
+              href: `/admin/data?from=${d.day}&to=${d.endDay ?? d.day}`,
             }))}
             countLabel="orders"
           />
@@ -713,10 +717,11 @@ export default async function AdminDataOverviewPage({
           ) : (
             <>
               <div className="hidden grid-cols-12 gap-3 px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-niki-ink/40 sm:grid">
-                <span className="col-span-5">Agent</span>
-                <span className="col-span-2 text-right">Orders</span>
+                <span className="col-span-4">Agent</span>
+                <span className="col-span-1 text-right">Orders</span>
                 <span className="col-span-2 text-right">Sales</span>
                 <span className="col-span-2 text-right">Commission</span>
+                <span className="col-span-2 text-right">Income</span>
                 <span className="col-span-1 text-right">Team</span>
               </div>
               <ul className="space-y-1">
@@ -729,7 +734,7 @@ export default async function AdminDataOverviewPage({
                         className="niki-focus block rounded-xl px-3 py-2.5 transition-colors hover:bg-niki-surface/70"
                       >
                         <div className="grid grid-cols-1 gap-1 sm:grid-cols-12 sm:items-center sm:gap-3">
-                          <div className="min-w-0 sm:col-span-5">
+                          <div className="min-w-0 sm:col-span-4">
                             <p className="truncate text-sm font-semibold text-niki-ink">
                               {a.storeName}
                             </p>
@@ -738,8 +743,11 @@ export default async function AdminDataOverviewPage({
                               {a.ownerName ? ` · ${a.ownerName}` : ""}
                             </p>
                           </div>
-                          <div className="flex items-center justify-between gap-3 text-xs sm:col-span-7 sm:grid sm:grid-cols-7 sm:text-sm">
-                            <span className="text-niki-ink/60 sm:col-span-2 sm:text-right">
+                          {/* Wraps rather than squeezes on a phone: five labelled
+                              figures in one justified row leaves each of them a
+                              couple of characters wide. */}
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:col-span-8 sm:grid sm:grid-cols-8 sm:gap-3 sm:text-sm">
+                            <span className="text-niki-ink/60 sm:col-span-1 sm:text-right">
                               <span className="sm:hidden">Orders </span>
                               {a.orders}
                             </span>
@@ -749,6 +757,14 @@ export default async function AdminDataOverviewPage({
                             <span className="text-niki-ink/60 sm:col-span-2 sm:text-right">
                               {formatPrice(a.commission)}
                               <span className="ml-1 sm:hidden">commission</span>
+                            </span>
+                            {/* What the sale was worth to Nickimart, after the
+                                agent's cut and the provider's. */}
+                            <span className="font-figures font-semibold text-niki-success sm:col-span-2 sm:text-right">
+                              {formatPrice(a.income)}
+                              <span className="ml-1 font-sans font-normal text-niki-ink/45 sm:hidden">
+                                income
+                              </span>
                             </span>
                             <span className="text-niki-ink/45 sm:col-span-1 sm:text-right">
                               {a.recruits}
