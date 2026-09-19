@@ -916,6 +916,49 @@ model DataBroadcast {
   @@index([createdAt])
 }
 
+/**
+ * Something that happened and somebody should know about.
+ *
+ * The console already shows what needs doing — a pending count here, a failed
+ * count there — but only to an admin who is standing on the right screen at
+ * the right time. Counts also forget: a withdrawal requested and paid on
+ * Tuesday leaves nothing behind saying anybody was ever asked.
+ *
+ * A notification is the record that stays. It is written where the thing
+ * happened, carries a link back to it, and is marked read by the person who
+ * dealt with it — so the bell is a queue of work rather than a badge that
+ * clears itself when the underlying count happens to drop.
+ *
+ * `dedupeKey` is what stops one event being recorded twice: a webhook and a
+ * redirect both settling the same registration write the same key, and the
+ * unique index refuses the second.
+ */
+model DataNotification {
+  id String @id @default(cuid())
+
+  /// WITHDRAWAL | APPLICATION | REGISTRATION | SUPPORT | SYSTEM
+  kind  String
+  title String
+  body  String @default("")
+  /// Where in the console it leads. Empty for a notice with nothing to open.
+  href  String @default("")
+  /// info | success | warning | danger — the accent, read the same way as a notice's tone.
+  tone  String @default("info")
+
+  /// Unique to the thing being announced, so one event is recorded once.
+  dedupeKey String? @unique
+
+  /// Null while it still wants attention. Set by whoever dealt with it.
+  readAt DateTime?
+  readBy String    @default("")
+
+  createdAt DateTime @default(now())
+
+  @@index([readAt, createdAt])
+  @@index([kind, createdAt])
+  @@index([createdAt])
+}
+
 model DataSetting {
   key   String @id
   value String

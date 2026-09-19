@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import {
   Banknote,
+  Bell,
   Gift,
   Inbox,
   LifeBuoy,
@@ -41,6 +42,7 @@ import { cn } from "@/lib/cn";
 
 const ICONS = {
   users: Users,
+  bell: Bell,
   userplus: UserPlus,
   inbox: Inbox,
   ticket: Ticket,

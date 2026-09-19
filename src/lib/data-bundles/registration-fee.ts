@@ -11,6 +11,7 @@ import { round2 } from "@/lib/data-bundles/agent-pricing";
 import { DuplicateLedgerEntryError, postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { releaseReferralRewards } from "@/lib/data-bundles/referrals";
 import { issueAgentCredentials } from "@/lib/data-bundles/agent-credentials";
+import { recordNotification } from "@/lib/data-bundles/notifications";
 
 /**
  * Paying the registration fee up front.
@@ -346,7 +347,7 @@ export async function settleApplicationFee(
   // without a nudge here a paid application would sit unreviewed until somebody
   // happened to look. Guarded by the update above, so a webhook and a redirect
   // arriving together still send one message.
-  await notifyAdminsOfPayment(application.fullName, application.desiredSlug);
+  await notifyAdminsOfPayment(application.id, application.fullName, application.desiredSlug);
 
   // And this is when somebody an agent registered gets their sign-in details.
   // Not when the checkout opened — a registration nobody paid for must not put
@@ -356,7 +357,19 @@ export async function settleApplicationFee(
   return true;
 }
 
-async function notifyAdminsOfPayment(fullName: string, slug: string): Promise<void> {
+async function notifyAdminsOfPayment(
+  id: string,
+  fullName: string,
+  slug: string,
+): Promise<void> {
+  await recordNotification({
+    kind: "REGISTRATION",
+    tone: "success",
+    title: `${fullName} paid their agent registration`,
+    body: `Store “${slug}”. They are waiting on approval.`,
+    href: "/admin/data/agents/applications",
+    dedupeKey: `REGISTRATION:${id}`,
+  });
   try {
     const admins = await prisma.user.findMany({
       where: { role: "ADMIN" },

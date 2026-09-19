@@ -3,9 +3,16 @@ import { dataDb } from "@/lib/data-db";
 import { round2 } from "@/lib/data-bundles/agent-pricing";
 import { networkLabel } from "@/lib/data-bundles/networks";
 import { getAgentUser } from "@/lib/data-bundles/user-link";
+import {
+  bucketSize,
+  OVERVIEW_RANGES,
+  resolveWindow,
+  type OverviewRange,
+  type OverviewWindow,
+} from "@/lib/data-bundles/overview-window";
 
 /**
- * What the bundle business looks like over a window of days.
+ * What the bundle business looks like over a window.
  *
  * The overview used to be a wall of all-time totals: revenue since the store
  * opened, every order ever delivered. Those are true and almost useless — they
@@ -13,28 +20,43 @@ import { getAgentUser } from "@/lib/data-bundles/user-link";
  * good. Everything here is scoped to a window instead, and compared against
  * the window before it, because "GH₵4,100" means nothing and "GH₵4,100, up a
  * fifth on the fortnight before" means something.
+ *
+ * The window itself is a value rather than a number of days, because three
+ * preset lengths could not answer the two questions people actually brought to
+ * this screen: what has this business done in total, and what did it do in
+ * that fortnight in March. All time and an arbitrary pair of dates are windows
+ * like any other, and every read below takes one — so nothing had to learn a
+ * second way of being filtered.
  */
 
-/** The windows the overview offers. Short enough to read, long enough to trend. */
-export const OVERVIEW_RANGES = [7, 30, 90] as const;
-export type OverviewRange = (typeof OVERVIEW_RANGES)[number];
+export { OVERVIEW_RANGES, resolveWindow };
+export type { OverviewRange, OverviewWindow };
 
-export function overviewRange(raw: string | undefined): OverviewRange {
-  const n = Number(raw);
-  return (OVERVIEW_RANGES as readonly number[]).includes(n) ? (n as OverviewRange) : 30;
+/** The `createdAt` filter for a window. An open start means all time. */
+function within(w: OverviewWindow) {
+  return { createdAt: { ...(w.start ? { gte: w.start } : {}), lt: w.end } };
 }
 
-/** Midnight, `days` ago — the window always starts at the top of a day. */
-function windowStart(days: number, endingAt = new Date()): Date {
-  const start = new Date(endingAt);
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() - (days - 1));
-  return start;
+/**
+ * The window immediately before this one, or null when there isn't one.
+ *
+ * All time has no "before", and inventing one — the same span again, ending
+ * where the records begin — would compare a real figure against a stretch of
+ * time the business did not exist for. A delta against that is worse than no
+ * delta, so it is left off the screen entirely.
+ */
+function before(w: OverviewWindow): { gte: Date; lt: Date } | null {
+  if (!w.start || w.days === null) return null;
+  const previousStart = new Date(w.start);
+  previousStart.setDate(previousStart.getDate() - w.days);
+  return { gte: previousStart, lt: w.start };
 }
 
 export interface DayPoint {
-  /** YYYY-MM-DD, local. */
+  /** YYYY-MM-DD, local. The first day of the bucket. */
   day: string;
+  /** The last day of the bucket, when it covers more than one. */
+  endDay?: string;
   orders: number;
   revenue: number;
   cost: number;
@@ -42,46 +64,83 @@ export interface DayPoint {
 }
 
 /**
- * One row per day in the window, including the days nothing sold.
+ * The window as a series, including the stretches that sold nothing.
  *
- * The zero days matter: a trend drawn only through the days that traded
+ * The empty buckets matter: a trend drawn only through the days that traded
  * compresses a quiet week into a single point and makes a dip look like a
  * plateau. Read in one query and bucketed here rather than in SQL, so the days
  * line up with the admin's own clock rather than the database's.
+ *
+ * Long windows are bucketed into weeks or months rather than drawn as seven
+ * hundred one-pixel days. The shape is the point; a mark too narrow to hover
+ * is not a data point, it is texture.
  */
-export async function getDailySeries(days: number): Promise<DayPoint[]> {
-  const start = windowStart(days);
-  const empty = () =>
-    Array.from({ length: days }, (_, i) => {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      return { day: dayKey(d), orders: 0, revenue: 0, cost: 0, margin: 0 };
-    });
+export async function getDailySeries(w: OverviewWindow): Promise<DayPoint[]> {
+  const start = w.start ?? (await firstOrderDay());
+  if (!start) return [];
+
+  const span = Math.max(1, Math.round((w.end.getTime() - start.getTime()) / 86_400_000));
+  const size = bucketSize(span);
+  const count = Math.ceil(span / size);
+
+  const buckets: DayPoint[] = Array.from({ length: count }, (_, i) => {
+    const from = new Date(start);
+    from.setDate(start.getDate() + i * size);
+    const to = new Date(from);
+    to.setDate(from.getDate() + size - 1);
+    // The last bucket stops at the window's end rather than running past it.
+    const last = new Date(w.end);
+    last.setDate(last.getDate() - 1);
+    return {
+      day: dayKey(from),
+      ...(size > 1 ? { endDay: dayKey(to > last ? last : to) } : {}),
+      orders: 0,
+      revenue: 0,
+      cost: 0,
+      margin: 0,
+    };
+  });
 
   let rows: { createdAt: Date; price: number; costPrice: number }[];
   try {
     rows = await dataDb.dataOrder.findMany({
-      where: {
-        paymentStatus: "paid",
-        status: { not: "refunded" },
-        createdAt: { gte: start },
-      },
+      where: { paymentStatus: "paid", status: { not: "refunded" }, ...within(w) },
       select: { createdAt: true, price: true, costPrice: true },
     });
   } catch {
-    return empty();
+    return buckets;
   }
 
-  const byDay = new Map(empty().map((d) => [d.day, d]));
   for (const row of rows) {
-    const point = byDay.get(dayKey(row.createdAt));
+    const offset = Math.floor((startOfDay(row.createdAt).getTime() - start.getTime()) / 86_400_000);
+    const point = buckets[Math.floor(offset / size)];
     if (!point) continue;
     point.orders += 1;
     point.revenue = round2(point.revenue + row.price);
     point.cost = round2(point.cost + row.costPrice);
     point.margin = round2(point.revenue - point.cost);
   }
-  return [...byDay.values()];
+  return buckets;
+}
+
+/** When the business first traded, for an all-time series. */
+async function firstOrderDay(): Promise<Date | null> {
+  try {
+    const first = await dataDb.dataOrder.findFirst({
+      where: { paymentStatus: "paid" },
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true },
+    });
+    return first ? startOfDay(first.createdAt) : null;
+  } catch {
+    return null;
+  }
+}
+
+function startOfDay(d: Date): Date {
+  const copy = new Date(d);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
 }
 
 function dayKey(d: Date): string {
@@ -94,41 +153,78 @@ export interface WindowTotals {
   revenue: number;
   cost: number;
   margin: number;
-  /** The same figures for the window immediately before, for the comparison. */
-  previous: { orders: number; revenue: number };
+  /** Orders that came through an agent, and what Nickimart kept on them. */
+  agentOrders: number;
+  agentRevenue: number;
+  /**
+   * What the agent network earned Nickimart: what the customer paid, less the
+   * agent's commission, less their recruiter's cut, less what the bundle cost
+   * from the provider. Every figure is the one snapshotted on the order, so a
+   * later price or rate change never rewrites what a past sale made.
+   */
+  agentIncome: number;
+  /** The same figures for the window before. Null when there is no baseline. */
+  previous: { orders: number; revenue: number } | null;
 }
 
 /** Totals for the window, and the window before it. */
-export async function getWindowTotals(days: number): Promise<WindowTotals> {
-  const start = windowStart(days);
-  const previousStart = new Date(start);
-  previousStart.setDate(previousStart.getDate() - days);
-
+export async function getWindowTotals(w: OverviewWindow): Promise<WindowTotals> {
   const where = { paymentStatus: "paid" as const, status: { not: "refunded" } };
+  const previousRange = before(w);
+  const empty: WindowTotals = {
+    orders: 0,
+    revenue: 0,
+    cost: 0,
+    margin: 0,
+    agentOrders: 0,
+    agentRevenue: 0,
+    agentIncome: 0,
+    previous: null,
+  };
+
   try {
-    const [now, before] = await Promise.all([
+    const [now, agent, earlier] = await Promise.all([
       dataDb.dataOrder.aggregate({
-        where: { ...where, createdAt: { gte: start } },
+        where: { ...where, ...within(w) },
         _count: { _all: true },
         _sum: { price: true, costPrice: true },
       }),
       dataDb.dataOrder.aggregate({
-        where: { ...where, createdAt: { gte: previousStart, lt: start } },
+        where: { ...where, agentId: { not: null }, ...within(w) },
         _count: { _all: true },
-        _sum: { price: true },
+        _sum: { price: true, costPrice: true, agentCommission: true, teamCommission: true },
       }),
+      previousRange
+        ? dataDb.dataOrder.aggregate({
+            where: { ...where, createdAt: previousRange },
+            _count: { _all: true },
+            _sum: { price: true },
+          })
+        : Promise.resolve(null),
     ]);
+
     const revenue = round2(now._sum.price ?? 0);
     const cost = round2(now._sum.costPrice ?? 0);
+    const agentRevenue = round2(agent._sum.price ?? 0);
     return {
       orders: now._count._all,
       revenue,
       cost,
       margin: round2(revenue - cost),
-      previous: { orders: before._count._all, revenue: round2(before._sum.price ?? 0) },
+      agentOrders: agent._count._all,
+      agentRevenue,
+      agentIncome: round2(
+        agentRevenue -
+          (agent._sum.costPrice ?? 0) -
+          (agent._sum.agentCommission ?? 0) -
+          (agent._sum.teamCommission ?? 0),
+      ),
+      previous: earlier
+        ? { orders: earlier._count._all, revenue: round2(earlier._sum.price ?? 0) }
+        : null,
     };
   } catch {
-    return { orders: 0, revenue: 0, cost: 0, margin: 0, previous: { orders: 0, revenue: 0 } };
+    return empty;
   }
 }
 
@@ -140,15 +236,11 @@ export interface MixSlice {
 }
 
 /** What sold, by network, over the window. Biggest first. */
-export async function getNetworkMix(days: number): Promise<MixSlice[]> {
+export async function getNetworkMix(w: OverviewWindow): Promise<MixSlice[]> {
   try {
     const rows = await dataDb.dataOrder.groupBy({
       by: ["network"],
-      where: {
-        paymentStatus: "paid",
-        status: { not: "refunded" },
-        createdAt: { gte: windowStart(days) },
-      },
+      where: { paymentStatus: "paid", status: { not: "refunded" }, ...within(w) },
       _count: { _all: true },
       _sum: { price: true },
     });
@@ -166,11 +258,11 @@ export async function getNetworkMix(days: number): Promise<MixSlice[]> {
 }
 
 /** Where every order in the window ended up. */
-export async function getStatusMix(days: number): Promise<Record<string, number>> {
+export async function getStatusMix(w: OverviewWindow): Promise<Record<string, number>> {
   try {
     const rows = await dataDb.dataOrder.groupBy({
       by: ["status"],
-      where: { paymentStatus: "paid", createdAt: { gte: windowStart(days) } },
+      where: { paymentStatus: "paid", ...within(w) },
       _count: { _all: true },
     });
     return Object.fromEntries(rows.map((r) => [r.status, r._count._all]));
@@ -180,7 +272,7 @@ export async function getStatusMix(days: number): Promise<Record<string, number>
 }
 
 /** How orders reached us — a storefront, an agent's dashboard, the main site. */
-export async function getSourceMix(days: number): Promise<MixSlice[]> {
+export async function getSourceMix(w: OverviewWindow): Promise<MixSlice[]> {
   const LABELS: Record<string, string> = {
     WEB: "Nickimart site",
     STOREFRONT: "Agent storefronts",
@@ -189,11 +281,7 @@ export async function getSourceMix(days: number): Promise<MixSlice[]> {
   try {
     const rows = await dataDb.dataOrder.groupBy({
       by: ["source"],
-      where: {
-        paymentStatus: "paid",
-        status: { not: "refunded" },
-        createdAt: { gte: windowStart(days) },
-      },
+      where: { paymentStatus: "paid", status: { not: "refunded" }, ...within(w) },
       _count: { _all: true },
       _sum: { price: true },
     });
@@ -230,7 +318,7 @@ export interface AgentPerformance {
  * which is the opposite of what a performance list is for.
  */
 export async function getAgentPerformance(
-  days: number,
+  w: OverviewWindow,
   limit = 8,
 ): Promise<{ rows: AgentPerformance[]; sellingAgents: number }> {
   try {
@@ -240,7 +328,7 @@ export async function getAgentPerformance(
         paymentStatus: "paid",
         status: { not: "refunded" },
         agentId: { not: null },
-        createdAt: { gte: windowStart(days) },
+        ...within(w),
       },
       _count: { _all: true },
       _sum: { price: true, agentCommission: true },
@@ -294,7 +382,7 @@ export async function getAgentPerformance(
 }
 
 /** Percentage change between two figures, or null when there is no baseline. */
-export function changePercent(now: number, before: number): number | null {
-  if (before <= 0) return null;
+export function changePercent(now: number, before: number | undefined | null): number | null {
+  if (before === undefined || before === null || before <= 0) return null;
   return Math.round(((now - before) / before) * 100);
 }

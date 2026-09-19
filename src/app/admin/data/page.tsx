@@ -7,9 +7,12 @@ import {
   BadgeCheck,
   Banknote,
   CheckCircle2,
+  ChevronRight,
   ExternalLink,
+  Inbox,
   LifeBuoy,
   ListOrdered,
+  PiggyBank,
   RefreshCw,
   TrendingUp,
   Users,
@@ -30,9 +33,9 @@ import {
   getSourceMix,
   getStatusMix,
   getWindowTotals,
-  overviewRange,
-  OVERVIEW_RANGES,
+  resolveWindow,
 } from "@/lib/data-bundles/overview";
+import { OverviewRange } from "@/components/admin/OverviewRange";
 import { getProviderBalance, isDataProviderConfigured, providerBase } from "@/lib/data-bundles/provider";
 import { isPaymentConfigured } from "@/lib/payments";
 import { emailStatus, isSmsConfigured } from "@/lib/notifications";
@@ -40,6 +43,9 @@ import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { getAllBundles } from "@/lib/data-bundles/catalog";
 import { listAgents } from "@/lib/data-bundles/agents";
 import { getWithdrawalTotals } from "@/lib/data-bundles/withdrawals";
+import { getBellState } from "@/lib/data-bundles/notifications";
+import { pendingApplicationCount } from "@/lib/data-bundles/agent-module";
+import { NotificationBell } from "@/components/admin/NotificationBell";
 import { sweepDataOrders } from "@/lib/data-bundles/admin-actions";
 import { dataDb } from "@/lib/data-db";
 import { cn } from "@/lib/cn";
@@ -59,6 +65,12 @@ export const dynamic = "force-dynamic";
  * it, every number leads to the rows it was counted from, and the shape of the
  * business is drawn rather than listed — the same figures, but as something
  * you can read at a glance instead of arithmetic you have to do in your head.
+ *
+ * The window is the admin's to choose. Three preset lengths could not answer
+ * the two questions people kept bringing here — what has this business done in
+ * total, and what did it do in that fortnight in March — so all time and an
+ * arbitrary pair of dates are windows like any other, and the comparison is
+ * simply left off where there is nothing honest to compare against.
  */
 
 /** The reserved status colours, a step darker than the text tokens. A fill
@@ -70,6 +82,35 @@ const STATUS_COLOUR = {
   queued: "#ff6a00",
   failed: "#dc2626",
   refunded: "#6b7280",
+} as const;
+
+/**
+ * How an alert reads: the card, the icon's chip, and the halo the live ones
+ * pulse. Three classes rather than one so the icon can carry the colour at
+ * full strength while the card behind it stays a tint — a whole row in a
+ * saturated colour shouts, and everything that shouts is eventually ignored.
+ */
+const ALERT_TONES = {
+  danger: {
+    card: "bg-niki-danger/[0.07] text-niki-danger ring-1 ring-niki-danger/20 hover:bg-niki-danger/[0.12]",
+    chip: "bg-niki-danger/15 text-niki-danger",
+    pulse: "bg-niki-danger/30",
+  },
+  warn: {
+    card: "bg-amber-50 text-amber-900 ring-1 ring-amber-200 hover:bg-amber-100",
+    chip: "bg-amber-500/20 text-amber-700",
+    pulse: "bg-amber-400/40",
+  },
+  trust: {
+    card: "bg-niki-trust/[0.07] text-niki-ink ring-1 ring-niki-trust/20 hover:bg-niki-trust/[0.12]",
+    chip: "bg-niki-trust/15 text-niki-trust",
+    pulse: "bg-niki-trust/30",
+  },
+  plain: {
+    card: "bg-white text-niki-ink ring-1 ring-niki-edge hover:bg-niki-black/5",
+    chip: "bg-niki-surface text-niki-ink/55",
+    pulse: "bg-niki-ink/15",
+  },
 } as const;
 
 function Stat({
@@ -168,9 +209,9 @@ function Panel({
 export default async function AdminDataOverviewPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ days?: string }>;
+  searchParams?: Promise<{ days?: string; from?: string; to?: string }>;
 }) {
-  const days = overviewRange((await searchParams)?.days);
+  const period = resolveWindow(await searchParams);
   const providerReady = isDataProviderConfigured();
 
   const [
@@ -179,7 +220,8 @@ export default async function AdminDataOverviewPage({
     config,
     bundles,
     agents,
-    pendingWithdrawals,
+    oldestWithdrawal,
+    waitingApplications,
     openSupport,
     totals,
     series,
@@ -188,21 +230,32 @@ export default async function AdminDataOverviewPage({
     statusMix,
     performance,
     payouts,
+    bell,
   ] = await Promise.all([
     getDataStats(),
     providerReady ? getProviderBalance() : Promise.resolve({ balance: null, message: "Not configured" }),
     getDataStoreConfig(),
     getAllBundles(),
     listAgents(),
-    dataDb.dataAgentWithdrawal.count({ where: { status: "pending" } }).catch(() => 0),
+    // The oldest one rather than a count: when a single request is waiting, the
+    // alert can open it instead of dropping the admin on a list of one.
+    dataDb.dataAgentWithdrawal
+      .findFirst({
+        where: { status: "pending" },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, amount: true, agent: { select: { storeName: true } } },
+      })
+      .catch(() => null),
+    pendingApplicationCount(),
     dataDb.dataSupportRequest.count({ where: { status: "open" } }).catch(() => 0),
-    getWindowTotals(days),
-    getDailySeries(days),
-    getNetworkMix(days),
-    getSourceMix(days),
-    getStatusMix(days),
-    getAgentPerformance(days),
+    getWindowTotals(period),
+    getDailySeries(period),
+    getNetworkMix(period),
+    getSourceMix(period),
+    getStatusMix(period),
+    getAgentPerformance(period),
     getWithdrawalTotals(),
+    getBellState(),
   ]);
 
   const activeBundles = bundles.filter((b) => b.isActive && b.price > 0).length;
@@ -214,7 +267,7 @@ export default async function AdminDataOverviewPage({
   const owedToAgents = agents.reduce((sum, a) => sum + Math.max(0, a.balance), 0);
   const activeAgents = agents.filter((a) => a.status === "active").length;
 
-  const windowLabel = days === 7 ? "last 7 days" : days === 30 ? "last 30 days" : "last 90 days";
+  const windowLabel = period.label;
 
   const statusSlices = [
     {
@@ -322,13 +375,32 @@ export default async function AdminDataOverviewPage({
           text: `${stats.failed} ${stats.failed === 1 ? "order" : "orders"} failed to deliver. Retry or refund them.`,
         }
       : null,
-    pendingWithdrawals > 0
+    payouts.pendingCount > 0
       ? {
           key: "withdrawals",
-          href: "/admin/data/withdrawals",
+          // One waiting request opens itself. Dropping an admin on a list of one
+          // row is a click they have to make for no reason.
+          href:
+            payouts.pendingCount === 1 && oldestWithdrawal
+              ? `/admin/data/withdrawals/${oldestWithdrawal.id}`
+              : "/admin/data/withdrawals?status=pending",
           tone: "warn" as const,
           icon: Banknote,
-          text: `${pendingWithdrawals} agent ${pendingWithdrawals === 1 ? "withdrawal is" : "withdrawals are"} waiting to be sent on MoMo.`,
+          live: true,
+          text:
+            payouts.pendingCount === 1 && oldestWithdrawal
+              ? `${oldestWithdrawal.agent?.storeName ?? "An agent"} is waiting on ${formatPrice(oldestWithdrawal.amount)} to their MoMo.`
+              : `${payouts.pendingCount} agents are waiting on ${formatPrice(payouts.pending)} to their MoMo.`,
+        }
+      : null,
+    waitingApplications > 0
+      ? {
+          key: "applications",
+          href: "/admin/data/agents/applications",
+          tone: "trust" as const,
+          icon: Inbox,
+          live: true,
+          text: `${waitingApplications} agent ${waitingApplications === 1 ? "application is" : "applications are"} waiting on a decision.`,
         }
       : null,
     openSupport > 0
@@ -376,7 +448,11 @@ export default async function AdminDataOverviewPage({
             </span>
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* What is waiting on a person, without leaving the page. The overview
+              answers "how is the business doing"; this answers the other
+              question an admin opens it with. */}
+          <NotificationBell unread={bell.unread} rows={bell.rows} />
           {/* The cron runs this daily; the button is for right after a top-up,
               when waiting until tomorrow for stalled orders isn't acceptable. */}
           <form action={sweepDataOrders}>
@@ -427,25 +503,13 @@ export default async function AdminDataOverviewPage({
       </a>
 
       {/* The window everything below is measured over. */}
-      <div className="mt-5 flex items-center gap-1.5">
-        <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-niki-ink/40">
-          Showing
-        </span>
-        {OVERVIEW_RANGES.map((r) => (
-          <ActionLink
-            key={r}
-            href={`/admin/data?days=${r}`}
-            aria-current={r === days ? "page" : undefined}
-            className={cn(
-              "niki-focus rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
-              r === days
-                ? "bg-niki-black text-white"
-                : "bg-white text-niki-ink/60 ring-1 ring-niki-edge hover:text-niki-ink",
-            )}
-          >
-            {r} days
-          </ActionLink>
-        ))}
+      <div className="mt-5">
+        <OverviewRange
+          active={period.key}
+          label={period.label}
+          from={period.from}
+          to={period.to}
+        />
       </div>
 
       {/* Trading, over the window. */}
@@ -456,7 +520,7 @@ export default async function AdminDataOverviewPage({
           hint={windowLabel}
           href="/admin/data/orders"
           icon={TrendingUp}
-          delta={changePercent(totals.revenue, totals.previous.revenue)}
+          delta={changePercent(totals.revenue, totals.previous?.revenue)}
         />
         <Stat
           label="Orders"
@@ -464,7 +528,7 @@ export default async function AdminDataOverviewPage({
           hint={`${stats.todayOrders} today`}
           href="/admin/data/orders"
           icon={ListOrdered}
-          delta={changePercent(totals.orders, totals.previous.orders)}
+          delta={changePercent(totals.orders, totals.previous?.orders)}
         />
         <Stat
           label="Gross margin"
@@ -491,16 +555,34 @@ export default async function AdminDataOverviewPage({
                 <ActionLink
                   href={a.href}
                   className={cn(
-                    "niki-focus flex items-center gap-3 rounded-2xl px-5 py-3.5 text-sm font-medium transition-colors",
-                    a.tone === "danger"
-                      ? "bg-niki-danger/10 text-niki-danger ring-1 ring-niki-danger/20 hover:bg-niki-danger/15"
-                      : a.tone === "warn"
-                        ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100"
-                        : "bg-white text-niki-ink ring-1 ring-niki-edge hover:bg-niki-black/5",
+                    "niki-focus group flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-colors",
+                    ALERT_TONES[a.tone].card,
                   )}
                 >
-                  <a.icon className="h-5 w-5 shrink-0" />
-                  {a.text}
+                  {/* The icon sits in a chip of its own so the row reads as a
+                      thing rather than a sentence with a picture in front of
+                      it — and so the live ones have somewhere to pulse. */}
+                  <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
+                    {"live" in a && a.live ? (
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "absolute inset-0 animate-ping rounded-xl opacity-40",
+                          ALERT_TONES[a.tone].pulse,
+                        )}
+                      />
+                    ) : null}
+                    <span
+                      className={cn(
+                        "relative flex h-9 w-9 items-center justify-center rounded-xl",
+                        ALERT_TONES[a.tone].chip,
+                      )}
+                    >
+                      <a.icon className="h-4 w-4" />
+                    </span>
+                  </span>
+                  <span className="min-w-0 flex-1">{a.text}</span>
+                  <ChevronRight className="h-4 w-4 shrink-0 opacity-40 transition-transform group-hover:translate-x-0.5 group-hover:opacity-70" />
                 </ActionLink>
               </li>
             ) : null,
@@ -519,6 +601,7 @@ export default async function AdminDataOverviewPage({
           <TrendChart
             points={series.map((d) => ({
               day: d.day,
+              endDay: d.endDay,
               value: d.revenue,
               label: formatPrice(d.revenue),
               count: d.orders,
@@ -563,7 +646,7 @@ export default async function AdminDataOverviewPage({
       </div>
 
       {/* The agent network. */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Stat
           label="Agents"
           value={String(agents.length)}
@@ -577,6 +660,22 @@ export default async function AdminDataOverviewPage({
           hint="All time, through agent storefronts"
           href="/admin/data/agents"
           icon={TrendingUp}
+        />
+        {/* What the network is actually worth to Nickimart. "Agent sales" is
+            what customers paid, and most of that is the agent's own cut and the
+            provider's — the figure that says whether recruiting is paying for
+            itself is what is left after both. */}
+        <Stat
+          label="Income from agents"
+          value={formatPrice(totals.agentIncome)}
+          hint={
+            totals.agentOrders > 0
+              ? `${windowLabel} · after commission and cost, on ${totals.agentOrders} ${totals.agentOrders === 1 ? "sale" : "sales"}`
+              : "No agent sold anything in this window"
+          }
+          href="/admin/data/agents"
+          icon={PiggyBank}
+          tone={totals.agentIncome > 0 ? "success" : "ink"}
         />
         <Stat
           label="Owed to agents"

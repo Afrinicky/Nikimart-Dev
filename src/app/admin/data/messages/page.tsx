@@ -5,6 +5,7 @@ import { ModuleHeader } from "@/components/admin/ModuleHeader";
 import { ModuleTabs } from "@/components/admin/ModuleTabs";
 import { ActionLink } from "@/components/ui/motion";
 import { ANNOUNCEMENT_MODULE_TABS } from "@/lib/announcement-module";
+import { unreadNotificationCount } from "@/lib/data-bundles/notifications";
 import { listTemplates } from "@/lib/messages";
 import { templateGroups } from "@/lib/message-templates";
 import { isSmsConfigured, emailStatus } from "@/lib/notifications";
@@ -25,7 +26,10 @@ export const dynamic = "force-dynamic";
  * nothing sends is worse than not being able to edit it at all.
  */
 export default async function AdminDataMessagesPage() {
-  const [templates] = await Promise.all([listTemplates("data")]);
+  const [templates, unread] = await Promise.all([
+    listTemplates("data"),
+    unreadNotificationCount(),
+  ]);
   const groups = templateGroups("data");
   const smsOn = isSmsConfigured();
   const email = emailStatus();
@@ -38,7 +42,7 @@ export default async function AdminDataMessagesPage() {
         icon={Megaphone}
       />
       <div className="mt-5">
-        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("data")} />
+        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("data", unread)} />
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">

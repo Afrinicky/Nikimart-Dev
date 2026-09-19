@@ -20,6 +20,7 @@ import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import { termsAccepted, TERMS_REQUIRED_MESSAGE } from "@/lib/terms";
 import { normaliseSlugClient } from "@/lib/data-bundles/slug";
 import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
+import { recordNotification } from "@/lib/data-bundles/notifications";
 import { generateAgentCode, slugProblem } from "@/lib/data-bundles/agents";
 import { userIdForEmail } from "@/lib/data-bundles/user-link";
 import { consumeAgentInvite, resolveAgentInvite } from "@/lib/data-bundles/invites";
@@ -457,7 +458,7 @@ export async function applyToBeAgent(
   // the route the applicant is standing on, which remounts this form and throws
   // away the confirmation it is about to return.
 
-  await notifyAdminsOfApplication(fullName, desiredSlug);
+  await notifyAdminsOfApplication(applicationId, fullName, desiredSlug);
 
   return {
     ok: true,
@@ -468,7 +469,18 @@ export async function applyToBeAgent(
 }
 
 /** Tell the admins there's something in the queue. Best-effort, always. */
-async function notifyAdminsOfApplication(fullName: string, slug: string): Promise<void> {
+async function notifyAdminsOfApplication(
+  id: string,
+  fullName: string,
+  slug: string,
+): Promise<void> {
+  await recordNotification({
+    kind: "APPLICATION",
+    title: `${fullName} applied to become an agent`,
+    body: `They want the store “${slug}”. Nothing is created until it is approved.`,
+    href: "/admin/data/agents/applications",
+    dedupeKey: `APPLICATION:${id}`,
+  });
   try {
     const admins = await prisma.user.findMany({
       where: { role: "ADMIN" },

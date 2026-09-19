@@ -7,6 +7,7 @@ import { ModuleTabs } from "@/components/admin/ModuleTabs";
 import { ActionLink } from "@/components/ui/motion";
 import { MessageEditor } from "@/components/admin/MessageEditor";
 import { ANNOUNCEMENT_MODULE_TABS } from "@/lib/announcement-module";
+import { unreadNotificationCount } from "@/lib/data-bundles/notifications";
 import { getTemplateView } from "@/lib/messages";
 
 export const metadata: Metadata = { title: "Message — Admin — Nickimart" };
@@ -18,7 +19,10 @@ export default async function AdminDataMessagePage({
   params: Promise<{ key: string }>;
 }) {
   const { key } = await params;
-  const template = await getTemplateView(decodeURIComponent(key));
+  const [template, unread] = await Promise.all([
+    getTemplateView(decodeURIComponent(key)),
+    unreadNotificationCount(),
+  ]);
   if (!template || template.scope !== "data") notFound();
 
   return (
@@ -29,7 +33,7 @@ export default async function AdminDataMessagePage({
         icon={Megaphone}
       />
       <div className="mt-5">
-        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("data")} />
+        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("data", unread)} />
       </div>
 
       <ActionLink
