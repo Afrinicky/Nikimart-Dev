@@ -96,7 +96,22 @@ export function NotificationBell({ unread, rows }: { unread: number; rows: BellR
       </button>
 
       {open ? (
-        <div className="animate-fade-up absolute right-0 top-[calc(100%+0.5rem)] z-30 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-niki-edge">
+        <>
+          {/* The backdrop only exists at phone width, where the panel is a
+              sheet over the page rather than a dropdown beside the bell. */}
+          <button
+            type="button"
+            aria-label="Close notifications"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-30 bg-niki-black/30 sm:hidden"
+          />
+          {/*
+            Anchored to the bell on a real screen, pinned to the viewport on a
+            phone. The bell sits partway across the header on a narrow screen,
+            and a 22rem panel hung off its right edge opened past the left edge
+            of the display — which is the bug this fixes.
+          */}
+          <div className="animate-fade-up fixed inset-x-3 bottom-3 z-40 max-h-[70dvh] overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-niki-edge sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-[calc(100%+0.5rem)] sm:z-30 sm:max-h-none sm:w-[min(22rem,calc(100vw-2rem))] sm:shadow-lg">
           <div className="flex items-center justify-between gap-3 border-b border-niki-edge px-4 py-3">
             <p className="font-display text-sm font-bold text-niki-ink">
               Notifications
@@ -123,7 +138,7 @@ export function NotificationBell({ unread, rows }: { unread: number; rows: BellR
               Nothing has needed your attention yet.
             </p>
           ) : (
-            <ul className="max-h-[22rem] divide-y divide-niki-edge overflow-y-auto">
+            <ul className="max-h-[min(22rem,45dvh)] divide-y divide-niki-edge overflow-y-auto">
               {rows.map((n) => {
                 const Icon = ICONS[n.kind] ?? Bell;
                 const isUnread = n.readAt === null;
@@ -186,7 +201,8 @@ export function NotificationBell({ unread, rows }: { unread: number; rows: BellR
           >
             See all notifications
           </ActionLink>
-        </div>
+          </div>
+        </>
       ) : null}
     </div>
   );

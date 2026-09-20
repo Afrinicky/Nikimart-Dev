@@ -72,8 +72,7 @@ export function LiveChat({
     // one room, and the API key never reaches the browser at all.
     const client = new Ably.Realtime({
       authUrl: "/api/chat/token",
-      authMethod: "POST",
-      authHeaders: { "Content-Type": "application/json" },
+      authMethod: "GET",
       authParams: { sessionId },
       clientId: me.agentId,
       // A phone backgrounding the tab is not a reason to leave the room.

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Headphones, Phone, X } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
+import { FloatingBubble } from "@/components/chat/FloatingBubble";
 import { ChatRoom, type RoomMessage } from "@/components/chat/ChatRoom";
 import type { DockEnquiry } from "@/lib/chat/inbox";
 import { cn } from "@/lib/cn";
@@ -43,9 +44,19 @@ export function AdminChatDock({
   const waiting = enquiries.reduce((sum, e) => sum + e.unread, 0);
 
   return (
-    <>
-      {open ? (
-        <div className="animate-fade-up fixed bottom-[5.5rem] right-4 z-[80] flex h-[min(32rem,calc(100dvh-8rem))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl bg-niki-surface shadow-2xl ring-1 ring-niki-edge">
+    <FloatingBubble
+      storageKey="niki-admin-chat-bubble"
+      tone="black"
+      label={waiting > 0 ? `Enquiries, ${waiting} unread` : "Enquiries"}
+      badge={waiting}
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setActive(null);
+      }}
+      icon={<Headphones className="h-6 w-6" />}
+      panel={
+        <>
           <div className="flex items-center gap-2.5 bg-niki-black px-4 py-3.5 text-white">
             {active ? (
               <button
@@ -143,23 +154,8 @@ export function AdminChatDock({
           >
             Open the chatroom
           </ActionLink>
-        </div>
-      ) : null}
-
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-label={waiting > 0 ? `Enquiries, ${waiting} unread` : "Enquiries"}
-        className="niki-focus fixed bottom-4 right-4 z-[80] flex h-14 w-14 items-center justify-center rounded-full bg-niki-black text-white shadow-lg transition-transform hover:scale-[1.03] active:scale-95"
-      >
-        <Headphones className="h-6 w-6" />
-        {waiting > 0 ? (
-          <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-niki-orange px-1 font-figures text-[11px] font-bold text-white ring-2 ring-white">
-            {waiting > 9 ? "9+" : waiting}
-          </span>
-        ) : null}
-      </button>
-    </>
+        </>
+      }
+    />
   );
 }

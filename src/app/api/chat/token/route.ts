@@ -31,13 +31,54 @@ export const dynamic = "force-dynamic";
  * carry a random token issued when they gave their name, and it is checked
  * against the room's member list exactly like anybody else's identity.
  */
+/**
+ * Both verbs, one implementation.
+ *
+ * The realtime client appends its auth params to the URL on GET and sends them
+ * as a form body on POST — it does not send JSON, whatever content type it is
+ * told to declare. Reading the query string first and falling back to a body
+ * of either shape means the handshake works however the client is configured,
+ * which is the bug this route shipped with: a JSON parse that threw on a
+ * form-encoded body, a 400, and a chat that never connected.
+ */
+export async function GET(request: Request) {
+  return handle(request);
+}
+
 export async function POST(request: Request) {
-  let body: { sessionId?: unknown; conversationId?: unknown; visitorToken?: unknown } = {};
+  return handle(request);
+}
+
+async function readParams(
+  request: Request,
+): Promise<{ sessionId?: unknown; conversationId?: unknown; visitorToken?: unknown }> {
+  const query = new URL(request.url).searchParams;
+  const fromQuery = {
+    sessionId: query.get("sessionId") ?? undefined,
+    conversationId: query.get("conversationId") ?? undefined,
+    visitorToken: query.get("visitorToken") ?? undefined,
+  };
+  if (fromQuery.sessionId || fromQuery.conversationId) return fromQuery;
+  if (request.method === "GET") return fromQuery;
+
+  const type = request.headers.get("content-type") ?? "";
   try {
-    body = ((await request.json()) as typeof body | null) ?? {};
+    if (type.includes("json")) {
+      return ((await request.json()) as Record<string, unknown> | null) ?? fromQuery;
+    }
+    const form = await request.formData();
+    return {
+      sessionId: form.get("sessionId")?.toString(),
+      conversationId: form.get("conversationId")?.toString(),
+      visitorToken: form.get("visitorToken")?.toString() ?? fromQuery.visitorToken,
+    };
   } catch {
-    body = {};
+    return fromQuery;
   }
+}
+
+async function handle(request: Request) {
+  const body = await readParams(request);
 
   const viewer = await currentViewer();
   const visitorToken =
@@ -87,14 +128,18 @@ export async function POST(request: Request) {
     if (access.session.status === "ended") {
       return NextResponse.json({ error: "That session has ended." }, { status: 409 });
     }
-    return mint(who, sessionChannel(sessionId));
+    return mint(who, sessionChannel(sessionId), who.id);
   }
 
   return NextResponse.json({ error: "Which room?" }, { status: 400 });
 }
 
-async function mint(who: Participant, channel: string) {
-  const minted = await createChatToken(participantKey(who.kind, who.id), channel);
+/**
+ * `clientId` has to be the identity the browser announced, or the service
+ * rejects everything it publishes under a token issued for somebody else.
+ */
+async function mint(who: Participant, channel: string, clientId?: string) {
+  const minted = await createChatToken(clientId ?? participantKey(who.kind, who.id), channel);
   if (!minted.ok) {
     return NextResponse.json({ error: minted.error }, { status: 503 });
   }

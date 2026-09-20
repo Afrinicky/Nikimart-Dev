@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { MessageCircle, X } from "lucide-react";
+import { FloatingBubble } from "@/components/chat/FloatingBubble";
 import { ChatRoom, type RoomMessage } from "@/components/chat/ChatRoom";
 import { startEnquiry } from "@/lib/chat/actions";
 import { enquiryClaim } from "@/components/chat/enquiry-store";
-import { cn } from "@/lib/cn";
 
 /**
  * The chat bubble on the public pages.
@@ -60,9 +60,15 @@ export function ChatLauncher({ label = "Need help?" }: { label?: string }) {
   }
 
   return (
-    <>
-      {open ? (
-        <div className="animate-fade-up fixed bottom-[5.5rem] right-4 z-[70] flex h-[min(30rem,calc(100dvh-8rem))] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl bg-niki-surface shadow-2xl ring-1 ring-niki-edge">
+    <FloatingBubble
+      storageKey="niki-chat-bubble"
+      hasBottomNav
+      label={label}
+      open={open}
+      onOpenChange={setOpen}
+      icon={<MessageCircle className="h-6 w-6" />}
+      panel={
+        <>
           <div className="flex items-center justify-between gap-3 bg-niki-black px-4 py-3.5 text-white">
             <div className="min-w-0">
               <p className="truncate font-display text-sm font-bold">Nickimart</p>
@@ -104,7 +110,10 @@ export function ChatLauncher({ label = "Need help?" }: { label?: string }) {
               </button>
             </>
           ) : (
-            <form onSubmit={begin} className="flex min-h-0 flex-1 flex-col justify-center gap-3 px-5">
+            <form
+              onSubmit={begin}
+              className="flex min-h-0 flex-1 flex-col justify-center gap-3 overflow-y-auto px-5 py-4"
+            >
               <p className="text-sm text-niki-ink/70">
                 Leave your name and number and we&apos;ll pick this up right away.
               </p>
@@ -136,32 +145,8 @@ export function ChatLauncher({ label = "Need help?" }: { label?: string }) {
               </button>
             </form>
           )}
-        </div>
-      ) : null}
-
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-label={open ? "Close chat" : label}
-        className={cn(
-          // 56px: below 44 and a quarter of taps miss on a phone.
-          "niki-focus fixed bottom-4 right-4 z-[70] flex h-14 items-center gap-2.5 rounded-full bg-niki-orange pl-4 pr-5 text-white shadow-lg transition-transform hover:scale-[1.03] active:scale-95",
-          open && "pr-4",
-        )}
-      >
-        <MessageCircle className="h-6 w-6 shrink-0" />
-        {!open ? <span className="hidden text-sm font-bold sm:inline">{label}</span> : null}
-        {!open ? (
-          <span
-            aria-hidden
-            className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center"
-          >
-            <span className="absolute h-full w-full animate-ping rounded-full bg-niki-success opacity-70 [animation-iteration-count:3]" />
-            <span className="relative h-2.5 w-2.5 rounded-full bg-niki-success ring-2 ring-white" />
-          </span>
-        ) : null}
-      </button>
-    </>
+        </>
+      }
+    />
   );
 }
