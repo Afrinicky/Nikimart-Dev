@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Radio, Users } from "lucide-react";
+import { Radio, Users } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
-import { AgentPageHeading, Card, formatWhen } from "@/components/agent/AgentUi";
+import { Card, formatWhen } from "@/components/agent/AgentUi";
+import { TeamShell } from "@/components/agent/TeamShell";
 import { SessionScheduler } from "@/components/agent/SessionScheduler";
 import { requireUser } from "@/lib/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
@@ -84,18 +85,8 @@ export default async function TeamSessionsPage() {
   );
 
   return (
-    <div className="space-y-5">
-      <ActionLink
-        href="/agent/team"
-        className="inline-flex items-center gap-1.5 text-sm font-semibold text-niki-ink/60 hover:text-niki-orange"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to my team
-      </ActionLink>
-
-      <AgentPageHeading title="Team sessions" subtitle="Get your team in one room.">
-        <SessionScheduler />
-      </AgentPageHeading>
+    <TeamShell active="/agent/team/sessions">
+      <SessionScheduler />
 
       {!isChatConfigured() ? (
         <p className="rounded-2xl bg-amber-50 px-5 py-4 text-sm text-amber-800 ring-1 ring-amber-200">
@@ -118,6 +109,6 @@ export default async function TeamSessionsPage() {
           <ul>{invited.map((s) => row(s, false))}</ul>
         </Card>
       ) : null}
-    </div>
+    </TeamShell>
   );
 }

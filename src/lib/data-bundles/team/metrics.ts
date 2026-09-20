@@ -35,6 +35,8 @@ export interface TeamTotals {
   directMembers: number;
   indirectMembers: number;
   activeMembers: number;
+  /** The whole shape: selling, going quiet, gone, never started. */
+  activity: { active: number; quiet: number; dormant: number; never: number };
   newMembers: number;
   /** Members who have recruited somebody of their own. */
   buildingMembers: number;
@@ -91,6 +93,7 @@ export async function getTeamView(leaderId: string, w: OverviewWindow): Promise<
       directMembers: scope.directIds.length,
       indirectMembers: scope.indirectIds.length,
       activeMembers: 0,
+      activity: { active: 0, quiet: 0, dormant: 0, never: 0 },
       newMembers: 0,
       buildingMembers: 0,
       sales: 0,
@@ -218,6 +221,12 @@ export async function getTeamView(leaderId: string, w: OverviewWindow): Promise<
         directMembers: scope.directIds.length,
         indirectMembers: scope.indirectIds.length,
         activeMembers: rows.filter((r) => r.activity === "active").length,
+        activity: {
+          active: rows.filter((r) => r.activity === "active").length,
+          quiet: rows.filter((r) => r.activity === "quiet").length,
+          dormant: rows.filter((r) => r.activity === "dormant").length,
+          never: rows.filter((r) => r.activity === "never").length,
+        },
         newMembers: rows.filter((r) => isNewMember(r.joinedAt, now)).length,
         buildingMembers: rows.filter((r) => r.teamSize > 0).length,
         sales: round2(rows.reduce((sum, r) => sum + r.sales, 0)),
