@@ -16,6 +16,7 @@ import {
   MapPin,
   Megaphone,
   Menu,
+  MessagesSquare,
   Package,
   PackageCheck,
   Receipt,
@@ -96,6 +97,7 @@ const DATA: NavItem[] = [
   { href: "/admin/data/withdrawals", label: "Withdrawals", icon: Banknote },
   { href: "/admin/data/transactions", label: "Transactions", icon: Receipt },
   { href: "/admin/data/announcements", label: "Announcements", icon: Megaphone },
+  { href: "/admin/data/chatroom", label: "Chatroom", icon: MessagesSquare },
   { href: "/admin/data/settings", label: "Store settings", icon: Settings2 },
 ];
 

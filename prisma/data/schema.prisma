@@ -1089,6 +1089,122 @@ model DataTeamSessionMessage {
   @@index([sessionId, saidAt])
 }
 
+/**
+ * A room: an enquiry, a team, a group, a scheduled session, or two people.
+ *
+ * One model for all of them, because everything above the first line is the
+ * same — people in a room, messages in order, who has read what. What differs
+ * is only who may walk in, and that is a rule rather than a table.
+ *
+ * Participants are strings rather than relations. An agent is a row here, an
+ * admin is a user in the retail database and a visitor is nobody at all until
+ * they give a name; no foreign key spans those, so each is stored as
+ * "KIND:id".
+ */
+model DataConversation {
+  id    String @id @default(cuid())
+  /// SUPPORT | GROUP | TEAM | SESSION | DIRECT
+  kind  String
+  title String @default("")
+
+  /// Who runs it: the leader of a team, the opener of a direct message.
+  /// Empty for a room an admin made, which the platform runs.
+  ownerKey String @default("")
+
+  /// The team this room belongs to, for a TEAM room.
+  teamLeaderId String?
+  /// The scheduled session this room was opened for, for a SESSION room.
+  sessionId    String?
+
+  /// What a visitor told us before they started typing, for a SUPPORT room.
+  visitorName  String @default("")
+  visitorPhone String @default("")
+
+  /// open | closed
+  status String @default("open")
+  /// Denormalised so an inbox can sort without touching every message.
+  lastMessageAt DateTime?
+
+  members  DataConversationMember[]
+  messages DataChatMessage[]
+  requests DataConversationRequest[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kind, lastMessageAt])
+  @@index([teamLeaderId])
+  @@index([sessionId])
+  @@index([status, lastMessageAt])
+}
+
+/** One person in one room, and how far they have read. */
+model DataConversationMember {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   DataConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  /// AGENT:<id> | ADMIN:<userId> | VISITOR:<token>
+  participant String
+  displayName String @default("")
+  /// OWNER | MEMBER
+  role        String @default("MEMBER")
+
+  /// What they had seen when they last looked, for the unread count.
+  lastReadAt DateTime?
+  joinedAt   DateTime  @default(now())
+
+  @@unique([conversationId, participant])
+  @@index([participant])
+}
+
+/**
+ * One message.
+ *
+ * Written here as well as published to the realtime service, because the
+ * service keeps a day and an enquiry is worth following up next week. The row
+ * is a few hundred bytes; what would have cost this platform its database is
+ * holding connections open, and that is the service's job rather than ours.
+ */
+model DataChatMessage {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   DataConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  participant String
+  authorName  String
+  body        String
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+/**
+ * Somebody asking to be let into a room.
+ *
+ * A team's room and a scheduled session are the leader's to admit people to.
+ * The request is a row so it survives the leader being offline when it is
+ * made, which is exactly when it usually is.
+ */
+model DataConversationRequest {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   DataConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  participant String
+  displayName String @default("")
+  message     String @default("")
+  /// pending | approved | declined
+  status      String @default("pending")
+  decidedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([conversationId, participant])
+  @@index([status, createdAt])
+}
+
 model DataSetting {
   key   String @id
   value String

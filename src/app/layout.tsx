@@ -10,6 +10,8 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ChromeGate } from "@/components/layout/ChromeGate";
+import { ChatLauncher } from "@/components/chat/ChatLauncher";
+import { isChatConfigured } from "@/lib/chat/ably";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { AuthSession } from "@/components/providers/AuthSession";
 import { RouteProgress } from "@/components/ui/motion";
@@ -82,6 +84,9 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const locations = await getLocations();
+  // Without a key the bubble would open onto an error, so it stays hidden.
+  const chatOn = isChatConfigured();
+
   return (
     <html
       lang="en"
@@ -103,6 +108,9 @@ export default async function RootLayout({
               <ChromeGate>
                 <Footer />
                 <MobileBottomNav />
+                {/* Only on the shop: the consoles have a chatroom of their own,
+                    and a bubble over a sidebar is one control too many. */}
+                {chatOn ? <ChatLauncher /> : null}
               </ChromeGate>
             </CartProvider>
           </LocationProvider>
