@@ -65,8 +65,9 @@ export function ChatRoom({
     // one room, and the API key never reaches the browser.
     const client = new Ably.Realtime({
       authUrl: "/api/chat/token",
-      authMethod: "POST",
-      authHeaders: { "Content-Type": "application/json" },
+      // GET, so the params land on the URL where the route can always read
+      // them — the SDK does not send JSON whatever it is told to declare.
+      authMethod: "GET",
       authParams,
       clientId: me.key,
       closeOnUnload: false,
