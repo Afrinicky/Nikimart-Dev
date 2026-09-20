@@ -12,6 +12,17 @@
 
 export const CHANNEL_PREFIX = "nikimart";
 
+/** The room for one conversation — an enquiry, a team, a group, two people. */
+export function conversationChannel(conversationId: string): string {
+  return `${CHANNEL_PREFIX}:room:${conversationId}`;
+}
+
+/** The conversation a room channel refers to, or null when it is not one. */
+export function conversationIdFromChannel(channel: string): string | null {
+  const match = /^nikimart:room:([A-Za-z0-9_-]+)$/.exec(channel.trim());
+  return match ? match[1] : null;
+}
+
 /** The room for one team session. */
 export function sessionChannel(sessionId: string): string {
   return `${CHANNEL_PREFIX}:session:${sessionId}`;
