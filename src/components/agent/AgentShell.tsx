@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BadgeCheck,
   Bell,
+  MessagesSquare,
   ChevronLeft,
   ExternalLink,
   LayoutDashboard,
@@ -56,6 +57,7 @@ const ITEMS: NavItem[] = [
   { href: "/agent/store", label: "Store", icon: Store },
   { href: "/agent/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/agent/afa", label: "AFA", icon: BadgeCheck },
+  { href: "/agent/chatroom", label: "Chatroom", icon: MessagesSquare },
   { href: "/agent/notifications", label: "Notifications", icon: Bell },
   { href: "/agent/settings", label: "Settings", icon: Settings },
   { href: "/agent/support", label: "Support", icon: LifeBuoy },
