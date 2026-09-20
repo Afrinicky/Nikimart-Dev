@@ -27,7 +27,9 @@ export function ChatroomShell({
       <div className="mt-5">
         <ModuleTabs tabs={CHATROOM_TABS(unread)} />
       </div>
-      <div className="mt-6">{children}</div>
+      {/* Room for the floating bubble on a phone, so a list never ends
+          underneath it. */}
+      <div className="mt-6 pb-20 sm:pb-0">{children}</div>
     </Container>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import {
   bubbleSize,
   clampOffset,
@@ -53,8 +53,6 @@ export function FloatingBubble({
   const screen = useSyncExternalStore(viewport.subscribe, viewport.get, viewport.server);
 
   const [dragging, setDragging] = useState(false);
-  const moved = useRef(false);
-  const start = useRef<{ x: number; y: number; right: number; bottom: number } | null>(null);
 
   // Derived rather than measured in an effect: the position is a function of
   // the screen and what has been stored, so it is right on the first render
@@ -66,35 +64,54 @@ export function FloatingBubble({
     size,
   );
 
+  /**
+   * Dragging is tracked on the window rather than through pointer capture on
+   * the button.
+   *
+   * The button re-renders on every frame of a drag — its position is state —
+   * and a capture that has to survive that is a capture that sometimes does
+   * not. Listening on the window has nothing to lose: the drag continues even
+   * if the pointer leaves the bubble, runs past the edge of the screen, or the
+   * button is replaced underneath it.
+   */
   function onPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
-    moved.current = false;
-    start.current = { x: e.clientX, y: e.clientY, right: offset.right, bottom: offset.bottom };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  }
+    e.preventDefault();
+    const from = { x: e.clientX, y: e.clientY, right: offset.right, bottom: offset.bottom };
+    let dragged = false;
+    let latest = offset;
 
-  function onPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
-    const from = start.current;
-    if (!from) return;
-    const dx = from.x - e.clientX;
-    const dy = from.y - e.clientY;
-    if (!moved.current && Math.hypot(dx, dy) < MOVE_THRESHOLD) return;
-    moved.current = true;
-    setDragging(true);
-    store.move(
-      clampOffset({ right: from.right + dx, bottom: from.bottom + dy }, screen, size),
-    );
-  }
+    const onMove = (move: PointerEvent) => {
+      if (move.pointerId !== e.pointerId) return;
+      const dx = from.x - move.clientX;
+      const dy = from.y - move.clientY;
+      if (!dragged && Math.hypot(dx, dy) < MOVE_THRESHOLD) return;
+      // Only once the finger has really travelled, so a tap still opens it.
+      if (!dragged) {
+        dragged = true;
+        setDragging(true);
+      }
+      move.preventDefault();
+      latest = clampOffset(
+        { right: from.right + dx, bottom: from.bottom + dy },
+        { width: window.innerWidth, height: window.innerHeight },
+        size,
+      );
+      store.move(latest);
+    };
 
-  function onPointerUp(e: React.PointerEvent<HTMLButtonElement>) {
-    const wasDrag = moved.current;
-    start.current = null;
-    setDragging(false);
-    e.currentTarget.releasePointerCapture?.(e.pointerId);
-    if (wasDrag) {
-      store.persist(offset);
-      return;
-    }
-    onOpenChange(!open);
+    const onUp = (up: PointerEvent) => {
+      if (up.pointerId !== e.pointerId) return;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      setDragging(false);
+      if (dragged) store.persist(latest);
+      else onOpenChange(!open);
+    };
+
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
   }
 
   const side = panelSide(offset, screen.width);
@@ -119,9 +136,6 @@ export function FloatingBubble({
       <button
         type="button"
         onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
         aria-expanded={open}
         aria-label={label}
         title={`${label} — drag to move`}

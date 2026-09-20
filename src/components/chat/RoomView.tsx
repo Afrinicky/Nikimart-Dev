@@ -32,7 +32,10 @@ export function RoomView({
     conversation.title || CONVERSATION_LABELS[conversation.kind as ConversationKind] || "Room";
 
   return (
-    <div className="space-y-4">
+    // Padded at the bottom on a phone so the composer is never underneath the
+    // floating bubble. The bubble can be dragged away, but the first thing
+    // somebody does in a room should not be move a button out of the way.
+    <div className="space-y-4 pb-20 sm:pb-0">
       <ActionLink
         href={backHref}
         className="inline-flex items-center gap-1.5 text-sm font-semibold text-niki-ink/60 hover:text-niki-orange"

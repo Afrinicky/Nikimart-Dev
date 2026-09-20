@@ -21,7 +21,7 @@ export function AgentChatroomShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-20 sm:pb-0">
       <AgentPageHeading title="Chatroom" subtitle="Your rooms, sessions and messages.">
         {action}
       </AgentPageHeading>
