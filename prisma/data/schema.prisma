@@ -312,6 +312,8 @@ model DataAgent {
    * recruiter who has earned it can bring people in cheaper than the rest.
    */
   teamPosts      DataTeamPost[] @relation("TeamPostAuthor")
+  teamSessions   DataTeamSession[] @relation("TeamSessionHost")
+  sessionsAttended DataTeamSessionAttendee[] @relation("TeamSessionAttendee")
   teamNotesWritten DataTeamNote[] @relation("TeamNoteAuthor")
   teamNotesAbout   DataTeamNote[] @relation("TeamNoteSubject")
 
@@ -1008,6 +1010,83 @@ model DataTeamNote {
   createdAt DateTime @default(now())
 
   @@index([leaderId, memberId, createdAt])
+}
+
+/**
+ * A live session a leader holds with their team.
+ *
+ * The row is the durable part: when it was held, who turned up, and what was
+ * said once it is over. The conversation itself is carried by the realtime
+ * service and never touches this database while it is happening — a chat that
+ * wrote a row per message would spend the platform's database allowance on
+ * text nobody reads twice.
+ */
+model DataTeamSession {
+  id       String    @id @default(cuid())
+  leaderId String
+  leader   DataAgent @relation("TeamSessionHost", fields: [leaderId], references: [id], onDelete: Cascade)
+
+  title  String
+  agenda String @default("")
+
+  /// scheduled | live | ended
+  status   String    @default("scheduled")
+  startsAt DateTime
+  openedAt DateTime?
+  endedAt  DateTime?
+
+  attendees DataTeamSessionAttendee[]
+  messages  DataTeamSessionMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([leaderId, startsAt])
+  @@index([status, startsAt])
+}
+
+/**
+ * Who turned up, and for how long.
+ *
+ * One row per person per session, written when they join rather than per
+ * heartbeat — a leader wants to know who came, not a second-by-second log of
+ * who had the tab open.
+ */
+model DataTeamSessionAttendee {
+  id        String          @id @default(cuid())
+  sessionId String
+  session   DataTeamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  agentId   String
+  agent     DataAgent       @relation("TeamSessionAttendee", fields: [agentId], references: [id], onDelete: Cascade)
+
+  joinedAt DateTime  @default(now())
+  lastSeen DateTime?
+
+  @@unique([sessionId, agentId])
+  @@index([sessionId])
+}
+
+/**
+ * The transcript, written once when the session ends.
+ *
+ * In one batch rather than a row per message as it is typed: the live delivery
+ * is the realtime service's job, and this is the record of what was decided.
+ */
+model DataTeamSessionMessage {
+  id        String          @id @default(cuid())
+  sessionId String
+  session   DataTeamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  /// The agent who said it. Null for anybody since removed.
+  agentId   String?
+  authorName String
+  body      String
+  /// When it was said, as the browser stamped it.
+  saidAt    DateTime
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, saidAt])
 }
 
 model DataSetting {
