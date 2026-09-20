@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { signIn, signOut } from "@/lib/auth";
+import { auth, signIn, signOut } from "@/lib/auth";
 import { termsAccepted, TERMS_REQUIRED_MESSAGE } from "@/lib/terms";
 import { prisma } from "@/lib/prisma";
 import { isRole, ROLE_HOME } from "@/lib/roles";
@@ -326,5 +326,31 @@ export async function verifyTwoFactorAction(
 }
 
 export async function logoutAction() {
+  // Release the account's session before the cookie goes, so the token that
+  // was just signed out cannot be replayed from a copy of it.
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (userId) {
+    await prisma.user
+      .update({ where: { id: userId }, data: { activeSessionId: null } })
+      .catch(() => undefined);
+  }
   await signOut({ redirectTo: "/" });
+}
+
+/**
+ * Sign out everywhere, from the account's own settings.
+ *
+ * The way back for somebody who signed in on a borrowed phone and walked away
+ * from it: clearing the id makes every token out there stop working, including
+ * the one doing the clearing.
+ */
+export async function signOutEverywhere(): Promise<void> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return;
+  await prisma.user
+    .update({ where: { id: userId }, data: { activeSessionId: null } })
+    .catch(() => undefined);
+  await signOut({ redirectTo: "/login" });
 }
