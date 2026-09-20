@@ -39,6 +39,17 @@ model User {
   twoFactorEnabled   Boolean @default(false)
   /// email | sms — where that code is sent.
   twoFactorChannel   String  @default("email")
+  /**
+   * The one sign-in this account currently holds.
+   *
+   * Sessions are stateless tokens, so without this an account signed into on
+   * two phones is two valid tokens and no way to tell them apart. Every
+   * sign-in writes a fresh id here and stamps it into the token it issues; a
+   * token carrying any other id belonged to a session that has since been
+   * superseded, and is refused. Null means signed out everywhere.
+   */
+  activeSessionId    String?
+  activeSessionAt    DateTime?
   // Role gates every dashboard. SQLite has no enums, so we store the role as a
   // string constrained by the Role helper in src/lib/roles.ts.
   role              String    @default("CUSTOMER")

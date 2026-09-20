@@ -1,12 +1,15 @@
+import { randomBytes } from "crypto";
+import { cache } from "react";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { authConfig } from "@/lib/auth.config";
+import { applyToken, authConfig } from "@/lib/auth.config";
 import { isRole } from "@/lib/roles";
 import { findUserByIdentifier } from "@/lib/user-lookup";
+import { sessionAccepted, sessionVerdict } from "@/lib/session-rules";
 import { consumeChallenge } from "@/lib/two-factor";
 
 const credentialsSchema = z.object({
@@ -23,6 +26,30 @@ const twoFactorSchema = z.object({
 export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
+  callbacks: {
+    ...authConfig.callbacks,
+    /**
+     * The one gate every caller passes through.
+     *
+     * Putting the check here rather than in each guard means a page, a server
+     * action, an API route and anything written later all get it without
+     * having to remember to ask: a superseded token simply has no user on it,
+     * and everything that requires one redirects to sign in as it already
+     * does for a token with no user at all.
+     */
+    async session({ session, token }) {
+      const built = applyToken(session, token);
+      const t = (token ?? {}) as { id?: string; sid?: string };
+      if (!t.id) return built;
+      // A token with no session id predates single sign-in and cannot be shown
+      // to be the current one, so it is not treated as current.
+      if (!(await sessionIsCurrent(t.id, t.sid ?? null))) {
+        // No user means not signed in, which is what a superseded token is.
+        return { ...built, user: undefined } as unknown as typeof built;
+      }
+      return built;
+    },
+  },
   providers: [
     Credentials({
       credentials: {
@@ -45,7 +72,7 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
         // same rule, whatever route it came by.
         if (await hasTwoFactor(user.id)) return null;
 
-        return sessionUser(user);
+        return claimSession(user);
       },
     }),
 
@@ -75,27 +102,75 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
           where: { id: spent.userId },
           select: { id: true, name: true, email: true, image: true, role: true },
         });
-        return user ? sessionUser(user) : null;
+        return user ? await claimSession(user) : null;
       },
     }),
   ],
 });
 
-function sessionUser(user: {
+/**
+ * Take the account's one session.
+ *
+ * Signing in mints a fresh id and writes it to the account, which is what
+ * makes it the *only* session: any token already out there carries the
+ * previous id and stops being accepted the moment this one is written. Newest
+ * wins, deliberately — refusing the new sign-in instead would lock somebody
+ * out of their own account because of a tab they forgot on a borrowed phone.
+ */
+async function claimSession(user: {
   id: string;
   name: string | null;
   email: string;
   image: string | null;
   role: string;
 }) {
+  const sid = randomBytes(24).toString("hex");
+  try {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { activeSessionId: sid, activeSessionAt: new Date() },
+    });
+  } catch {
+    // The database refused the claim, so this token cannot be the one that
+    // supersedes the others. Refusing the sign-in is the safe way to fail:
+    // letting it through would be a second live session, which is the whole
+    // thing this prevents.
+    return null;
+  }
+
   return {
     id: user.id,
     name: user.name,
     email: user.email,
     image: user.image,
     role: isRole(user.role) ? user.role : "CUSTOMER",
+    sid,
   };
 }
+
+/**
+ * Whether this token is still the account's current session.
+ *
+ * Cached per request: `auth()` is called several times on a page and this
+ * would otherwise be a query each time.
+ *
+ * A database that cannot be reached returns true. Every caller is about to do
+ * database work of its own and will fail on its own terms; refusing here would
+ * turn an outage into a lockout for everybody, including the people holding
+ * the only valid session.
+ */
+const sessionIsCurrent = cache(async (userId: string, sid: string | null): Promise<boolean> => {
+  try {
+    const row = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { activeSessionId: true },
+    });
+    if (!row) return false;
+    return sessionAccepted(sessionVerdict(sid, row.activeSessionId));
+  } catch {
+    return true;
+  }
+});
 
 /** Whether this account asks for a code after the password. */
 async function hasTwoFactor(userId: string): Promise<boolean> {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { ShieldCheck, ShieldOff } from "lucide-react";
+import { LogOut, ShieldCheck, ShieldOff } from "lucide-react";
 import { inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/ui/motion";
 import { FormFeedback } from "@/components/ui/FormFeedback";
@@ -11,6 +11,7 @@ import {
   startTwoFactorSetup,
   type TwoFactorState,
 } from "@/lib/two-factor-actions";
+import { signOutEverywhere } from "@/lib/auth-actions";
 import { cn } from "@/lib/cn";
 
 /**
@@ -129,6 +130,24 @@ export function TwoFactorSettings({
           </SubmitButton>
         </form>
       ) : null}
+
+      {/* The way back for somebody who signed in on a borrowed phone and
+          walked away from it. One account holds one sign-in, so this ends
+          every other one — and this one. */}
+      <form action={signOutEverywhere} className="mt-5 border-t border-niki-edge pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-niki-ink/60">
+            Signed in somewhere you shouldn&apos;t be? Sign out of every device.
+          </p>
+          <SubmitButton
+            pendingLabel="Signing out…"
+            className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-niki-danger ring-1 ring-niki-danger/30 hover:bg-niki-danger/5"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign out everywhere
+          </SubmitButton>
+        </div>
+      </form>
     </section>
   );
 }
