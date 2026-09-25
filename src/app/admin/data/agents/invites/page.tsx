@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { PanelHeading } from "@/components/admin/ModuleHeader";
 import { IssueInviteForm, InviteLink } from "@/components/admin/InviteTools";
 import { DeleteButton } from "@/components/admin/DeleteButton";
-import { listAgentInvites, inviteUrl } from "@/lib/data-bundles/invites";
-import { inviteProblem } from "@/lib/data-bundles/invite-rules";
+import { listAgentInvites, inviteShareUrl } from "@/lib/data-bundles/invites";
+import { inviteProblem, isReservedInviteSlug } from "@/lib/data-bundles/invite-rules";
 import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import { removeInvite, toggleInvite } from "@/lib/data-bundles/invite-actions";
 import { formatMoney } from "@/lib/format";
+import { siteUrl } from "@/lib/site";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Registration links — Admin — Nickimart" };
@@ -22,7 +23,7 @@ export default async function AdminInvitesPage() {
     <div>
       <PanelHeading
         title="Registration links"
-        subtitle="Invite agents directly, at whatever discount you choose. Nobody earns a referral share on these — the discount is Nickimart's, not a recruiter's."
+        subtitle="Invite agents directly, at whatever discount you choose. Nobody earns a referral share on these — the discount is Nickimart's, not a recruiter's. Give a link a short path and it can go in a Facebook or WhatsApp ad."
       />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -47,7 +48,10 @@ export default async function AdminInvitesPage() {
                 <tbody>
                   {invites.map((invite) => {
                     const problem = inviteProblem(invite);
-                    const url = inviteUrl(invite.code);
+                    // What to hand somebody: the short path when the link has
+                    // one, because that is the address the advert carries and
+                    // the one people will be sharing on.
+                    const url = inviteShareUrl(invite);
                     const payable =
                       Math.round(program.setupFee * (1 - invite.waiverPercent / 100) * 100) / 100;
                     return (
@@ -56,10 +60,44 @@ export default async function AdminInvitesPage() {
                         className="border-b border-niki-edge transition-colors last:border-0 hover:bg-niki-surface/50"
                       >
                         <td className={td}>
-                          <p className="font-mono text-sm font-bold text-niki-ink">{invite.code}</p>
-                          <p className="max-w-[22rem] truncate text-[11px] text-niki-ink/45">
-                            {url}
-                          </p>
+                          {invite.slug && !isReservedInviteSlug(invite.slug) ? (
+                            <>
+                              <p className="font-mono text-sm font-bold text-niki-ink">
+                                /{invite.slug}
+                              </p>
+                              <p className="max-w-[22rem] truncate text-[11px] text-niki-ink/45">
+                                {url}
+                              </p>
+                              {/* The code still works, and is still the link to
+                                  send to one person, so it stays visible. */}
+                              <p className="mt-0.5 font-mono text-[11px] text-niki-ink/35">
+                                {invite.code}
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="font-mono text-sm font-bold text-niki-ink">
+                                {invite.code}
+                              </p>
+                              <p className="max-w-[22rem] truncate text-[11px] text-niki-ink/45">
+                                {url}
+                              </p>
+                              {invite.slug ? (
+                                // Only reachable when a later release added a
+                                // route with this name: the path now opens that
+                                // page instead, so the code link is the live one
+                                // and the admin needs to know before an ad runs.
+                                <p className="mt-0.5 text-[11px] font-medium text-amber-700">
+                                  /{invite.slug} is now a page on the site — issue a new link with
+                                  a different short path
+                                </p>
+                              ) : (
+                                <p className="mt-0.5 text-[11px] text-niki-ink/35">
+                                  No short path — not usable in an ad
+                                </p>
+                              )}
+                            </>
+                          )}
                         </td>
                         <td className={`${td} text-niki-ink/70`}>{invite.label || "—"}</td>
                         <td className={td}>
@@ -134,12 +172,18 @@ export default async function AdminInvitesPage() {
         </div>
 
         <div className="space-y-4">
-          <IssueInviteForm />
+          <IssueInviteForm origin={siteUrl()} />
           <p className="rounded-2xl bg-niki-surface px-4 py-3 text-xs leading-relaxed text-niki-ink/55">
             The registration fee is {formatMoney(program.setupFee)}. A link takes its discount off
             that at the moment somebody applies, and what they were charged is recorded on their
             application — so changing the fee later never rewrites a registration that already
             happened.
+          </p>
+          <p className="rounded-2xl bg-niki-surface px-4 py-3 text-xs leading-relaxed text-niki-ink/55">
+            A short path is the same link at a plain address — {siteUrl().replace(/^https?:\/\//, "")}
+            /join — which is what Facebook and WhatsApp will accept in an ad. It lands straight on
+            the registration page at this link&apos;s fee, and turning the link off, letting it
+            expire or deleting it controls the ad exactly as it controls any other link.
           </p>
         </div>
       </div>

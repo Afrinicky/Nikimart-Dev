@@ -13,13 +13,25 @@ import { cn } from "@/lib/cn";
  * The discount is the only real setting, and the form says what each end of it
  * means — 0% is the normal fee, 100% is a free account — because "waiver
  * percent" on its own is a number somebody can get backwards.
+ *
+ * The short path is the second thing worth explaining, because the reason for it
+ * is invisible: a link with `?invite=` in it is refused by Facebook's and
+ * WhatsApp's link checks, so a link destined for an advert needs a bare path or
+ * the advert does not run at all.
  */
 
 const QUICK = [0, 25, 50, 100];
 
-export function IssueInviteForm() {
+/** Shown beside the short-path field, so the admin sees the URL they'll get. */
+const ORIGIN_LABEL = "nickimart.com/";
+
+export function IssueInviteForm({ origin }: { origin?: string }) {
   const [state, formAction] = useActionState<InviteState, FormData>(issueInvite, {});
   const [waiver, setWaiver] = useState("100");
+  const [slug, setSlug] = useState("");
+
+  const host = (origin ?? "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  const prefix = host ? `${host}/` : ORIGIN_LABEL;
 
   return (
     <form action={formAction} className="space-y-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
@@ -48,6 +60,29 @@ export function IssueInviteForm() {
           placeholder="Accra campus drive"
           className={inputClass}
         />
+      </Field>
+
+      <Field
+        label="Short path"
+        htmlFor="slug"
+        hint="Optional, and only needed for a link going into a Facebook or WhatsApp ad — they reject the ?invite= link. Reusing a path another link already has moves it onto this one."
+      >
+        <div className="flex items-center overflow-hidden rounded-xl border border-niki-edge-strong bg-white transition-colors focus-within:border-niki-orange focus-within:ring-2 focus-within:ring-niki-orange/20">
+          <span className="shrink-0 border-r border-niki-edge bg-niki-surface px-3 py-2.5 text-sm text-niki-ink/45">
+            {prefix}
+          </span>
+          <input
+            id="slug"
+            name="slug"
+            maxLength={32}
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+            placeholder="join"
+            autoComplete="off"
+            spellCheck={false}
+            className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm font-medium text-niki-ink outline-none placeholder:font-normal placeholder:text-niki-ink/40"
+          />
+        </div>
       </Field>
 
       <div>
