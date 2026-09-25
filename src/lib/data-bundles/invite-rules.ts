@@ -86,3 +86,85 @@ export function newInviteCode(random: () => number = Math.random): string {
 export function normaliseInviteCode(value: string | null | undefined): string {
   return (value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 16);
 }
+
+// ---------------------------------------------------------------------------
+// Short paths.
+//
+// A link an advert can carry. `/become-an-agent?invite=ABCD2345` is refused by
+// Facebook's and WhatsApp's link checks — a query string on an unfamiliar
+// domain is what a tracking redirect looks like — so a link meant for an advert
+// gets a bare path instead: nickimart.com/join.
+//
+// The path is the whole point of the link, so the rules that decide whether one
+// may be claimed are here, pure and tested, rather than inside the form.
+// ---------------------------------------------------------------------------
+
+/**
+ * Paths that are already the app's own, and so cannot be a short path.
+ *
+ * Next.js resolves a static segment before a dynamic one, so a link claiming
+ * "login" would never be reached rather than shadowing the sign-in page: this
+ * list exists to say so at the moment it is created, instead of leaving an
+ * admin with a link that silently goes somewhere else.
+ *
+ * Kept in step with the top level of src/app by hand. A name missing from here
+ * costs a dead link, which is why the check is repeated as a route-level guard
+ * rather than trusted from this list alone.
+ */
+export const RESERVED_INVITE_SLUGS: readonly string[] = [
+  // Top-level routes.
+  "account", "admin", "affiliate", "agent", "agent-setup", "api",
+  "become-an-agent", "brand", "buy-for-me", "buyer-protection", "campus",
+  "cart", "categories", "checkout", "data-bundles", "forgot-password",
+  "freight", "global-shopping", "help", "how-it-works", "legal", "login",
+  "order-tracking", "orders", "pages", "pickup", "pickup-points", "preorders",
+  "products", "register", "reset-password", "sell", "seller", "services",
+  "shipped-from-abroad", "shops", "start-selling", "store", "vendor-register",
+  // Paths next.config.ts redirects.
+  "databundles",
+  // Framework and asset paths, and the metadata routes the app generates.
+  "_next", "_vercel", "static", "public", "assets", "images", "uploads",
+  "favicon.ico", "icon", "icon.svg", "apple-icon", "apple-icon.png",
+  "manifest.json", "manifest.webmanifest", "opengraph-image", "twitter-image",
+  "robots.txt", "sitemap.xml",
+];
+
+const RESERVED = new Set(RESERVED_INVITE_SLUGS);
+
+/**
+ * Normalise a short path, from a form field or from the URL.
+ *
+ * Lowercase, because a path typed into a phone browser is whatever case the
+ * keyboard felt like and `/Join` and `/join` have to be the same link.
+ */
+export function normaliseInviteSlug(value: string | null | undefined): string {
+  return (value ?? "")
+    .trim()
+    .toLowerCase()
+    // A whole URL pasted in rather than a path: keep the last segment.
+    .replace(/^https?:\/\/[^/]+/, "")
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32);
+}
+
+/** Why this short path can't be used, or null when it can. */
+export function inviteSlugProblem(slug: string): string | null {
+  if (slug.length < 2) return "A short path needs at least two characters — try “join”.";
+  if (RESERVED.has(slug)) {
+    return `nickimart.com/${slug} is already a page on the site. Pick another word.`;
+  }
+  return null;
+}
+
+/** Is this path the app's own, whatever an admin may once have claimed? */
+export function isReservedInviteSlug(slug: string): boolean {
+  return RESERVED.has(slug);
+}
+
+/** The advert-friendly link for a short path. */
+export function inviteSlugUrl(origin: string, slug: string): string {
+  return `${origin.replace(/\/+$/, "")}/${slug}`;
+}

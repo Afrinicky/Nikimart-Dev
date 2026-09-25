@@ -849,6 +849,14 @@ model DataAgentInvite {
   id String @id @default(cuid())
   /** The token in the URL: /become-an-agent?invite=<code>. */
   code String @unique
+  /**
+   * An advert-friendly short path for the same link: nickimart.com/<slug>.
+   *
+   * Optional, and unique when set. Facebook and WhatsApp refuse a link with a
+   * query string on a domain they don't know, so a link that has to survive an
+   * advert gets a bare path as well as a code.
+   */
+  slug String? @unique
   /** What this link is for, in the admin's own words. */
   label String @default("")
 
