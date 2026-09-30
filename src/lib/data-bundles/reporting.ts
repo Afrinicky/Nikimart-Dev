@@ -150,12 +150,18 @@ export async function getDataOrders(opts: {
   query?: string;
   page?: number;
   perPage?: number;
+  /**
+   * Narrow the page to one agent's sales, for the same table rendered inside
+   * that agent's admin window. Left out, the page is the whole storefront.
+   */
+  agentId?: string;
 }): Promise<OrderPage> {
   const page = Math.max(1, opts.page ?? 1);
   const perPage = opts.perPage && opts.perPage > 0 ? opts.perPage : ORDERS_PER_PAGE;
   const query = (opts.query ?? "").trim();
 
   const where: Record<string, unknown> = {
+    ...(opts.agentId ? { agentId: opts.agentId } : {}),
     ...orderStatusWhere(opts.status),
     ...orderNetworkWhere(opts.network),
     ...orderSearchWhere(query),
