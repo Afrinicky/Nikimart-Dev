@@ -96,6 +96,7 @@ export default async function AdminDataOrdersPage({
               total={total}
               page={page}
               pageCount={pageCount}
+              exportHref="/admin/data/orders/export"
             />
           </Suspense>
         </div>

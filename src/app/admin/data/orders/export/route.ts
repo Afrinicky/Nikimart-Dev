@@ -7,7 +7,7 @@ import {
   isDataOrderStatus,
   networkLabel,
 } from "@/lib/data-bundles/networks";
-import { orderSourceLabel } from "@/lib/data-bundles/reporting";
+import { orderIncome, orderSourceLabel } from "@/lib/data-bundles/reporting";
 import {
   orderNetworkWhere,
   orderSearchWhere,
@@ -31,9 +31,13 @@ export async function GET(req: Request) {
   }
 
   const sp = new URL(req.url).searchParams;
-  // The same three filters the table applies, read the same way, so an export
-  // is always exactly what was on screen when the button was pressed.
+  // One agent's sales rather than the whole storefront, for the same table
+  // rendered inside that agent's admin window.
+  const agentId = sp.get("agent");
+  // The same filters the table applies, read the same way, so an export is
+  // always exactly what was on screen when the button was pressed.
   const where: Record<string, unknown> = {
+    ...(agentId ? { agentId } : {}),
     ...orderStatusWhere(sp.get("status")),
     ...orderNetworkWhere(sp.get("network")),
     ...orderSearchWhere(sp.get("q")),
@@ -51,7 +55,9 @@ export async function GET(req: Request) {
       name: "Bundle orders",
       columns: [
         "Order ID",
-        "Source",
+        // Every row of an agent's export is that same agent, so the column
+        // would be one repeated name.
+        ...(agentId ? [] : ["Source"]),
         "Network",
         "Size",
         "Recipient phone",
@@ -60,6 +66,7 @@ export async function GET(req: Request) {
         "Price",
         "Cost",
         "Commission",
+        "Income",
         "Commission status",
         "Payment",
         "Status",
@@ -68,11 +75,15 @@ export async function GET(req: Request) {
       ],
       rows: orders.map((o) => [
         o.reference,
-        orderSourceLabel({
-          source: o.source,
-          agentName: o.agent?.storeName ?? null,
-          agentCode: o.agent?.code ?? null,
-        }),
+        ...(agentId
+          ? []
+          : [
+              orderSourceLabel({
+                source: o.source,
+                agentName: o.agent?.storeName ?? null,
+                agentCode: o.agent?.code ?? null,
+              }),
+            ]),
         networkLabel(o.network),
         bundleLabel(o.sizeGb),
         o.recipientPhone,
@@ -81,6 +92,7 @@ export async function GET(req: Request) {
         o.price,
         o.costPrice,
         o.agentCommission,
+        orderIncome(o),
         o.commissionStatus,
         o.paymentStatus === "paid" ? "Payment success" : "Payment pending",
         isDataOrderStatus(o.status) ? DATA_STATUS_LABELS[o.status] : o.status,
@@ -89,7 +101,10 @@ export async function GET(req: Request) {
       ]),
     };
 
-    return workbookResponse([sheet], "bundle-orders");
+    const filename = agentId
+      ? `bundle-orders-${orders[0]?.agent?.code?.toLowerCase() ?? "agent"}`
+      : "bundle-orders";
+    return workbookResponse([sheet], filename);
   } catch (error) {
     console.error("[admin orders export] failed", error);
     return NextResponse.json({ error: "Could not build the export." }, { status: 500 });

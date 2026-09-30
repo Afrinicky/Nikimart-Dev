@@ -33,7 +33,7 @@ import {
   orderStatusFilter,
   perPageFrom,
 } from "@/lib/data-bundles/order-filters";
-import { getDataOrders, orderSourceLabel } from "@/lib/data-bundles/reporting";
+import { getDataOrders, orderIncome, orderSourceLabel } from "@/lib/data-bundles/reporting";
 import { syncOpenOrders } from "@/lib/data-bundles/order-sync";
 import {
   markDataOrderRefunded,
@@ -63,6 +63,8 @@ export const dynamic = "force-dynamic";
 // agent-scoped copy of it sits on exactly the same grid.
 const th = "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-niki-ink/45";
 const td = "px-4 py-3.5 align-middle";
+// Shown against a commission or income figure that is not money yet.
+const notBanked = "Not banked — this order is unpaid or refunded.";
 
 /**
  * One agent's window: everything known about them, and everything that can be
@@ -365,6 +367,7 @@ export default async function AdminAgentDetailPage({
                           total={orderPage.total}
                           page={page}
                           pageCount={pageCount}
+                          exportHref={`/admin/data/orders/export?agent=${agent.id}`}
                         />
                       </Suspense>
 
@@ -375,15 +378,16 @@ export default async function AdminAgentDetailPage({
                       ) : (
                         <>
                           <div className="-mx-5 mt-4 overflow-x-auto px-5">
-                            <table className="w-full min-w-[1040px] border-separate border-spacing-0 text-sm">
+                            <table className="w-full min-w-[1000px] border-separate border-spacing-0 text-sm">
                               <thead>
                                 <tr className="bg-niki-surface/70">
                                   <th className={`${th} rounded-l-xl`}>Order ID</th>
-                                  <th className={th}>Source</th>
                                   <th className={th}>Network</th>
                                   <th className={th}>Size</th>
                                   <th className={th}>Phone Number</th>
                                   <th className={th}>Price</th>
+                                  <th className={th}>Commission</th>
+                                  <th className={th}>Income</th>
                                   <th className={th}>Status</th>
                                   <th className={th}>Date</th>
                                   <th className={`${th} rounded-r-xl`}>Actions</th>
@@ -393,6 +397,13 @@ export default async function AdminAgentDetailPage({
                                 {orderPage.orders.map((o) => {
                                   const label = orderSourceLabel(o);
                                   const house = o.source === "WEB" || !o.agentName;
+                                  // What Nickimart keeps once the bundle and
+                                  // every commission on it are paid for.
+                                  const income = orderIncome(o);
+                                  // An unpaid or refunded order's commission
+                                  // and income are notional, so they are shown
+                                  // greyed rather than as money in hand.
+                                  const banked = o.paymentStatus === "paid" && o.status !== "refunded";
                                   return (
                                     <tr
                                       key={o.id}
@@ -402,18 +413,6 @@ export default async function AdminAgentDetailPage({
                                         className={`${td} font-mono text-xs font-semibold text-niki-ink`}
                                       >
                                         {o.reference}
-                                      </td>
-                                      <td className={`${td} text-xs`}>
-                                        <span
-                                          title={label}
-                                          className={
-                                            house
-                                              ? "inline-flex whitespace-nowrap rounded-lg bg-niki-black/5 px-2.5 py-1 font-semibold text-niki-ink/70"
-                                              : "inline-flex whitespace-nowrap rounded-lg bg-niki-orange/10 px-2.5 py-1 font-semibold text-niki-orange"
-                                          }
-                                        >
-                                          {house ? "Nickimart" : o.agentName}
-                                        </span>
                                       </td>
                                       <td className={td}>
                                         <NetworkCell network={o.network} />
@@ -426,6 +425,28 @@ export default async function AdminAgentDetailPage({
                                       </td>
                                       <td className={`${td} font-semibold text-niki-ink`}>
                                         {formatMoney(o.price)}
+                                      </td>
+                                      <td
+                                        className={cn(
+                                          `${td} font-semibold`,
+                                          banked ? "text-niki-ink" : "text-niki-ink/40",
+                                        )}
+                                        title={banked ? undefined : notBanked}
+                                      >
+                                        {o.agentCommission > 0 ? formatMoney(o.agentCommission) : "—"}
+                                      </td>
+                                      <td
+                                        className={cn(
+                                          `${td} font-semibold`,
+                                          !banked
+                                            ? "text-niki-ink/40"
+                                            : income < 0
+                                              ? "text-niki-danger"
+                                              : "text-niki-ink",
+                                        )}
+                                        title={banked ? undefined : notBanked}
+                                      >
+                                        {formatMoney(income)}
                                       </td>
                                       <td className={td}>
                                         <StatusPill status={o.status} />
