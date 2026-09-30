@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarRange } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { inputClass } from "@/components/ui/Field";
@@ -25,6 +25,7 @@ export function OverviewRange({
   label,
   from,
   to,
+  basePath = "/admin/data",
 }: {
   /** Which pill is lit: "7" | "30" | "90" | "all" | "custom". */
   active: string;
@@ -33,8 +34,14 @@ export function OverviewRange({
   /** What the two date inputs start on. */
   from: string;
   to: string;
+  /**
+   * Where the pills point. One agent's window lives on their own page, so the
+   * control cannot assume it is always driving the business overview.
+   */
+  basePath?: string;
 }) {
   const router = useRouter();
+  const params = useSearchParams();
   const [open, setOpen] = useState(false);
   const [start, setStart] = useState(from);
   const [end, setEnd] = useState(to);
@@ -56,11 +63,29 @@ export function OverviewRange({
     };
   }, [open]);
 
+  /**
+   * This window, keeping everything else already in the query string.
+   *
+   * The agent page carries its orders table's own filters and page number
+   * here too, and changing the date range should not silently reset them —
+   * on the overview, where there is nothing else in the query, this is the
+   * same address it always produced.
+   */
+  function href(patch: Record<string, string | null>) {
+    const next = new URLSearchParams(params.toString());
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === null) next.delete(key);
+      else next.set(key, value);
+    }
+    const qs = next.toString();
+    return qs ? `${basePath}?${qs}` : basePath;
+  }
+
   function apply(e: React.FormEvent) {
     e.preventDefault();
     if (!start || !end) return;
     setOpen(false);
-    router.push(`/admin/data?from=${start}&to=${end}`);
+    router.push(href({ from: start, to: end, days: null }));
   }
 
   const pill =
@@ -77,7 +102,7 @@ export function OverviewRange({
       {OVERVIEW_RANGES.map((r) => (
         <ActionLink
           key={r}
-          href={`/admin/data?days=${r}`}
+          href={href({ days: String(r), from: null, to: null })}
           aria-current={active === String(r) ? "page" : undefined}
           className={cn(pill, active === String(r) ? on : off)}
         >
@@ -86,7 +111,7 @@ export function OverviewRange({
       ))}
 
       <ActionLink
-        href="/admin/data?days=all"
+        href={href({ days: "all", from: null, to: null })}
         aria-current={active === "all" ? "page" : undefined}
         className={cn(pill, active === "all" ? on : off)}
       >

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -502,14 +503,17 @@ export default async function AdminDataOverviewPage({
         </span>
       </a>
 
-      {/* The window everything below is measured over. */}
+      {/* The window everything below is measured over. Suspense because the
+          pills build their links off the query string. */}
       <div className="mt-5">
-        <OverviewRange
-          active={period.key}
-          label={period.label}
-          from={period.from}
-          to={period.to}
-        />
+        <Suspense fallback={<div className="h-8" />}>
+          <OverviewRange
+            active={period.key}
+            label={period.label}
+            from={period.from}
+            to={period.to}
+          />
+        </Suspense>
       </div>
 
       {/* Trading, over the window. */}

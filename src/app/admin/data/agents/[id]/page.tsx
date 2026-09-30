@@ -2,8 +2,15 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import {
+  ArrowDownRight,
   ArrowLeft,
+  ArrowUpRight,
+  Coins,
   ExternalLink,
+  HandCoins,
+  ListOrdered,
+  PiggyBank,
+  TrendingUp,
   Package,
   Receipt,
   ReceiptText,
@@ -15,6 +22,8 @@ import { ActionLink } from "@/components/ui/motion";
 import { BalanceAdjuster, TopupReconciler } from "@/components/admin/AgentAdminTools";
 import { AgentAccountTools, SetupLinkTool } from "@/components/admin/AgentAccountTools";
 import { AgentWindow } from "@/components/admin/AgentWindow";
+import { OverviewRange } from "@/components/admin/OverviewRange";
+import { TrendChart } from "@/components/admin/charts/TrendChart";
 import { ReferrerTool } from "@/components/admin/ReferrerTool";
 import { ReferralWaiverTool } from "@/components/admin/ReferralWaiverTool";
 import { RecruitPaymentTool } from "@/components/admin/RecruitPaymentTool";
@@ -25,7 +34,7 @@ import { LiveOrders } from "@/components/data/LiveOrders";
 import { siteUrl } from "@/lib/site";
 import { NetworkCell, StatusPill, formatWhen } from "@/components/agent/AgentUi";
 import { dataDb } from "@/lib/data-db";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatPrice } from "@/lib/format";
 import { bundleLabel } from "@/lib/data-bundles/networks";
 import {
   ORDER_NETWORK_OPTIONS,
@@ -49,6 +58,12 @@ import {
 import { getAgentUser } from "@/lib/data-bundles/user-link";
 import { setAgentStatus } from "@/lib/data-bundles/agent-admin-actions";
 import { getAgentProgramConfig, getReferralConfig } from "@/lib/data-bundles/settings";
+import {
+  changePercent,
+  getAgentWindowTotals,
+  getDailySeries,
+  resolveWindow,
+} from "@/lib/data-bundles/overview";
 import { registrationFeeBreakdown } from "@/lib/data-bundles/referral-rules";
 import { recruitPaymentRule } from "@/lib/data-bundles/referrals";
 
@@ -76,24 +91,101 @@ const notBanked = "Not banked — this order is unpaid or refunded.";
  * permanently are last.
  */
 
+const TONES = {
+  ink: "text-niki-ink",
+  success: "text-niki-success",
+  danger: "text-niki-danger",
+  orange: "text-niki-orange",
+} as const;
+
+/**
+ * One figure, with what it is and — where there is an honest baseline — how it
+ * moved.
+ *
+ * The icon chip is what separates the two rows of these at a glance: the
+ * account's own standing figures sit in neutral chips, the ones counted over
+ * the chosen window in orange ones. Without that they are twelve identical
+ * boxes and nobody can tell which three ignore the date picker.
+ */
 function Tile({
   label,
   value,
+  hint,
+  icon: Icon,
   tone = "ink",
+  accent = false,
+  delta,
 }: {
   label: string;
   value: string;
-  tone?: "ink" | "success" | "danger";
+  hint?: string;
+  icon?: React.ElementType;
+  tone?: keyof typeof TONES;
+  /** Orange chip: this figure is counted over the window, not all time. */
+  accent?: boolean;
+  /** Percent change on the window before. Null when there is no baseline. */
+  delta?: number | null;
 }) {
-  const tones = { ink: "text-niki-ink", success: "text-niki-success", danger: "text-niki-danger" };
   return (
-    <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
-      <p className="text-[11px] font-semibold uppercase leading-tight tracking-wide text-niki-ink/45 sm:text-xs">
-        {label}
-      </p>
-      <p className={`mt-2 font-figures text-xl font-bold sm:text-2xl ${tones[tone]}`}>{value}</p>
+    <div className="rounded-2xl bg-white p-4 ring-1 ring-niki-edge transition-shadow hover:shadow-sm sm:p-5">
+      <div className="flex items-center gap-2">
+        {Icon ? (
+          <span
+            className={cn(
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
+              accent ? "bg-niki-orange/10 text-niki-orange" : "bg-niki-surface text-niki-ink/50",
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" />
+          </span>
+        ) : null}
+        <p className="text-[11px] font-semibold uppercase leading-tight tracking-wide text-niki-ink/45">
+          {label}
+        </p>
+      </div>
+      <div className="mt-2.5 flex flex-wrap items-baseline gap-2">
+        <p className={cn("font-figures text-xl font-bold sm:text-2xl", TONES[tone])}>{value}</p>
+        {delta === null || delta === undefined ? null : (
+          <span
+            className={cn(
+              "flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] font-bold",
+              delta >= 0
+                ? "bg-niki-success/10 text-niki-success"
+                : "bg-niki-danger/10 text-niki-danger",
+            )}
+          >
+            {delta >= 0 ? (
+              <ArrowUpRight className="h-3 w-3" />
+            ) : (
+              <ArrowDownRight className="h-3 w-3" />
+            )}
+            {Math.abs(delta)}%
+          </span>
+        )}
+      </div>
+      {hint ? <p className="mt-1 text-xs text-niki-ink/45">{hint}</p> : null}
     </div>
   );
+}
+
+/**
+ * The agent's initials, for the monogram on the identity card.
+ *
+ * Off the store name, which is what the page is titled by and what everybody
+ * calls them. "Omar8080" gives "OM" rather than "O8": a digit in a monogram
+ * reads as a number somebody should recognise.
+ */
+function initials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "??";
+  const letters = words
+    .map((w) => w.match(/[A-Za-z]/)?.[0] ?? "")
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("");
+  if (letters.length >= 2) return letters.toUpperCase();
+  const first = words[0].replace(/[^A-Za-z]/g, "");
+  return (first.slice(0, 2) || words[0].slice(0, 2)).toUpperCase();
 }
 
 function Panel({
@@ -143,6 +235,9 @@ export default async function AdminAgentDetailPage({
     q?: string;
     page?: string;
     per?: string;
+    days?: string;
+    from?: string;
+    to?: string;
   }>;
 }) {
   const { id } = await params;
@@ -155,6 +250,10 @@ export default async function AdminAgentDetailPage({
   const query = (sp.q ?? "").trim();
   const perPage = perPageFrom(sp.per, 25);
   const page = Math.max(1, Number(sp.page) || 1);
+  // The stretch of time the dashboard above the tabs is describing. Read with
+  // the same function the business overview uses, so "last 30 days" means the
+  // same days on both screens.
+  const period = resolveWindow(sp);
 
   const row = await dataDb.dataAgent.findUnique({ where: { id } }).catch(() => null);
   if (!row) notFound();
@@ -203,6 +302,8 @@ export default async function AdminAgentDetailPage({
     referralConfig,
     program,
     pendingTopups,
+    trading,
+    series,
   ] = await Promise.all([
     getAgentWallet(agent),
     getAgentLedger(agent.id, 25),
@@ -214,6 +315,8 @@ export default async function AdminAgentDetailPage({
     getReferralConfig(),
     getAgentProgramConfig(),
     pendingTopupsFor(agent.id),
+    getAgentWindowTotals(agent.id, period),
+    getDailySeries(period, { agentId: agent.id }),
   ]);
 
   const pageCount = Math.max(1, Math.ceil(orderPage.total / perPage));
@@ -224,6 +327,24 @@ export default async function AdminAgentDetailPage({
   ).length;
 
   const suspended = agent.status !== "active";
+  // "last 30 days", "all time", "1–14 Mar 2026" — said once, under every
+  // figure the window governs, so nothing on screen is ambiguous about it.
+  const windowLabel = period.label;
+
+  /**
+   * Narrowing the window onto one point of the trend, without throwing away
+   * what the orders table below is holding in the same query string. The range
+   * pills preserve it too, so the two controls behave the same way.
+   */
+  const pointHref = (day: string, endDay?: string) => {
+    const next = new URLSearchParams();
+    for (const [key, value] of Object.entries(sp)) {
+      if (value && key !== "days" && key !== "from" && key !== "to") next.set(key, value);
+    }
+    next.set("from", day);
+    next.set("to", endDay ?? day);
+    return `/admin/data/agents/${agent.id}?${next.toString()}`;
+  };
   // What this registration was made of, read back off the row rather than
   // recomputed: the settings may have changed a dozen times since.
   const fee = registrationFeeBreakdown(agent);
@@ -256,54 +377,90 @@ export default async function AdminAgentDetailPage({
         Back to agents
       </ActionLink>
 
-      <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-2xl font-bold text-niki-ink">{agent.storeName}</h1>
+      {/* Who this is, as one card rather than four lines of loose text. The
+          monogram gives the page something to be recognised by when you have
+          six agent tabs open, and the facts people quote down the phone — the
+          code, the store link, when they joined — are chips they can see at a
+          glance instead of a sentence they have to read. */}
+      <div className="mt-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-4">
             <span
-              className={cn(
-                "rounded-md px-2 py-0.5 text-[10px] font-bold uppercase",
-                suspended
-                  ? "bg-niki-danger/10 text-niki-danger"
-                  : "bg-niki-success/10 text-niki-success",
-              )}
+              aria-hidden
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-niki-orange to-niki-gold font-display text-lg font-bold text-niki-black shadow-sm shadow-niki-orange/25"
             >
-              {suspended ? "Suspended" : "Active"}
+              {initials(agent.storeName)}
             </span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="font-display text-2xl font-bold text-niki-ink">
+                  {agent.storeName}
+                </h1>
+                <span
+                  className={cn(
+                    "rounded-md px-2 py-0.5 text-[10px] font-bold uppercase",
+                    suspended
+                      ? "bg-niki-danger/10 text-niki-danger"
+                      : "bg-niki-success/10 text-niki-success",
+                  )}
+                >
+                  {suspended ? "Suspended" : "Active"}
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-niki-ink/60">
+                {agent.user?.name ?? "—"} · {agent.user?.email ?? "—"} ·{" "}
+                <span className="font-mono">
+                  {agent.supportPhone || agent.user?.phone || "—"}
+                </span>
+              </p>
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="rounded-lg bg-niki-surface px-2 py-1 font-semibold text-niki-ink/60">
+                  Code <span className="font-mono text-niki-ink">{agent.code}</span>
+                </span>
+                <span className="rounded-lg bg-niki-surface px-2 py-1 font-semibold text-niki-ink/60">
+                  Joined {formatWhen(agent.createdAt)}
+                </span>
+                <span className="rounded-lg bg-niki-surface px-2 py-1 font-mono text-niki-ink/60">
+                  /store/{agent.slug}
+                </span>
+                <span
+                  className={cn(
+                    "rounded-lg px-2 py-1 font-semibold",
+                    agent.storeOpen
+                      ? "bg-niki-success/10 text-niki-success"
+                      : "bg-niki-ink/5 text-niki-ink/55",
+                  )}
+                >
+                  Storefront {agent.storeOpen ? "open" : "closed"}
+                </span>
+              </div>
+            </div>
           </div>
-          <p className="mt-1 text-sm text-niki-ink/60">
-            {agent.user?.name ?? "—"} · {agent.user?.email ?? "—"} ·{" "}
-            <span className="font-mono">{agent.supportPhone || agent.user?.phone || "—"}</span>
-          </p>
-          <p className="mt-1 text-xs text-niki-ink/45">
-            Agent code <span className="font-mono">{agent.code}</span> · joined{" "}
-            {formatWhen(agent.createdAt)}
-          </p>
-        </div>
 
-        <div className="flex flex-wrap gap-2">
-          <a
-            href={`/store/${agent.slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="niki-press niki-chip flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold text-niki-ink/75"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-            View store
-          </a>
-          <form action={setAgentStatus}>
-            <input type="hidden" name="agentId" value={agent.id} />
-            <input type="hidden" name="status" value={suspended ? "active" : "suspended"} />
-            <button
-              type="submit"
-              className={cn(
-                "niki-press rounded-lg px-4 py-2 text-xs font-semibold text-white",
-                suspended ? "bg-niki-success" : "bg-niki-danger",
-              )}
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={`/store/${agent.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="niki-press niki-chip flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold text-niki-ink/75"
             >
-              {suspended ? "Reactivate agent" : "Suspend agent"}
-            </button>
-          </form>
+              <ExternalLink className="h-3.5 w-3.5" />
+              View store
+            </a>
+            <form action={setAgentStatus}>
+              <input type="hidden" name="agentId" value={agent.id} />
+              <input type="hidden" name="status" value={suspended ? "active" : "suspended"} />
+              <button
+                type="submit"
+                className={cn(
+                  "niki-press rounded-lg px-4 py-2 text-xs font-semibold text-white",
+                  suspended ? "bg-niki-success" : "bg-niki-danger",
+                )}
+              >
+                {suspended ? "Reactivate agent" : "Suspend agent"}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
 
@@ -314,15 +471,130 @@ export default async function AdminAgentDetailPage({
         </p>
       ) : null}
 
-      <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {/* The account as it stands. Deliberately above the date picker and
+          outside everything it controls: a balance is what the account holds
+          right now, and there is no such thing as last month's balance. */}
+      <div className="mt-4">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-niki-ink/40">
+          The account · all time
+        </p>
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <Tile
+            label="Balance"
+            value={formatMoney(wallet.balance)}
+            icon={Wallet}
+            tone={wallet.balance < 0 ? "danger" : "success"}
+            hint={
+              wallet.outstandingSetup > 0
+                ? `${formatMoney(wallet.outstandingSetup)} registration still clearing`
+                : wallet.pendingWithdrawals > 0
+                  ? `${formatMoney(wallet.pendingWithdrawals)} committed to a withdrawal`
+                  : undefined
+            }
+          />
+          <Tile
+            label="Commission earned"
+            value={formatMoney(wallet.commissionEarned)}
+            icon={Coins}
+            hint={
+              wallet.commissionPending > 0
+                ? `${formatMoney(wallet.commissionPending)} not yet released`
+                : undefined
+            }
+          />
+          <Tile label="Sales" value={formatMoney(wallet.totalSales)} icon={Receipt} />
+          <Tile label="Withdrawn" value={formatMoney(wallet.totalWithdrawn)} icon={PiggyBank} />
+        </div>
+      </div>
+
+      {/* Everything from here to the tabs is counted over the chosen window. */}
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg font-bold text-niki-ink">Trading</h2>
+        {/* Suspense because the pills build their links off the query string. */}
+        <Suspense fallback={<div className="h-8" />}>
+          <OverviewRange
+            active={period.key}
+            label={period.label}
+            from={period.from}
+            to={period.to}
+            basePath={`/admin/data/agents/${agent.id}`}
+          />
+        </Suspense>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
         <Tile
-          label="Balance"
-          value={formatMoney(wallet.balance)}
-          tone={wallet.balance < 0 ? "danger" : "success"}
+          label="Sales"
+          value={formatPrice(trading.sales)}
+          hint={windowLabel}
+          icon={TrendingUp}
+          accent
+          delta={changePercent(trading.sales, trading.previous?.sales)}
         />
-        <Tile label="Commission earned" value={formatMoney(wallet.commissionEarned)} />
-        <Tile label="Sales" value={formatMoney(wallet.totalSales)} />
-        <Tile label="Withdrawn" value={formatMoney(wallet.totalWithdrawn)} />
+        <Tile
+          label="Orders"
+          value={String(trading.orders)}
+          hint={windowLabel}
+          icon={ListOrdered}
+          accent
+          delta={changePercent(trading.orders, trading.previous?.orders)}
+        />
+        <Tile
+          label="Agent commission"
+          value={formatPrice(trading.agentCommission)}
+          hint="What they earned"
+          icon={Coins}
+          accent
+          delta={changePercent(trading.agentCommission, trading.previous?.agentCommission)}
+        />
+        <Tile
+          label="Team commission"
+          value={formatPrice(trading.teamCommission)}
+          hint="What their recruiter earned"
+          icon={Users}
+          accent
+          delta={changePercent(trading.teamCommission, trading.previous?.teamCommission)}
+        />
+        <Tile
+          label="Income"
+          value={formatPrice(trading.income)}
+          hint="Sales less cost and commission"
+          icon={HandCoins}
+          accent
+          tone={trading.income < 0 ? "danger" : "success"}
+          delta={changePercent(trading.income, trading.previous?.income)}
+        />
+      </div>
+
+      <div className="mt-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="font-display font-bold text-niki-ink">Revenue</h3>
+            <p className="text-xs text-niki-ink/55">
+              {formatPrice(trading.sales)} from {trading.orders} paid{" "}
+              {trading.orders === 1 ? "order" : "orders"} · {windowLabel}
+            </p>
+          </div>
+        </div>
+        {series.length === 0 ? (
+          <p className="rounded-xl bg-niki-surface px-4 py-10 text-center text-sm text-niki-ink/55">
+            Nothing sold in this window.
+          </p>
+        ) : (
+          <TrendChart
+            points={series.map((d) => ({
+              day: d.day,
+              endDay: d.endDay,
+              value: d.revenue,
+              label: formatPrice(d.revenue),
+              count: d.orders,
+              // Clicking a point narrows this agent's window onto it, the way
+              // the business overview's own trend does.
+              href: pointHref(d.day, d.endDay),
+            }))}
+            countLabel="orders"
+          />
+        )}
       </div>
 
       <AgentWindow

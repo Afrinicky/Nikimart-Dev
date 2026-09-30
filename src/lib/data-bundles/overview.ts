@@ -75,8 +75,11 @@ export interface DayPoint {
  * hundred one-pixel days. The shape is the point; a mark too narrow to hover
  * is not a data point, it is texture.
  */
-export async function getDailySeries(w: OverviewWindow): Promise<DayPoint[]> {
-  const start = w.start ?? (await firstOrderDay());
+export async function getDailySeries(
+  w: OverviewWindow,
+  opts: { agentId?: string } = {},
+): Promise<DayPoint[]> {
+  const start = w.start ?? (await firstOrderDay(opts.agentId));
   if (!start) return [];
 
   const span = Math.max(1, Math.round((w.end.getTime() - start.getTime()) / 86_400_000));
@@ -104,7 +107,12 @@ export async function getDailySeries(w: OverviewWindow): Promise<DayPoint[]> {
   let rows: { createdAt: Date; price: number; costPrice: number }[];
   try {
     rows = await dataDb.dataOrder.findMany({
-      where: { paymentStatus: "paid", status: { not: "refunded" }, ...within(w) },
+      where: {
+        ...(opts.agentId ? { agentId: opts.agentId } : {}),
+        paymentStatus: "paid",
+        status: { not: "refunded" },
+        ...within(w),
+      },
       select: { createdAt: true, price: true, costPrice: true },
     });
   } catch {
@@ -123,11 +131,16 @@ export async function getDailySeries(w: OverviewWindow): Promise<DayPoint[]> {
   return buckets;
 }
 
-/** When the business first traded, for an all-time series. */
-async function firstOrderDay(): Promise<Date | null> {
+/**
+ * When the business — or one agent — first traded, for an all-time series.
+ *
+ * Scoped to the agent when there is one: an agent who joined last month should
+ * not get a chart with two years of flat nothing in front of their first sale.
+ */
+async function firstOrderDay(agentId?: string): Promise<Date | null> {
   try {
     const first = await dataDb.dataOrder.findFirst({
-      where: { paymentStatus: "paid" },
+      where: { ...(agentId ? { agentId } : {}), paymentStatus: "paid" },
       orderBy: { createdAt: "asc" },
       select: { createdAt: true },
     });
@@ -225,6 +238,112 @@ export async function getWindowTotals(w: OverviewWindow): Promise<WindowTotals> 
     };
   } catch {
     return empty;
+  }
+}
+
+/**
+ * One agent's trading over the window, and over the window before it.
+ *
+ * Deliberately not the same shape as the lifetime wallet above it. The wallet
+ * answers "what does this account hold" — a balance, everything ever earned,
+ * everything ever withdrawn — and those are facts about the account that a
+ * date range has no business changing. This answers "how did they do in this
+ * stretch", which is the question a range is for. The screen keeps them apart
+ * for the same reason: a window figure sitting in a row of lifetime ones gets
+ * read as a lifetime one, and then the numbers do not add up.
+ *
+ * Paid and not refunded, matching the trend and the leaderboard — a cancelled
+ * sale is not trading, and a commission on it was reversed.
+ */
+export interface AgentWindowTotals {
+  orders: number;
+  /** What customers paid through this agent, before anything comes out of it. */
+  sales: number;
+  cost: number;
+  /** What the agent earned on their own sales. */
+  agentCommission: number;
+  /** What their recruiter earned on those same sales. */
+  teamCommission: number;
+  /** What Nickimart kept: sales, less cost and both commissions. */
+  income: number;
+  previous: {
+    orders: number;
+    sales: number;
+    agentCommission: number;
+    teamCommission: number;
+    income: number;
+  } | null;
+}
+
+const EMPTY_AGENT_TOTALS: AgentWindowTotals = {
+  orders: 0,
+  sales: 0,
+  cost: 0,
+  agentCommission: 0,
+  teamCommission: 0,
+  income: 0,
+  previous: null,
+};
+
+export async function getAgentWindowTotals(
+  agentId: string,
+  w: OverviewWindow,
+): Promise<AgentWindowTotals> {
+  const traded = { agentId, paymentStatus: "paid" as const, status: { not: "refunded" } };
+  const previousRange = before(w);
+
+  try {
+    const [now, earlier] = await Promise.all([
+      dataDb.dataOrder.aggregate({
+        where: { ...traded, ...within(w) },
+        _count: { _all: true },
+        _sum: { price: true, costPrice: true, agentCommission: true, teamCommission: true },
+      }),
+      previousRange
+        ? dataDb.dataOrder.aggregate({
+            where: { ...traded, createdAt: previousRange },
+            _count: { _all: true },
+            _sum: { price: true, costPrice: true, agentCommission: true, teamCommission: true },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    // The same subtraction the leaderboard and the per-order column make, so
+    // a tile, a row and the league table cannot disagree about "income".
+    const kept = (a: {
+      _sum: {
+        price: number | null;
+        costPrice: number | null;
+        agentCommission: number | null;
+        teamCommission: number | null;
+      };
+    }) =>
+      round2(
+        (a._sum.price ?? 0) -
+          (a._sum.costPrice ?? 0) -
+          (a._sum.agentCommission ?? 0) -
+          (a._sum.teamCommission ?? 0),
+      );
+
+    return {
+      orders: now._count._all,
+      sales: round2(now._sum.price ?? 0),
+      cost: round2(now._sum.costPrice ?? 0),
+      agentCommission: round2(now._sum.agentCommission ?? 0),
+      teamCommission: round2(now._sum.teamCommission ?? 0),
+      income: kept(now),
+      previous: earlier
+        ? {
+            orders: earlier._count._all,
+            sales: round2(earlier._sum.price ?? 0),
+            agentCommission: round2(earlier._sum.agentCommission ?? 0),
+            teamCommission: round2(earlier._sum.teamCommission ?? 0),
+            income: kept(earlier),
+          }
+        : null,
+    };
+  } catch {
+    return EMPTY_AGENT_TOTALS;
   }
 }
 
