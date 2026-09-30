@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
@@ -17,14 +18,31 @@ import { AgentWindow } from "@/components/admin/AgentWindow";
 import { ReferrerTool } from "@/components/admin/ReferrerTool";
 import { ReferralWaiverTool } from "@/components/admin/ReferralWaiverTool";
 import { RecruitPaymentTool } from "@/components/admin/RecruitPaymentTool";
+import { OrderActions, type OrderView } from "@/components/data/OrderActions";
+import { OrderFilters } from "@/components/data/OrderFilters";
+import { OrderPager } from "@/components/data/OrderPager";
+import { LiveOrders } from "@/components/data/LiveOrders";
 import { siteUrl } from "@/lib/site";
-import { formatWhen } from "@/components/agent/AgentUi";
+import { NetworkCell, StatusPill, formatWhen } from "@/components/agent/AgentUi";
 import { dataDb } from "@/lib/data-db";
 import { formatMoney } from "@/lib/format";
-import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
+import { bundleLabel } from "@/lib/data-bundles/networks";
 import {
+  ORDER_NETWORK_OPTIONS,
+  ORDER_STATUS_OPTIONS,
+  orderStatusFilter,
+  perPageFrom,
+} from "@/lib/data-bundles/order-filters";
+import { getDataOrders, orderSourceLabel } from "@/lib/data-bundles/reporting";
+import { syncOpenOrders } from "@/lib/data-bundles/order-sync";
+import {
+  markDataOrderRefunded,
+  refreshDataOrderStatus,
+  retryDataOrder,
+} from "@/lib/data-bundles/admin-actions";
+import {
+  countAgentOrders,
   getAgentLedger,
-  getAgentOrders,
   getAgentWallet,
   getAgentWithdrawals,
 } from "@/lib/data-bundles/agents";
@@ -40,6 +58,11 @@ import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Agent — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
+
+// The same two class strings the main bundle-orders table uses, so the
+// agent-scoped copy of it sits on exactly the same grid.
+const th = "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-niki-ink/45";
+const td = "px-4 py-3.5 align-middle";
 
 /**
  * One agent's window: everything known about them, and everything that can be
@@ -109,13 +132,35 @@ function Line({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default async function AdminAgentDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{
+    status?: string;
+    network?: string;
+    q?: string;
+    page?: string;
+    per?: string;
+  }>;
 }) {
   const { id } = await params;
 
+  // The orders table below is the console's own bundle-orders table, scoped to
+  // this agent, so it reads its filters out of the query string the same way.
+  const sp = await searchParams;
+  const status = orderStatusFilter(sp.status).value;
+  const network = ORDER_NETWORK_OPTIONS.some((n) => n.value === sp.network) ? sp.network! : "all";
+  const query = (sp.q ?? "").trim();
+  const perPage = perPageFrom(sp.per, 25);
+  const page = Math.max(1, Number(sp.page) || 1);
+
   const row = await dataDb.dataAgent.findUnique({ where: { id } }).catch(() => null);
   if (!row) notFound();
+
+  // Re-ask the provider about this agent's orders that are still moving before
+  // the page is built. The provider's callback is unreliable, so a status that
+  // changed upstream would otherwise sit here until the nightly sweep.
+  await syncOpenOrders({ agentId: row.id });
 
   // The person behind the agent lives in the retail database — one extra query
   // rather than an include.
@@ -147,16 +192,34 @@ export default async function AdminAgentDetailPage({
       .catch(() => []),
   ]);
 
-  const [wallet, ledger, orders, withdrawals, referralConfig, program, pendingTopups] =
-    await Promise.all([
-      getAgentWallet(agent),
-      getAgentLedger(agent.id, 25),
-      getAgentOrders(agent.id, { take: 10 }),
-      getAgentWithdrawals(agent.id, 10),
-      getReferralConfig(),
-      getAgentProgramConfig(),
-      pendingTopupsFor(agent.id),
-    ]);
+  const [
+    wallet,
+    ledger,
+    orderPage,
+    orderCount,
+    withdrawals,
+    referralConfig,
+    program,
+    pendingTopups,
+  ] = await Promise.all([
+    getAgentWallet(agent),
+    getAgentLedger(agent.id, 25),
+    getDataOrders({ agentId: agent.id, status, network, query, page, perPage }),
+    // The filters move the table's own total around, so the account summary
+    // asks separately for the number of orders this agent has ever taken.
+    countAgentOrders(agent.id),
+    getAgentWithdrawals(agent.id, 10),
+    getReferralConfig(),
+    getAgentProgramConfig(),
+    pendingTopupsFor(agent.id),
+  ]);
+
+  const pageCount = Math.max(1, Math.ceil(orderPage.total / perPage));
+  const filtered = status !== "all" || network !== "all" || query !== "";
+  // Orders still moving on this page. Nothing polls when there are none.
+  const openOnPage = orderPage.orders.filter(
+    (o) => o.status === "queued" || o.status === "processing",
+  ).length;
 
   const suspended = agent.status !== "active";
   // What this registration was made of, read back off the row rather than
@@ -266,59 +329,167 @@ export default async function AdminAgentDetailPage({
             key: "overview",
             label: "Overview",
             content: (
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="space-y-4">
+                <LiveOrders open={openOnPage} />
+
+                {/*
+                  The console's bundle-orders table, narrowed to this agent.
+                  Same columns, same filters, same row actions as
+                  /admin/data/orders — an order looked at from an agent's
+                  window and the same order looked at from the full list must
+                  never read differently, so this is that table rather than a
+                  summary of it.
+                */}
                 <Panel
-                  title="Recent orders"
+                  title="Bundle orders"
                   icon={Package}
-                  subtitle={
-                    orders.total > orders.rows.length
-                      ? `Latest ${orders.rows.length} of ${orders.total}`
-                      : undefined
-                  }
+                  subtitle={`Every bundle sold through ${agent.storeName}.`}
                 >
-                  {orders.rows.length === 0 ? (
-                    <p className="rounded-xl bg-niki-surface px-4 py-8 text-center text-sm text-niki-ink/55">
-                      No orders yet.
+                  {!orderPage.available ? (
+                    <p className="rounded-xl bg-amber-50 px-4 py-6 text-center text-sm text-amber-800 ring-1 ring-amber-200">
+                      The data bundle tables aren&apos;t on this database yet. Run{" "}
+                      <code className="font-mono text-xs">nikimart-neon-data-bundles.sql</code> to
+                      create them.
                     </p>
                   ) : (
-                    <div className="-mx-5 overflow-x-auto px-5">
-                      <table className="w-full min-w-[620px] text-left text-sm">
-                        <thead>
-                          <tr className="border-b border-niki-edge text-[11px] uppercase tracking-wide text-niki-ink/45">
-                            <th className="py-2.5 pr-4 font-semibold">Reference</th>
-                            <th className="py-2.5 pr-4 font-semibold">Package</th>
-                            <th className="py-2.5 pr-4 font-semibold">Price</th>
-                            <th className="py-2.5 pr-4 font-semibold">Commission</th>
-                            <th className="py-2.5 font-semibold">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-niki-edge">
-                          {orders.rows.map((o) => (
-                            <tr key={o.id}>
-                              <td className="py-3 pr-4 font-mono text-xs text-niki-ink/70">
-                                {o.reference}
-                              </td>
-                              <td className="py-3 pr-4 text-niki-ink/70">
-                                {networkLabel(o.network)} · {bundleLabel(o.sizeGb)}
-                              </td>
-                              <td className="py-3 pr-4 font-semibold text-niki-ink">
-                                {formatMoney(o.price)}
-                              </td>
-                              <td className="py-3 pr-4 text-niki-ink/70">
-                                {o.agentCommission > 0 ? formatMoney(o.agentCommission) : "—"}
-                              </td>
-                              <td className="py-3 text-xs uppercase text-niki-ink/55">
-                                {o.status}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <>
+                      {/* Suspense because the filter bar reads the query string. */}
+                      <Suspense fallback={<div className="h-40" />}>
+                        <OrderFilters
+                          status={status}
+                          network={network}
+                          query={query}
+                          statusOptions={ORDER_STATUS_OPTIONS}
+                          networkOptions={ORDER_NETWORK_OPTIONS}
+                          shown={orderPage.orders.length}
+                          total={orderPage.total}
+                          page={page}
+                          pageCount={pageCount}
+                        />
+                      </Suspense>
+
+                      {orderPage.orders.length === 0 ? (
+                        <p className="mt-4 rounded-xl bg-niki-surface px-4 py-8 text-center text-sm text-niki-ink/55">
+                          {filtered ? "No orders match these filters." : "No orders yet."}
+                        </p>
+                      ) : (
+                        <>
+                          <div className="-mx-5 mt-4 overflow-x-auto px-5">
+                            <table className="w-full min-w-[1040px] border-separate border-spacing-0 text-sm">
+                              <thead>
+                                <tr className="bg-niki-surface/70">
+                                  <th className={`${th} rounded-l-xl`}>Order ID</th>
+                                  <th className={th}>Source</th>
+                                  <th className={th}>Network</th>
+                                  <th className={th}>Size</th>
+                                  <th className={th}>Phone Number</th>
+                                  <th className={th}>Price</th>
+                                  <th className={th}>Status</th>
+                                  <th className={th}>Date</th>
+                                  <th className={`${th} rounded-r-xl`}>Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {orderPage.orders.map((o) => {
+                                  const label = orderSourceLabel(o);
+                                  const house = o.source === "WEB" || !o.agentName;
+                                  return (
+                                    <tr
+                                      key={o.id}
+                                      className="border-b border-niki-edge transition-colors last:border-0 hover:bg-niki-surface/50"
+                                    >
+                                      <td
+                                        className={`${td} font-mono text-xs font-semibold text-niki-ink`}
+                                      >
+                                        {o.reference}
+                                      </td>
+                                      <td className={`${td} text-xs`}>
+                                        <span
+                                          title={label}
+                                          className={
+                                            house
+                                              ? "inline-flex whitespace-nowrap rounded-lg bg-niki-black/5 px-2.5 py-1 font-semibold text-niki-ink/70"
+                                              : "inline-flex whitespace-nowrap rounded-lg bg-niki-orange/10 px-2.5 py-1 font-semibold text-niki-orange"
+                                          }
+                                        >
+                                          {house ? "Nickimart" : o.agentName}
+                                        </span>
+                                      </td>
+                                      <td className={td}>
+                                        <NetworkCell network={o.network} />
+                                      </td>
+                                      <td className={`${td} font-semibold text-niki-ink`}>
+                                        {bundleLabel(o.sizeGb)}
+                                      </td>
+                                      <td className={`${td} font-mono text-xs text-niki-ink/70`}>
+                                        {o.recipientPhone}
+                                      </td>
+                                      <td className={`${td} font-semibold text-niki-ink`}>
+                                        {formatMoney(o.price)}
+                                      </td>
+                                      <td className={td}>
+                                        <StatusPill status={o.status} />
+                                      </td>
+                                      <td className={`${td} whitespace-nowrap text-xs text-niki-ink/55`}>
+                                        {o.createdAt.toLocaleString("en-GB", {
+                                          day: "2-digit",
+                                          month: "short",
+                                          year: "numeric",
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })}
+                                      </td>
+                                      <td className={td}>
+                                        <OrderActions
+                                          order={
+                                            {
+                                              id: o.id,
+                                              reference: o.reference,
+                                              network: o.network,
+                                              sizeGb: o.sizeGb,
+                                              recipientPhone: o.recipientPhone,
+                                              price: o.price,
+                                              status: o.status,
+                                              paymentStatus: o.paymentStatus,
+                                              sourceLabel: label,
+                                              agentSale: !house,
+                                              commission: o.agentCommission,
+                                              commissionStatus: o.commissionStatus,
+                                              createdAt: o.createdAt.toISOString(),
+                                              updatedAt: o.updatedAt.toISOString(),
+                                              buyerName: o.buyerName,
+                                              buyerPhone: o.buyerPhone,
+                                              costPrice: o.costPrice,
+                                              providerCode: o.providerCode,
+                                              providerOrderId: o.providerOrderId,
+                                              providerStatus: o.providerStatus,
+                                              providerMessage: o.providerMessage,
+                                            } satisfies OrderView
+                                          }
+                                          adminForms={{
+                                            retry: retryDataOrder,
+                                            refresh: refreshDataOrderStatus,
+                                            markRefunded: markDataOrderRefunded,
+                                          }}
+                                        />
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          <Suspense fallback={<div className="h-12" />}>
+                            <OrderPager page={page} pageCount={pageCount} perPage={perPage} />
+                          </Suspense>
+                        </>
+                      )}
+                    </>
                   )}
                 </Panel>
 
-                <div className="space-y-4">
+                <div className="grid gap-4 lg:grid-cols-2">
                   <Panel title="The account" icon={UserRound} subtitle={`/store/${agent.slug}`}>
                     <dl className="divide-y divide-niki-edge text-sm">
                       <Line label="Owner" value={agent.user?.name ?? "—"} />
@@ -346,7 +517,7 @@ export default async function AdminAgentDetailPage({
                             : "Off"
                         }
                       />
-                      <Line label="Orders" value={String(orders.total)} />
+                      <Line label="Orders" value={String(orderCount)} />
                       <Line label="Recruits" value={String(recruits.length)} />
                     </dl>
                   </Panel>

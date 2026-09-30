@@ -357,6 +357,21 @@ export async function getAgentOrders(
   }
 }
 
+/**
+ * How many orders this agent has taken in all.
+ *
+ * Separate from the table's own total, which moves with whatever filters are
+ * on screen — the account summary is asking a different question and must not
+ * change when somebody narrows the list to one network.
+ */
+export async function countAgentOrders(agentId: string): Promise<number> {
+  try {
+    return await dataDb.dataOrder.count({ where: { agentId } });
+  } catch {
+    return 0;
+  }
+}
+
 /** Announcements every agent sees, pinned first. */
 export async function getAnnouncements(take = 30) {
   // The audience and the schedule are applied in one place, because a screen
