@@ -108,6 +108,16 @@ export function OrderFilters({
   const [open, setOpen] = useState(true);
   const [pending, startTransition] = useTransition();
 
+  // The filters currently on screen, appended to wherever the export lives.
+  // That href may already carry a query of its own (the agent window scopes
+  // its export to one agent), so the separator is chosen rather than assumed.
+  const qs = params.toString();
+  const exportUrl = exportHref
+    ? qs
+      ? `${exportHref}${exportHref.includes("?") ? "&" : "?"}${qs}`
+      : exportHref
+    : undefined;
+
   function go(patch: Record<string, string>) {
     const next = new URLSearchParams(params.toString());
     for (const [key, value] of Object.entries(patch)) {
@@ -124,11 +134,17 @@ export function OrderFilters({
       <div className="flex flex-wrap items-center justify-end gap-2">
         {exportHref ? (
           <a
-            href={`${exportHref}${params.toString() ? `?${params.toString()}` : ""}`}
-            className="niki-press niki-focus inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-black/5"
+            href={exportUrl}
+            title={`Download these ${total} ${noun} as a spreadsheet`}
+            className="niki-press niki-focus group inline-flex items-center gap-2 rounded-full bg-white py-1.5 pl-1.5 pr-3 text-xs font-semibold text-niki-ink shadow-sm ring-1 ring-niki-edge transition-all hover:shadow-md hover:ring-niki-orange/40"
           >
-            <Download className="h-3.5 w-3.5" />
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-niki-orange to-niki-gold text-white shadow-sm shadow-niki-orange/30 transition-transform duration-200 group-hover:-rotate-6 group-hover:scale-110 motion-reduce:transform-none motion-reduce:transition-none">
+              <Download className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-y-px motion-reduce:transform-none motion-reduce:transition-none" />
+            </span>
             Export
+            <span className="rounded-full bg-niki-black/5 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-niki-ink/55">
+              xlsx
+            </span>
           </a>
         ) : null}
         <button

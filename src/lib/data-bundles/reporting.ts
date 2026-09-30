@@ -113,6 +113,8 @@ export interface AdminDataOrder {
   agentName: string | null;
   agentCode: string | null;
   agentCommission: number;
+  /** The recruiter's cut of an agent's sale, where the programme pays one. */
+  teamCommission: number;
   commissionStatus: string;
   createdAt: Date;
   updatedAt: Date;
@@ -134,6 +136,25 @@ export function orderSourceLabel(o: {
   const where = o.source === "STOREFRONT" ? "Storefront" : "Dashboard";
   const who = o.agentCode ? `${o.agentName} (${o.agentCode})` : o.agentName;
   return `Agent · ${who} · ${where}`;
+}
+
+/**
+ * What Nickimart keeps on one order: what the customer paid, less what the
+ * bundle cost upstream and less every commission paid out of it.
+ *
+ * The same subtraction the overview and the agent leaderboard already do on
+ * their sums, pulled out so a single row and the totals above it can never
+ * disagree about what "income" means. It can come out negative — an order sold
+ * under cost, or a commission raised after the sale — and that is shown rather
+ * than floored, because it is the number somebody needs to see.
+ */
+export function orderIncome(o: {
+  price: number;
+  costPrice: number;
+  agentCommission: number;
+  teamCommission: number;
+}): number {
+  return Math.round((o.price - o.costPrice - o.agentCommission - o.teamCommission) * 100) / 100;
 }
 
 export interface OrderPage {
