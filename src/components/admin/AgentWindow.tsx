@@ -28,9 +28,47 @@ export interface AgentWindowSection {
   content: React.ReactNode;
 }
 
-export function AgentWindow({ sections }: { sections: AgentWindowSection[] }) {
-  const [active, setActive] = useState(sections[0]?.key ?? "");
+export function AgentWindow({
+  sections,
+  initialTab,
+}: {
+  sections: AgentWindowSection[];
+  /**
+   * Which tab to open on, from the query string.
+   *
+   * The orders table lives on a tab of its own now, and every one of its
+   * filters, its pager and its search navigates. Without the tab in the
+   * address, filtering an order would land back on this component's default
+   * and throw somebody out of the table they were working in.
+   */
+  initialTab?: string;
+}) {
+  const [active, setActive] = useState(
+    () => sections.find((s) => s.key === initialTab)?.key ?? sections[0]?.key ?? "",
+  );
   const current = sections.find((s) => s.key === active) ?? sections[0];
+
+  /**
+   * Switch tabs, and leave the choice in the address for whatever navigates
+   * next.
+   *
+   * Written straight to history rather than pushed through the router: every
+   * section here is already rendered and on the page, so asking the server to
+   * build it again to change which one is visible would be a round trip for
+   * nothing. The state is what drives the UI; the URL is there so a filter
+   * inside a tab comes back to that tab.
+   */
+  function open(key: string) {
+    setActive(key);
+    try {
+      const url = new URL(window.location.href);
+      if (key === sections[0]?.key) url.searchParams.delete("tab");
+      else url.searchParams.set("tab", key);
+      window.history.replaceState(null, "", url.toString());
+    } catch {
+      // A browser that will not let us touch history still gets the tab.
+    }
+  }
 
   return (
     <div className="mt-6">
@@ -41,7 +79,7 @@ export function AgentWindow({ sections }: { sections: AgentWindowSection[] }) {
             <button
               key={s.key}
               type="button"
-              onClick={() => setActive(s.key)}
+              onClick={() => open(s.key)}
               aria-current={on ? "page" : undefined}
               className={cn(
                 "niki-focus flex shrink-0 items-center gap-2 border-b-2 px-3.5 py-3 text-sm font-semibold transition-colors",

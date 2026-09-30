@@ -6,6 +6,7 @@ import { getAgentUser } from "@/lib/data-bundles/user-link";
 import {
   bucketSize,
   OVERVIEW_RANGES,
+  previousRange as before,
   resolveWindow,
   type OverviewRange,
   type OverviewWindow,
@@ -35,21 +36,6 @@ export type { OverviewRange, OverviewWindow };
 /** The `createdAt` filter for a window. An open start means all time. */
 function within(w: OverviewWindow) {
   return { createdAt: { ...(w.start ? { gte: w.start } : {}), lt: w.end } };
-}
-
-/**
- * The window immediately before this one, or null when there isn't one.
- *
- * All time has no "before", and inventing one — the same span again, ending
- * where the records begin — would compare a real figure against a stretch of
- * time the business did not exist for. A delta against that is worse than no
- * delta, so it is left off the screen entirely.
- */
-function before(w: OverviewWindow): { gte: Date; lt: Date } | null {
-  if (!w.start || w.days === null) return null;
-  const previousStart = new Date(w.start);
-  previousStart.setDate(previousStart.getDate() - w.days);
-  return { gte: previousStart, lt: w.start };
 }
 
 export interface DayPoint {
@@ -344,6 +330,74 @@ export async function getAgentWindowTotals(
     };
   } catch {
     return EMPTY_AGENT_TOTALS;
+  }
+}
+
+/**
+ * The wallet side of an agent's window: what they had, and what they took out.
+ *
+ * Both respond to the date picker, but they are different kinds of figure and
+ * the screen says so. A withdrawal is a flow — money that moved inside the
+ * window — and sums like any other. A balance is not a flow: there is no such
+ * thing as "the balance during March". What there is, and what this returns,
+ * is the balance the account stood at when the window closed, which is the
+ * honest way to make a standing figure answer a date.
+ */
+export interface AgentWindowWallet {
+  /** What the account stood at when the window closed. */
+  balance: number;
+  /** Withdrawals actually paid out inside the window. */
+  withdrawn: number;
+  previous: { withdrawn: number } | null;
+}
+
+export async function getAgentWindowWallet(
+  agentId: string,
+  w: OverviewWindow,
+  currentBalance: number,
+): Promise<AgentWindowWallet> {
+  const previousRange = before(w);
+
+  try {
+    const [closing, withdrawn, earlier] = await Promise.all([
+      // Every ledger row records the balance it left behind, so the closing
+      // balance is the last row before the window ends rather than a replay of
+      // the account's whole history.
+      dataDb.dataAgentLedger.findFirst({
+        where: { agentId, createdAt: { lt: w.end } },
+        orderBy: { createdAt: "desc" },
+        select: { balanceAfter: true },
+      }),
+      dataDb.dataAgentWithdrawal.aggregate({
+        where: {
+          agentId,
+          status: "processed",
+          // When it was paid, not when it was asked for: a payout belongs to
+          // the window the money actually left in.
+          processedAt: { ...(w.start ? { gte: w.start } : {}), lt: w.end },
+        },
+        _sum: { amount: true },
+      }),
+      previousRange
+        ? dataDb.dataAgentWithdrawal.aggregate({
+            where: { agentId, status: "processed", processedAt: previousRange },
+            _sum: { amount: true },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      // No ledger row before the window closed means the account had not
+      // moved yet, which is a balance of zero rather than today's.
+      balance: round2(closing?.balanceAfter ?? 0),
+      withdrawn: round2(withdrawn._sum.amount ?? 0),
+      previous: earlier ? { withdrawn: round2(earlier._sum.amount ?? 0) } : null,
+    };
+  } catch {
+    // The ledger is unreadable, so the closing balance is unknown. Today's is
+    // the one figure that is certainly true, and an all-time window wants it
+    // anyway.
+    return { balance: round2(currentBalance), withdrawn: 0, previous: null };
   }
 }
 

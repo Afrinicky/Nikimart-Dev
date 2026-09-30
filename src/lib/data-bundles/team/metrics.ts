@@ -2,7 +2,7 @@ import "server-only";
 import { dataDb } from "@/lib/data-db";
 import { round2 } from "@/lib/data-bundles/agent-pricing";
 import { getAgentUser } from "@/lib/data-bundles/user-link";
-import type { OverviewWindow } from "@/lib/data-bundles/overview-window";
+import { previousRange, type OverviewWindow } from "@/lib/data-bundles/overview-window";
 import { getTeamScope, type MemberLevel, type TeamScope } from "@/lib/data-bundles/team/hierarchy";
 import {
   growthPercent,
@@ -235,6 +235,111 @@ export async function getTeamView(leaderId: string, w: OverviewWindow): Promise<
         income: round2(rows.reduce((sum, r) => sum + r.income, 0)),
         growth: growthPercent(rows.length, before),
       },
+    };
+  } catch {
+    return empty;
+  }
+}
+
+/**
+ * One agent's team, as totals only, over a window.
+ *
+ * getTeamView above answers the same questions and more, but it builds a row
+ * per member and looks the owner up for each — which is the right shape for
+ * the team screen and far too much work for four tiles on somebody else's
+ * dashboard. This is the same scope, the same window and the same
+ * TEAM_INCOME_TYPES, read as three grouped sums, so the two can report
+ * different levels of detail but never a different answer.
+ *
+ * "Joined" counts direct recruits only: an agent recruits the people they
+ * signed up, not the people those people went on to sign up.
+ */
+export interface AgentTeamTotals {
+  /** Everybody under them right now, direct and indirect. */
+  members: number;
+  directMembers: number;
+  /** Direct recruits who joined inside the window. */
+  joined: number;
+  /** What the whole team sold in the window. */
+  sales: number;
+  orders: number;
+  /** What the team earned this agent in the window. */
+  income: number;
+  previous: { joined: number; sales: number; income: number } | null;
+}
+
+export async function getAgentTeamTotals(
+  leaderId: string,
+  w: OverviewWindow,
+): Promise<AgentTeamTotals> {
+  const scope = await getTeamScope(leaderId);
+  const earlier = previousRange(w);
+  const empty: AgentTeamTotals = {
+    members: scope.allIds.length,
+    directMembers: scope.directIds.length,
+    joined: 0,
+    sales: 0,
+    orders: 0,
+    income: 0,
+    previous: null,
+  };
+  if (scope.allIds.length === 0) return empty;
+
+  try {
+    const [joined, sales, income, joinedBefore, salesBefore, incomeBefore] = await Promise.all([
+      dataDb.dataAgent.count({
+        where: { referredById: leaderId, createdAt: within(w) },
+      }),
+      dataDb.dataOrder.aggregate({
+        where: { agentId: { in: scope.allIds }, ...PAID, createdAt: within(w) },
+        _sum: { price: true },
+        _count: { _all: true },
+      }),
+      dataDb.dataAgentLedger.aggregate({
+        where: {
+          agentId: leaderId,
+          sourceAgentId: { in: scope.allIds },
+          type: { in: [...TEAM_INCOME_TYPES] },
+          createdAt: within(w),
+        },
+        _sum: { amount: true },
+      }),
+      earlier
+        ? dataDb.dataAgent.count({ where: { referredById: leaderId, createdAt: earlier } })
+        : Promise.resolve(null),
+      earlier
+        ? dataDb.dataOrder.aggregate({
+            where: { agentId: { in: scope.allIds }, ...PAID, createdAt: earlier },
+            _sum: { price: true },
+          })
+        : Promise.resolve(null),
+      earlier
+        ? dataDb.dataAgentLedger.aggregate({
+            where: {
+              agentId: leaderId,
+              sourceAgentId: { in: scope.allIds },
+              type: { in: [...TEAM_INCOME_TYPES] },
+              createdAt: earlier,
+            },
+            _sum: { amount: true },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      members: scope.allIds.length,
+      directMembers: scope.directIds.length,
+      joined,
+      sales: round2(sales._sum.price ?? 0),
+      orders: sales._count._all,
+      income: round2(income._sum.amount ?? 0),
+      previous: earlier
+        ? {
+            joined: joinedBefore ?? 0,
+            sales: round2(salesBefore?._sum.price ?? 0),
+            income: round2(incomeBefore?._sum.amount ?? 0),
+          }
+        : null,
     };
   } catch {
     return empty;

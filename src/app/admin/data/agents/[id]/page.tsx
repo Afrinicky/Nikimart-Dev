@@ -10,7 +10,10 @@ import {
   HandCoins,
   ListOrdered,
   PiggyBank,
+  Share2,
+  Store,
   TrendingUp,
+  UserPlus,
   Package,
   Receipt,
   ReceiptText,
@@ -61,9 +64,12 @@ import { getAgentProgramConfig, getReferralConfig } from "@/lib/data-bundles/set
 import {
   changePercent,
   getAgentWindowTotals,
+  getAgentWindowWallet,
   getDailySeries,
   resolveWindow,
 } from "@/lib/data-bundles/overview";
+import { describeRange } from "@/lib/data-bundles/overview-window";
+import { getAgentTeamTotals } from "@/lib/data-bundles/team/metrics";
 import { registrationFeeBreakdown } from "@/lib/data-bundles/referral-rules";
 import { recruitPaymentRule } from "@/lib/data-bundles/referrals";
 
@@ -169,6 +175,21 @@ function Tile({
 }
 
 /**
+ * A heading inside the tile grid, spanning the row it opens.
+ *
+ * In the grid rather than between three separate grids so every tile keeps the
+ * same width: a group of two laid out on its own stretches its tiles to half
+ * the screen and stops looking like the others.
+ */
+function GroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="col-span-full mt-2 text-[11px] font-semibold uppercase tracking-wide text-niki-ink/40 first:mt-0">
+      {children}
+    </p>
+  );
+}
+
+/**
  * The agent's initials, for the monogram on the identity card.
  *
  * Off the store name, which is what the page is titled by and what everybody
@@ -238,6 +259,7 @@ export default async function AdminAgentDetailPage({
     days?: string;
     from?: string;
     to?: string;
+    tab?: string;
   }>;
 }) {
   const { id } = await params;
@@ -304,6 +326,8 @@ export default async function AdminAgentDetailPage({
     pendingTopups,
     trading,
     series,
+    windowWallet,
+    team,
   ] = await Promise.all([
     getAgentWallet(agent),
     getAgentLedger(agent.id, 25),
@@ -317,6 +341,8 @@ export default async function AdminAgentDetailPage({
     pendingTopupsFor(agent.id),
     getAgentWindowTotals(agent.id, period),
     getDailySeries(period, { agentId: agent.id }),
+    getAgentWindowWallet(agent.id, period, agent.balance),
+    getAgentTeamTotals(agent.id, period),
   ]);
 
   const pageCount = Math.max(1, Math.ceil(orderPage.total / perPage));
@@ -330,6 +356,11 @@ export default async function AdminAgentDetailPage({
   // "last 30 days", "all time", "1–14 Mar 2026" — said once, under every
   // figure the window governs, so nothing on screen is ambiguous about it.
   const windowLabel = period.label;
+  // The last day inside the window — `end` is exclusive — which is the date
+  // the closing balance is true as at.
+  const closingDay = new Date(period.end);
+  closingDay.setDate(closingDay.getDate() - 1);
+  const closingLabel = describeRange(closingDay, closingDay);
 
   /**
    * Narrowing the window onto one point of the trend, without throwing away
@@ -471,137 +502,164 @@ export default async function AdminAgentDetailPage({
         </p>
       ) : null}
 
-      {/* The account as it stands. Deliberately above the date picker and
-          outside everything it controls: a balance is what the account holds
-          right now, and there is no such thing as last month's balance. */}
-      <div className="mt-4">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-niki-ink/40">
-          The account · all time
-        </p>
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <Tile
-            label="Balance"
-            value={formatMoney(wallet.balance)}
-            icon={Wallet}
-            tone={wallet.balance < 0 ? "danger" : "success"}
-            hint={
-              wallet.outstandingSetup > 0
-                ? `${formatMoney(wallet.outstandingSetup)} registration still clearing`
-                : wallet.pendingWithdrawals > 0
-                  ? `${formatMoney(wallet.pendingWithdrawals)} committed to a withdrawal`
-                  : undefined
-            }
-          />
-          <Tile
-            label="Commission earned"
-            value={formatMoney(wallet.commissionEarned)}
-            icon={Coins}
-            hint={
-              wallet.commissionPending > 0
-                ? `${formatMoney(wallet.commissionPending)} not yet released`
-                : undefined
-            }
-          />
-          <Tile label="Sales" value={formatMoney(wallet.totalSales)} icon={Receipt} />
-          <Tile label="Withdrawn" value={formatMoney(wallet.totalWithdrawn)} icon={PiggyBank} />
-        </div>
-      </div>
-
-      {/* Everything from here to the tabs is counted over the chosen window. */}
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-lg font-bold text-niki-ink">Trading</h2>
-        {/* Suspense because the pills build their links off the query string. */}
-        <Suspense fallback={<div className="h-8" />}>
-          <OverviewRange
-            active={period.key}
-            label={period.label}
-            from={period.from}
-            to={period.to}
-            basePath={`/admin/data/agents/${agent.id}`}
-          />
-        </Suspense>
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
-        <Tile
-          label="Sales"
-          value={formatPrice(trading.sales)}
-          hint={windowLabel}
-          icon={TrendingUp}
-          accent
-          delta={changePercent(trading.sales, trading.previous?.sales)}
-        />
-        <Tile
-          label="Orders"
-          value={String(trading.orders)}
-          hint={windowLabel}
-          icon={ListOrdered}
-          accent
-          delta={changePercent(trading.orders, trading.previous?.orders)}
-        />
-        <Tile
-          label="Agent commission"
-          value={formatPrice(trading.agentCommission)}
-          hint="What they earned"
-          icon={Coins}
-          accent
-          delta={changePercent(trading.agentCommission, trading.previous?.agentCommission)}
-        />
-        <Tile
-          label="Team commission"
-          value={formatPrice(trading.teamCommission)}
-          hint="What their recruiter earned"
-          icon={Users}
-          accent
-          delta={changePercent(trading.teamCommission, trading.previous?.teamCommission)}
-        />
-        <Tile
-          label="Income"
-          value={formatPrice(trading.income)}
-          hint="Sales less cost and commission"
-          icon={HandCoins}
-          accent
-          tone={trading.income < 0 ? "danger" : "success"}
-          delta={changePercent(trading.income, trading.previous?.income)}
-        />
-      </div>
-
-      <div className="mt-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-          <div className="min-w-0">
-            <h3 className="font-display font-bold text-niki-ink">Revenue</h3>
-            <p className="text-xs text-niki-ink/55">
-              {formatPrice(trading.sales)} from {trading.orders} paid{" "}
-              {trading.orders === 1 ? "order" : "orders"} · {windowLabel}
-            </p>
-          </div>
-        </div>
-        {series.length === 0 ? (
-          <p className="rounded-xl bg-niki-surface px-4 py-10 text-center text-sm text-niki-ink/55">
-            Nothing sold in this window.
-          </p>
-        ) : (
-          <TrendChart
-            points={series.map((d) => ({
-              day: d.day,
-              endDay: d.endDay,
-              value: d.revenue,
-              label: formatPrice(d.revenue),
-              count: d.orders,
-              // Clicking a point narrows this agent's window onto it, the way
-              // the business overview's own trend does.
-              href: pointHref(d.day, d.endDay),
-            }))}
-            countLabel="orders"
-          />
-        )}
-      </div>
 
       <AgentWindow
+        initialTab={sp.tab}
         sections={[
           {
             key: "overview",
             label: "Overview",
+            content: (
+              <div className="space-y-5">
+                {/* The window every figure on this tab is counted over. It
+                    lives here rather than above the tabs because this is the
+                    only tab it governs — the orders table keeps its own
+                    filters, and a date picker floating over both would look
+                    like it drove them equally. */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="font-display text-lg font-bold text-niki-ink">
+                      How they are doing
+                    </h2>
+                    <p className="text-xs text-niki-ink/55">
+                      Every figure below is counted over {windowLabel}.
+                    </p>
+                  </div>
+                  {/* Suspense because the pills build their links off the query string. */}
+                  <Suspense fallback={<div className="h-8" />}>
+                    <OverviewRange
+                      active={period.key}
+                      label={period.label}
+                      from={period.from}
+                      to={period.to}
+                      basePath={`/admin/data/agents/${agent.id}`}
+                    />
+                  </Suspense>
+                </div>
+
+                {/* One grid, three groups. Same tile width throughout, so the
+                    headings do the separating rather than the geometry. */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+                  <GroupLabel>What they sold</GroupLabel>
+                  <Tile
+                    label="Sales"
+                    value={formatPrice(trading.sales)}
+                    hint="Through their store"
+                    icon={TrendingUp}
+                    accent
+                    delta={changePercent(trading.sales, trading.previous?.sales)}
+                  />
+                  <Tile
+                    label="Orders"
+                    value={String(trading.orders)}
+                    hint="Paid, not refunded"
+                    icon={ListOrdered}
+                    accent
+                    delta={changePercent(trading.orders, trading.previous?.orders)}
+                  />
+                  <Tile
+                    label="Agent commission"
+                    value={formatPrice(trading.agentCommission)}
+                    hint="What they earned"
+                    icon={Coins}
+                    accent
+                    delta={changePercent(trading.agentCommission, trading.previous?.agentCommission)}
+                  />
+                  <Tile
+                    label="Team commission"
+                    value={formatPrice(trading.teamCommission)}
+                    hint="Paid to their recruiter"
+                    icon={Share2}
+                    accent
+                    delta={changePercent(trading.teamCommission, trading.previous?.teamCommission)}
+                  />
+                  <Tile
+                    label="Income"
+                    value={formatPrice(trading.income)}
+                    hint="Sales less cost and commission"
+                    icon={HandCoins}
+                    accent
+                    tone={trading.income < 0 ? "danger" : "success"}
+                    delta={changePercent(trading.income, trading.previous?.income)}
+                  />
+
+                  <GroupLabel>Who they recruited</GroupLabel>
+                  <Tile
+                    label="Recruits joined"
+                    value={String(team.joined)}
+                    hint={`${team.members} in their team now`}
+                    icon={UserPlus}
+                    accent
+                    delta={changePercent(team.joined, team.previous?.joined)}
+                  />
+                  <Tile
+                    label="Team sales"
+                    value={formatPrice(team.sales)}
+                    hint={`${team.orders} ${team.orders === 1 ? "order" : "orders"} by their team`}
+                    icon={Store}
+                    accent
+                    delta={changePercent(team.sales, team.previous?.sales)}
+                  />
+                  <Tile
+                    label="Earned from team"
+                    value={formatPrice(team.income)}
+                    hint="Rewards and team commission"
+                    icon={Users}
+                    accent
+                    delta={changePercent(team.income, team.previous?.income)}
+                  />
+
+                  <GroupLabel>What the account holds</GroupLabel>
+                  <Tile
+                    label="Balance"
+                    value={formatMoney(windowWallet.balance)}
+                    hint={`As at ${closingLabel}`}
+                    icon={Wallet}
+                    tone={windowWallet.balance < 0 ? "danger" : "success"}
+                  />
+                  <Tile
+                    label="Withdrawn"
+                    value={formatMoney(windowWallet.withdrawn)}
+                    hint="Paid out in this window"
+                    icon={PiggyBank}
+                    delta={changePercent(windowWallet.withdrawn, windowWallet.previous?.withdrawn)}
+                  />
+                </div>
+
+                <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
+                  <div className="mb-4 min-w-0">
+                    <h3 className="font-display font-bold text-niki-ink">Revenue</h3>
+                    <p className="text-xs text-niki-ink/55">
+                      {formatPrice(trading.sales)} from {trading.orders} paid{" "}
+                      {trading.orders === 1 ? "order" : "orders"} · {windowLabel}
+                    </p>
+                  </div>
+                  {series.length === 0 ? (
+                    <p className="rounded-xl bg-niki-surface px-4 py-10 text-center text-sm text-niki-ink/55">
+                      Nothing sold in this window.
+                    </p>
+                  ) : (
+                    <TrendChart
+                      points={series.map((d) => ({
+                        day: d.day,
+                        endDay: d.endDay,
+                        value: d.revenue,
+                        label: formatPrice(d.revenue),
+                        count: d.orders,
+                        // Clicking a point narrows this agent's window onto it,
+                        // the way the business overview's own trend does.
+                        href: pointHref(d.day, d.endDay),
+                      }))}
+                      countLabel="orders"
+                    />
+                  )}
+                </div>
+              </div>
+            ),
+          },
+          {
+            key: "orders",
+            label: "Bundle orders",
             content: (
               <div className="space-y-4">
                 <LiveOrders open={openOnPage} />
@@ -781,115 +839,6 @@ export default async function AdminAgentDetailPage({
                     </>
                   )}
                 </Panel>
-
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <Panel title="The account" icon={UserRound} subtitle={`/store/${agent.slug}`}>
-                    <dl className="divide-y divide-niki-edge text-sm">
-                      <Line label="Owner" value={agent.user?.name ?? "—"} />
-                      <Line label="Email" value={agent.user?.email ?? "—"} />
-                      <Line
-                        label="Phone"
-                        value={
-                          <span className="font-mono">
-                            {agent.supportPhone || agent.user?.phone || "—"}
-                          </span>
-                        }
-                      />
-                      <Line
-                        label="Signs in"
-                        value={agent.user?.canSignIn ? "Yes" : "Never signed in"}
-                      />
-                      <Line label="Storefront" value={agent.storeOpen ? "Open" : "Closed"} />
-                      <Line
-                        label="AFA"
-                        value={
-                          agent.afaEnabled
-                            ? agent.afaPrice > 0
-                              ? formatMoney(agent.afaPrice)
-                              : "At Nickimart's price"
-                            : "Off"
-                        }
-                      />
-                      <Line label="Orders" value={String(orderCount)} />
-                      <Line label="Recruits" value={String(recruits.length)} />
-                    </dl>
-                  </Panel>
-
-                  {/*
-                    The registration, in full. Somebody has to be able to answer
-                    "why did this agent pay GH₵30 when the fee is GH₵50, and who
-                    got the rest?" months later, and a single number cannot.
-                  */}
-                  <Panel title="Registration" icon={ReceiptText} subtitle={settledLabel}>
-                    <dl className="space-y-2 text-sm">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <dt className="text-niki-ink/60">Registration fee</dt>
-                        <dd className="font-figures font-semibold text-niki-ink">
-                          {formatMoney(fee.gross)}
-                        </dd>
-                      </div>
-                      {fee.waived > 0 ? (
-                        <div className="flex items-baseline justify-between gap-3">
-                          <dt className="text-niki-ink/60">
-                            Waiver
-                            <span className="ml-1 text-xs text-niki-ink/40">
-                              {fee.waiverPercent}%
-                            </span>
-                          </dt>
-                          <dd className="font-figures font-semibold text-niki-success">
-                            −{formatMoney(fee.waived)}
-                          </dd>
-                        </div>
-                      ) : null}
-                      <div className="flex items-baseline justify-between gap-3 border-t border-niki-edge pt-2">
-                        <dt className="font-medium text-niki-ink">
-                          {agent.setupFeeMethod === "UPFRONT"
-                            ? "Payable up front"
-                            : "Deducted from commission"}
-                        </dt>
-                        <dd className="font-figures font-bold text-niki-ink">
-                          {formatMoney(fee.payable)}
-                        </dd>
-                      </div>
-                      {fee.payable > 0 ? (
-                        <div className="flex items-baseline justify-between gap-3">
-                          <dt className="text-niki-ink/60">Paid so far</dt>
-                          <dd className="font-figures font-semibold text-niki-ink">
-                            {formatMoney(fee.payable - wallet.outstandingSetup)}
-                          </dd>
-                        </div>
-                      ) : null}
-                      {fee.referrerShare > 0 ? (
-                        <div className="flex items-baseline justify-between gap-3">
-                          <dt className="text-niki-ink/60">
-                            Credited to {referrer?.storeName ?? "their recruiter"}
-                          </dt>
-                          <dd className="font-figures font-semibold text-niki-ink">
-                            {formatMoney(fee.referrerShare)}
-                          </dd>
-                        </div>
-                      ) : null}
-                      {fee.payable > 0 ? (
-                        <div className="flex items-baseline justify-between gap-3">
-                          <dt className="text-niki-ink/60">Nickimart keeps</dt>
-                          <dd className="font-figures font-semibold text-niki-ink">
-                            {formatMoney(fee.nickimartKeeps)}
-                          </dd>
-                        </div>
-                      ) : null}
-                    </dl>
-
-                    <p className="mt-3 text-xs text-niki-ink/45">
-                      {agent.setupFeeSettledBy === "ADJUSTMENT"
-                        ? `Settled ${formatWhen(agent.setupFeePaidAt!)} by an admin credit rather than a payment, so their recruiter earned nothing on it.`
-                        : agent.setupFeePaidAt
-                          ? `Settled ${formatWhen(agent.setupFeePaidAt)}. The recruiter's reward and share are released on payment.`
-                          : agent.setupFeeMethod === "UPFRONT"
-                            ? "Their storefront stays closed to customers until this clears."
-                            : "Clearing itself out of the commission they earn."}
-                    </p>
-                  </Panel>
-                </div>
               </div>
             ),
           },
@@ -1094,34 +1043,145 @@ export default async function AdminAgentDetailPage({
             key: "settings",
             label: "Account",
             content: (
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-                <AgentAccountTools
-                  agentId={agent.id}
-                  origin={siteUrl()}
-                  initial={{
-                    storeName: agent.storeName,
-                    slug: agent.slug,
-                    storeTagline: agent.storeTagline ?? "",
-                    storeAbout: agent.storeAbout ?? "",
-                    supportPhone: agent.supportPhone ?? "",
-                    supportWhatsapp: agent.supportWhatsapp ?? "",
-                    whatsappGroup: agent.whatsappGroup ?? "",
-                    storeOpen: agent.storeOpen,
-                    status: agent.status,
-                    afaEnabled: agent.afaEnabled,
-                    afaPrice: agent.afaPrice,
-                    ownerName: agent.user?.name ?? "",
-                    ownerPhone: agent.user?.phone ?? "",
-                    userId: agent.userId,
-                  }}
-                />
+              <div className="space-y-4">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+                  <AgentAccountTools
+                    agentId={agent.id}
+                    origin={siteUrl()}
+                    initial={{
+                      storeName: agent.storeName,
+                      slug: agent.slug,
+                      storeTagline: agent.storeTagline ?? "",
+                      storeAbout: agent.storeAbout ?? "",
+                      supportPhone: agent.supportPhone ?? "",
+                      supportWhatsapp: agent.supportWhatsapp ?? "",
+                      whatsappGroup: agent.whatsappGroup ?? "",
+                      storeOpen: agent.storeOpen,
+                      status: agent.status,
+                      afaEnabled: agent.afaEnabled,
+                      afaPrice: agent.afaPrice,
+                      ownerName: agent.user?.name ?? "",
+                      ownerPhone: agent.user?.phone ?? "",
+                      userId: agent.userId,
+                    }}
+                  />
 
-                {/* An agent whose account has no password has never been able
-                    to sign in — the setup link either was never delivered or
-                    has expired. */}
-                {agent.user && !agent.user.canSignIn ? (
-                  <SetupLinkTool agentId={agent.id} name={agent.user.name ?? agent.storeName} />
-                ) : null}
+                  {/* An agent whose account has no password has never been able
+                      to sign in — the setup link either was never delivered or
+                      has expired. */}
+                  {agent.user && !agent.user.canSignIn ? (
+                    <SetupLinkTool agentId={agent.id} name={agent.user.name ?? agent.storeName} />
+                  ) : null}
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <Panel title="The account" icon={UserRound} subtitle={`/store/${agent.slug}`}>
+                    <dl className="divide-y divide-niki-edge text-sm">
+                      <Line label="Owner" value={agent.user?.name ?? "—"} />
+                      <Line label="Email" value={agent.user?.email ?? "—"} />
+                      <Line
+                        label="Phone"
+                        value={
+                          <span className="font-mono">
+                            {agent.supportPhone || agent.user?.phone || "—"}
+                          </span>
+                        }
+                      />
+                      <Line
+                        label="Signs in"
+                        value={agent.user?.canSignIn ? "Yes" : "Never signed in"}
+                      />
+                      <Line label="Storefront" value={agent.storeOpen ? "Open" : "Closed"} />
+                      <Line
+                        label="AFA"
+                        value={
+                          agent.afaEnabled
+                            ? agent.afaPrice > 0
+                              ? formatMoney(agent.afaPrice)
+                              : "At Nickimart's price"
+                            : "Off"
+                        }
+                      />
+                      <Line label="Orders" value={String(orderCount)} />
+                      <Line label="Recruits" value={String(recruits.length)} />
+                    </dl>
+                  </Panel>
+
+                  {/*
+                    The registration, in full. Somebody has to be able to answer
+                    "why did this agent pay GH₵30 when the fee is GH₵50, and who
+                    got the rest?" months later, and a single number cannot.
+                  */}
+                  <Panel title="Registration" icon={ReceiptText} subtitle={settledLabel}>
+                    <dl className="space-y-2 text-sm">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <dt className="text-niki-ink/60">Registration fee</dt>
+                        <dd className="font-figures font-semibold text-niki-ink">
+                          {formatMoney(fee.gross)}
+                        </dd>
+                      </div>
+                      {fee.waived > 0 ? (
+                        <div className="flex items-baseline justify-between gap-3">
+                          <dt className="text-niki-ink/60">
+                            Waiver
+                            <span className="ml-1 text-xs text-niki-ink/40">
+                              {fee.waiverPercent}%
+                            </span>
+                          </dt>
+                          <dd className="font-figures font-semibold text-niki-success">
+                            −{formatMoney(fee.waived)}
+                          </dd>
+                        </div>
+                      ) : null}
+                      <div className="flex items-baseline justify-between gap-3 border-t border-niki-edge pt-2">
+                        <dt className="font-medium text-niki-ink">
+                          {agent.setupFeeMethod === "UPFRONT"
+                            ? "Payable up front"
+                            : "Deducted from commission"}
+                        </dt>
+                        <dd className="font-figures font-bold text-niki-ink">
+                          {formatMoney(fee.payable)}
+                        </dd>
+                      </div>
+                      {fee.payable > 0 ? (
+                        <div className="flex items-baseline justify-between gap-3">
+                          <dt className="text-niki-ink/60">Paid so far</dt>
+                          <dd className="font-figures font-semibold text-niki-ink">
+                            {formatMoney(fee.payable - wallet.outstandingSetup)}
+                          </dd>
+                        </div>
+                      ) : null}
+                      {fee.referrerShare > 0 ? (
+                        <div className="flex items-baseline justify-between gap-3">
+                          <dt className="text-niki-ink/60">
+                            Credited to {referrer?.storeName ?? "their recruiter"}
+                          </dt>
+                          <dd className="font-figures font-semibold text-niki-ink">
+                            {formatMoney(fee.referrerShare)}
+                          </dd>
+                        </div>
+                      ) : null}
+                      {fee.payable > 0 ? (
+                        <div className="flex items-baseline justify-between gap-3">
+                          <dt className="text-niki-ink/60">Nickimart keeps</dt>
+                          <dd className="font-figures font-semibold text-niki-ink">
+                            {formatMoney(fee.nickimartKeeps)}
+                          </dd>
+                        </div>
+                      ) : null}
+                    </dl>
+
+                    <p className="mt-3 text-xs text-niki-ink/45">
+                      {agent.setupFeeSettledBy === "ADJUSTMENT"
+                        ? `Settled ${formatWhen(agent.setupFeePaidAt!)} by an admin credit rather than a payment, so their recruiter earned nothing on it.`
+                        : agent.setupFeePaidAt
+                          ? `Settled ${formatWhen(agent.setupFeePaidAt)}. The recruiter's reward and share are released on payment.`
+                          : agent.setupFeeMethod === "UPFRONT"
+                            ? "Their storefront stays closed to customers until this clears."
+                            : "Clearing itself out of the commission they earn."}
+                    </p>
+                  </Panel>
+                </div>
               </div>
             ),
           },
