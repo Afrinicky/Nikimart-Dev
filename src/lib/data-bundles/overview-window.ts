@@ -115,6 +115,25 @@ export function resolveWindow(
 }
 
 /**
+ * The window immediately before this one, or null when there isn't one.
+ *
+ * All time has no "before", and inventing one — the same span again, ending
+ * where the records begin — would compare a real figure against a stretch of
+ * time the business did not exist for. A delta against that is worse than no
+ * delta, so callers leave it off the screen entirely.
+ *
+ * Pure and shared: the business overview, an agent's trading and an agent's
+ * team all compare against the preceding window, and three copies of this
+ * arithmetic would eventually disagree about which days they meant.
+ */
+export function previousRange(w: OverviewWindow): { gte: Date; lt: Date } | null {
+  if (!w.start || w.days === null) return null;
+  const previousStart = new Date(w.start);
+  previousStart.setDate(previousStart.getDate() - w.days);
+  return { gte: previousStart, lt: w.start };
+}
+
+/**
  * How many days one point on the trend should cover.
  *
  * A two-year window drawn as seven hundred daily points is a mark a pixel wide
