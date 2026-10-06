@@ -6,6 +6,7 @@ import { formatPrice } from "@/lib/format";
 import { getStaffNotifyChannel } from "@/lib/settings";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { getProviderBalance, isDataProviderConfigured } from "@/lib/data-bundles/provider";
+import { recordProviderBalance } from "@/lib/data-bundles/provider-ledger";
 import { dispatchAfaRegistration, dispatchDataOrder, refreshDataOrder } from "@/lib/data-bundles/fulfillment";
 import { syncBundleCosts } from "@/lib/data-bundles/cost-sync";
 import { sweepAgentCommissions } from "@/lib/data-bundles/agent-ledger";
@@ -92,9 +93,9 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
     notes: [],
   };
 
-  // Costs first, and outside the provider-key guard below: it reads the
-  // provider's price list with the dashboard sign-in rather than the API key,
-  // so a site that has one and not the other still gets the half it can.
+  // Costs first, and outside the provider-key guard below: the price list can
+  // be read on either the API key or the dashboard sign-in, so a site that has
+  // one and not the other still gets the half it can.
   const costs = await syncBundleCosts();
   result.costsUpdated = costs.updated;
   if (!costs.ok) result.notes.push(`Cost sync: ${costs.message}`);
@@ -110,6 +111,12 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
   // --- 1. Wallet ----------------------------------------------------------
   const balance = await getProviderBalance();
   result.balance = balance.balance;
+
+  // Written down as well as alerted on. The provider has no statement, so a
+  // run of readings is the only record of what was put into that wallet and
+  // what was spent out of it on the provider's own platform — see
+  // lib/data-bundles/provider-ledger.
+  await recordProviderBalance(balance.balance);
 
   if (balance.balance === null) {
     // A wallet we can't read is itself worth knowing about: it usually means

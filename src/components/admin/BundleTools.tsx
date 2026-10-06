@@ -51,8 +51,19 @@ function Result({ state }: { state: DataAdminState }) {
  * Costs refresh themselves once a day, so this is for the rest of the day —
  * the provider moves a price at noon and nobody wants to sell against last
  * night's number until tonight.
+ *
+ * The source is on the form because the two reads fail for different reasons
+ * and an admin needs to know which one did: the API key is rejected, or the
+ * dashboard sign-in wants a one-time code. "Automatic" is the normal setting
+ * and tries the key first.
  */
-export function CostSyncTool({ syncedLabel }: { syncedLabel: string }) {
+export function CostSyncTool({
+  syncedLabel,
+  sources,
+}: {
+  syncedLabel: string;
+  sources: Array<{ value: string; label: string }>;
+}) {
   const [state, formAction] = useActionState<DataAdminState, FormData>(refreshBundleCosts, {});
 
   return (
@@ -66,6 +77,21 @@ export function CostSyncTool({ syncedLabel }: { syncedLabel: string }) {
           {state.error ?? (state.ok ? state.message : syncedLabel)}
         </p>
       </div>
+      <label htmlFor="cost-source" className="sr-only">
+        Price source
+      </label>
+      <select
+        id="cost-source"
+        name="source"
+        defaultValue="auto"
+        className="shrink-0 rounded-lg border border-niki-edge bg-white px-3 py-2 text-xs font-semibold text-niki-ink/70"
+      >
+        {sources.map((s) => (
+          <option key={s.value} value={s.value}>
+            {s.label}
+          </option>
+        ))}
+      </select>
       <SyncButton />
     </form>
   );

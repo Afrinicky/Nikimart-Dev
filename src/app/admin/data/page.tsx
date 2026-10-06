@@ -25,12 +25,14 @@ import { TrendChart } from "@/components/admin/charts/TrendChart";
 import { BarList } from "@/components/admin/charts/BarList";
 import { StatusBar } from "@/components/admin/charts/StatusBar";
 import { formatPrice } from "@/lib/format";
-import { getDataStats } from "@/lib/data-bundles/reporting";
 import {
   changePercent,
+  getAgentNetwork,
   getAgentPerformance,
   getDailySeries,
   getNetworkMix,
+  getOperationsTotals,
+  getPayoutTotals,
   getSourceMix,
   getStatusMix,
   getWindowTotals,
@@ -42,8 +44,6 @@ import { isPaymentConfigured } from "@/lib/payments";
 import { emailStatus, isSmsConfigured } from "@/lib/notifications";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { getAllBundles } from "@/lib/data-bundles/catalog";
-import { listAgents } from "@/lib/data-bundles/agents";
-import { getWithdrawalTotals } from "@/lib/data-bundles/withdrawals";
 import { getBellState } from "@/lib/data-bundles/notifications";
 import { pendingApplicationCount } from "@/lib/data-bundles/agent-module";
 import { NotificationBell } from "@/components/admin/NotificationBell";
@@ -216,11 +216,10 @@ export default async function AdminDataOverviewPage({
   const providerReady = isDataProviderConfigured();
 
   const [
-    stats,
     balance,
     config,
     bundles,
-    agents,
+    network,
     oldestWithdrawal,
     waitingApplications,
     openSupport,
@@ -231,13 +230,13 @@ export default async function AdminDataOverviewPage({
     statusMix,
     performance,
     payouts,
+    operations,
     bell,
   ] = await Promise.all([
-    getDataStats(),
     providerReady ? getProviderBalance() : Promise.resolve({ balance: null, message: "Not configured" }),
     getDataStoreConfig(),
     getAllBundles(),
-    listAgents(),
+    getAgentNetwork(period),
     // The oldest one rather than a count: when a single request is waiting, the
     // alert can open it instead of dropping the admin on a list of one.
     dataDb.dataAgentWithdrawal
@@ -255,7 +254,8 @@ export default async function AdminDataOverviewPage({
     getSourceMix(period),
     getStatusMix(period),
     getAgentPerformance(period),
-    getWithdrawalTotals(),
+    getPayoutTotals(period),
+    getOperationsTotals(period),
     getBellState(),
   ]);
 
@@ -264,11 +264,11 @@ export default async function AdminDataOverviewPage({
   // Bundles with no agent price are invisible to agents, so a full ladder with
   // none set means a recruited agent lands on an empty store.
   const missingAgentPrice = bundles.filter((b) => b.isActive && b.agentPrice <= 0).length;
-  const agentSales = agents.reduce((sum, a) => sum + a.totalSales, 0);
-  const owedToAgents = agents.reduce((sum, a) => sum + Math.max(0, a.balance), 0);
-  const activeAgents = agents.filter((a) => a.status === "active").length;
 
   const windowLabel = period.label;
+  // All time is the one window where a standing figure needs no "as at": it is
+  // as at now, which is what everybody reads it as anyway.
+  const asAtLabel = period.key === "all" ? "" : ` as at ${period.to}`;
 
   const statusSlices = [
     {
@@ -358,22 +358,28 @@ export default async function AdminDataOverviewPage({
       detail: "Orders update themselves when the provider finishes. Nothing to configure.",
     },
     {
-      ok: stats.available,
+      ok: operations.available,
       label: "Database tables",
-      detail: stats.available
+      detail: operations.available
         ? `${bundles.length} bundle rows stored.`
         : "Run nikimart-neon-data-bundles.sql on the database.",
     },
   ];
 
   const attention = [
-    stats.failed > 0
+    operations.failed > 0
       ? {
           key: "failed",
           href: "/admin/data/orders?status=failed",
           tone: "danger" as const,
           icon: AlertTriangle,
-          text: `${stats.failed} ${stats.failed === 1 ? "order" : "orders"} failed to deliver. Retry or refund them.`,
+          // The window is named because the figure answers to it now: eight
+          // failures from February under a seven-day filter was the reading
+          // this screen used to invite.
+          text:
+            operations.failed === 1
+              ? `1 order failed to deliver (${windowLabel}). Retry or refund it.`
+              : `${operations.failed} orders failed to deliver (${windowLabel}). Retry or refund them.`,
         }
       : null,
     payouts.pendingCount > 0
@@ -413,13 +419,13 @@ export default async function AdminDataOverviewPage({
           text: `${openSupport} agent ${openSupport === 1 ? "is" : "are"} waiting on a callback.`,
         }
       : null,
-    stats.afaPending > 0
+    operations.afaPending > 0
       ? {
           key: "afa",
           href: "/admin/data/afa",
           tone: "plain" as const,
           icon: BadgeCheck,
-          text: `${stats.afaPending} AFA ${stats.afaPending === 1 ? "registration is" : "registrations are"} awaiting approval.`,
+          text: `${operations.afaPending} AFA ${operations.afaPending === 1 ? "registration is" : "registrations are"} awaiting approval.`,
         }
       : null,
     missingAgentPrice > 0
@@ -529,7 +535,7 @@ export default async function AdminDataOverviewPage({
         <Stat
           label="Orders"
           value={String(totals.orders)}
-          hint={`${stats.todayOrders} today`}
+          hint={`Paid · ${windowLabel}`}
           href="/admin/data/orders"
           icon={ListOrdered}
           delta={changePercent(totals.orders, totals.previous?.orders)}
@@ -537,61 +543,78 @@ export default async function AdminDataOverviewPage({
         <Stat
           label="Gross margin"
           value={formatPrice(totals.margin)}
-          hint={missingCost ? `${missingCost} bundles have no cost recorded` : "Revenue less provider cost"}
+          hint={
+            missingCost
+              ? `${missingCost} bundles have no cost recorded`
+              : `Revenue less provider cost · ${windowLabel}`
+          }
           href="/admin/data/bundles"
           icon={Wallet}
           tone="success"
         />
         <Stat
           label="Awaiting payment"
-          value={String(stats.pendingPayment)}
-          hint="Checkouts nobody finished"
+          value={String(operations.pendingPayment)}
+          hint={`Checkouts nobody finished · ${windowLabel}`}
           href="/admin/data/orders?status=pending"
           icon={ListOrdered}
         />
       </div>
 
       {attention.length > 0 ? (
-        <ul className="mt-4 space-y-2">
-          {attention.map((a) =>
-            a ? (
-              <li key={a.key}>
-                <ActionLink
-                  href={a.href}
-                  className={cn(
-                    "niki-focus group flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-colors",
-                    ALERT_TONES[a.tone].card,
-                  )}
-                >
-                  {/* The icon sits in a chip of its own so the row reads as a
-                      thing rather than a sentence with a picture in front of
-                      it — and so the live ones have somewhere to pulse. */}
-                  <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
-                    {"live" in a && a.live ? (
+        <section className="mt-4">
+          {/* Labelled, because everything above this point answers to the date
+              picker and a waiting payout or application does not: a request
+              made in February is still somebody waiting today. */}
+          <div className="mb-2 flex items-center gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-niki-ink/45">
+              Needs attention
+            </h2>
+            <span className="rounded-md bg-niki-ink/5 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-niki-ink/45">
+              Live
+            </span>
+          </div>
+          <ul className="space-y-2">
+            {attention.map((a) =>
+              a ? (
+                <li key={a.key}>
+                  <ActionLink
+                    href={a.href}
+                    className={cn(
+                      "niki-focus group flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-colors",
+                      ALERT_TONES[a.tone].card,
+                    )}
+                  >
+                    {/* The icon sits in a chip of its own so the row reads as a
+                        thing rather than a sentence with a picture in front of
+                        it — and so the live ones have somewhere to pulse. */}
+                    <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
+                      {"live" in a && a.live ? (
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "absolute inset-0 animate-ping rounded-xl opacity-40",
+                            ALERT_TONES[a.tone].pulse,
+                          )}
+                        />
+                      ) : null}
                       <span
-                        aria-hidden
                         className={cn(
-                          "absolute inset-0 animate-ping rounded-xl opacity-40",
-                          ALERT_TONES[a.tone].pulse,
+                          "relative flex h-9 w-9 items-center justify-center rounded-xl",
+                          ALERT_TONES[a.tone].chip,
                         )}
-                      />
-                    ) : null}
-                    <span
-                      className={cn(
-                        "relative flex h-9 w-9 items-center justify-center rounded-xl",
-                        ALERT_TONES[a.tone].chip,
-                      )}
-                    >
-                      <a.icon className="h-4 w-4" />
+                      >
+                        <a.icon className="h-4 w-4" />
+                      </span>
                     </span>
-                  </span>
-                  <span className="min-w-0 flex-1">{a.text}</span>
-                  <ChevronRight className="h-4 w-4 shrink-0 opacity-40 transition-transform group-hover:translate-x-0.5 group-hover:opacity-70" />
-                </ActionLink>
-              </li>
-            ) : null,
-          )}
-        </ul>
+                    <span className="min-w-0 flex-1">{a.text}</span>
+                    <ChevronRight className="h-4 w-4 shrink-0 opacity-40 transition-transform group-hover:translate-x-0.5 group-hover:opacity-70" />
+                  </ActionLink>
+                </li>
+              ) : null,
+            )}
+          </ul>
+        </section>
       ) : null}
 
       {/* The shape of the window. */}
@@ -657,15 +680,15 @@ export default async function AdminDataOverviewPage({
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Stat
           label="Agents"
-          value={String(agents.length)}
-          hint={`${activeAgents} active · ${performance.sellingAgents} sold this window`}
+          value={String(network.total)}
+          hint={`${network.active} active · ${network.joined} joined · ${performance.sellingAgents} sold`}
           href="/admin/data/agents"
           icon={Users}
         />
         <Stat
           label="Agent sales"
-          value={formatPrice(agentSales)}
-          hint="All time, through agent storefronts"
+          value={formatPrice(totals.agentRevenue)}
+          hint={`Through agent storefronts · ${windowLabel}`}
           href="/admin/data/agents"
           icon={TrendingUp}
         />
@@ -687,20 +710,16 @@ export default async function AdminDataOverviewPage({
         />
         <Stat
           label="Owed to agents"
-          value={formatPrice(owedToAgents)}
-          hint="Commission they can withdraw"
+          value={formatPrice(network.owed)}
+          hint={`Commission they can withdraw${asAtLabel}`}
           href="/admin/data/agents"
           icon={Wallet}
-          tone={owedToAgents > 0 ? "orange" : "ink"}
+          tone={network.owed > 0 ? "orange" : "ink"}
         />
         <Stat
           label="Paid to agents"
           value={formatPrice(payouts.paid)}
-          hint={
-            payouts.pending > 0
-              ? `${formatPrice(payouts.pending)} still to send`
-              : `${payouts.paidCount} ${payouts.paidCount === 1 ? "payout" : "payouts"} sent on MoMo`
-          }
+          hint={`${payouts.paidCount} ${payouts.paidCount === 1 ? "payout" : "payouts"} on MoMo · ${windowLabel}`}
           href="/admin/data/withdrawals?status=processed"
           icon={Banknote}
           tone="success"
