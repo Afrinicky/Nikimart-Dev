@@ -216,22 +216,43 @@ export async function createProviderAfa(input: AfaInput): Promise<ProviderResult
 /**
  * What each bundle costs us, read from the provider's own package list.
  *
- * This is the one thing the API key cannot get at. `/api/*` is the order-taking
- * surface — balance, order, AFA — and it has no price endpoint; the prices live
- * behind the agent dashboard's own session, on `/packages/agent/tier`, which is
- * the tier this account actually buys at. So this half signs in with the
- * dashboard credentials rather than the key:
+ * There are two ways in, and an account normally has one of them:
  *
- *   JUSTICE_AGENT_PHONE     the phone the agent dashboard is signed in with
- *   JUSTICE_AGENT_PASSWORD  its password
+ *   api        The API key already used for orders, against the `/api` package
+ *              endpoints. Nothing to sign in to, nothing to expire, and no
+ *              second secret to keep — so it is tried first.
+ *   dashboard  The agent dashboard's own session, on `/packages/agent/tier`:
+ *              the tier this account actually buys at. It needs the dashboard
+ *              login, and a dashboard set to send a one-time code on sign-in
+ *              cannot be automated at all.
  *
- * Both are optional. Without them the cost sync simply reports that it has no
- * credentials and nothing else changes — orders keep being fulfilled on the API
+ *     JUSTICE_AGENT_PHONE     the phone the agent dashboard is signed in with
+ *     JUSTICE_AGENT_PASSWORD  its password
+ *
+ * Both are optional. With neither, the cost sync reports that it has no way to
+ * read prices and nothing else changes — orders keep being fulfilled on the API
  * key exactly as before, and cost prices stay whatever an admin last typed.
  *
- * Note what these credentials are *not* used for: nothing here ever orders,
- * transfers or changes anything upstream. It signs in and reads a price list.
+ * Note what none of this is used for: nothing here ever orders, transfers or
+ * changes anything upstream. It reads a price list.
  */
+
+/** Which read to use. "auto" tries the key, then the dashboard sign-in. */
+export type PriceSource = "auto" | "api" | "dashboard";
+
+const PRICE_SOURCE_KEYS: readonly PriceSource[] = ["auto", "api", "dashboard"];
+
+/** Read a stored or posted value as a source. Anything else means "auto". */
+export function normalisePriceSource(raw: string | null | undefined): PriceSource {
+  const value = (raw ?? "").trim().toLowerCase();
+  return (PRICE_SOURCE_KEYS as readonly string[]).includes(value) ? (value as PriceSource) : "auto";
+}
+
+export function priceSourceLabel(source: PriceSource | null): string {
+  if (source === "api") return "the API key";
+  if (source === "dashboard") return "the dashboard sign-in";
+  return "the provider";
+}
 
 function agentCredentials(): { phoneNumber: string; password: string } | null {
   const phoneNumber = process.env.JUSTICE_AGENT_PHONE?.trim();
@@ -342,32 +363,47 @@ const PAGE_SIZE = 100;
 const MAX_PAGES = 10;
 
 /**
- * Every package this account can buy, at the price it pays.
+ * The tier list first, the whole catalogue second.
  *
- * `/packages/agent/tier` is the account's own tier — what it is actually
- * charged — and `/packages` is the whole catalogue. The tier list is the one
- * that answers "what does this cost me", so it is tried first and the
- * catalogue is the fallback for an account that has no tier of its own.
+ * A tier endpoint answers "what does this cost *me*", which is the only price
+ * worth writing onto a cost column; the catalogue is the fallback for an
+ * account that has no tier of its own.
  */
-export async function listProviderPackages(): Promise<ProviderResult<RawProviderPackage[]>> {
-  const auth = await dashboardToken();
-  if (!auth.token) return { ok: false, message: auth.message, status: 0, payload: null };
+const API_PACKAGE_PATHS = ["/api/packages/agent/tier", "/api/packages", "/api/package"] as const;
+const DASHBOARD_PACKAGE_PATHS = ["/packages/agent/tier", "/packages"] as const;
 
-  for (const path of ["/packages/agent/tier", "/packages"]) {
+/** A price list, and which of the two reads produced it. */
+export interface PackageListing extends ProviderResult<RawProviderPackage[]> {
+  source: "api" | "dashboard" | null;
+}
+
+/**
+ * Walk a set of package endpoints until one of them lists something.
+ *
+ * Paged, because a catalogue runs to a few hundred rows and a provider that
+ * caps a page at a hundred would otherwise hand us a third of the ladder and
+ * look like it had answered. An endpoint that errors or lists nothing is not
+ * reported on its own — the next path is tried, and only the last failure is
+ * handed back, because a 404 on a path this account does not have is noise
+ * rather than news.
+ */
+async function readPackagePages(
+  paths: readonly string[],
+  headers: Record<string, string>,
+): Promise<ProviderResult<RawProviderPackage[]>> {
+  let failed: ProviderResult<RawProviderPackage[]> | null = null;
+
+  for (const path of paths) {
     const collected: RawProviderPackage[] = [];
-    let failed: ProviderResult<RawProviderPackage[]> | null = null;
 
     for (let page = 1; page <= MAX_PAGES; page += 1) {
       let rows: RawProviderPackage[] = [];
       try {
-        const res = await fetch(
-          `${providerBase()}${path}?page=${page}&pageSize=${PAGE_SIZE}`,
-          {
-            headers: { Authorization: `Bearer ${auth.token}`, Accept: "application/json" },
-            cache: "no-store",
-            signal: AbortSignal.timeout(TIMEOUT_MS),
-          },
-        );
+        const res = await fetch(`${providerBase()}${path}?page=${page}&pageSize=${PAGE_SIZE}`, {
+          headers: { Accept: "application/json", ...headers },
+          cache: "no-store",
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
         const text = await res.text().catch(() => "");
         let json: Envelope<unknown> | null = null;
         try {
@@ -387,6 +423,7 @@ export async function listProviderPackages(): Promise<ProviderResult<RawProvider
         rows = rowsFrom(json?.payload ?? json);
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
+        // Logged without the key or the token — the path is enough to diagnose.
         console.error(`[data-bundles] GET ${path} failed: ${reason}`);
         failed = { ok: false, message: "Could not reach the provider.", status: 0, payload: null };
         break;
@@ -399,10 +436,62 @@ export async function listProviderPackages(): Promise<ProviderResult<RawProvider
     if (collected.length > 0) {
       return { ok: true, message: "OK", status: 200, payload: collected };
     }
-    // A tier endpoint that answered with nothing is not an error worth
-    // reporting on its own — fall through and try the full catalogue.
-    if (failed && path === "/packages") return failed;
   }
 
-  return { ok: false, message: "The provider returned no packages.", status: 200, payload: [] };
+  return failed ?? { ok: false, message: "The provider returned no packages.", status: 200, payload: [] };
+}
+
+/** The price list on the order-taking API key — no sign-in, nothing to expire. */
+export async function listProviderPackagesViaApi(): Promise<ProviderResult<RawProviderPackage[]>> {
+  const key = providerKey();
+  if (!key) {
+    return { ok: false, message: "No provider API key (JUSTICE_API_KEY).", status: 0, payload: null };
+  }
+  return readPackagePages(API_PACKAGE_PATHS, { "X-API-Key": key });
+}
+
+/** The price list behind the agent dashboard's own session. */
+export async function listProviderPackagesViaDashboard(): Promise<
+  ProviderResult<RawProviderPackage[]>
+> {
+  const auth = await dashboardToken();
+  if (!auth.token) return { ok: false, message: auth.message, status: 0, payload: null };
+  return readPackagePages(DASHBOARD_PACKAGE_PATHS, { Authorization: `Bearer ${auth.token}` });
+}
+
+/**
+ * Every package this account can buy, at the price it pays.
+ *
+ * On "auto" the API key is tried first and the dashboard sign-in is the
+ * fallback, so a deployment that has only ever been given the key — which is
+ * every deployment, since the key is what fulfils orders — can price itself
+ * without a second secret. A source named outright is used on its own, so an
+ * admin can prove which of the two is working rather than guess from a number
+ * that did or did not move.
+ */
+export async function listProviderPackages(source: PriceSource = "auto"): Promise<PackageListing> {
+  if (source === "api") {
+    return { ...(await listProviderPackagesViaApi()), source: "api" };
+  }
+  if (source === "dashboard") {
+    return { ...(await listProviderPackagesViaDashboard()), source: "dashboard" };
+  }
+
+  const api = await listProviderPackagesViaApi();
+  if (api.ok && api.payload && api.payload.length > 0) return { ...api, source: "api" };
+
+  const dashboard = await listProviderPackagesViaDashboard();
+  if (dashboard.ok && dashboard.payload && dashboard.payload.length > 0) {
+    return { ...dashboard, source: "dashboard" };
+  }
+
+  // Neither answered. Say so once, naming both, rather than blaming whichever
+  // was asked last — the usual cause is that only one of the two is set up.
+  return {
+    ok: false,
+    status: dashboard.status || api.status,
+    payload: null,
+    source: null,
+    message: `API key: ${api.message} Dashboard sign-in: ${dashboard.message}`,
+  };
 }

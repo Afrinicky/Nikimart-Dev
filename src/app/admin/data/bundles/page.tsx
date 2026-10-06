@@ -5,7 +5,10 @@ import { BundlePriceTable } from "@/components/admin/BundlePriceTable";
 import { CostSyncTool, MarkupTool, NewBundleForm } from "@/components/admin/BundleTools";
 import { getAllBundles, groupByNetwork } from "@/lib/data-bundles/catalog";
 import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/settings";
-import { isProviderDashboardConfigured } from "@/lib/data-bundles/provider";
+import {
+  isDataProviderConfigured,
+  isProviderDashboardConfigured,
+} from "@/lib/data-bundles/provider";
 
 export const metadata: Metadata = { title: "Bundle Prices — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -17,7 +20,18 @@ export default async function AdminBundlePricesPage() {
     getAgentProgramConfig(),
   ]);
   const groups = groupByNetwork(bundles);
-  const syncable = isProviderDashboardConfigured();
+
+  // Two ways to read the provider's prices, and an account normally has one.
+  // Only the ones that could work are offered: a source with no credentials
+  // behind it is a dropdown entry whose only outcome is an error message.
+  const apiReady = isDataProviderConfigured();
+  const dashboardReady = isProviderDashboardConfigured();
+  const sources = [
+    ...(apiReady && dashboardReady ? [{ value: "auto", label: "Automatic" }] : []),
+    ...(apiReady ? [{ value: "api", label: "API key" }] : []),
+    ...(dashboardReady ? [{ value: "dashboard", label: "Dashboard sign-in" }] : []),
+  ];
+  const syncable = apiReady || dashboardReady;
 
   return (
     <Container className="py-8">
@@ -42,10 +56,11 @@ export default async function AdminBundlePricesPage() {
       {/* Costs come from the provider now, daily and on demand. */}
       <div className="mt-6">
         <CostSyncTool
+          sources={sources.length > 0 ? sources : [{ value: "auto", label: "Automatic" }]}
           syncedLabel={
             syncable
               ? "Fetched from the provider every day. Cost prices only — nothing else is touched."
-              : "Set JUSTICE_AGENT_PHONE and JUSTICE_AGENT_PASSWORD to fetch costs automatically."
+              : "Set JUSTICE_API_KEY, or JUSTICE_AGENT_PHONE and JUSTICE_AGENT_PASSWORD, to fetch costs."
           }
         />
       </div>

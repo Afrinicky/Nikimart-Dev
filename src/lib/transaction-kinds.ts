@@ -14,12 +14,21 @@
 /** Which way the money went, from Nickimart's point of view. */
 export type Flow = "in" | "out" | "internal";
 
+/**
+ * Which list a kind belongs on.
+ *
+ *   data      the bundle business's own ledger
+ *   retail    the mall's
+ *   provider  movements on the wallet the bundles are bought *from*, which are
+ *             not Nickimart's own books and keep to the top-ups tab
+ */
+export type TransactionScope = "data" | "retail" | "provider";
+
 export interface TransactionKind {
   key: string;
   label: string;
   flow: Flow;
-  /** The console it belongs to. "both" for a kind each side records. */
-  scope: "data" | "retail";
+  scope: TransactionScope;
 }
 
 export const TRANSACTION_KINDS: TransactionKind[] = [
@@ -28,24 +37,47 @@ export const TRANSACTION_KINDS: TransactionKind[] = [
   { key: "AFA", label: "AFA registration", flow: "in", scope: "data" },
   { key: "WALLET_TOPUP", label: "Agent wallet top-up", flow: "in", scope: "data" },
   { key: "REGISTRATION_FEE", label: "Agent registration fee", flow: "in", scope: "data" },
+  // A sale paid out of an agent's float. The cash arrived when they topped the
+  // float up, so counting it again here would bank the same cedi twice.
+  { key: "WALLET_ORDER", label: "Bundle sale from float", flow: "internal", scope: "data" },
   { key: "COMMISSION", label: "Agent commission", flow: "internal", scope: "data" },
   { key: "REFERRAL", label: "Referral earnings", flow: "internal", scope: "data" },
   { key: "ADJUSTMENT", label: "Balance adjustment", flow: "internal", scope: "data" },
+  // A cancelled sale credited to the agent's float rather than reversed on the
+  // card: the money stayed with Nickimart and only changed hands internally.
+  { key: "WALLET_REFUND", label: "Refund to agent float", flow: "internal", scope: "data" },
   { key: "REFUND", label: "Refund", flow: "out", scope: "data" },
   { key: "WITHDRAWAL", label: "Agent payout", flow: "out", scope: "data" },
   // --- Retail -------------------------------------------------------------
   { key: "ORDER_PAYMENT", label: "Order payment", flow: "in", scope: "retail" },
   { key: "VENDOR_PAYOUT", label: "Shop payout", flow: "out", scope: "retail" },
   { key: "AFFILIATE_PAYOUT", label: "Affiliate payout", flow: "out", scope: "retail" },
+  // --- The provider's wallet ----------------------------------------------
+  { key: "PROVIDER_FUNDING", label: "Provider wallet funding", flow: "out", scope: "provider" },
+  { key: "PROVIDER_DEBIT", label: "Provider wallet debit", flow: "internal", scope: "provider" },
 ];
 
-export function kindsFor(scope: "data" | "retail"): TransactionKind[] {
+export function kindsFor(scope: TransactionScope): TransactionKind[] {
   return TRANSACTION_KINDS.filter((k) => k.scope === scope);
 }
 
 /** The dropdown for one console: every kind it records, and "all". */
-export function kindOptions(scope: "data" | "retail") {
+export function kindOptions(scope: TransactionScope) {
   return [{ value: "all", label: "All kinds" }, ...kindsFor(scope).map((k) => ({ value: k.key, label: k.label }))];
+}
+
+/**
+ * The kinds the top-ups tab deals in: money into an agent's float, and money
+ * into and out of the provider's wallet. Three sources, one question — what is
+ * being put in, and what is taking it out again.
+ */
+export const TOPUP_KINDS = ["WALLET_TOPUP", "PROVIDER_FUNDING", "PROVIDER_DEBIT"] as const;
+
+export function topupKindOptions() {
+  return [
+    { value: "all", label: "All kinds" },
+    ...TOPUP_KINDS.map((key) => ({ value: key, label: kindLabel(key) })),
+  ];
 }
 
 export const FLOW_OPTIONS = [
@@ -77,9 +109,16 @@ export function flowTone(flow: Flow): string {
   return "bg-niki-ink/10 text-niki-ink/70 ring-1 ring-niki-ink/20";
 }
 
-/** A signed amount reads its own direction, so the table never needs a key. */
+/**
+ * A signed amount reads its own direction, so the table never needs a key.
+ *
+ * Money out is always negative. Anything else keeps the sign it arrived with,
+ * because a movement inside the platform can be a debit — an adjustment taking
+ * money off an agent — and forcing it positive would have the column add up to
+ * more than ever moved.
+ */
 export function signedAmount(flow: Flow, amount: number): number {
-  return flow === "out" ? -Math.abs(amount) : Math.abs(amount);
+  return flow === "out" ? -Math.abs(amount) : amount;
 }
 
 export const TRANSACTION_RANGES = [7, 30, 90, 365, 0] as const;

@@ -99,6 +99,10 @@ model DataOrder {
 
   // pending | paid | queued | processing | completed | failed | refunded
   status        String    @default("pending")
+  // When the money went back. Set on both refund paths — the agent-wallet
+  // credit and the admin's "refunded in Paystack" flag — so the transactions
+  // ledger can date the reversal rather than guessing at the sale's own date.
+  refundedAt    DateTime?
   // unpaid | paid — payment is separate from delivery, so a paid-but-undelivered
   // order is visible to the admin as exactly that.
   paymentStatus String    @default("unpaid")
@@ -1216,4 +1220,49 @@ model DataConversationRequest {
 model DataSetting {
   key   String @id
   value String
+}
+
+/**
+ * A reading of the provider's wallet, and what moved since the one before it.
+ *
+ * The provider has no statement endpoint — only a balance — so the money put
+ * into that wallet, and the money taken out of it by orders placed on the
+ * provider's own platform rather than through Nickimart, were invisible here.
+ * What a top-up really costs and what is being spent outside the storefront
+ * were both unanswerable, which makes "how much am I actually putting in" an
+ * unanswerable question too.
+ *
+ * So the balance is read on every sweep and written down. Between two readings
+ * the arithmetic is forced: the balance moved by `change`, our own dispatches
+ * account for `ourCost` of that, and whatever is left over is either money
+ * somebody added (`credited`) or money that left for an order we did not place
+ * (`debited`). One of the two is always zero.
+ *
+ * The resolution is the sweep's, not the clock's: a top-up and a direct order
+ * inside the same interval net off against each other. That is the price of
+ * polling a balance instead of reading a statement, and it is still the
+ * difference between knowing and guessing.
+ */
+model DataProviderBalance {
+  id String @id @default(cuid())
+
+  /// The balance as the provider reported it (GH₵).
+  balance         Float
+  /// The previous reading, or null for the first one ever taken.
+  previousBalance Float?
+  /// balance − previousBalance. Zero on the first reading.
+  change          Float  @default(0)
+  /// Cost of the orders Nickimart dispatched between the two readings.
+  ourCost         Float  @default(0)
+  /// Money added to the provider wallet in the interval, as derived above.
+  credited        Float  @default(0)
+  /// Money that left it for an order Nickimart did not place.
+  debited         Float  @default(0)
+
+  /// sweep | manual | initial — what took the reading.
+  source String @default("sweep")
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }

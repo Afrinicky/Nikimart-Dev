@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ArrowDownLeft, ArrowUpRight, Repeat } from "lucide-react";
-import { Container } from "@/components/ui/Container";
-import { ModuleHeader } from "@/components/admin/ModuleHeader";
 import { TableFilters } from "@/components/admin/TableFilters";
 import { TablePager } from "@/components/admin/TablePager";
 import { TransactionsTable } from "@/components/admin/TransactionsTable";
-import { Receipt } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { perPageFrom } from "@/lib/data-bundles/order-filters";
 import { getTransactions } from "@/lib/data-bundles/transactions";
@@ -17,7 +14,7 @@ import {
   transactionRange,
 } from "@/lib/transaction-kinds";
 
-export const metadata: Metadata = { title: "Transactions — Admin — Nickimart" };
+export const metadata: Metadata = { title: "Ledger — Transactions — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 function Tile({
@@ -96,14 +93,8 @@ export default async function AdminDataTransactionsPage({
     RANGE_OPTIONS.find((r) => r.value === String(days))?.label.toLowerCase() ?? "this window";
 
   return (
-    <Container className="py-8">
-      <ModuleHeader
-        title="Transactions"
-        subtitle="Every cedi in and out of the bundle business, from the rows it actually happened on."
-        icon={Receipt}
-      />
-
-      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Tile
           label="Money in"
           value={formatMoney(totals.in)}
@@ -121,7 +112,7 @@ export default async function AdminDataTransactionsPage({
         <Tile
           label="Moved inside"
           value={formatMoney(totals.internal)}
-          note="Commission, referrals and adjustments"
+          note="Commission, referrals and float movements"
           icon={Repeat}
           tone="ink"
         />
@@ -163,6 +154,6 @@ export default async function AdminDataTransactionsPage({
           </Suspense>
         ) : null}
       </section>
-    </Container>
+    </>
   );
 }

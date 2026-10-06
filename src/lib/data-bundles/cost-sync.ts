@@ -1,8 +1,11 @@
 import "server-only";
 import { dataDb } from "@/lib/data-db";
 import {
+  isDataProviderConfigured,
   isProviderDashboardConfigured,
   listProviderPackages,
+  priceSourceLabel,
+  type PriceSource,
 } from "@/lib/data-bundles/provider";
 import { parsePackages, planCostUpdates, type CostChange } from "@/lib/data-bundles/package-prices";
 
@@ -20,6 +23,10 @@ import { parsePackages, planCostUpdates, type CostChange } from "@/lib/data-bund
  * on demand from the price screen. Nothing else is touched: retail prices,
  * agent prices and what is on sale stay exactly as the admin set them. This
  * only ever writes `costPrice`.
+ *
+ * Where the list comes from is the caller's choice — the order-taking API key,
+ * the dashboard sign-in, or whichever of the two answers. See `PriceSource` in
+ * lib/data-bundles/provider.
  */
 
 export interface CostSyncResult {
@@ -32,6 +39,8 @@ export interface CostSyncResult {
   listed: number;
   /** What moved, for the line the admin screen shows. */
   changes: CostChange[];
+  /** Which read answered, so a failing half can be told from a working one. */
+  source: "api" | "dashboard" | null;
   message: string;
 }
 
@@ -49,6 +58,29 @@ function summarise(changes: CostChange[], unmatched: number): string {
   return `Updated ${changes.length} cost ${changes.length === 1 ? "price" : "prices"} (${parts.join(", ")}).`;
 }
 
+/** Whether the credentials one source needs are actually present. */
+export function isPriceSourceConfigured(source: PriceSource): boolean {
+  if (source === "api") return isDataProviderConfigured();
+  if (source === "dashboard") return isProviderDashboardConfigured();
+  return isDataProviderConfigured() || isProviderDashboardConfigured();
+}
+
+function missingCredentialsMessage(source: PriceSource): string {
+  if (source === "api") {
+    return "No provider API key, so costs can't be fetched. Set JUSTICE_API_KEY.";
+  }
+  if (source === "dashboard") {
+    return (
+      "Provider sign-in isn't configured, so costs can't be fetched. " +
+      "Set JUSTICE_AGENT_PHONE and JUSTICE_AGENT_PASSWORD to the dashboard login."
+    );
+  }
+  return (
+    "Nothing is configured to read prices with. Set JUSTICE_API_KEY, or " +
+    "JUSTICE_AGENT_PHONE and JUSTICE_AGENT_PASSWORD for the dashboard login."
+  );
+}
+
 /**
  * Pull the provider's price list and write back any cost that has moved.
  *
@@ -56,28 +88,27 @@ function summarise(changes: CostChange[], unmatched: number): string {
  * outage must not take the rest of the sweep down with it. A failure leaves
  * every cost exactly as it was — yesterday's number is much better than a zero.
  */
-export async function syncBundleCosts(): Promise<CostSyncResult> {
+export async function syncBundleCosts(
+  opts: { source?: PriceSource } = {},
+): Promise<CostSyncResult> {
   const empty: CostSyncResult = {
     ok: false,
     updated: 0,
     unmatched: 0,
     listed: 0,
     changes: [],
+    source: null,
     message: "",
   };
 
-  if (!isProviderDashboardConfigured()) {
-    return {
-      ...empty,
-      message:
-        "Provider sign-in isn't configured, so costs can't be fetched. " +
-        "Set JUSTICE_AGENT_PHONE and JUSTICE_AGENT_PASSWORD to the dashboard login.",
-    };
+  const source = opts.source ?? "auto";
+  if (!isPriceSourceConfigured(source)) {
+    return { ...empty, message: missingCredentialsMessage(source) };
   }
 
-  const listing = await listProviderPackages();
+  const listing = await listProviderPackages(source);
   if (!listing.ok || !listing.payload) {
-    return { ...empty, message: listing.message };
+    return { ...empty, source: listing.source, message: listing.message };
   }
 
   const packages = parsePackages(listing.payload);
@@ -85,6 +116,7 @@ export async function syncBundleCosts(): Promise<CostSyncResult> {
     return {
       ...empty,
       listed: 0,
+      source: listing.source,
       message: "The provider listed no packages we could read. Costs are unchanged.",
     };
   }
@@ -95,7 +127,11 @@ export async function syncBundleCosts(): Promise<CostSyncResult> {
       select: { id: true, network: true, sizeGb: true, costPrice: true },
     });
   } catch {
-    return { ...empty, message: "Couldn't read the bundle ladder — is the database migrated?" };
+    return {
+      ...empty,
+      source: listing.source,
+      message: "Couldn't read the bundle ladder — is the database migrated?",
+    };
   }
 
   const plan = planCostUpdates(bundles, packages);
@@ -113,7 +149,12 @@ export async function syncBundleCosts(): Promise<CostSyncResult> {
         ),
       );
     } catch {
-      return { ...empty, listed: packages.length, message: "Couldn't save the new cost prices." };
+      return {
+        ...empty,
+        listed: packages.length,
+        source: listing.source,
+        message: "Couldn't save the new cost prices.",
+      };
     }
   }
 
@@ -123,6 +164,7 @@ export async function syncBundleCosts(): Promise<CostSyncResult> {
     unmatched: plan.unmatched.length,
     listed: packages.length,
     changes: plan.changes,
-    message: summarise(plan.changes, plan.unmatched.length),
+    source: listing.source,
+    message: `${summarise(plan.changes, plan.unmatched.length)} Read from ${priceSourceLabel(listing.source)}.`,
   };
 }

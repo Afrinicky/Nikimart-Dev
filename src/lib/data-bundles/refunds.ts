@@ -105,7 +105,10 @@ export async function cancelAndRefundOrder(
   // One guarded flip decides the winner: two admins on the same row, or an
   // admin and the agent, and only one of them writes the refund.
   const claimed = await dataDb.dataOrder
-    .updateMany({ where: { id: orderId, status: "queued" }, data: { status: "refunded" } })
+    .updateMany({
+      where: { id: orderId, status: "queued" },
+      data: { status: "refunded", refundedAt: new Date() },
+    })
     .catch(() => ({ count: 0 }));
   if (claimed.count === 0) {
     return { ok: false, error: "That order has just changed — refresh and try again." };
@@ -144,7 +147,10 @@ export async function cancelAndRefundOrder(
     // The wallet credit failed, so the order must not stay cancelled — put it
     // back and let whoever pressed the button try again.
     await dataDb.dataOrder
-      .updateMany({ where: { id: orderId, status: "refunded" }, data: { status: "queued" } })
+      .updateMany({
+        where: { id: orderId, status: "refunded" },
+        data: { status: "queued", refundedAt: null },
+      })
       .catch(() => {});
     return { ok: false, error: "Couldn't move the refund to the wallet. Please try again." };
   }

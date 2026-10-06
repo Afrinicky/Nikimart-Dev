@@ -567,6 +567,164 @@ export async function getAgentPerformance(
   }
 }
 
+/**
+ * The operational counts, over the window.
+ *
+ * These were the last all-time figures on the overview, and they were the most
+ * misleading ones on it: a date picker set to seven days with "8 failed"
+ * beside it, where the eight were from February. Everything a window can be
+ * asked for is now asked of the window.
+ *
+ * `available` rides along because the setup checklist needs to know whether
+ * the tables are there at all, and a read that already touched four of them
+ * knows the answer.
+ */
+export interface OperationsTotals {
+  available: boolean;
+  /** Orders that failed to deliver. */
+  failed: number;
+  /** Paid and not yet delivered — the queue worth watching. */
+  inFlight: number;
+  /** Checkouts started and never paid for. */
+  pendingPayment: number;
+  /** AFA registrations awaiting approval. */
+  afaPending: number;
+}
+
+const EMPTY_OPERATIONS: OperationsTotals = {
+  available: false,
+  failed: 0,
+  inFlight: 0,
+  pendingPayment: 0,
+  afaPending: 0,
+};
+
+export async function getOperationsTotals(w: OverviewWindow): Promise<OperationsTotals> {
+  try {
+    const [failed, inFlight, pendingPayment, afaPending] = await Promise.all([
+      dataDb.dataOrder.count({ where: { status: "failed", ...within(w) } }),
+      dataDb.dataOrder.count({
+        where: { paymentStatus: "paid", status: { in: ["paid", "queued", "processing"] }, ...within(w) },
+      }),
+      dataDb.dataOrder.count({
+        where: { paymentStatus: "unpaid", status: "pending", ...within(w) },
+      }),
+      dataDb.afaRegistration.count({
+        where: { status: { in: ["paid", "processing"] }, ...within(w) },
+      }),
+    ]);
+    return { available: true, failed, inFlight, pendingPayment, afaPending };
+  } catch {
+    return EMPTY_OPERATIONS;
+  }
+}
+
+/**
+ * The agent network as it stood when the window closed.
+ *
+ * Two different kinds of figure, and the screen has to keep them apart. How
+ * many agents there are and what they are owed are standing figures: there is
+ * no such thing as "forty agents during March", only "forty by the end of
+ * March". How many joined is a flow and sums like any other.
+ *
+ * `active` is counted on today's status, because nothing records when an
+ * account was suspended; the label says "active" rather than "active then".
+ */
+export interface AgentNetworkTotals {
+  /** On the books when the window closed. */
+  total: number;
+  active: number;
+  /** Joined inside the window. */
+  joined: number;
+  /** Commission owed, as the balances stood when the window closed. */
+  owed: number;
+}
+
+const EMPTY_NETWORK: AgentNetworkTotals = { total: 0, active: 0, joined: 0, owed: 0 };
+
+export async function getAgentNetwork(w: OverviewWindow): Promise<AgentNetworkTotals> {
+  const byClose = { createdAt: { lt: w.end } };
+
+  try {
+    const [total, active, joined, owed] = await Promise.all([
+      dataDb.dataAgent.count({ where: byClose }),
+      dataDb.dataAgent.count({ where: { ...byClose, status: "active" } }),
+      dataDb.dataAgent.count({ where: within(w) }),
+      // Every balance change writes a ledger row carrying the balance it left
+      // behind, so the closing balance is the last row before the window ended
+      // rather than a replay of the whole history. Only what is owed counts: a
+      // negative balance is an agent clearing a fee, not money the business
+      // holds for them.
+      dataDb.$queryRaw<{ owed: number | null }[]>`
+        SELECT SUM(GREATEST(x."balanceAfter", 0))::float8 AS owed
+          FROM (
+            SELECT DISTINCT ON (l."agentId") l."balanceAfter"
+              FROM "DataAgentLedger" l
+             WHERE l."createdAt" < ${w.end}
+             -- id breaks a tie between two rows stamped the same millisecond,
+             -- so the figure is the same on every read.
+             ORDER BY l."agentId", l."createdAt" DESC, l.id DESC
+          ) x
+      `,
+    ]);
+
+    return {
+      total,
+      active,
+      joined,
+      owed: round2(owed[0]?.owed ?? 0),
+    };
+  } catch {
+    return EMPTY_NETWORK;
+  }
+}
+
+/**
+ * Payouts over the window, and the queue that is not over any window.
+ *
+ * A payout that went out belongs to the window the money left in, so it is
+ * dated by `processedAt` rather than by when it was asked for. What is still
+ * waiting is deliberately not windowed: a request made in February is still
+ * somebody waiting today, and hiding it because the picker says seven days
+ * would be the one place on this screen where the filter does harm.
+ */
+export interface PayoutTotals {
+  paid: number;
+  paidCount: number;
+  pending: number;
+  pendingCount: number;
+}
+
+const EMPTY_PAYOUTS: PayoutTotals = { paid: 0, paidCount: 0, pending: 0, pendingCount: 0 };
+
+export async function getPayoutTotals(w: OverviewWindow): Promise<PayoutTotals> {
+  try {
+    const [paid, pending] = await Promise.all([
+      dataDb.dataAgentWithdrawal.aggregate({
+        where: {
+          status: "processed",
+          processedAt: { ...(w.start ? { gte: w.start } : {}), lt: w.end },
+        },
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
+      dataDb.dataAgentWithdrawal.aggregate({
+        where: { status: "pending" },
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
+    ]);
+    return {
+      paid: round2(paid._sum.amount ?? 0),
+      paidCount: paid._count._all,
+      pending: round2(pending._sum.amount ?? 0),
+      pendingCount: pending._count._all,
+    };
+  } catch {
+    return EMPTY_PAYOUTS;
+  }
+}
+
 /** Percentage change between two figures, or null when there is no baseline. */
 export function changePercent(now: number, before: number | undefined | null): number | null {
   if (before === undefined || before === null || before <= 0) return null;

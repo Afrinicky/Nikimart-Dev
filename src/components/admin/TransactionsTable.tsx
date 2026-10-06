@@ -16,6 +16,11 @@ import { cn } from "@/lib/cn";
  * The amount is signed rather than colour-coded alone — a minus sign survives
  * a monochrome print, a screenshot and a colour-blind reader, and the tone
  * beside it is a second channel rather than the only one.
+ *
+ * The sign comes from the direction *or* from the figure itself. Most rows are
+ * positive and the direction decides; a movement inside the platform can still
+ * be a debit — an adjustment taking money off an agent — and that row has to
+ * read as a minus even though no money left the business.
  */
 
 export interface TransactionTableRow {
@@ -101,10 +106,10 @@ export function TransactionsTable({
                 className={cn(
                   td,
                   "whitespace-nowrap text-right font-figures font-bold",
-                  r.flow === "out" ? "text-niki-danger" : "text-niki-ink",
+                  r.flow === "out" || r.amount < 0 ? "text-niki-danger" : "text-niki-ink",
                 )}
               >
-                {r.flow === "out" ? "−" : "+"}
+                {r.flow === "out" || r.amount < 0 ? "−" : "+"}
                 {formatMoney(Math.abs(r.amount))}
               </td>
               <td className={`${td} text-xs uppercase text-niki-ink/55`}>{r.status}</td>

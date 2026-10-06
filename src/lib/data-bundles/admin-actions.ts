@@ -7,7 +7,9 @@ import { requireAdmin } from "@/lib/session";
 import { isNetwork, type Network } from "@/lib/data-bundles/networks";
 import { dispatchDataOrder, refreshDataOrder, dispatchAfaRegistration } from "@/lib/data-bundles/fulfillment";
 import { runDataBundleSweep } from "@/lib/data-bundles/monitor";
+import { captureProviderBalance } from "@/lib/data-bundles/provider-ledger";
 import { syncBundleCosts } from "@/lib/data-bundles/cost-sync";
+import { normalisePriceSource } from "@/lib/data-bundles/provider";
 import { voidAgentCommission } from "@/lib/data-bundles/agent-ledger";
 import { voidTeamCommission } from "@/lib/data-bundles/referrals";
 
@@ -149,13 +151,18 @@ export async function saveBundlePrices(
  * moves a price is exactly the day you don't want to wait for tonight's cron.
  * It only ever writes the cost column; retail prices, agent prices and what is
  * on sale are left as they are.
+ *
+ * `source` picks which read to use: the order-taking API key, the dashboard
+ * sign-in, or whichever answers. Naming one is how an admin finds out which of
+ * the two is actually working, rather than inferring it from a number that did
+ * or did not move.
  */
-// The form has no fields — useActionState's two arguments are the price of
-// being able to show the result of the last run.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function refreshBundleCosts(_prev: DataAdminState, _fd: FormData): Promise<DataAdminState> {
+export async function refreshBundleCosts(
+  _prev: DataAdminState,
+  fd: FormData,
+): Promise<DataAdminState> {
   await requireAdmin();
-  const result = await syncBundleCosts();
+  const result = await syncBundleCosts({ source: normalisePriceSource(str(fd, "source")) });
   if (!result.ok) return { error: result.message };
   if (result.updated > 0) revalidateAll();
   return { ok: true, message: result.message };
@@ -314,7 +321,10 @@ export async function markDataOrderRefunded(fd: FormData): Promise<void> {
   const id = str(fd, "id");
   if (!id) return;
   const refunded = await dataDb.dataOrder
-    .updateMany({ where: { id, status: "failed" }, data: { status: "refunded" } })
+    .updateMany({
+      where: { id, status: "failed" },
+      data: { status: "refunded", refundedAt: new Date() },
+    })
     .catch(() => ({ count: 0 }));
   if (refunded.count > 0) {
     await voidAgentCommission(id);
@@ -328,6 +338,21 @@ export async function retryAfaRegistration(fd: FormData): Promise<void> {
   const id = str(fd, "id");
   if (id) await dispatchAfaRegistration(id);
   revalidatePath("/admin/data/afa");
+}
+
+/**
+ * Write down what the provider's wallet stands at, now.
+ *
+ * The sweep takes a reading every time it runs, which is what makes the
+ * top-ups tab possible at all. This is the same reading on a button, for the
+ * minute after funding that wallet: taking one immediately either side of a
+ * top-up is what keeps it from being netted off against the day's orders.
+ */
+export async function recordProviderReading(): Promise<void> {
+  await requireAdmin();
+  await captureProviderBalance();
+  revalidatePath("/admin/data/transactions/topups");
+  revalidatePath("/admin/data");
 }
 
 /**
