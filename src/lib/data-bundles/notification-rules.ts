@@ -12,6 +12,8 @@ export const NOTIFICATION_KINDS = {
   WITHDRAWAL: "Withdrawals",
   APPLICATION: "Applications",
   REGISTRATION: "Registrations",
+  /** A buyer saying they were debited for an order that still reads unpaid. */
+  PAYMENT: "Payment claims",
   SUPPORT: "Support",
   SYSTEM: "System",
 } as const;

@@ -11,6 +11,10 @@ import { dispatchAfaRegistration, dispatchDataOrder, refreshDataOrder } from "@/
 import { syncBundleCosts } from "@/lib/data-bundles/cost-sync";
 import { sweepAgentCommissions } from "@/lib/data-bundles/agent-ledger";
 import { sweepWalletTopups } from "@/lib/data-bundles/wallet";
+import {
+  sweepUnpaidAfaRegistrations,
+  sweepUnpaidDataOrders,
+} from "@/lib/data-bundles/payment-recovery";
 import { sweepReferralEarnings } from "@/lib/data-bundles/referrals";
 import { awardLeaderboardPoints } from "@/lib/data-bundles/points";
 import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
@@ -47,6 +51,8 @@ export interface SweepResult {
   commissionsCredited: number;
   /** Wallet top-ups Paystack had taken but the wallet never saw. */
   topupsCredited: number;
+  /** Orders Paystack had charged for but that still read "awaiting payment". */
+  paymentsRecovered: number;
   /** Referral rewards released for recruits whose registration fee had cleared. */
   referralRewards: number;
   /** Team-sales commissions credited to the sellers' recruiters. */
@@ -86,6 +92,7 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
     afaDispatched: 0,
     commissionsCredited: 0,
     topupsCredited: 0,
+    paymentsRecovered: 0,
     referralRewards: 0,
     teamCommissions: 0,
     leaderboardPoints: 0,
@@ -110,13 +117,14 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
 
   // --- 1. Wallet ----------------------------------------------------------
   const balance = await getProviderBalance();
+  const balanceReadAt = new Date();
   result.balance = balance.balance;
 
   // Written down as well as alerted on. The provider has no statement, so a
   // run of readings is the only record of what was put into that wallet and
   // what was spent out of it on the provider's own platform — see
   // lib/data-bundles/provider-ledger.
-  await recordProviderBalance(balance.balance);
+  await recordProviderBalance(balance.balance, "sweep", { readAt: balanceReadAt });
 
   if (balance.balance === null) {
     // A wallet we can't read is itself worth knowing about: it usually means
@@ -215,6 +223,19 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
   // precisely so this can find it — the agent's money is not allowed to depend
   // on somebody noticing.
   result.topupsCredited = await sweepWalletTopups();
+
+  // The same failure, on the thing customers actually buy. An order settles on
+  // the Paystack redirect or the Paystack webhook, and both happen outside
+  // this system: an interrupted checkout runs neither, and the charge is then
+  // captured against an order that reads "awaiting payment" with nothing on
+  // our side ever asking again. This is what asks.
+  result.paymentsRecovered =
+    (await sweepUnpaidDataOrders()) + (await sweepUnpaidAfaRegistrations());
+  if (result.paymentsRecovered > 0) {
+    result.notes.push(
+      `${result.paymentsRecovered} paid ${result.paymentsRecovered === 1 ? "order was" : "orders were"} still showing as unpaid and have been settled.`,
+    );
+  }
 
   // The referral programme needs the same safety net, and one more thing the
   // selling agent's commission doesn't: a reward can be owed for a registration

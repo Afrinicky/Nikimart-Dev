@@ -21,6 +21,12 @@ import {
   refreshDataOrderStatus,
   retryDataOrder,
 } from "@/lib/data-bundles/admin-actions";
+import {
+  decidePaymentClaimAdmin,
+  recheckOrderPaymentAdmin,
+  settleOrderPaymentAdmin,
+} from "@/lib/data-bundles/payment-admin-actions";
+import { openClaimsByOrder } from "@/lib/data-bundles/payment-claims";
 
 export const metadata: Metadata = { title: "Bundle Orders — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -61,6 +67,12 @@ export default async function AdminDataOrdersPage({
     perPage,
   });
   const pageCount = Math.max(1, Math.ceil(total / perPage));
+
+  // Claims waiting on a decision, for the orders on this page. One query for
+  // the whole page rather than one per row.
+  const claims = await openClaimsByOrder(
+    orders.filter((o) => o.paymentStatus !== "paid").map((o) => o.id),
+  );
 
   // Orders still moving on this page. Nothing polls when there are none.
   const openOnPage = orders.filter(
@@ -132,6 +144,7 @@ export default async function AdminDataOrdersPage({
                 {orders.map((o) => {
                   const label = orderSourceLabel(o);
                   const house = o.source === "WEB" || !o.agentName;
+                  const claim = claims.get(o.id);
                   return (
                     <tr
                       key={o.id}
@@ -201,12 +214,25 @@ export default async function AdminDataOrdersPage({
                               providerOrderId: o.providerOrderId,
                               providerStatus: o.providerStatus,
                               providerMessage: o.providerMessage,
+                              settledBy: o.settledBy,
+                              claim: claim
+                                ? {
+                                    id: claim.id,
+                                    contact: claim.contact,
+                                    note: claim.note,
+                                    raisedBy: claim.raisedBy,
+                                    createdAt: claim.createdAt.toISOString(),
+                                  }
+                                : null,
                             } satisfies OrderView
                           }
                           adminForms={{
                             retry: retryDataOrder,
                             refresh: refreshDataOrderStatus,
                             markRefunded: markDataOrderRefunded,
+                            recheckPayment: recheckOrderPaymentAdmin,
+                            settlePayment: settleOrderPaymentAdmin,
+                            decideClaim: decidePaymentClaimAdmin,
                           }}
                         />
                       </td>

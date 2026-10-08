@@ -1,5 +1,6 @@
 import { PackageSearch } from "lucide-react";
 import { DataOrderLookup } from "@/components/data/DataOrderLookup";
+import { PaymentClaimPanel } from "@/components/data/PaymentClaimPanel";
 import { formatPrice } from "@/lib/format";
 import { maskPhone, type LookupHit, type LookupOutcome } from "@/lib/data-bundles/lookup";
 import {
@@ -51,8 +52,12 @@ function StatusDot({ status }: { status: DataOrderStatus }) {
  */
 const STATUS_NOTE: Record<"bundle" | "afa", Record<DataOrderStatus, string>> = {
   bundle: {
+    // Never "nothing was charged". An interrupted checkout is exactly the case
+    // where the money *has* left and the settlement simply never ran, and that
+    // sentence is what sent people off to pay a second time for a bundle they
+    // had already bought.
     pending:
-      "This order hasn't been paid for yet. Nothing was charged — order it again to complete payment.",
+      "We haven't had confirmation of payment for this order. If it left your wallet, check again below — it settles the moment the gateway confirms it.",
     paid: "Payment received. Your bundle is on its way — this page updates as it goes.",
     queued: "Payment received. Your bundle is queued and goes out shortly — this page updates as it goes.",
     processing: "Your bundle is being sent now — this page updates as it goes.",
@@ -63,7 +68,7 @@ const STATUS_NOTE: Record<"bundle" | "afa", Record<DataOrderStatus, string>> = {
   },
   afa: {
     pending:
-      "This registration hasn't been paid for yet. Nothing was charged — submit it again to complete payment.",
+      "We haven't had confirmation of payment for this registration. If it left your wallet, it settles as soon as the gateway confirms it.",
     paid: "Payment received. Your registration has been sent for approval.",
     queued: "Payment received. Your registration is queued for approval.",
     processing: "Your registration is with the network for approval.",
@@ -111,6 +116,16 @@ function OrderCard({ hit }: { hit: LookupHit }) {
         {STATUS_NOTE[hit.kind][status]}
       </p>
 
+      {/* The two honest moves on an order that reads unpaid: ask the gateway
+          again, or say the money left and have a person look. */}
+      {hit.kind === "bundle" && hit.paymentStatus !== "paid" && status === "pending" ? (
+        <PaymentClaimPanel
+          reference={hit.reference}
+          amount={hit.price}
+          claimPending={hit.claimPending}
+        />
+      ) : null}
+
       <dl className="grid grid-cols-2 gap-4 border-t border-niki-edge bg-white p-5 sm:grid-cols-3">
         <Detail label="Amount" value={formatPrice(hit.price)} />
         <Detail
@@ -156,8 +171,8 @@ export function OrderTracker({
       ) : null}
       {notices.failed ? (
         <p className="animate-fade-up mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700 ring-1 ring-amber-200">
-          We couldn&apos;t confirm that payment yet. If it left your wallet, it will settle shortly —
-          check back here in a minute before paying again.
+          We couldn&apos;t confirm that payment yet. If it left your wallet, use “I&apos;ve paid —
+          check again” below before paying a second time.
         </p>
       ) : null}
 
