@@ -1266,3 +1266,70 @@ model DataProviderBalance {
 
   @@index([createdAt])
 }
+
+// ---------------------------------------------------------------------------
+// Backup & recovery
+// ---------------------------------------------------------------------------
+
+/// The receipt for one snapshot of this database.
+///
+/// The snapshot itself is never stored here — it goes to a directory on disk,
+/// to an S3-compatible bucket, or to both — because a backup kept inside the
+/// database it protects is not a backup. This row records what was taken and
+/// proves what you get back: the checksum is verified on every download.
+///
+/// The backup engine discovers the tables to dump from the database catalog
+/// rather than from a list in code, so a table added next month is in the next
+/// snapshot without anyone remembering to add it. This table is one of the
+/// three it deliberately skips (the other two are the migration ledgers):
+/// restoring business data must not roll backup history back, least of all
+/// erasing the safety backup taken moments before the restore.
+model DataBackup {
+  id String @id
+
+  /// manual | safety | auto-daily | auto-weekly | auto-monthly.
+  kind String @default("manual")
+  /// running | completed | failed. The row is inserted before the dump begins,
+  /// so a crash leaves evidence instead of silence.
+  status String @default("running")
+  /// The file format, e.g. "nickimart-data-backup/1".
+  format   String @default("")
+  fileName String @default("")
+
+  tableCount  Int @default(0)
+  recordCount Int @default(0)
+  /// Compressed size of the stored file, in bytes.
+  byteSize    Int @default(0)
+  /// SHA-256 of the stored file.
+  checksum    String @default("")
+
+  /// "<database>@<host>" — never a credential.
+  databaseId String @default("")
+  /// The last migration applied, and the build that took the snapshot.
+  schemaVersion String @default("")
+  appVersion    String @default("")
+
+  /// The target a download reads from first, and the full JSON list of targets
+  /// the file was written to.
+  storage        String @default("none")
+  storageKey     String @default("")
+  storageTargets String @default("[]")
+
+  /// Per-table row counts, as JSON. What a verification pass compares against.
+  manifest String @default("[]")
+
+  error      String?
+  durationMs Int     @default(0)
+
+  /// Who asked for it. The id is a retail `User.id`; the email is copied so the
+  /// history reads without a cross-database lookup.
+  createdById    String @default("")
+  createdByEmail String @default("")
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([startedAt])
+  @@index([status])
+  @@index([kind, startedAt])
+}

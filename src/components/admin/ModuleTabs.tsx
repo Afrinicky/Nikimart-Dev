@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import {
   Banknote,
   Bell,
+  DatabaseBackup,
   MessageSquare,
   Network,
   Gift,
@@ -60,6 +61,7 @@ const ICONS = {
   gift: Gift,
   receipt: Receipt,
   rules: SlidersHorizontal,
+  backup: DatabaseBackup,
 } as const;
 
 export type TabIcon = keyof typeof ICONS;
