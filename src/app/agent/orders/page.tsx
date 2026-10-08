@@ -26,6 +26,7 @@ import {
 } from "@/lib/data-bundles/order-filters";
 import { getAgentForUser, getAgentOrders } from "@/lib/data-bundles/agents";
 import { syncOpenOrders } from "@/lib/data-bundles/order-sync";
+import { recoverStalePayments } from "@/lib/data-bundles/payment-recovery";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 
 export const metadata: Metadata = { title: "Orders — Agent — Nickimart" };
@@ -63,7 +64,13 @@ export default async function AgentOrdersPage({
   // order can change status several times upstream and tell us about none of
   // them, which is how a bundle it had been processing for an hour still read
   // "queued" here.
-  await syncOpenOrders({ agentId: agent.id });
+  // Deliveries and payments both: an agent's customer who was debited on a
+  // checkout that never came back is their problem to answer for, so their
+  // own list is one of the places that has to ask the gateway again.
+  await Promise.all([
+    syncOpenOrders({ agentId: agent.id }),
+    recoverStalePayments({ agentId: agent.id }),
+  ]);
 
   const [{ rows, total }, store] = await Promise.all([
     getAgentOrders(agent.id, {

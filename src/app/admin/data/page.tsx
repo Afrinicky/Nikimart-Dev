@@ -49,6 +49,7 @@ import { getAllBundles } from "@/lib/data-bundles/catalog";
 import { getBellState } from "@/lib/data-bundles/notifications";
 import { pendingApplicationCount } from "@/lib/data-bundles/agent-module";
 import { pendingClaimCount } from "@/lib/data-bundles/payment-claims";
+import { lastWebhookSeen, webhookStatus } from "@/lib/data-bundles/webhook-health";
 import { NotificationBell } from "@/components/admin/NotificationBell";
 import { sweepDataOrders } from "@/lib/data-bundles/admin-actions";
 import { dataDb } from "@/lib/data-db";
@@ -227,6 +228,7 @@ export default async function AdminDataOverviewPage({
     waitingApplications,
     openSupport,
     waitingClaims,
+    webhookSeenAt,
     totals,
     series,
     networks,
@@ -258,6 +260,7 @@ export default async function AdminDataOverviewPage({
     pendingApplicationCount(),
     dataDb.dataSupportRequest.count({ where: { status: "open" } }).catch(() => 0),
     pendingClaimCount(),
+    lastWebhookSeen(),
     getWindowTotals(period),
     getDailySeries(period),
     getNetworkMix(period),
@@ -342,6 +345,13 @@ export default async function AdminDataOverviewPage({
       detail: isPaymentConfigured("data")
         ? "Collecting real payments into the data-bundle account."
         : "Set PAYSTACK_SECRET_KEY — until then orders settle without charging.",
+    },
+    {
+      // The half that fails quietly. A buyer who pays and never returns to the
+      // checkout is settled by this or by a re-check, and nothing here used to
+      // say which of the two was carrying the business.
+      ...webhookStatus(webhookSeenAt),
+      label: "Paystack webhook",
     },
     {
       ok: isSmsConfigured(),

@@ -37,8 +37,16 @@ import {
 
 /** Give the redirect and the webhook a moment before chasing a reference. */
 const RECHECK_AFTER_MS = 90_000;
-/** Don't ask about the same reference more often than this. */
-const REASK_AFTER_MS = 60_000;
+/**
+ * Don't ask about the same reference more often than this.
+ *
+ * Short, because the common case is a mobile-money charge that is still going
+ * through: the buyer has answered the prompt and Paystack holds it "pending"
+ * while the network confirms, often for under a minute. A throttle longer
+ * than that settlement window leaves somebody staring at "awaiting payment"
+ * for no reason other than that we had just asked.
+ */
+const REASK_AFTER_MS = 30_000;
 /**
  * After this an unpaid order is a checkout somebody walked away from. Paystack
  * keeps the transaction, so a claim can still be settled by hand — this only
@@ -163,6 +171,14 @@ export function reconcileMessage(outcome: ReconcileOutcome): string {
     case "already-paid":
       return "That order is already paid for.";
     case "unpaid":
+      // Mobile money does not settle the instant the prompt is answered: the
+      // charge sits "pending" or "ongoing" at Paystack while the network
+      // confirms it, sometimes for a minute or two. Saying "nothing has been
+      // settled" to somebody who has just approved a debit reads as a refusal
+      // and is how people end up paying twice.
+      if (outcome.status === "pending" || outcome.status === "ongoing") {
+        return "The payment is still going through at the network. We keep checking — it settles on its own, usually within a couple of minutes.";
+      }
       return outcome.status === "abandoned"
         ? "Paystack has no completed payment for this order — the checkout was never finished."
         : `Paystack reports that payment as “${outcome.status}”. Nothing has been settled.`;
@@ -171,6 +187,81 @@ export function reconcileMessage(outcome: ReconcileOutcome): string {
     case "unchecked":
       return outcome.reason;
   }
+}
+
+/**
+ * Re-check the unpaid orders somebody is looking at right now.
+ *
+ * The sweep below runs once a day, and the tracker only re-checks the one
+ * order a buyer searched for. Neither of those is the screen this failure is
+ * actually noticed on: the owner opens the console, sees "awaiting payment"
+ * against a bundle that was paid for ten minutes ago, and nothing on that page
+ * has asked the gateway. So the console asks — the same "re-sync whatever is
+ * open while a page is being built" the provider statuses already use, pointed
+ * at payments instead of deliveries.
+ *
+ * Three things keep it cheap, all of them borrowed from that older pass:
+ *
+ *   • Only unpaid orders young enough to still be worth chasing, and only
+ *     ones nobody has asked about in the last minute — `lastVerifiedAt` is
+ *     both the stamp and the throttle, so twenty page loads make one call.
+ *   • Newest first. The order somebody is standing over is the one just
+ *     placed, not the one from last Tuesday.
+ *   • A handful at a time, and never for longer than the page can afford. The
+ *     calls that miss the deadline are not cancelled; they land after the
+ *     render and show on the next one.
+ */
+const VIEW_MIN_AGE_MS = 20_000;
+const VIEW_REASK_AFTER_MS = 30_000;
+const VIEW_LIMIT = 6;
+const VIEW_BUDGET_MS = 2_500;
+
+export async function recoverStalePayments(
+  opts: { agentId?: string; limit?: number; budgetMs?: number } = {},
+): Promise<number> {
+  if (!isPaymentConfigured("data")) return 0;
+
+  const now = Date.now();
+  let rows: { reference: string }[];
+  try {
+    rows = await dataDb.dataOrder.findMany({
+      where: {
+        paymentStatus: "unpaid",
+        status: "pending",
+        ...(opts.agentId ? { agentId: opts.agentId } : {}),
+        createdAt: {
+          gte: new Date(now - STOP_CHASING_AFTER_MS),
+          lt: new Date(now - VIEW_MIN_AGE_MS),
+        },
+        OR: [
+          { lastVerifiedAt: null },
+          { lastVerifiedAt: { lt: new Date(now - VIEW_REASK_AFTER_MS) } },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      take: Math.min(opts.limit ?? VIEW_LIMIT, VIEW_LIMIT),
+      select: { reference: true },
+    });
+  } catch {
+    // Columns not migrated yet, or the database is briefly away. Showing the
+    // last known state is the right failure here.
+    return 0;
+  }
+  if (rows.length === 0) return 0;
+
+  let settled = 0;
+  const work = Promise.allSettled(
+    rows.map(async (row) => {
+      const outcome = await reconcileDataOrder(row.reference, { force: true });
+      if (outcome.state === "settled") settled += 1;
+    }),
+  );
+
+  await Promise.race([
+    work,
+    new Promise((resolve) => setTimeout(resolve, opts.budgetMs ?? VIEW_BUDGET_MS)),
+  ]);
+  return settled;
 }
 
 /**

@@ -25,6 +25,7 @@ import {
   settleAfaRegistration,
   settleDataOrder,
 } from "@/lib/data-bundles/fulfillment";
+import { recoverStalePayments } from "@/lib/data-bundles/payment-recovery";
 
 /**
  * Public actions for the bundle storefront. Buying needs no account — a phone
@@ -190,6 +191,13 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
             ...(agent ? { store: agent.slug, agentCode: agent.code } : {}),
           },
         }, "data");
+        // Every checkout is also a chance to clear up the last one that never
+        // came back. It runs after the response, costs this buyer nothing, and
+        // means a shop that is trading at all repairs itself without waiting
+        // for the daily sweep or for somebody to open the console.
+        after(async () => {
+          await recoverStalePayments({ limit: 3, budgetMs: 8_000 });
+        });
         return { ok: true, reference, authorizationUrl };
       } catch (err) {
         // The order never became payable — drop it so it doesn't sit in the

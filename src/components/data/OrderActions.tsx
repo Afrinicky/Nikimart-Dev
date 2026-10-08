@@ -99,6 +99,8 @@ export interface AdminOrderForms {
     decision: "confirm" | "reject",
     reason: string,
   ) => Promise<PaymentActionFeedback>;
+  /** Buy a failed order again, upstream. Spends money, so it asks first. */
+  reorder?: (orderId: string) => Promise<PaymentActionFeedback>;
 }
 
 export interface PaymentActionFeedback {
@@ -507,6 +509,115 @@ function SettlementPanel({
   );
 }
 
+/**
+ * Ordering a failed bundle again.
+ *
+ * The ordinary "send to provider" refuses an order that already carries a
+ * provider id, which is the guard that stops a retry buying the same bundle
+ * twice. A provider that accepted an order and then failed it leaves one
+ * stranded behind that guard — paid for, and never delivered.
+ *
+ * So this is the way through, and it asks first, because the one case it
+ * cannot tell apart is a bundle the provider delivered and then reported
+ * wrongly. Whoever presses it is the person who knows.
+ */
+function ReorderPanel({
+  order,
+  reorder,
+}: {
+  order: OrderView;
+  reorder: (orderId: string) => Promise<PaymentActionFeedback>;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [notice, setNotice] = useState<PaymentActionFeedback | null>(null);
+
+  function send() {
+    setNotice(null);
+    setBusy(true);
+    void reorder(order.id)
+      .then((result) => {
+        setNotice(result);
+        setAsking(false);
+        if (result.ok) router.refresh();
+      })
+      .catch(() => setNotice({ ok: false, message: "That didn't go through. Try again." }))
+      .finally(() => setBusy(false));
+  }
+
+  return (
+    <div className="rounded-2xl bg-niki-danger/[0.06] p-4 ring-1 ring-niki-danger/20">
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-niki-danger">
+        Delivery failed
+      </p>
+      <p className="text-sm text-niki-ink/75">
+        This one was paid for and never landed. Ordering it again buys a fresh bundle from the
+        provider at {order.costPrice != null && order.costPrice > 0 ? formatMoney(order.costPrice) : "the current cost"}.
+      </p>
+
+      {notice ? (
+        <p
+          className={cn(
+            "animate-fade-up mt-3 flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm font-medium",
+            notice.ok ? "bg-niki-success/10 text-niki-success" : "bg-niki-danger/10 text-niki-danger",
+          )}
+        >
+          {notice.ok ? (
+            <Check className="mt-0.5 h-4 w-4 shrink-0" />
+          ) : (
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          )}
+          <span>{notice.message}</span>
+        </p>
+      ) : null}
+
+      <div className="mt-3">
+        {asking ? (
+          <div className="animate-fade-up">
+            <p className="text-sm font-semibold text-niki-ink">
+              Order {bundleLabel(order.sizeGb)} {networkLabel(order.network)} for{" "}
+              {order.recipientPhone} again?
+            </p>
+            <p className="mt-0.5 text-xs text-niki-ink/60">
+              Check the number has not already received it — the provider reporting a failure it
+              did deliver is the one case this cannot tell apart.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={send}
+                className="niki-press niki-focus inline-flex items-center gap-1.5 rounded-full bg-niki-orange px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                {busy ? "Ordering…" : "Yes, order it again"}
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setAsking(false)}
+                className={ghostBtn}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAsking(true)}
+            className="niki-press niki-focus inline-flex items-center gap-1.5 rounded-full bg-niki-black px-4 py-2 text-sm font-semibold text-white"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Order again
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function OrderDetailsModal({
   order,
   whatsapp,
@@ -538,6 +649,10 @@ function OrderDetailsModal({
     order.paymentStatus !== "paid" &&
     order.status === "pending" &&
     Boolean(adminForms?.recheckPayment || adminForms?.settlePayment);
+  // Paid for and never delivered. The ordinary retry cannot reach it once the
+  // provider has given the order an id of its own.
+  const canReorder =
+    order.status === "failed" && order.paymentStatus === "paid" && Boolean(adminForms?.reorder);
 
   if (view === "cancel") {
     return (
@@ -725,6 +840,8 @@ function OrderDetailsModal({
         {canSettle ? (
           <SettlementPanel order={order} forms={adminForms!} onSettled={onClose} />
         ) : null}
+
+        {canReorder ? <ReorderPanel order={order} reorder={adminForms!.reorder!} /> : null}
       </div>
     </Shell>
   );

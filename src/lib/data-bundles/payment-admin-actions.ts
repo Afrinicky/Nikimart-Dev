@@ -8,6 +8,7 @@ import {
   settleOrderByHand,
 } from "@/lib/data-bundles/payment-recovery";
 import { confirmPaymentClaim, rejectPaymentClaim } from "@/lib/data-bundles/payment-claims";
+import { reorderFailedOrder } from "@/lib/data-bundles/fulfillment";
 
 /**
  * What an admin can do about an order that reads "awaiting payment".
@@ -71,4 +72,18 @@ export async function decidePaymentClaimAdmin(
 
   if (result.ok) refresh();
   return result.ok ? { ok: true, message: result.message } : { ok: false, message: result.error };
+}
+
+/**
+ * Buy a failed order again.
+ *
+ * Separate from the ordinary retry because it is a different decision: the
+ * provider took the first attempt and then dropped it, so this spends upstream
+ * money on a second one. The card asks before it gets here.
+ */
+export async function reorderFailedOrderAdmin(orderId: string): Promise<PaymentActionResult> {
+  await requireAdmin();
+  const result = await reorderFailedOrder(String(orderId ?? ""));
+  if (result.ok) refresh();
+  return { ok: result.ok, message: result.message };
 }

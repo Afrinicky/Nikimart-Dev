@@ -17,6 +17,7 @@ import {
 } from "@/lib/data-bundles/fulfillment";
 import { isRegistrationReference, isWalletReference } from "@/lib/data-bundles/reference";
 import { settleWalletTopup } from "@/lib/data-bundles/wallet";
+import { recordWebhookSeen } from "@/lib/data-bundles/webhook-health";
 import {
   registrationChargeCovers,
   settleRegistrationCharge,
@@ -73,6 +74,12 @@ export async function POST(req: Request) {
   if (!signedBy) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
+
+  // A correctly signed event means Paystack can reach this deployment, which
+  // is the one fact nothing on the console used to know. An order whose buyer
+  // never comes back from the checkout depends entirely on this arriving, and
+  // when it is not configured it fails silently, one order at a time.
+  await recordWebhookSeen();
 
   let event: {
     event?: string;

@@ -218,6 +218,71 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
 }
 
 /**
+ * Buy a failed order again.
+ *
+ * `dispatchDataOrder` refuses an order that already carries a provider id, and
+ * rightly so — that guard is what stops a retry buying the same bundle twice.
+ * But a provider that accepts an order and *then* reports it failed leaves
+ * exactly that: a paid order, a provider id, and no data delivered. Until now
+ * there was nothing to do about it from the console.
+ *
+ * So this is the deliberate version of a retry. It clears the upstream
+ * reference — keeping it in the message trail, because what the first attempt
+ * did is the first thing anybody will ask — and puts the order back in line
+ * for dispatch. The commissions the failure voided go back to pending with
+ * it: the sale is live again, and an agent whose bundle finally lands is owed
+ * for it.
+ *
+ * It spends money upstream, so it is only ever reachable from a confirmation.
+ */
+export async function reorderFailedOrder(orderId: string): Promise<DispatchResult> {
+  const order = await dataDb.dataOrder.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      status: true,
+      paymentStatus: true,
+      providerOrderId: true,
+      agentCommission: true,
+      teamCommission: true,
+    },
+  });
+  if (!order) return { ok: false, message: "Order not found." };
+  if (order.paymentStatus !== "paid") {
+    return { ok: false, message: "This order has not been paid for yet." };
+  }
+  if (order.status !== "failed") {
+    return { ok: false, message: "Only a failed order can be ordered again." };
+  }
+
+  // One guarded flip decides the winner: two admins on the same row must buy
+  // one bundle between them, not two.
+  const claimed = await dataDb.dataOrder.updateMany({
+    where: { id: orderId, status: "failed" },
+    data: {
+      status: "paid",
+      providerOrderId: null,
+      providerCode: null,
+      providerStatus: null,
+      providerMessage: order.providerOrderId
+        ? `Re-ordered by an admin. The first attempt was ${order.providerOrderId} and failed.`
+        : "Re-ordered by an admin after a failed attempt.",
+      completedAt: null,
+      // A sale that is live again owes what it owed before.
+      ...(order.agentCommission > 0 ? { commissionStatus: "pending", commissionPaidAt: null } : {}),
+      ...(order.teamCommission > 0
+        ? { teamCommissionStatus: "pending", teamCommissionPaidAt: null }
+        : {}),
+    },
+  });
+  if (claimed.count === 0) {
+    return { ok: false, message: "That order has just changed — refresh and try again." };
+  }
+
+  return dispatchDataOrder(orderId);
+}
+
+/**
  * Apply a provider status (from the callback or an admin refresh) to an order.
  * Terminal states are sticky: a completed order never walks backwards.
  */
