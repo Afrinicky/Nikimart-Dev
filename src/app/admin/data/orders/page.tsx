@@ -24,9 +24,11 @@ import {
 import {
   decidePaymentClaimAdmin,
   recheckOrderPaymentAdmin,
+  reorderFailedOrderAdmin,
   settleOrderPaymentAdmin,
 } from "@/lib/data-bundles/payment-admin-actions";
 import { openClaimsByOrder } from "@/lib/data-bundles/payment-claims";
+import { recoverStalePayments } from "@/lib/data-bundles/payment-recovery";
 
 export const metadata: Metadata = { title: "Bundle Orders — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -57,7 +59,12 @@ export default async function AdminDataOrdersPage({
   // Re-ask the provider about anything still moving before the page is built.
   // The provider's own callback is unreliable, so a status that changed
   // upstream would otherwise sit here until the nightly sweep.
-  await syncOpenOrders();
+  //
+  // And re-ask the gateway about anything still unpaid, for the same reason
+  // and a worse one: an interrupted checkout leaves a charge captured against
+  // an order that reads "awaiting payment", and this console is where that is
+  // noticed. It used to notice and do nothing.
+  await Promise.all([syncOpenOrders(), recoverStalePayments()]);
 
   const { orders, total, available } = await getDataOrders({
     status,
@@ -233,6 +240,7 @@ export default async function AdminDataOrdersPage({
                             recheckPayment: recheckOrderPaymentAdmin,
                             settlePayment: settleOrderPaymentAdmin,
                             decideClaim: decidePaymentClaimAdmin,
+                            reorder: reorderFailedOrderAdmin,
                           }}
                         />
                       </td>
