@@ -7,7 +7,10 @@ import { TransactionsTable } from "@/components/admin/TransactionsTable";
 import { formatMoney } from "@/lib/format";
 import { perPageFrom } from "@/lib/data-bundles/order-filters";
 import { getTopups } from "@/lib/data-bundles/topups";
-import { lastProviderReading } from "@/lib/data-bundles/provider-ledger";
+import {
+  lastProviderReading,
+  readAndRecordProviderBalance,
+} from "@/lib/data-bundles/provider-ledger";
 import { recordProviderReading } from "@/lib/data-bundles/admin-actions";
 import { RANGE_OPTIONS, topupKindOptions, transactionRange } from "@/lib/transaction-kinds";
 import { formatWhen } from "@/components/agent/AgentUi";
@@ -73,6 +76,12 @@ export default async function AdminTopupLedgerPage({
   const query = (params.q ?? "").trim();
   const perPage = perPageFrom(params.per, 25);
   const page = Math.max(1, Number(params.page) || 1);
+
+  // Take a reading before the table is built, so opening this tab is itself
+  // the refresh. Anything that moved on the provider's wallet since the last
+  // reading is a row by the time the page renders, rather than something that
+  // appears only after a button.
+  await readAndRecordProviderBalance();
 
   const [{ rows, total, totals }, reading] = await Promise.all([
     getTopups({ kind, days, query, page, perPage }),

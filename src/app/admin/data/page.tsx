@@ -15,6 +15,7 @@ import {
   ListOrdered,
   PiggyBank,
   RefreshCw,
+  ShieldAlert,
   TrendingUp,
   Users,
   Wallet,
@@ -39,13 +40,15 @@ import {
   resolveWindow,
 } from "@/lib/data-bundles/overview";
 import { OverviewRange } from "@/components/admin/OverviewRange";
-import { getProviderBalance, isDataProviderConfigured, providerBase } from "@/lib/data-bundles/provider";
+import { isDataProviderConfigured, providerBase } from "@/lib/data-bundles/provider";
+import { readAndRecordProviderBalance } from "@/lib/data-bundles/provider-ledger";
 import { isPaymentConfigured } from "@/lib/payments";
 import { emailStatus, isSmsConfigured } from "@/lib/notifications";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { getAllBundles } from "@/lib/data-bundles/catalog";
 import { getBellState } from "@/lib/data-bundles/notifications";
 import { pendingApplicationCount } from "@/lib/data-bundles/agent-module";
+import { pendingClaimCount } from "@/lib/data-bundles/payment-claims";
 import { NotificationBell } from "@/components/admin/NotificationBell";
 import { sweepDataOrders } from "@/lib/data-bundles/admin-actions";
 import { dataDb } from "@/lib/data-db";
@@ -223,6 +226,7 @@ export default async function AdminDataOverviewPage({
     oldestWithdrawal,
     waitingApplications,
     openSupport,
+    waitingClaims,
     totals,
     series,
     networks,
@@ -233,7 +237,12 @@ export default async function AdminDataOverviewPage({
     operations,
     bell,
   ] = await Promise.all([
-    providerReady ? getProviderBalance() : Promise.resolve({ balance: null, message: "Not configured" }),
+    // Reads the wallet *and* writes the reading down. This screen was already
+    // asking the provider on every load and throwing the answer away, which is
+    // why a top-up only reached the top-ups tab when somebody pressed a button.
+    providerReady
+      ? readAndRecordProviderBalance()
+      : Promise.resolve({ balance: null, message: "Not configured" }),
     getDataStoreConfig(),
     getAllBundles(),
     getAgentNetwork(period),
@@ -248,6 +257,7 @@ export default async function AdminDataOverviewPage({
       .catch(() => null),
     pendingApplicationCount(),
     dataDb.dataSupportRequest.count({ where: { status: "open" } }).catch(() => 0),
+    pendingClaimCount(),
     getWindowTotals(period),
     getDailySeries(period),
     getNetworkMix(period),
@@ -367,6 +377,19 @@ export default async function AdminDataOverviewPage({
   ];
 
   const attention = [
+    waitingClaims > 0
+      ? {
+          key: "claims",
+          href: "/admin/data/orders?status=pending",
+          tone: "danger" as const,
+          icon: ShieldAlert,
+          live: true,
+          text:
+            waitingClaims === 1
+              ? "1 buyer says they were debited for an order that reads unpaid. Their bundle is held until you confirm it."
+              : `${waitingClaims} buyers say they were debited for orders that read unpaid. Their bundles are held until you confirm them.`,
+        }
+      : null,
     operations.failed > 0
       ? {
           key: "failed",

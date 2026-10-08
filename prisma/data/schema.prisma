@@ -115,6 +115,18 @@ model DataOrder {
   providerMessage String?
   dispatchedAt    DateTime?
   completedAt     DateTime?
+  /// What the provider actually charged, as its own order response reported
+  /// it. Kept apart from `costPrice` — the ladder's figure — because the
+  /// provider-wallet bookkeeping subtracts our spending from the balance to
+  /// work out what was funded, and a ladder cost of zero turns an ordinary
+  /// sale into an apparent withdrawal by somebody else.
+  providerCost    Float?
+  /// When Paystack was last asked about an unpaid order. Stops the sweep and
+  /// the tracker asking about the same reference over and over.
+  lastVerifiedAt  DateTime?
+  /// The admin who settled this by hand, where nothing could settle it
+  /// automatically. Null on every order that settled on its own.
+  settledBy       String?
 
   // --- Sub-agent attribution ------------------------------------------------
   // Set when the sale came through an agent: either their public storefront or
@@ -151,6 +163,8 @@ model DataOrder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  claims DataPaymentClaim[]
+
   @@index([buyerPhone])
   @@index([recipientPhone])
   @@index([status])
@@ -158,6 +172,42 @@ model DataOrder {
   @@index([createdAt])
   @@index([agentId, createdAt])
   @@index([teamAgentId, createdAt])
+  @@index([paymentStatus, createdAt])
+}
+
+/**
+ * "I was debited and it still says awaiting payment."
+ *
+ * Every automatic path can come back empty — the redirect was interrupted, the
+ * webhook never arrived, and a re-check against the gateway found nothing. The
+ * buyer is then the only person who can see their own MoMo prompt, and a claim
+ * is that evidence written down: it reaches the admins the moment it is
+ * raised, and the bundle goes out only once an admin has confirmed it against
+ * the gateway. Nothing here settles anything on its own.
+ */
+model DataPaymentClaim {
+  id      String    @id @default(cuid())
+  orderId String
+  order   DataOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  reference String
+  /// customer | agent | admin
+  raisedBy  String @default("customer")
+  /// How to reach whoever raised it, and what they said happened.
+  contact   String @default("")
+  note      String @default("")
+
+  /// pending | confirmed | rejected
+  status    String    @default("pending")
+  decidedAt DateTime?
+  decidedBy String?
+  decision  String    @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([orderId])
 }
 
 // An AFA (agent SIM) registration sold through the storefront and submitted to

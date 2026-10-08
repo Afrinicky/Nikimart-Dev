@@ -223,6 +223,31 @@ export const MESSAGE_TEMPLATES: MessageTemplate[] = [
     hasEmail: true,
   },
   {
+    key: "bundle.payment-claim",
+    scope: "data",
+    group: "Orders",
+    name: "Payment claim (to the admins)",
+    description:
+      "To every admin when a buyer says they were debited for an order that still reads unpaid. " +
+      "The bundle is held until one of them confirms it, so this is the thing waiting on a person.",
+    variables: [
+      { name: "reference", note: "The order reference", example: "ND-MUY57SGF303" },
+      { name: "amount", note: "What the order costs", example: "GH₵16.60" },
+      { name: "bundle", note: "What was ordered", example: "3GB MTN" },
+      { name: "recipient", note: "The number the data is for", example: "0554636968" },
+      { name: "contact", note: "The number they say they paid with", example: "0554636968" },
+      { name: "link", note: "The order in the console", example: "https://nickimart.com/admin/data/orders?q=ND-…" },
+    ],
+    sms: "Nickimart: {{contact}} says they were debited {{amount}} for {{reference}} ({{bundle}}) and it still reads unpaid. Confirm or reject it at {{link}}",
+    emailSubject: "Payment claim — {{amount}} on {{reference}}",
+    emailBody:
+      "{{contact}} says {{amount}} left their wallet for order {{reference}} — {{bundle}} to {{recipient}} — " +
+      "but the order still reads awaiting payment.\n\n" +
+      "Check the reference in Paystack, then confirm or reject the claim here: {{link}}\n\n" +
+      "The bundle will not be sent until somebody confirms it.",
+    hasEmail: true,
+  },
+  {
     key: "withdrawal.requested",
     scope: "data",
     group: "Agents",

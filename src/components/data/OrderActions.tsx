@@ -2,7 +2,18 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Eye, MessageCircle, RefreshCw, RotateCcw, Undo2, X } from "lucide-react";
+import {
+  BadgeCheck,
+  Check,
+  Eye,
+  Loader2,
+  MessageCircle,
+  RefreshCw,
+  RotateCcw,
+  ShieldAlert,
+  Undo2,
+  X,
+} from "lucide-react";
 import {
   DATA_STATUS_LABELS,
   DATA_STATUS_TONES,
@@ -49,6 +60,19 @@ export interface OrderView {
   providerOrderId?: string | null;
   providerStatus?: string | null;
   providerMessage?: string | null;
+  /** Who recorded this payment by hand, where nobody could do it automatically. */
+  settledBy?: string | null;
+  /** A buyer's open claim that the money left their wallet. Admin side only. */
+  claim?: OrderClaimView | null;
+}
+
+/** An open "I was debited" claim, flattened for the dialog. */
+export interface OrderClaimView {
+  id: string;
+  contact: string;
+  note: string;
+  raisedBy: string;
+  createdAt: string;
 }
 
 /**
@@ -65,6 +89,21 @@ export interface AdminOrderForms {
   refresh?: (fd: FormData) => Promise<void>;
   /** Record that a failed order has been refunded in Paystack. */
   markRefunded?: (fd: FormData) => Promise<void>;
+  /** Ask Paystack whether an unpaid order was in fact charged for. */
+  recheckPayment?: (reference: string) => Promise<PaymentActionFeedback>;
+  /** Record the payment on the admin's own word and send the bundle. */
+  settlePayment?: (orderId: string) => Promise<PaymentActionFeedback>;
+  /** Confirm or turn down a buyer's claim. Confirming sends the bundle. */
+  decideClaim?: (
+    claimId: string,
+    decision: "confirm" | "reject",
+    reason: string,
+  ) => Promise<PaymentActionFeedback>;
+}
+
+export interface PaymentActionFeedback {
+  ok: boolean;
+  message: string;
 }
 
 function formatWhen(iso: string): string {
@@ -279,6 +318,195 @@ function CancelPanel({
   );
 }
 
+/**
+ * Settling an order the gateway never confirmed.
+ *
+ * It sits at the foot of the details card and only on an order that reads
+ * awaiting payment, because that is the only order it means anything for. The
+ * three moves are in the order they should be tried, and the panel says so:
+ * ask Paystack first, since an interrupted checkout is usually a settlement
+ * that simply never ran; then the buyer's claim, if one has been raised; and
+ * only then record it by hand, which hands over a bundle on somebody's word
+ * and stamps whose word it was.
+ */
+function SettlementPanel({
+  order,
+  forms,
+  onSettled,
+}: {
+  order: OrderView;
+  forms: AdminOrderForms;
+  onSettled: () => void;
+}) {
+  const [busy, setBusy] = useState<null | "recheck" | "settle" | "confirm" | "reject">(null);
+  const [notice, setNotice] = useState<PaymentActionFeedback | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [reason, setReason] = useState("");
+  const router = useRouter();
+  const claim = order.claim ?? null;
+
+  function run(
+    key: "recheck" | "settle" | "confirm" | "reject",
+    work: () => Promise<PaymentActionFeedback>,
+  ) {
+    setNotice(null);
+    setBusy(key);
+    void work()
+      .then((result) => {
+        setNotice(result);
+        if (result.ok) {
+          router.refresh();
+          onSettled();
+        }
+      })
+      .catch(() => setNotice({ ok: false, message: "That didn't go through. Try again." }))
+      .finally(() => setBusy(null));
+  }
+
+  return (
+    <div className="rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200">
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-700">
+        Payment settlement
+      </p>
+      <p className="text-sm text-amber-900/80">
+        This order has not been confirmed as paid, so no bundle has been sent. Ask the gateway
+        first — an interrupted checkout is usually a settlement that never ran.
+      </p>
+
+      {claim ? (
+        <div className="mt-3 rounded-xl bg-white p-3 ring-1 ring-amber-200">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-niki-danger">
+            <ShieldAlert className="h-3.5 w-3.5" />
+            Claim from the buyer
+          </p>
+          <p className="mt-1 text-sm text-niki-ink">
+            Paid from <span className="font-mono font-semibold">{claim.contact}</span>
+            {claim.note ? <span className="text-niki-ink/70"> — {claim.note}</span> : null}
+          </p>
+          <p className="mt-0.5 text-xs text-niki-ink/45">Raised {formatWhen(claim.createdAt)}</p>
+        </div>
+      ) : null}
+
+      {notice ? (
+        <p
+          className={cn(
+            "animate-fade-up mt-3 flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm font-medium",
+            notice.ok
+              ? "bg-niki-success/10 text-niki-success"
+              : "bg-niki-danger/10 text-niki-danger",
+          )}
+        >
+          {notice.ok ? (
+            <Check className="mt-0.5 h-4 w-4 shrink-0" />
+          ) : (
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          )}
+          <span>{notice.message}</span>
+        </p>
+      ) : null}
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {forms.recheckPayment ? (
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => run("recheck", () => forms.recheckPayment!(order.reference))}
+            className="niki-press niki-focus inline-flex items-center gap-1.5 rounded-full bg-niki-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {busy === "recheck" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            {busy === "recheck" ? "Asking Paystack…" : "Check Paystack"}
+          </button>
+        ) : null}
+
+        {claim && forms.decideClaim ? (
+          <>
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => run("confirm", () => forms.decideClaim!(claim.id, "confirm", ""))}
+              className="niki-press niki-focus inline-flex items-center gap-1.5 rounded-full bg-niki-success px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {busy === "confirm" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <BadgeCheck className="h-4 w-4" />
+              )}
+              Confirm claim & send
+            </button>
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => run("reject", () => forms.decideClaim!(claim.id, "reject", reason))}
+              className={dangerBtn}
+            >
+              <X className="h-4 w-4" />
+              Reject claim
+            </button>
+          </>
+        ) : null}
+      </div>
+
+      {forms.settlePayment ? (
+        <div className="mt-3 border-t border-amber-200 pt-3">
+          {confirming ? (
+            <div className="animate-fade-up">
+              <p className="text-sm font-semibold text-amber-900">
+                Record {formatMoney(order.price)} as received and send the bundle?
+              </p>
+              <p className="mt-0.5 text-xs text-amber-900/70">
+                Paystack has not confirmed this. The bundle goes out at once and your name is
+                recorded against it.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={() => run("settle", () => forms.settlePayment!(order.id))}
+                  className="niki-press niki-focus inline-flex items-center gap-1.5 rounded-full bg-niki-orange px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+                >
+                  {busy === "settle" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {busy === "settle" ? "Sending…" : "Yes, mark paid & send"}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={() => setConfirming(false)}
+                  className={ghostBtn}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => setConfirming(true)}
+              className="niki-press niki-focus text-sm font-semibold text-amber-800 underline-offset-2 hover:underline"
+            >
+              Mark paid by hand and send the bundle
+            </button>
+          )}
+        </div>
+      ) : null}
+
+      {claim && forms.decideClaim ? (
+        <input
+          type="text"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Why you're rejecting it (optional)"
+          className="mt-3 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs text-niki-ink outline-none focus:border-niki-orange"
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function OrderDetailsModal({
   order,
   whatsapp,
@@ -304,6 +532,12 @@ function OrderDetailsModal({
   // for a delivery the customer says never arrived.
   const canCancel = order.status === "queued";
   const canReport = order.status === "completed" && Boolean(whatsapp) && Boolean(onReport);
+  // Awaiting payment, and the console that opened this can do something about
+  // it. The agent side passes no admin forms, so it never sees this.
+  const canSettle =
+    order.paymentStatus !== "paid" &&
+    order.status === "pending" &&
+    Boolean(adminForms?.recheckPayment || adminForms?.settlePayment);
 
   if (view === "cancel") {
     return (
@@ -480,7 +714,17 @@ function OrderDetailsModal({
           {order.updatedAt ? (
             <DetailRow label="Updated" value={formatWhen(order.updatedAt)} />
           ) : null}
+          {order.settledBy ? (
+            <DetailRow label="Settled by hand" value={order.settledBy} />
+          ) : null}
         </Panel>
+
+        {/* Last in the card, and only on an order that is waiting for money.
+            Everything above describes the order; this is the one thing that
+            can still change what happens to it. */}
+        {canSettle ? (
+          <SettlementPanel order={order} forms={adminForms!} onSettled={onClose} />
+        ) : null}
       </div>
     </Shell>
   );

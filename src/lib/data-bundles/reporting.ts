@@ -116,6 +116,8 @@ export interface AdminDataOrder {
   /** The recruiter's cut of an agent's sale, where the programme pays one. */
   teamCommission: number;
   commissionStatus: string;
+  /** The admin who recorded this payment by hand, where one had to. */
+  settledBy: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

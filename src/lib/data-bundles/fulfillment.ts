@@ -26,6 +26,7 @@ import {
   creditAgentCommission,
   voidAgentCommission,
 } from "@/lib/data-bundles/agent-ledger";
+import { readAndRecordProviderBalance } from "@/lib/data-bundles/provider-ledger";
 import {
   creditAfaTeamCommission,
   creditTeamCommission,
@@ -181,6 +182,12 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
   }
 
   const status = mapProviderStatus(res.payload.status);
+  // What the provider says it charged. Recorded in its own column as well as
+  // over the ladder's cost, because the provider-wallet bookkeeping has to
+  // subtract our own spending from the balance to work out what was funded —
+  // and a bundle nobody ever typed a cost against would otherwise subtract
+  // nothing and make an ordinary sale look like somebody else's withdrawal.
+  const charged = typeof res.payload.price === "number" ? res.payload.price / 100 : null;
   await dataDb.dataOrder.update({
     where: { id: orderId },
     data: {
@@ -189,9 +196,10 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
       providerCode: res.payload.orderCode ?? null,
       providerStatus: res.payload.status ?? null,
       providerMessage: res.message.slice(0, 500),
-      // The provider quotes upstream cost in pesewas — keep it for the margin
-      // report, but never let it change what the buyer was charged.
-      costPrice: typeof res.payload.price === "number" ? res.payload.price / 100 : order.costPrice,
+      ...(charged === null ? {} : { providerCost: charged }),
+      // Keep it on the margin report too, but never let it change what the
+      // buyer was charged.
+      costPrice: charged ?? order.costPrice,
       completedAt: status === "completed" ? new Date() : null,
     },
   });
@@ -201,6 +209,10 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
     // A provider that completes on the spot still owes the selling agent their
     // commission — applyProviderStatus never runs for that order.
     if (status === "completed") await settleOrderCommissions(orderId);
+    // The wallet just paid for this bundle. Reading it now bounds the spend
+    // inside an interval of its own, so the next reading has one order to
+    // account for rather than a day of them.
+    await readAndRecordProviderBalance();
   });
   return { ok: true, message: res.message };
 }
