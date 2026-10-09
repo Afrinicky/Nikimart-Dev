@@ -90,6 +90,12 @@ export interface BackupHeader {
   appVersion: string;
   /** Tables deliberately left out, for the reader's benefit. */
   excludedTables: string[];
+  /**
+   * How the table list was decided — whether this is a whole database or just
+   * the bundle tables out of a database shared with the retail mall. Optional
+   * because files written before the scope existed do not carry it.
+   */
+  scope?: string;
 }
 
 export interface BackupTableLine {

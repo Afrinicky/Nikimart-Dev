@@ -120,8 +120,10 @@ export default async function DataBackupsPage() {
       {!isDataDatabaseSeparate() ? (
         <p className="rounded-xl bg-niki-gold/15 px-4 py-3 text-sm text-amber-900 ring-1 ring-niki-gold/30">
           <code className="font-mono text-xs">DATA_DATABASE_URL</code> is not set, so the bundle
-          tables still live in the retail database. A backup taken here covers the Data Bundles
-          tables in it and nothing else — the retail mall is not included, and is not touched.
+          tables still live in the retail database. Backups and restores here are narrowed to the
+          tables the Data Bundles schema declares: the retail mall is never read into a backup file
+          and never written to by a restore. A bundle table created by hand in SQL and never added
+          to the schema is outside that list until the databases are split.
         </p>
       ) : null}
 

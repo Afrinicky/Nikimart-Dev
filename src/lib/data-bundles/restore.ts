@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { dataDb } from "@/lib/data-db";
 import {
   backupKindLabel,
@@ -7,6 +7,7 @@ import {
   isExcludedFromBackup,
   type BackupColumn,
 } from "@/lib/data-bundles/backup-format";
+import { backupScope } from "@/lib/data-bundles/backup-scope";
 import {
   BackupFileError,
   parseBackupFile,
@@ -15,7 +16,7 @@ import {
   type BackupFileTable,
 } from "@/lib/data-bundles/backup-file";
 import { getBackupFile, type BackupLocation } from "@/lib/data-bundles/backup-storage";
-import { runDataBackup } from "@/lib/data-bundles/backup";
+import { checksumVerifier, runDataBackup } from "@/lib/data-bundles/backup";
 
 /**
  * Restoring the Data Bundles database from a backup.
@@ -131,9 +132,13 @@ async function describeLiveTables(tx: RawClient): Promise<Map<string, LiveTable>
     ORDER BY table_name, ordinal_position
   `);
 
+  // The same narrowing the backup applies. In a database shared with the
+  // retail mall this is what stops a restore from reasoning about — or
+  // truncating — tables that are not the bundle business's to touch.
+  const scope = backupScope();
   const live = new Map<string, LiveTable>();
   for (const { name } of tableRows) {
-    if (isExcludedFromBackup(name)) continue;
+    if (!scope.includes(name)) continue;
     live.set(name, { name, columns: new Map() });
   }
   for (const row of columnRows) {
@@ -304,19 +309,20 @@ export async function loadBackupBytes(
     // Falls through to the "no stored copy" message below.
   }
 
-  try {
-    const body = await getBackupFile(locations);
-    if (row.checksum && createHash("sha256").update(body).digest("hex") !== row.checksum) {
-      return {
-        ok: false,
-        error:
-          "The stored file does not match the checksum recorded when it was taken. It has been altered or truncated — it must not be restored.",
-      };
-    }
-    return { ok: true, body, label: `${backupKindLabel(row.kind)} · ${row.id}` };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  // Verified inside the fetch, so a corrupt copy on one target falls through
+  // to a good copy on the other rather than failing the restore.
+  const fetched = await getBackupFile(locations, checksumVerifier(row.checksum));
+  if (fetched.ok) {
+    return { ok: true, body: fetched.body, label: `${backupKindLabel(row.kind)} · ${row.id}` };
   }
+  if (fetched.everyCopyFailedVerification) {
+    return {
+      ok: false,
+      error:
+        "Every stored copy of that backup fails the checksum recorded when it was taken. They have been altered or truncated — they must not be restored.",
+    };
+  }
+  return { ok: false, error: `Could not read the backup file. ${fetched.problems.join("; ")}` };
 }
 
 // ---------------------------------------------------------------------------
