@@ -555,8 +555,11 @@ export default async function AdminDataOverviewPage({
         </Suspense>
       </div>
 
-      {/* Trading, over the window. */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Trading, over the window. Five tiles, because gross margin on its own
+          was being read as what the business earns — it is what the bundles
+          made before the agent network is paid, and the two differ by the
+          whole commission bill. */}
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Stat
           label="Revenue"
           value={formatPrice(totals.revenue)}
@@ -583,6 +586,18 @@ export default async function AdminDataOverviewPage({
           }
           href="/admin/data/bundles"
           icon={Wallet}
+          tone="success"
+        />
+        <Stat
+          label="Net margin"
+          value={formatPrice(totals.netMargin)}
+          hint={
+            totals.commission > 0
+              ? `Gross margin less ${formatPrice(totals.commission)} in commission · ${windowLabel}`
+              : `What Nickimart keeps · ${windowLabel}`
+          }
+          href="/admin/data/transactions/audit"
+          icon={PiggyBank}
           tone="success"
         />
         <Stat

@@ -3,7 +3,7 @@ import { Prisma } from ".prisma/data-client";
 import { dataDb } from "@/lib/data-db";
 import { formatMoney } from "@/lib/format";
 import { round2 } from "@/lib/data-bundles/agent-pricing";
-import { TOPUP_KINDS, type Flow } from "@/lib/transaction-kinds";
+import { TOPUP_KINDS, transactionKind } from "@/lib/transaction-kinds";
 import type { TransactionRow } from "@/lib/data-bundles/transactions";
 
 /**
@@ -55,6 +55,8 @@ interface RawRow {
   agentid: string | null;
   /** The provider balance after a reading; null on an agent top-up. */
   balance: number | null;
+  /** What the admin wrote against a declared movement; blank otherwise. */
+  note: string;
 }
 
 /**
@@ -78,7 +80,8 @@ function sourcesSql(): Prisma.Sql {
            t.status,
            COALESCE(t."paidAt", t."createdAt") AS createdat,
            t."agentId" AS agentid,
-           NULL::float8 AS balance
+           NULL::float8 AS balance,
+           '' AS note
       FROM "DataWalletTopup" t
       JOIN "DataAgent" ag ON ag.id = t."agentId"
      WHERE t.status = 'paid'
@@ -89,7 +92,7 @@ function sourcesSql(): Prisma.Sql {
     UNION ALL
     SELECT l.id, 'WALLET_TOPUP', ABS(l.amount), COALESCE(l.reference, ''),
            ag."storeName", 'Agent float · ' || ag.code, 'paid',
-           l."createdAt", l."agentId", NULL::float8
+           l."createdAt", l."agentId", NULL::float8, ''
       FROM "DataAgentLedger" l
       JOIN "DataAgent" ag ON ag.id = l."agentId"
       LEFT JOIN "DataWalletTopup" t
@@ -100,7 +103,7 @@ function sourcesSql(): Prisma.Sql {
     -- took out of it: somebody funded it.
     UNION ALL
     SELECT b.id || ':in', 'PROVIDER_FUNDING', b.credited, '',
-           ${PROVIDER_PARTY}, '', b.source, b."createdAt", NULL, b.balance
+           ${PROVIDER_PARTY}, '', b.source, b."createdAt", NULL, b.balance, ''
       FROM "DataProviderBalance" b
      WHERE b.credited > 0
 
@@ -110,22 +113,33 @@ function sourcesSql(): Prisma.Sql {
     -- not "money out" but it is certainly not a plus.
     UNION ALL
     SELECT b.id || ':out', 'PROVIDER_DEBIT', -b.debited, '',
-           ${PROVIDER_PARTY}, '', b.source, b."createdAt", NULL, b.balance
+           ${PROVIDER_PARTY}, '', b.source, b."createdAt", NULL, b.balance, ''
       FROM "DataProviderBalance" b
      WHERE b.debited > 0
+
+    -- Movements an administrator declared because no reading could have seen
+    -- them: anything before readings began, and anything that netted off
+    -- against a day's trading inside one interval. Dated by when the money
+    -- moved rather than when it was typed, so a top-up entered today for last
+    -- March sorts into last March.
+    UNION ALL
+    SELECT e.id, CASE WHEN e.kind = 'FUNDING' THEN 'PROVIDER_FUNDING' ELSE 'PROVIDER_DEBIT' END,
+           CASE WHEN e.kind = 'FUNDING' THEN e.amount ELSE -e.amount END, '',
+           ${PROVIDER_PARTY}, '', 'recorded', e."occurredAt", NULL, NULL::float8, e.note
+      FROM "DataProviderEntry" e
   `;
 }
 
-const FLOW_BY_KIND: Record<string, Flow> = {
-  WALLET_TOPUP: "in",
-  // Cash leaving Nickimart for the float the bundles are bought from.
-  PROVIDER_FUNDING: "out",
-  // Already-funded float being spent, so it moves inside rather than out.
-  PROVIDER_DEBIT: "internal",
-};
-
 function detailFor(row: RawRow): string {
   if (row.kind === "WALLET_TOPUP") return row.detail;
+  // A declared movement says so, and says what the admin wrote against it.
+  // A figure somebody asserted and one the provider's balance proved are not
+  // the same evidence, and a reconciliation that cannot tell them apart is
+  // not a reconciliation.
+  if (row.status === "recorded") {
+    const what = row.kind === "PROVIDER_FUNDING" ? "Funding entered by hand" : "Spend entered by hand";
+    return row.note ? `${what} · ${row.note}` : what;
+  }
   const after = row.balance === null ? "" : ` · balance ${formatMoney(row.balance)}`;
   return row.kind === "PROVIDER_FUNDING"
     ? `Funded on the provider's platform${after}`
@@ -201,7 +215,11 @@ export async function getTopups(opts: TopupListOptions = {}) {
       rows: rows.map((r): TransactionRow => ({
         id: r.id,
         kind: r.kind,
-        flow: FLOW_BY_KIND[r.kind] ?? "in",
+        // Taken from the shared table rather than restated here. A local copy
+        // of it is how funding the provider float went on reading as a loss
+        // after the shared definition had been corrected to call it the
+        // transfer it is.
+        flow: transactionKind(r.kind)?.flow ?? "in",
         // Signed, not absolute: a provider debit is a minus on a tab where
         // everything else is money arriving.
         amount: round2(r.amount),

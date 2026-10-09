@@ -63,6 +63,23 @@ describe("the vocabulary", () => {
     assert.equal(transactionKind("WALLET_TOPUP")?.flow, "in");
   });
 
+  it("treats funding the provider float as a transfer, not a cost", () => {
+    // The cedis move from one Nickimart pocket to another: they become stock,
+    // and they are expensed later as the cost price of the bundles they buy.
+    // Calling it money out charged the same cedi twice — once on the top-ups
+    // tab and again on every order it funded — and showed an afternoon's
+    // funding as a GH₵300 loss.
+    assert.equal(transactionKind("PROVIDER_FUNDING")?.flow, "internal");
+    assert.equal(transactionKind("PROVIDER_DEBIT")?.flow, "internal");
+  });
+
+  it("signs a provider debit as a reduction without counting it out", () => {
+    // The row arrives carrying a negative amount of its own, so it reads as a
+    // minus on the tab while staying out of the money-out total.
+    assert.equal(signedAmount("internal", -2.43), -2.43);
+    assert.equal(signedAmount("internal", 300), 300);
+  });
+
   it("separates a refund to a card from a refund to a float", () => {
     assert.equal(transactionKind("REFUND")?.flow, "out");
     assert.equal(transactionKind("WALLET_REFUND")?.flow, "internal");

@@ -14,6 +14,7 @@ import {
   Mail,
   Megaphone,
   Receipt,
+  Scale,
   Send,
   Settings2,
   SlidersHorizontal,
@@ -64,6 +65,7 @@ const ICONS = {
   rules: SlidersHorizontal,
   backup: DatabaseBackup,
   sheet: FileSpreadsheet,
+  audit: Scale,
 } as const;
 
 export type TabIcon = keyof typeof ICONS;
