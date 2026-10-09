@@ -132,6 +132,10 @@ export type CreateBackupResult =
   | { ok: true; backup: DataBackupSummary; warning?: string }
   | { ok: false; error: string };
 
+export type DirectBackupResult =
+  | { ok: true; fileName: string; body: Buffer; backup: DataBackupSummary }
+  | { ok: false; error: string };
+
 // ---------------------------------------------------------------------------
 // Identity of the database being backed up
 // ---------------------------------------------------------------------------
@@ -375,6 +379,104 @@ export async function runDataBackup(options: {
           durationMs: Date.now() - started,
           completedAt: new Date(),
           storageTargets: JSON.stringify([]),
+        },
+      })
+      .catch(() => {});
+    return { ok: false, error: message };
+  }
+}
+
+/**
+ * Take a snapshot and hand it straight to the admin, storing nothing.
+ *
+ * The stored path is the right default — a backup nobody can find later is
+ * not a backup — but requiring storage to exist before a snapshot can be
+ * taken at all was wrong, and it is the thing that left an admin with a
+ * configured bucket they could not yet write to and no way to get a copy of
+ * their own database. Downloading a file and keeping it somewhere safe is a
+ * perfectly good recovery plan for a business this size, and it is the one
+ * plan that depends on nothing but the browser that asked for it.
+ *
+ * It is logged like every other backup, with `storage: "none"` so the history
+ * says plainly that nothing was retained: the file exists wherever the admin
+ * put it, and this database has no business claiming to know where that is.
+ */
+export async function takeDirectBackup(options: {
+  byId?: string;
+  byEmail?: string;
+}): Promise<DirectBackupResult> {
+  const kind = "download";
+  const startedAt = new Date();
+  const id = buildBackupId(startedAt, randomBytes(4).toString("hex"));
+  const fileName = backupFileName(id);
+  const started = Date.now();
+
+  try {
+    await dataDb.dataBackup.create({
+      data: {
+        id,
+        kind,
+        status: "running",
+        format: BACKUP_FORMAT_ID,
+        fileName,
+        appVersion: appVersion(),
+        createdById: options.byId ?? "",
+        createdByEmail: options.byEmail ?? "",
+        startedAt,
+      },
+    });
+  } catch (error) {
+    console.error("[data-backup] could not open a history row", error);
+    return {
+      ok: false,
+      error:
+        "Could not write to the backup history table. If this is the first backup, deploy once so db/data-migrations/0018_backups.sql is applied.",
+    };
+  }
+
+  try {
+    const dump = await buildDump({ id, kind, takenAt: startedAt });
+    const body = gzipSync(dump.payload, { level: 9 });
+    const checksum = createHash("sha256").update(body).digest("hex");
+
+    const row = await dataDb.dataBackup.update({
+      where: { id },
+      data: {
+        status: "completed",
+        tableCount: dump.tables.length,
+        recordCount: dump.recordCount,
+        byteSize: body.byteLength,
+        checksum,
+        databaseId: dump.databaseId,
+        schemaVersion: dump.schemaVersion,
+        // Nothing was stored, and the history must not pretend otherwise: this
+        // is what makes the row show "Not retained" rather than a download
+        // button that could only ever 404.
+        storage: "none",
+        storageKey: "",
+        storageTargets: JSON.stringify([]),
+        manifest: JSON.stringify(dump.tables),
+        durationMs: Date.now() - started,
+        completedAt: new Date(),
+        error: null,
+      },
+    });
+
+    console.log(
+      `[data-backup] ${id} downloaded directly — ${dump.tables.length} tables, ${dump.recordCount} rows, ${body.byteLength} bytes`,
+    );
+    return { ok: true, fileName, body, backup: toSummary(row) };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[data-backup] ${id} direct download failed`, error);
+    await dataDb.dataBackup
+      .update({
+        where: { id },
+        data: {
+          status: "failed",
+          error: message.slice(0, 1000),
+          durationMs: Date.now() - started,
+          completedAt: new Date(),
         },
       })
       .catch(() => {});
@@ -665,16 +767,19 @@ export async function getBackupOverview(): Promise<BackupOverview> {
   const offsite = hasOffsiteBackupStorage();
 
   try {
+    // "Last good backup" and the kept totals both describe copies this system
+    // still holds, so a direct download — taken, handed over, retained
+    // nowhere — is deliberately excluded from them. Counting it would put a
+    // Download button on the Latest backup panel that could only 404, and
+    // would add bytes to a total of files that are not there.
+    const retained = { status: "completed", storage: { not: "none" } } as const;
     const [latest, lastGood, totals] = await Promise.all([
       dataDb.dataBackup.findFirst({ orderBy: { startedAt: "desc" } }),
-      dataDb.dataBackup.findFirst({
-        where: { status: "completed" },
-        orderBy: { startedAt: "desc" },
-      }),
+      dataDb.dataBackup.findFirst({ where: retained, orderBy: { startedAt: "desc" } }),
       dataDb.dataBackup.aggregate({
         _count: { _all: true },
         _sum: { byteSize: true },
-        where: { status: "completed" },
+        where: retained,
       }),
     ]);
 

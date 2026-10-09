@@ -281,6 +281,7 @@ export function backupFileName(id: string): string {
 
 export const BACKUP_KIND_LABELS: Record<string, string> = {
   manual: "Manual",
+  download: "Direct download",
   uploaded: "Uploaded",
   safety: "Pre-restore safety",
   "auto-daily": "Automatic — daily",
