@@ -210,34 +210,72 @@ async function writeTo(
   return key;
 }
 
+export type BackupFetch =
+  | { ok: true; body: Buffer; label: string }
+  | { ok: false; problems: string[]; everyCopyFailedVerification: boolean };
+
 /**
  * Fetch a stored backup back, trying each recorded copy in turn.
  *
- * Returns the bytes rather than a stream on purpose: the download route
- * verifies the checksum before it sends anything, and you cannot verify a
- * stream you have already handed to the browser.
+ * `verify` is checked inside the loop rather than by the caller afterwards,
+ * and that placement is the whole point of keeping two copies. A copy that
+ * reads successfully but fails its checksum — the truncated upload, the
+ * half-written object — is exactly the case redundancy exists for, and
+ * verifying after the loop would hand that corrupt copy back and never look at
+ * the good one sitting on the other target.
+ *
+ * Returns the bytes rather than a stream, because a stream you have already
+ * handed to the browser cannot be verified at all.
  */
-export async function getBackupFile(locations: BackupLocation[]): Promise<Buffer> {
+export async function getBackupFile(
+  locations: BackupLocation[],
+  verify?: (body: Buffer) => boolean,
+): Promise<BackupFetch> {
   const usable = locations.filter((l) => l.ok && l.key);
-  if (usable.length === 0) throw new Error("This backup has no stored copy to download.");
+  if (usable.length === 0) {
+    return {
+      ok: false,
+      problems: ["This backup has no stored copy."],
+      everyCopyFailedVerification: false,
+    };
+  }
 
   const problems: string[] = [];
+  let attempted = 0;
+  let verificationFailures = 0;
   // Off-host first: it is the copy that is still there after the server isn't.
   const ordered = [...usable].sort((a, b) => Number(b.driver === "s3") - Number(a.driver === "s3"));
 
   for (const location of ordered) {
+    attempted++;
     try {
-      if (location.driver === "local") return await readFile(location.key);
-      const s3 = s3Config();
-      if (!s3) throw new Error("Cloud storage is not configured in this environment.");
-      const res = await s3Request(s3, "GET", location.key);
-      return Buffer.from(await res.arrayBuffer());
+      const body = await readFrom(location);
+      if (verify && !verify(body)) {
+        verificationFailures++;
+        problems.push(
+          `${location.label}: the stored copy does not match the checksum recorded when the backup was taken`,
+        );
+        continue;
+      }
+      return { ok: true, body, label: location.label };
     } catch (error) {
       problems.push(`${location.label}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  throw new Error(`Could not read the backup file. ${problems.join("; ")}`);
+  return {
+    ok: false,
+    problems,
+    everyCopyFailedVerification: attempted > 0 && verificationFailures === attempted,
+  };
+}
+
+async function readFrom(location: BackupLocation): Promise<Buffer> {
+  if (location.driver === "local") return readFile(location.key);
+  const s3 = s3Config();
+  if (!s3) throw new Error("Cloud storage is not configured in this environment.");
+  const res = await s3Request(s3, "GET", location.key);
+  return Buffer.from(await res.arrayBuffer());
 }
 
 /** Remove every stored copy. Used by retention, and by a failed backup's cleanup. */

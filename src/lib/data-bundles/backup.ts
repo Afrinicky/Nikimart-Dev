@@ -15,13 +15,13 @@ import {
   backupStatusLabel,
   buildBackupId,
   encodeBackupValue,
-  isExcludedFromBackup,
   isJsonColumn,
   type BackupColumn,
   type BackupFooter,
   type BackupHeader,
   type BackupTableCount,
 } from "@/lib/data-bundles/backup-format";
+import { backupScope } from "@/lib/data-bundles/backup-scope";
 import {
   backupTargets,
   deleteBackupFile,
@@ -44,8 +44,11 @@ import {
  * table list comes out of the Postgres catalog, so a table added to
  * prisma/data/schema.prisma next month is in the next backup without anyone
  * remembering to come back here — which is the failure mode a hand-kept list
- * of models has, and the one that loses data quietly. Three tables are skipped
- * by name and the reasons are in backup-format.ts.
+ * of models has, and the one that loses data quietly. Four tables are skipped
+ * by name and the reasons are in backup-format.ts, and when the bundle tables
+ * still share the retail database the catalog is narrowed to this schema's own
+ * (see backup-scope.ts) — "every table here" is the wrong answer in a database
+ * that is also the mall.
  *
  * What it never contains: anything from the environment. There is no path from
  * here to `process.env` other than the connection URL itself, and the only
@@ -187,8 +190,8 @@ interface TableShape {
 }
 
 /**
- * Every ordinary table in the `public` schema, with its columns, straight from
- * the catalog.
+ * Every table in this database that belongs to the bundle business, with its
+ * columns, straight from the catalog.
  *
  * `relkind = 'r'` is a real table that physically holds rows: views, sequences,
  * indexes and foreign tables have nothing of their own to back up. Partitions
@@ -208,7 +211,11 @@ async function describeTables(tx: RawClient): Promise<TableShape[]> {
     ORDER BY c.relname
   `);
 
-  const wanted = tableRows.map((r) => r.name).filter((name) => !isExcludedFromBackup(name));
+  // `backupScope` is what keeps a shared database honest: with
+  // DATA_DATABASE_URL unset, `dataDb` is the retail database too, and
+  // everything in `public` would mean the whole mall.
+  const scope = backupScope();
+  const wanted = tableRows.map((r) => r.name).filter((name) => scope.includes(name));
   if (wanted.length === 0) return [];
 
   const columnRows = await tx.$queryRawUnsafe<
@@ -393,6 +400,15 @@ interface Dump {
  * and allow exactly that.
  */
 async function buildDump(meta: { id: string; kind: string; takenAt: Date }): Promise<Dump> {
+  // Read outside the transaction, deliberately. In Postgres a statement that
+  // errors aborts the whole transaction, and every statement after it fails
+  // with 25P02 no matter what JavaScript does with the exception — so a
+  // `try`/`catch` around a query *inside* the dump transaction does not
+  // tolerate anything, it just hides which statement killed the backup. This
+  // lookup is the one that is allowed to fail (a database migrated by some
+  // other means has no ledger), so it happens first, on its own connection.
+  const schemaVersion = await lastMigration();
+
   return dataDb.$transaction(
     async (tx) => {
       const locked = await tx.$queryRawUnsafe<{ locked: boolean }[]>(
@@ -406,7 +422,6 @@ async function buildDump(meta: { id: string; kind: string; takenAt: Date }): Pro
         `SELECT current_database() AS name`,
       );
       const databaseId = databaseLabel(databaseName);
-      const schemaVersion = await lastMigration(tx);
       const tables = await describeTables(tx);
 
       const header: BackupHeader = {
@@ -421,6 +436,7 @@ async function buildDump(meta: { id: string; kind: string; takenAt: Date }): Pro
         schemaVersion,
         appVersion: appVersion(),
         excludedTables: [...BACKUP_EXCLUDED_TABLES],
+        scope: backupScope().reason,
       };
 
       const chunks: Buffer[] = [];
@@ -539,15 +555,23 @@ async function buildDump(meta: { id: string; kind: string; takenAt: Date }): Pro
 /**
  * The last migration this database has applied — the closest thing it has to a
  * schema version, and what tells you whether a backup predates a column.
+ *
+ * The ledger's existence is checked with `to_regclass`, which answers NULL for
+ * a relation that is not there instead of raising: a database set up with
+ * `prisma db push`, or migrated by hand, simply has no `_NikiMigration`, and
+ * that is not a reason to fail a backup.
  */
-async function lastMigration(tx: RawClient): Promise<string> {
+async function lastMigration(): Promise<string> {
   try {
-    const rows = await tx.$queryRawUnsafe<{ name: string }[]>(
+    const [{ present }] = await dataDb.$queryRawUnsafe<{ present: boolean }[]>(
+      `SELECT to_regclass('public."_NikiMigration"') IS NOT NULL AS present`,
+    );
+    if (!present) return "unknown";
+    const rows = await dataDb.$queryRawUnsafe<{ name: string }[]>(
       `SELECT "name" FROM "_NikiMigration" ORDER BY "name" DESC LIMIT 1`,
     );
     return rows[0]?.name ?? "unknown";
   } catch {
-    // A database migrated by some other means. Not a reason to fail a backup.
     return "unknown";
   }
 }
@@ -681,7 +705,9 @@ export async function getBackupOverview(): Promise<BackupOverview> {
  *
  * The checksum is recomputed over the bytes we actually read rather than
  * trusted: a backup you cannot verify is a backup you do not have, and the
- * moment to discover a truncated upload is now, not during a restore.
+ * moment to discover a truncated upload is now, not during a restore. The
+ * check is handed to `getBackupFile` so that a corrupt primary copy falls
+ * through to the other target instead of failing the download outright.
  */
 export async function readDataBackup(
   id: string,
@@ -702,22 +728,30 @@ export async function readDataBackup(
   }
 
   const summary = toSummary(row);
-  try {
-    const body = await getBackupFile(summary.locations);
-    const checksum = createHash("sha256").update(body).digest("hex");
-    if (summary.checksum && checksum !== summary.checksum) {
-      console.error(`[data-backup] ${id} checksum mismatch on download`);
-      return {
-        ok: false,
-        status: 500,
-        error:
-          "The stored file does not match the checksum recorded when it was taken. It has been altered or truncated — do not restore from it.",
-      };
-    }
-    return { ok: true, fileName: summary.fileName || backupFileName(id), body };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`[data-backup] ${id} download failed`, message);
-    return { ok: false, status: 500, error: message };
+  const fetched = await getBackupFile(summary.locations, checksumVerifier(summary.checksum));
+
+  if (fetched.ok) {
+    return { ok: true, fileName: summary.fileName || backupFileName(id), body: fetched.body };
   }
+
+  console.error(`[data-backup] ${id} download failed`, fetched.problems.join("; "));
+  if (fetched.everyCopyFailedVerification) {
+    return {
+      ok: false,
+      status: 500,
+      error:
+        "Every stored copy of this backup fails the checksum recorded when it was taken. They have been altered or truncated — do not restore from them.",
+    };
+  }
+  return { ok: false, status: 500, error: `Could not read the backup file. ${fetched.problems.join("; ")}` };
+}
+
+/**
+ * A checksum check for `getBackupFile`, or nothing when the row predates
+ * checksums — in which case the file is handed over unverified rather than
+ * made undownloadable.
+ */
+export function checksumVerifier(expected: string): ((body: Buffer) => boolean) | undefined {
+  if (!expected) return undefined;
+  return (body) => createHash("sha256").update(body).digest("hex") === expected;
 }

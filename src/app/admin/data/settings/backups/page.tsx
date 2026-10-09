@@ -7,14 +7,14 @@ import {
   CloudUpload,
   Download,
   HardDrive,
-  RotateCcw,
-  ShieldAlert,
 } from "lucide-react";
 import { PanelHeading } from "@/components/admin/ModuleHeader";
 import { DataBackupPanel } from "@/components/admin/DataBackupPanel";
 import { DataBackupHistory } from "@/components/admin/DataBackupHistory";
+import { DataRestorePanel } from "@/components/admin/DataRestorePanel";
 import { requireAdmin } from "@/lib/session";
 import { getBackupOverview, listDataBackups } from "@/lib/data-bundles/backup";
+import { listDataRestores, type RestoreSummary } from "@/lib/data-bundles/restore";
 import { formatBytes, formatDuration } from "@/lib/data-bundles/backup-format";
 import { formatWhen } from "@/components/agent/AgentUi";
 import { isDataDatabaseSeparate } from "@/lib/data-db";
@@ -36,9 +36,20 @@ export default async function DataBackupsPage() {
   const admin = await requireAdmin().catch(() => null);
   if (!admin) redirect("/admin");
 
-  const [overview, history] = await Promise.all([getBackupOverview(), listDataBackups(50)]);
+  const [overview, history, restores] = await Promise.all([
+    getBackupOverview(),
+    listDataBackups(50),
+    listDataRestores(20),
+  ]);
   const { targets, offsite, latest, lastGood } = overview;
   const ephemeralOnly = targets.length > 0 && targets.every((t) => t.ephemeral);
+
+  const restorable = history
+    .filter((b) => b.downloadable)
+    .map((b) => ({
+      id: b.id,
+      label: `${b.kindLabel} · ${formatWhen(b.startedAt)} · ${b.tableCount} tables · ${b.recordCount.toLocaleString("en-GB")} records · ${formatBytes(b.byteSize)}`,
+    }));
 
   const storageSummary =
     targets.length === 0
@@ -109,8 +120,10 @@ export default async function DataBackupsPage() {
       {!isDataDatabaseSeparate() ? (
         <p className="rounded-xl bg-niki-gold/15 px-4 py-3 text-sm text-amber-900 ring-1 ring-niki-gold/30">
           <code className="font-mono text-xs">DATA_DATABASE_URL</code> is not set, so the bundle
-          tables still live in the retail database. A backup taken here covers the Data Bundles
-          tables in it and nothing else — the retail mall is not included, and is not touched.
+          tables still live in the retail database. Backups and restores here are narrowed to the
+          tables the Data Bundles schema declares: the retail mall is never read into a backup file
+          and never written to by a restore. A bundle table created by hand in SQL and never added
+          to the schema is outside that list until the databases are split.
         </p>
       ) : null}
 
@@ -133,8 +146,10 @@ export default async function DataBackupsPage() {
         <DataBackupHistory rows={history} />
       </section>
 
-      {/* 6 — Restore, fenced off. */}
-      <RestoreNotice ready={Boolean(lastGood)} />
+      {/* 6 — Restore, fenced off and in the danger colours. */}
+      <DataRestorePanel backups={restorable} />
+
+      {restores.length > 0 ? <RestoreHistory rows={restores} /> : null}
     </div>
   );
 }
@@ -267,54 +282,94 @@ function Detail({
 }
 
 /**
- * The restore section.
+ * What has been restored, and what it overwrote.
  *
- * It is here, fenced off and in the danger colours, before it does anything —
- * because a recovery procedure nobody has read is not a procedure. Restore
- * overwrites the live database, so it ships only once the backup side has been
- * taken, downloaded and verified in anger, and when it does it will take a
- * safety copy of the current database first and ask for the confirmation
- * phrase spelled out below.
+ * Shown only once something has been — an empty table here would be noise —
+ * and every row carries the safety backup taken before it, because the
+ * question after a restore is always "can we go back".
  */
-function RestoreNotice({ ready }: { ready: boolean }) {
+function RestoreHistory({ rows }: { rows: RestoreSummary[] }) {
   return (
-    <section className="rounded-2xl border-2 border-dashed border-niki-danger/35 bg-niki-danger/[0.04] p-6">
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-niki-danger/10 text-niki-danger">
-          <ShieldAlert className="h-5 w-5" />
-        </span>
-        <div>
-          <h2 className="font-display text-lg font-bold text-niki-danger">
-            Restore from a backup — dangerous
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm text-niki-ink/70">
-            Restoring overwrites every Data Bundles table with the contents of a backup file.
-            Orders, ledger entries and balances written since that snapshot are gone. It is
-            deliberately not enabled yet: the backup side has to be proven first —{" "}
-            {ready
-              ? "take a backup, download it, and keep it somewhere off this server."
-              : "take your first backup and download it."}
-          </p>
-          <ul className="mt-4 space-y-1.5 text-sm text-niki-ink/65">
-            {[
-              "Administrator authorisation, re-checked against the database.",
-              "The file is validated and its checksum verified before anything is written.",
-              "You see the backup's date, tables and record counts and confirm them.",
-              "A safety backup of the current database is taken automatically, first.",
-              "You type RESTORE DATA BUNDLES to confirm.",
-              "The restored database is verified against the backup's manifest and the result reported.",
-            ].map((line) => (
-              <li key={line} className="flex items-start gap-2">
-                <RotateCcw className="mt-0.5 h-3.5 w-3.5 shrink-0 text-niki-danger/70" />
-                <span>{line}</span>
-              </li>
+    <section className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
+      <PanelHeading
+        title="Restore history"
+        subtitle="Every restore attempted on this database, and the safety backup each one took first."
+      />
+      <div className="-mx-5 overflow-x-auto px-5">
+        <table className="w-full min-w-[900px] border-separate border-spacing-0 text-sm">
+          <thead>
+            <tr className="bg-niki-surface/70">
+              <th className={`${rth} rounded-l-lg`}>When</th>
+              <th className={rth}>Status</th>
+              <th className={rth}>Backup restored</th>
+              <th className={rth}>Tables</th>
+              <th className={rth}>Records</th>
+              <th className={rth}>Took</th>
+              <th className={rth}>Safety backup</th>
+              <th className={`${rth} rounded-r-lg`}>By</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className="border-b border-niki-edge/60 last:border-0">
+                <td className={rtd}>
+                  <span className="font-semibold text-niki-ink">{formatWhen(r.startedAt)}</span>
+                  <span className="mt-0.5 block font-mono text-[11px] text-niki-ink/45">{r.id}</span>
+                </td>
+                <td className={rtd}>
+                  <span
+                    className={
+                      r.status === "completed"
+                        ? "inline-flex items-center gap-1.5 rounded-md bg-niki-success/12 px-2 py-1 text-[11px] font-bold text-emerald-700"
+                        : r.status === "failed"
+                          ? "inline-flex items-center gap-1.5 rounded-md bg-niki-danger/10 px-2 py-1 text-[11px] font-bold text-niki-danger"
+                          : "inline-flex items-center gap-1.5 rounded-md bg-niki-gold/20 px-2 py-1 text-[11px] font-bold text-amber-900"
+                    }
+                  >
+                    {r.status === "completed" ? (
+                      <CircleCheck className="h-3.5 w-3.5" />
+                    ) : (
+                      <CircleAlert className="h-3.5 w-3.5" />
+                    )}
+                    {r.statusLabel}
+                  </span>
+                  {r.error ? (
+                    <span
+                      title={r.error}
+                      className="mt-1 line-clamp-2 max-w-[15rem] text-[11px] leading-snug text-niki-danger"
+                    >
+                      {r.error}
+                    </span>
+                  ) : null}
+                </td>
+                <td className={`${rtd} font-mono text-[11px] text-niki-ink/60`}>
+                  {r.backupId || "—"}
+                  {r.backupTakenAt ? (
+                    <span className="mt-0.5 block font-sans text-niki-ink/45">
+                      taken {formatWhen(r.backupTakenAt)}
+                    </span>
+                  ) : null}
+                </td>
+                <td className={`${rtd} tabular-nums text-niki-ink/70`}>{r.tableCount}</td>
+                <td className={`${rtd} tabular-nums text-niki-ink/70`}>
+                  {r.recordCount.toLocaleString("en-GB")}
+                </td>
+                <td className={`${rtd} tabular-nums text-niki-ink/55`}>
+                  {formatDuration(r.durationMs)}
+                </td>
+                <td className={`${rtd} font-mono text-[11px] text-niki-ink/60`}>
+                  {r.safetyBackupId || "—"}
+                </td>
+                <td className={`${rtd} text-niki-ink/60`}>{r.createdByEmail || "—"}</td>
+              </tr>
             ))}
-          </ul>
-          <p className="mt-4 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-niki-ink/60 ring-1 ring-niki-edge">
-            Not enabled — arrives in phase 2
-          </p>
-        </div>
+          </tbody>
+        </table>
       </div>
     </section>
   );
 }
+
+const rth =
+  "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-niki-ink/45";
+const rtd = "px-4 py-3.5 align-top";

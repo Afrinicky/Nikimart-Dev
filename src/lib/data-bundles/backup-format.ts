@@ -38,15 +38,21 @@ export const BACKUP_CONTENT_TYPE = "application/gzip";
  *
  * The two migration ledgers are the schema's own bookkeeping: restoring them
  * would tell a database it had already run migrations it has not run, or that
- * it still needs ones it has. `DataBackup` is the backup history itself —
- * rolling that back with a restore would erase the record of the restore, and
- * of the safety backup taken just before it.
+ * it still needs ones it has. `DataBackup` and `DataRestore` are the backup
+ * and restore history — rolling those back with a restore would erase the
+ * record of the restore itself, and of the safety backup taken just before
+ * it, which is the one copy of what the restore overwrote.
  *
  * Everything else in the `public` schema is discovered from the catalog at
  * backup time, so a table added next month is included without anyone
  * remembering to edit a list.
  */
-export const BACKUP_EXCLUDED_TABLES = ["_prisma_migrations", "_NikiMigration", "DataBackup"] as const;
+export const BACKUP_EXCLUDED_TABLES = [
+  "_prisma_migrations",
+  "_NikiMigration",
+  "DataBackup",
+  "DataRestore",
+] as const;
 
 export function isExcludedFromBackup(table: string): boolean {
   return (BACKUP_EXCLUDED_TABLES as readonly string[]).includes(table);
@@ -84,6 +90,12 @@ export interface BackupHeader {
   appVersion: string;
   /** Tables deliberately left out, for the reader's benefit. */
   excludedTables: string[];
+  /**
+   * How the table list was decided — whether this is a whole database or just
+   * the bundle tables out of a database shared with the retail mall. Optional
+   * because files written before the scope existed do not carry it.
+   */
+  scope?: string;
 }
 
 export interface BackupTableLine {
@@ -269,6 +281,7 @@ export function backupFileName(id: string): string {
 
 export const BACKUP_KIND_LABELS: Record<string, string> = {
   manual: "Manual",
+  uploaded: "Uploaded",
   safety: "Pre-restore safety",
   "auto-daily": "Automatic — daily",
   "auto-weekly": "Automatic — weekly",
