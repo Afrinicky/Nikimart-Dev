@@ -11,10 +11,12 @@ import {
 import { PanelHeading } from "@/components/admin/ModuleHeader";
 import { DataBackupPanel } from "@/components/admin/DataBackupPanel";
 import { DataBackupHistory } from "@/components/admin/DataBackupHistory";
+import { DataBackupScheduleForm } from "@/components/admin/DataBackupScheduleForm";
 import { DataRestorePanel } from "@/components/admin/DataRestorePanel";
 import { requireAdmin } from "@/lib/session";
 import { getBackupOverview, listDataBackups } from "@/lib/data-bundles/backup";
 import { listDataRestores, type RestoreSummary } from "@/lib/data-bundles/restore";
+import { getAutoBackupStatus } from "@/lib/data-bundles/backup-schedule";
 import { formatBytes, formatDuration } from "@/lib/data-bundles/backup-format";
 import { formatWhen } from "@/components/agent/AgentUi";
 import { isDataDatabaseSeparate } from "@/lib/data-db";
@@ -36,10 +38,11 @@ export default async function DataBackupsPage() {
   const admin = await requireAdmin().catch(() => null);
   if (!admin) redirect("/admin");
 
-  const [overview, history, restores] = await Promise.all([
+  const [overview, history, restores, schedule] = await Promise.all([
     getBackupOverview(),
     listDataBackups(50),
     listDataRestores(20),
+    getAutoBackupStatus(),
   ]);
   const { targets, offsite, latest, lastGood } = overview;
   const ephemeralOnly = targets.length > 0 && targets.every((t) => t.ephemeral);
@@ -134,10 +137,13 @@ export default async function DataBackupsPage() {
         storageSummary={storageSummary}
       />
 
-      {/* 3 — What the newest backup actually contains. */}
+      {/* 3 — The nightly schedule, and whether it is working. */}
+      <DataBackupScheduleForm status={schedule} />
+
+      {/* 4 — What the newest backup actually contains. */}
       {lastGood ? <LatestBackup backup={lastGood} /> : null}
 
-      {/* 4 — History, with 5 — downloads. */}
+      {/* 5 — History, with downloads. */}
       <section className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
         <PanelHeading
           title="Backup history"
