@@ -145,6 +145,25 @@ export const DATA_SETTINGS_DEFAULTS = {
   leaderboardRewardsEnabled: "1",
   // The line above the boards on an agent's leaderboard screen.
   leaderboardPitch: "Sell, climb the board, collect points, cash them in.",
+
+  // --- Automatic backups ----------------------------------------------------
+  // Whether the nightly job takes a snapshot of this database at all. Off by
+  // default: an automatic backup is only worth having once it has somewhere
+  // durable to go, so turning it on is a decision taken after the storage is
+  // configured rather than one made silently on the first deploy.
+  backupAutoEnabled: "0",
+  // Grandfather-father-son retention. One snapshot is taken per run and
+  // labelled by the longest period it opens — the first run of a month is the
+  // monthly, the first of a week is the weekly, the rest are dailies — so a
+  // year of history costs one dump a day rather than three.
+  //
+  // These are counts of snapshots to keep per tier, and they apply only to
+  // automatic ones. A manual backup, an upload, and the safety copy taken
+  // before a restore are never pruned: somebody made a decision to have each
+  // of those, and a retention rule is not entitled to overrule it.
+  backupRetainDaily: "14",
+  backupRetainWeekly: "8",
+  backupRetainMonthly: "12",
 } as const;
 
 export type DataSettingKey = keyof typeof DATA_SETTINGS_DEFAULTS;
