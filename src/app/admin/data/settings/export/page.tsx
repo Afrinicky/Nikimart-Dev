@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { FileSpreadsheet, FileText, Info } from "lucide-react";
 import { requireAdmin } from "@/lib/session";
 import { DATA_EXPORT_LIST } from "@/lib/data-bundles/exports";
@@ -22,8 +21,12 @@ export const dynamic = "force-dynamic";
  * on a phone. Same as the retail console's export.
  */
 export default async function DataExportPage() {
-  const admin = await requireAdmin().catch(() => null);
-  if (!admin) redirect("/admin");
+  // A bare await, as on every other admin page. Catching the guard's rejection
+  // and bouncing to /admin dropped an admin into the retail console whenever
+  // this check disagreed with the console frame above it, and swallowed the
+  // NEXT_REDIRECT that is how a signed-out caller reaches /login. See the note
+  // on the Backups tab.
+  await requireAdmin();
 
   return (
     <div className="space-y-6">

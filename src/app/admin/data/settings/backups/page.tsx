@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import {
   CircleAlert,
   CircleCheck,
@@ -31,12 +30,22 @@ export const dynamic = "force-dynamic";
  * whose whole purpose is to produce a copy of the entire business checks for
  * itself as well — one guard is a configuration away from being the wrong one.
  *
+ * That third check is defence in depth and has to behave like it. It used to
+ * catch everything `requireAdmin` can throw and send the caller to /admin, the
+ * retail console. Two things were wrong with that. A signed-out caller is
+ * moved on by `requireUser` throwing NEXT_REDIRECT at /login, and catching
+ * that swallows the redirect rather than following it. And any disagreement at
+ * all between this check and the two that have already passed — the middleware
+ * and the console frame — silently teleported an admin out of the Backups tab
+ * into retail services, with nothing on screen and nothing in the log to say
+ * why. A bare await is what every other admin page here does: a redirect
+ * travels as a redirect, and a real refusal is reported where it can be read.
+ *
  * Everything on this page is about DATA_DATABASE_URL. The retail mall has its
  * own database and is not read, listed or counted anywhere here.
  */
 export default async function DataBackupsPage() {
-  const admin = await requireAdmin().catch(() => null);
-  if (!admin) redirect("/admin");
+  await requireAdmin();
 
   const [overview, history, restores, schedule] = await Promise.all([
     getBackupOverview(),
