@@ -5,6 +5,7 @@ import {
   Banknote,
   Bell,
   DatabaseBackup,
+  FileSpreadsheet,
   MessageSquare,
   Network,
   Gift,
@@ -62,6 +63,7 @@ const ICONS = {
   receipt: Receipt,
   rules: SlidersHorizontal,
   backup: DatabaseBackup,
+  sheet: FileSpreadsheet,
 } as const;
 
 export type TabIcon = keyof typeof ICONS;
