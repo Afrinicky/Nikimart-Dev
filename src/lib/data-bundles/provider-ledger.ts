@@ -202,3 +202,138 @@ export async function lastProviderReading(): Promise<ProviderBalanceReading | nu
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Declared movements
+// ---------------------------------------------------------------------------
+
+/**
+ * A movement on the provider's wallet that no reading could have seen.
+ *
+ * Everything above this line is inferred from the balance. That works from
+ * the first reading onwards and only at the resolution the readings were
+ * taken at, which leaves two blind spots: everything that happened before
+ * readings began, and anything that netted off against trading inside a
+ * single interval. Both are ordinary — a wallet funded for months before this
+ * console existed is the common case — and neither can be recovered by taking
+ * more readings now.
+ *
+ * So they are declared instead. A declared entry is an assertion rather than
+ * an observation, and it is kept as one: its own table, its own author, and
+ * its own line in the reconciliation, so a figure somebody typed is never
+ * quietly promoted to a figure the provider stated.
+ *
+ * And it never moves the balance. The balance is the provider's statement of
+ * what the wallet holds, read from the provider and written down unaltered;
+ * the moment an administrator can type over it, every reading after that
+ * proves nothing and the reconciliation below has no fixed point to work
+ * from. A declared entry goes on the history beside the balance, never into
+ * it — which is also why one being wrong costs nothing but a deletion.
+ */
+
+export const PROVIDER_ENTRY_KINDS = ["FUNDING", "DEBIT"] as const;
+export type ProviderEntryKind = (typeof PROVIDER_ENTRY_KINDS)[number];
+
+export interface ProviderEntry {
+  id: string;
+  kind: string;
+  amount: number;
+  occurredAt: Date;
+  note: string;
+  createdByEmail: string;
+  createdAt: Date;
+}
+
+export interface ProviderEntryInput {
+  kind: ProviderEntryKind;
+  amount: number;
+  occurredAt: Date;
+  note?: string;
+  byId?: string | null;
+  byEmail?: string;
+}
+
+/** Record a movement nobody could read off the balance. */
+export async function addProviderEntry(
+  input: ProviderEntryInput,
+): Promise<{ ok: true; entry: ProviderEntry } | { ok: false; error: string }> {
+  const amount = round2(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, error: "Enter an amount greater than zero." };
+  }
+  if (amount > 1_000_000) {
+    return { ok: false, error: "That amount looks wrong. Enter it in cedis, not pesewas." };
+  }
+  if (Number.isNaN(input.occurredAt.getTime())) {
+    return { ok: false, error: "Enter the date the money moved." };
+  }
+  // A movement dated into the future cannot have happened, and would sit at
+  // the top of the list pretending to be the most recent thing that did.
+  if (input.occurredAt.getTime() > Date.now() + 60_000) {
+    return { ok: false, error: "That date is in the future." };
+  }
+
+  try {
+    const entry = await dataDb.dataProviderEntry.create({
+      data: {
+        kind: input.kind,
+        amount,
+        occurredAt: input.occurredAt,
+        note: (input.note ?? "").trim().slice(0, 300),
+        createdById: input.byId ?? null,
+        createdByEmail: input.byEmail ?? "",
+      },
+    });
+    return { ok: true, entry };
+  } catch {
+    return {
+      ok: false,
+      error: "Couldn't save the entry. The declared-movements table may not be migrated yet.",
+    };
+  }
+}
+
+/** Undo a declared entry. Only ever the admin's own typing, never a reading. */
+export async function removeProviderEntry(id: string): Promise<boolean> {
+  try {
+    await dataDb.dataProviderEntry.delete({ where: { id } });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** What has been declared, newest first. */
+export async function listProviderEntries(limit = 50): Promise<ProviderEntry[]> {
+  try {
+    return await dataDb.dataProviderEntry.findMany({
+      orderBy: { occurredAt: "desc" },
+      take: limit,
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** Declared funding and declared spending, as two totals. */
+export async function providerEntryTotals(
+  since?: Date | null,
+): Promise<{ funding: number; debits: number }> {
+  try {
+    const rows = await dataDb.dataProviderEntry.groupBy({
+      by: ["kind"],
+      _sum: { amount: true },
+      where: since ? { occurredAt: { gte: since } } : undefined,
+    });
+    let funding = 0;
+    let debits = 0;
+    for (const row of rows) {
+      const value = round2(row._sum.amount ?? 0);
+      if (row.kind === "FUNDING") funding = value;
+      else if (row.kind === "DEBIT") debits = value;
+    }
+    return { funding, debits };
+  } catch {
+    return { funding: 0, debits: 0 };
+  }
+}

@@ -4,11 +4,13 @@ import { ArrowDownLeft, ArrowUpRight, RefreshCw, Store, Wallet } from "lucide-re
 import { TableFilters } from "@/components/admin/TableFilters";
 import { TablePager } from "@/components/admin/TablePager";
 import { TransactionsTable } from "@/components/admin/TransactionsTable";
+import { ProviderEntryForm } from "@/components/admin/ProviderEntryForm";
 import { formatMoney } from "@/lib/format";
 import { perPageFrom } from "@/lib/data-bundles/order-filters";
 import { getTopups } from "@/lib/data-bundles/topups";
 import {
   lastProviderReading,
+  listProviderEntries,
   readAndRecordProviderBalance,
 } from "@/lib/data-bundles/provider-ledger";
 import { recordProviderReading } from "@/lib/data-bundles/admin-actions";
@@ -83,9 +85,10 @@ export default async function AdminTopupLedgerPage({
   // appears only after a button.
   await readAndRecordProviderBalance();
 
-  const [{ rows, total, totals }, reading] = await Promise.all([
+  const [{ rows, total, totals }, reading, declared] = await Promise.all([
     getTopups({ kind, days, query, page, perPage }),
     lastProviderReading(),
+    listProviderEntries(25),
   ]);
   const pageCount = Math.max(1, Math.ceil(total / perPage));
   const windowLabel =
@@ -173,6 +176,22 @@ export default async function AdminTopupLedgerPage({
           </Suspense>
         ) : null}
       </section>
+
+      {/* Below the list, because it is the exception rather than the routine:
+          almost everything on this tab arrives on its own, and this is for the
+          movements that never will. */}
+      <div className="mt-4">
+        <ProviderEntryForm
+          entries={declared.map((entry) => ({
+            id: entry.id,
+            kind: entry.kind,
+            amount: entry.amount,
+            occurredAt: formatWhen(entry.occurredAt),
+            note: entry.note,
+            createdByEmail: entry.createdByEmail,
+          }))}
+        />
+      </div>
     </>
   );
 }

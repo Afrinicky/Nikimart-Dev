@@ -1317,6 +1317,45 @@ model DataProviderBalance {
   @@index([createdAt])
 }
 
+/**
+ * A movement on the provider's wallet declared by an administrator.
+ *
+ * Readings can only see what the balance did between two of them, so anything
+ * that happened before the first reading — or that netted off against trading
+ * inside one interval — is invisible to the arithmetic and stays invisible
+ * however many readings follow. Those are exactly the movements an audit has
+ * to account for, so they are entered rather than inferred.
+ *
+ * Kept in its own table rather than written as a synthetic reading. A reading
+ * is a fact the provider stated; this is a figure a person asserted, and the
+ * two carry different weight in a reconciliation. Keeping them apart also
+ * leaves the readings chain intact, since each reading's arithmetic is against
+ * the one before it and a row inserted into the middle of that chain would
+ * rewrite history that has already been counted.
+ */
+model DataProviderEntry {
+  id String @id @default(cuid())
+
+  /// FUNDING — money put into the wallet. DEBIT — money spent out of it
+  /// somewhere other than through Nickimart.
+  kind   String
+  /// Always positive (GH₵); `kind` carries the direction.
+  amount Float
+
+  /// When the money actually moved, which is rarely when it was typed in.
+  occurredAt DateTime
+  note       String   @default("")
+
+  /// Who declared it. An asserted figure is only as good as its author.
+  createdById    String?
+  createdByEmail String  @default("")
+
+  createdAt DateTime @default(now())
+
+  @@index([occurredAt])
+  @@index([kind, occurredAt])
+}
+
 // ---------------------------------------------------------------------------
 // Backup & recovery
 // ---------------------------------------------------------------------------

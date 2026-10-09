@@ -53,7 +53,16 @@ export const TRANSACTION_KINDS: TransactionKind[] = [
   { key: "VENDOR_PAYOUT", label: "Shop payout", flow: "out", scope: "retail" },
   { key: "AFFILIATE_PAYOUT", label: "Affiliate payout", flow: "out", scope: "retail" },
   // --- The provider's wallet ----------------------------------------------
-  { key: "PROVIDER_FUNDING", label: "Provider wallet funding", flow: "out", scope: "provider" },
+  // Funding that wallet is a transfer, not a cost. The cedis move from one
+  // Nickimart pocket to another and the business is no poorer for it: they
+  // become stock, and they are expensed later as the cost of the bundles they
+  // buy. Showing it as money out was double-counting the same cedi — once
+  // here and again as the cost price of every order it funded — and it read
+  // on the tab as a loss of GH₵300 on an afternoon when nothing was lost.
+  { key: "PROVIDER_FUNDING", label: "Provider wallet funding", flow: "internal", scope: "provider" },
+  // The float being spent, which is also internal: the cash left when the
+  // float was funded. The row carries a negative amount of its own, so it
+  // still reads as a reduction without being counted as a second outflow.
   { key: "PROVIDER_DEBIT", label: "Provider wallet debit", flow: "internal", scope: "provider" },
 ];
 

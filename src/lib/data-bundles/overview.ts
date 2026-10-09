@@ -152,6 +152,22 @@ export interface WindowTotals {
   revenue: number;
   cost: number;
   margin: number;
+  /** Agent and recruiter commission paid away on the window's sales. */
+  commission: number;
+  /**
+   * What the business itself earns on a bundle, across both channels.
+   *
+   * Gross margin is what the bundles made; this is what is left of it once
+   * the network has been paid. On an agent sale it is the difference between
+   * the agent price Nickimart charges and what the provider charged, because
+   * everything the agent added on top is theirs and is already out as
+   * commission. On a sale through Nickimart's own storefront no commission
+   * arises, so the whole of the margin is the business's.
+   *
+   * It is the answer to "what is Nickimart earning from data bundles", which
+   * gross margin overstates by exactly the commission bill.
+   */
+  netMargin: number;
   /** Orders that came through an agent, and what Nickimart kept on them. */
   agentOrders: number;
   agentRevenue: number;
@@ -175,6 +191,8 @@ export async function getWindowTotals(w: OverviewWindow): Promise<WindowTotals> 
     revenue: 0,
     cost: 0,
     margin: 0,
+    commission: 0,
+    netMargin: 0,
     agentOrders: 0,
     agentRevenue: 0,
     agentIncome: 0,
@@ -186,7 +204,7 @@ export async function getWindowTotals(w: OverviewWindow): Promise<WindowTotals> 
       dataDb.dataOrder.aggregate({
         where: { ...where, ...within(w) },
         _count: { _all: true },
-        _sum: { price: true, costPrice: true },
+        _sum: { price: true, costPrice: true, agentCommission: true, teamCommission: true },
       }),
       dataDb.dataOrder.aggregate({
         where: { ...where, agentId: { not: null }, ...within(w) },
@@ -204,12 +222,18 @@ export async function getWindowTotals(w: OverviewWindow): Promise<WindowTotals> 
 
     const revenue = round2(now._sum.price ?? 0);
     const cost = round2(now._sum.costPrice ?? 0);
+    // Both commissions together, because both come out of Nickimart's side of
+    // the sale: the selling agent's margin over the agent price, and the cut
+    // their recruiter is paid out of ours.
+    const commission = round2((now._sum.agentCommission ?? 0) + (now._sum.teamCommission ?? 0));
     const agentRevenue = round2(agent._sum.price ?? 0);
     return {
       orders: now._count._all,
       revenue,
       cost,
       margin: round2(revenue - cost),
+      commission,
+      netMargin: round2(revenue - cost - commission),
       agentOrders: agent._count._all,
       agentRevenue,
       agentIncome: round2(
