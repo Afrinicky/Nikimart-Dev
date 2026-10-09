@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { DatabaseBackup, Download, ShieldCheck } from "lucide-react";
+import { DatabaseBackup, Download, HardDriveDownload, ShieldCheck } from "lucide-react";
 import { SubmitButton } from "@/components/ui/motion";
 import { FormFeedback } from "@/components/ui/FormFeedback";
 import { createDataBackup, type BackupActionState } from "@/lib/data-bundles/backup-actions";
@@ -48,7 +48,10 @@ export function DataBackupPanel({
               registrations, settings, notifications, support, team and provider balances. Tables
               are discovered from the database itself, so nothing new gets left out.
             </p>
-            <p className="mt-2 text-xs text-niki-ink/50">{storageSummary}</p>
+            <p className="mt-2 text-xs text-niki-ink/50">
+              {storageSummary} Downloading to your computer needs no storage at all — the snapshot
+              is built and sent straight to you, and nothing is kept here.
+            </p>
           </div>
         </div>
       </div>
@@ -63,6 +66,22 @@ export function DataBackupPanel({
           >
             Create Full Backup
           </SubmitButton>
+
+          {/*
+            The way out that depends on nothing. A plain anchor, so the browser
+            does the downloading and no storage has to be configured, working
+            or reachable for an admin to get a copy of their own database. It
+            is always available — including while the stored path is broken,
+            which is exactly when somebody needs it most.
+          */}
+          <a
+            href="/admin/data/settings/backups/download-now"
+            download
+            className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-niki-ink/75 ring-1 ring-niki-edge-strong transition-colors hover:bg-niki-surface"
+          >
+            <HardDriveDownload className="h-4 w-4 text-niki-success" />
+            Download backup to this computer
+          </a>
           {state.ok && state.backupId ? (
             <a
               href={`/admin/data/settings/backups/${state.backupId}/download`}
@@ -75,10 +94,11 @@ export function DataBackupPanel({
         </div>
 
         {!canStore ? (
-          <p className="text-sm font-medium text-niki-danger">
-            No backup storage is configured, so there is nowhere to put the file. Set the
-            DATA_BACKUP_S3_* variables for cloud storage, or DATA_BACKUP_LOCAL_DIR for a directory
-            on the server.
+          <p className="rounded-xl bg-niki-gold/15 px-4 py-3 text-sm text-amber-900 ring-1 ring-niki-gold/30">
+            No backup storage is configured, so there is nowhere to keep a snapshot for later —
+            set the DATA_BACKUP_S3_* variables for cloud storage, or DATA_BACKUP_LOCAL_DIR for a
+            directory on the server. Downloading straight to your computer works regardless, and
+            a file you keep somewhere safe is a real backup.
           </p>
         ) : null}
 

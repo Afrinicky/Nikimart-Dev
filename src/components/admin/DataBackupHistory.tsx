@@ -131,7 +131,12 @@ export function DataBackupHistory({ rows }: { rows: DataBackupSummary[] }) {
                     Download
                   </a>
                 ) : (
-                  <span className="text-xs text-niki-ink/40">Unavailable</span>
+                  // Why there is nothing to click, rather than a button that
+                  // could only fail: a direct download was never kept here,
+                  // and a temporary copy does not survive a deploy.
+                  <span className="text-xs text-niki-ink/45" title={unavailableReason(b)}>
+                    {b.status === "completed" ? unavailableLabel(b) : "—"}
+                  </span>
                 )}
               </td>
             </tr>
@@ -140,4 +145,19 @@ export function DataBackupHistory({ rows }: { rows: DataBackupSummary[] }) {
       </table>
     </div>
   );
+}
+
+/** Short label for a completed backup with no file to hand over. */
+function unavailableLabel(b: DataBackupSummary): string {
+  if (b.kind === "download") return "Not retained";
+  if (b.locations.some((l) => l.label === "Temporary server storage")) return "Copy expired";
+  return "Unavailable";
+}
+
+function unavailableReason(b: DataBackupSummary): string {
+  if (b.kind === "download")
+    return "This snapshot was downloaded straight to a computer and never stored here.";
+  if (b.locations.some((l) => l.label === "Temporary server storage"))
+    return "This snapshot was written to temporary server storage, which does not survive a restart or a deploy. Take a fresh backup.";
+  return "No stored copy of this backup remains.";
 }
