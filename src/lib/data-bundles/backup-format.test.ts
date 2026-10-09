@@ -98,9 +98,10 @@ test("only json and jsonb columns are treated as JSON", () => {
 test("the migration ledgers and the backup history are never dumped", () => {
   assert.equal(isExcludedFromBackup("_prisma_migrations"), true);
   assert.equal(isExcludedFromBackup("_NikiMigration"), true);
-  // Restoring backup history would erase the record of the safety backup taken
-  // moments before the restore.
+  // Restoring backup or restore history would erase the record of the restore
+  // itself, and of the safety backup taken moments before it.
   assert.equal(isExcludedFromBackup("DataBackup"), true);
+  assert.equal(isExcludedFromBackup("DataRestore"), true);
   assert.equal(isExcludedFromBackup("DataOrder"), false);
   assert.equal(isExcludedFromBackup("DataAgentLedger"), false);
 });

@@ -1383,3 +1383,53 @@ model DataBackup {
   @@index([status])
   @@index([kind, startedAt])
 }
+
+/// One attempt to restore this database from a backup file.
+///
+/// Every attempt is logged, successful or not: a restore destroys data by
+/// design, and the questions afterwards are always who ran it, what they
+/// restored, and where the copy of what they overwrote went. `safetyBackupId`
+/// answers the last one — it is the snapshot taken automatically of the live
+/// database immediately before the first destructive statement, and the
+/// restore refuses to proceed if taking it fails.
+///
+/// Excluded from backups along with DataBackup and the migration ledgers: a
+/// restore must not erase the record of the restore.
+model DataRestore {
+  id String @id
+
+  /// running | completed | failed.
+  status String @default("running")
+
+  /// Where the file came from: a backup id from history, or an uploaded name.
+  source String @default("")
+  /// Set when the file came from this database's own backup history.
+  sourceBackupId String @default("")
+
+  /// What the file says about itself, read out of its header.
+  backupId            String    @default("")
+  backupTakenAt       DateTime?
+  backupDatabaseId    String    @default("")
+  backupSchemaVersion String    @default("")
+
+  /// The copy of the pre-restore database. The way back.
+  safetyBackupId String @default("")
+
+  tableCount  Int @default(0)
+  recordCount Int @default(0)
+
+  /// Per-table expected/actual counts, as JSON, read back after the write.
+  verification String @default("[]")
+
+  error      String?
+  durationMs Int     @default(0)
+
+  createdById    String @default("")
+  createdByEmail String @default("")
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([startedAt])
+  @@index([status])
+}
