@@ -4,6 +4,7 @@ import { unstable_cache } from "next/cache";
 import { dataDb } from "@/lib/data-db";
 import { getSettings as getRetailSettings } from "@/lib/settings";
 import { programPaymentMode, type PaymentMode } from "@/lib/data-bundles/payment-mode";
+import type { Network } from "@/lib/data-bundles/networks";
 
 /**
  * Settings for the data-bundle business, stored in the data-bundle database.
@@ -165,33 +166,71 @@ export const DATA_SETTINGS_DEFAULTS = {
   backupRetainWeekly: "8",
   backupRetainMonthly: "12",
 
-  // --- Developer: how MTN orders are fulfilled ------------------------------
-  // Which upstream actually delivers an MTN bundle.
+  // --- Developer: how each network's orders are fulfilled -------------------
+  // Which upstream actually delivers a bundle on each network:
   //
-  //   JUSTICE  the reseller API that has always fulfilled every order.
-  //   MTN      MTN's own Customer Data Transfer API, transferring out of a
-  //            Nickimart MTN line (credentials in the environment).
+  //   JUSTICE     the reseller API that has always fulfilled every order.
+  //   MTN         MTN's own Customer Data Transfer API.
+  //   TELECEL     Telecel's own API, when there is an adapter for it.
+  //   AIRTELTIGO  AirtelTigo's own API — one account covering both iShare and
+  //               BigTime, which is why those two have a key each but name the
+  //               same carrier.
   //
-  // It defaults to JUSTICE and nothing moves it but an admin on the Developer
-  // tab. That is the point: the MTN route ships inert, and a store that never
-  // opens that tab behaves exactly as it did before it existed. The other
-  // three networks have no setting at all — MTN's transfer API can only credit
-  // an MTN subscriber, so there is no choice to offer.
+  // One key per network rather than per carrier, because a buyer chooses a
+  // network and that is the unit an admin wants to move. A value naming a
+  // carrier with no adapter, or one that does not cover that network, is read
+  // as JUSTICE — so a key set in advance of an integration landing is inert
+  // rather than broken.
   //
-  // This is a setting rather than an environment variable precisely because it
-  // is the one thing that must be changeable *now*: turning the route off is
+  // All default to JUSTICE and nothing moves them but an admin on the
+  // Developer tab. That is the point: a direct route ships inert, and a store
+  // that never opens that tab behaves exactly as it did before any of this
+  // existed.
+  //
+  // These are settings rather than environment variables precisely because
+  // they are the thing that must be changeable *now*: turning a route off is
   // how you stop it, and that cannot wait on a deploy.
   dataRouteMTN: "JUSTICE",
+  dataRouteTELECEL: "JUSTICE",
+  dataRouteAIRTELTIGO_ISHARE: "JUSTICE",
+  dataRouteAIRTELTIGO_BIGTIME: "JUSTICE",
 
-  // Bundle size to MTN product code, one per line ("5 = MTN_DATA_5GB").
-  // See mtn/products.ts for the format and what an unreadable line does.
+  // Bundle size to carrier product code, one network per key, one bundle per
+  // line ("5 = MTN_DATA_5GB"). See carriers/products.ts for the format.
   //
-  // Here rather than in the environment because it is not a secret and it
-  // moves: every bundle size added to the ladder needs a line, and needing a
+  // Per network, not per carrier: the sizes on sale differ between the four
+  // ladders, and a carrier covering two networks still needs a different code
+  // for the same number of gigabytes on each.
+  //
+  // Here rather than in the environment because these are not secrets and they
+  // move: every bundle size added to the ladder needs a code, and needing a
   // redeploy to sell a new size is the kind of friction that ends with the
   // size being sold through the wrong provider instead.
+  dataProductCodesMTN: "",
+  dataProductCodesTELECEL: "",
+  dataProductCodesAIRTELTIGO_ISHARE: "",
+  dataProductCodesAIRTELTIGO_BIGTIME: "",
+
+  /**
+   * The name dataProductCodesMTN had while MTN was the only carrier. Read as
+   * a fallback when the new key is empty, so anything typed into the console
+   * before the other networks existed is not silently lost. Nothing writes it.
+   */
   mtnProductCodes: "",
 } as const;
+
+/**
+ * The settings key holding one network's route, and one network's product
+ * codes. Built here rather than interpolated at each call site, so a typo is a
+ * compile error instead of a setting that silently never saves.
+ */
+export function routeSettingKey(network: Network): DataSettingKey {
+  return `dataRoute${network}` as DataSettingKey;
+}
+
+export function productCodesSettingKey(network: Network): DataSettingKey {
+  return `dataProductCodes${network}` as DataSettingKey;
+}
 
 export type DataSettingKey = keyof typeof DATA_SETTINGS_DEFAULTS;
 export type DataSettings = Record<DataSettingKey, string>;

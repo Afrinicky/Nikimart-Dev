@@ -3,22 +3,29 @@ import { siteUrl } from "@/lib/site";
 import { callbackToken } from "@/lib/data-bundles/callback-token";
 import { mapProviderStatus, type DataOrderStatus, type Network } from "@/lib/data-bundles/networks";
 import {
+  getDataSettings,
+  productCodesSettingKey,
+  routeSettingKey,
+} from "@/lib/data-bundles/settings";
+import {
   createProviderOrder,
   getProviderOrder,
   isDataProviderConfigured,
 } from "@/lib/data-bundles/provider";
-import { getMtnConfig, type MtnConfig } from "@/lib/data-bundles/mtn/config";
-import { transferDataBundle, transferStatus } from "@/lib/data-bundles/mtn/client";
-import { mapMtnStatus, mtnMessage, mtnValueCharged } from "@/lib/data-bundles/mtn/status";
-import { productCodeFor } from "@/lib/data-bundles/mtn/products";
-import { toMtnMsisdn } from "@/lib/data-bundles/mtn/msisdn";
+import {
+  carrierById,
+  carrierForNetwork,
+  summarise,
+  type CarrierPlacement,
+} from "@/lib/data-bundles/carriers/registry";
 import {
   decideRoute,
-  mtnTransactionId,
   normaliseRoute,
+  RESELLER_ROUTE,
   type FulfilmentRoute,
   type RouteDecision,
-} from "@/lib/data-bundles/mtn/route-rules";
+} from "@/lib/data-bundles/carriers/rules";
+import { parseProductMapping, productCodeFor } from "@/lib/data-bundles/carriers/products";
 
 /**
  * One door between fulfilment and whoever actually delivers the data.
@@ -26,13 +33,17 @@ import {
  * `fulfillment.ts` owns the order's lifecycle — the guarded claim that stops a
  * bundle being bought twice, the commission that is only paid on delivery, the
  * notifications — and none of that cares which upstream is used. So the whole
- * difference between the two providers is here, behind two functions that
- * answer in one shape.
+ * difference between the reseller and a carrier's own API is here, behind two
+ * functions that answer in one shape.
  *
- * What that buys: the live fulfilment path gains four lines and no new
- * branching, and a route that is off or half-configured is handled *before*
- * fulfilment sees it, by `decideRoute`, which always has an answer and whose
- * answer in any doubt is the provider that has always delivered.
+ * Carriers are looked up in the registry rather than named here, so Telecel
+ * and AirtelTigo arriving means a new adapter and nothing else: this file does
+ * not change, and neither does fulfilment.
+ *
+ * What that buys: the live fulfilment path has no branching on provider at
+ * all, and a route that is off, unbuilt or half-configured is handled *before*
+ * fulfilment sees it, by `decideRoute`, whose answer in any doubt is the
+ * reseller that has always delivered.
  */
 
 export type { FulfilmentRoute, RouteDecision };
@@ -44,25 +55,14 @@ export interface OrderForDispatch {
   sizeGb: number;
   recipientPhone: string;
   /** The previous attempt's dispatch time, where there was one. Null on a
-   *  first dispatch. It is what gives a deliberate re-order a fresh MTN
+   *  first dispatch. It is what gives a deliberate re-order a fresh carrier
    *  transaction id instead of colliding with the attempt that failed. */
   dispatchedAt?: Date | null;
 }
 
 /** The result of handing an order to an upstream, however it was handed over. */
-export interface PlacedOrder {
-  ok: boolean;
-  message: string;
+export interface PlacedOrder extends CarrierPlacement {
   route: FulfilmentRoute;
-  /** The upstream reference to store: their order id, or our MTN transaction id. */
-  providerOrderId: string | null;
-  providerCode: string | null;
-  /** The upstream's own status word, kept for display. */
-  providerStatus: string | null;
-  /** That status in our vocabulary. */
-  status: DataOrderStatus;
-  /** What it cost in GH₵, where the upstream said. Null when it did not. */
-  charged: number | null;
 }
 
 export interface StatusRead {
@@ -77,24 +77,42 @@ export interface StatusRead {
 // Which route
 // ---------------------------------------------------------------------------
 
+/** One network's product code for one size, from the stored mapping. */
+async function productCodeForOrder(
+  network: string,
+  sizeGb: number,
+  settings?: Record<string, string>,
+): Promise<string | null> {
+  const stored = settings ?? ((await getDataSettings()) as unknown as Record<string, string>);
+  const key = productCodesSettingKey(network as Network);
+  // The pre-multi-network key is read only when the current one is empty, so
+  // codes typed before the other networks existed are not silently lost.
+  const raw = stored[key] || (network === "MTN" ? stored.mtnProductCodes : "") || "";
+  return productCodeFor(parseProductMapping(raw), sizeGb);
+}
+
 /**
  * The route an order would take right now, and why.
  *
  * Exported for the console, which has to be able to say what *would* happen
- * before an admin throws the switch — and, afterwards, why a particular order
+ * before an admin throws a switch — and, afterwards, why a particular order
  * did not go the way they expected.
  */
 export async function routeFor(
   order: { network: string; sizeGb: number },
-  config?: MtnConfig,
+  settings?: Record<string, string>,
 ): Promise<RouteDecision> {
-  const mtn = config ?? (await getMtnConfig());
+  const stored = settings ?? ((await getDataSettings()) as unknown as Record<string, string>);
+  const adapter = carrierForNetwork(order.network);
+
   return decideRoute({
     network: order.network,
     sizeGb: order.sizeGb,
-    mtnRouteEnabled: mtn.routeEnabled,
-    mtnReady: mtn.isReady,
-    productCode: productCodeFor(mtn.products, order.sizeGb),
+    carrier: adapter ? summarise(adapter) : null,
+    routeSetting: stored[routeSettingKey(order.network as Network)],
+    productCode: adapter?.usesProductCodes
+      ? await productCodeForOrder(order.network, order.sizeGb, stored)
+      : null,
   });
 }
 
@@ -102,8 +120,13 @@ export async function routeFor(
 function callbackUrlFor(reference: string, route: FulfilmentRoute): string | undefined {
   const token = callbackToken(reference);
   if (!token) return undefined; // no AUTH_SECRET → no callback we could trust
+  // One route, one path. A carrier's callback is shaped like that carrier and
+  // nothing else, so parsing them in one place would mean guessing which had
+  // arrived.
   const path =
-    route === "MTN" ? "/api/data-bundles/mtn/callback" : "/api/data-bundles/webhook";
+    route === RESELLER_ROUTE
+      ? "/api/data-bundles/webhook"
+      : `/api/data-bundles/${route.toLowerCase()}/callback`;
   const url = new URL(path, siteUrl());
   url.searchParams.set("ref", reference);
   url.searchParams.set("token", token);
@@ -115,9 +138,10 @@ function callbackUrlFor(reference: string, route: FulfilmentRoute): string | und
  *
  * Fulfilment used to ask whether the reseller's API key was present, which was
  * the same question when there was one provider. It is not any more: an order
- * routed to MTN does not need that key, and refusing to dispatch it for want
- * of one would make the MTN route silently depend on a credential it never
- * uses. So the question is asked of the route that will actually be used.
+ * routed to a carrier does not need that key, and refusing to dispatch it for
+ * want of one would make every direct route silently depend on a credential it
+ * never uses. So the question is asked of the route that will actually be
+ * used.
  *
  * The reseller's wording is kept exactly as it was, because it is what an
  * admin has been reading on stalled orders for as long as this has existed.
@@ -128,10 +152,9 @@ export async function canDispatch(order: {
 }): Promise<{ ok: boolean; message: string; waitingMessage: string }> {
   const decision = await routeFor(order);
 
-  if (decision.route === "MTN") {
-    // The route only resolves to MTN when the configuration is complete, so
-    // reaching here means it is ready. The branch exists so that adding a
-    // third route cannot accidentally inherit the reseller's check.
+  if (decision.route !== RESELLER_ROUTE) {
+    // The route only resolves to a carrier when its configuration is complete,
+    // so reaching here means it is ready.
     return { ok: true, message: "OK", waitingMessage: "" };
   }
 
@@ -157,28 +180,43 @@ export async function canDispatch(order: {
  * what lets an admin retry it.
  */
 export async function placeBundleOrder(order: OrderForDispatch): Promise<PlacedOrder> {
-  const mtn = await getMtnConfig();
-  const decision = await routeFor(order, mtn);
+  const decision = await routeFor(order);
 
-  if (decision.route === "MTN" && decision.productCode) {
-    return placeViaMtn(order, mtn, decision.productCode);
+  if (decision.route !== RESELLER_ROUTE) {
+    const adapter = carrierById(decision.route);
+    if (adapter) {
+      const placement = await adapter.place({
+        reference: order.reference,
+        network: order.network as Network,
+        sizeGb: order.sizeGb,
+        recipientPhone: order.recipientPhone,
+        productCode: decision.productCode ?? null,
+        dispatchedAt: order.dispatchedAt,
+        callbackUrl: callbackUrlFor(order.reference, decision.route),
+      });
+      return { ...placement, route: decision.route };
+    }
+    // Decided on a carrier the registry cannot produce. Not reachable today —
+    // the decision came from the registry — but delivering through the
+    // reseller beats throwing on a paid order if it ever becomes reachable.
   }
-  return placeViaJustice(order);
+
+  return placeViaReseller(order);
 }
 
-async function placeViaJustice(order: OrderForDispatch): Promise<PlacedOrder> {
+async function placeViaReseller(order: OrderForDispatch): Promise<PlacedOrder> {
   const res = await createProviderOrder({
     phone: order.recipientPhone,
     size: order.sizeGb,
     network: order.network as Network,
-    callback: callbackUrlFor(order.reference, "JUSTICE"),
+    callback: callbackUrlFor(order.reference, RESELLER_ROUTE),
   });
 
   if (!res.ok || !res.payload?.id) {
     return {
       ok: false,
       message: res.message,
-      route: "JUSTICE",
+      route: RESELLER_ROUTE,
       providerOrderId: null,
       providerCode: null,
       providerStatus: null,
@@ -190,82 +228,12 @@ async function placeViaJustice(order: OrderForDispatch): Promise<PlacedOrder> {
   return {
     ok: true,
     message: res.message,
-    route: "JUSTICE",
+    route: RESELLER_ROUTE,
     providerOrderId: res.payload.id,
     providerCode: res.payload.orderCode ?? null,
     providerStatus: res.payload.status ?? null,
     status: mapProviderStatus(res.payload.status),
     charged: typeof res.payload.price === "number" ? res.payload.price / 100 : null,
-  };
-}
-
-async function placeViaMtn(
-  order: OrderForDispatch,
-  config: MtnConfig,
-  productCode: string,
-): Promise<PlacedOrder> {
-  const receiver = toMtnMsisdn(order.recipientPhone, config.msisdnFormat);
-  if (!receiver) {
-    // Nothing was sent, so nothing was spent. Reported as a failed dispatch
-    // rather than quietly rerouted: a recipient number this layer cannot read
-    // is a problem with the order, and the other provider would reject it too.
-    return {
-      ok: false,
-      message: `${order.recipientPhone} is not a number MTN can credit.`,
-      route: "MTN",
-      providerOrderId: null,
-      providerCode: null,
-      providerStatus: null,
-      status: "failed",
-      charged: null,
-    };
-  }
-
-  // Derived from the order, never generated fresh here — it is what makes a
-  // repeated dispatch safe. See mtnTransactionId.
-  const transactionId = mtnTransactionId(order.reference, order.dispatchedAt ?? null);
-
-  const res = await transferDataBundle(config, {
-    receiverMsisdn: receiver,
-    productCode,
-    transactionId,
-    callbackUrl: config.callbackEnabled ? callbackUrlFor(order.reference, "MTN") : undefined,
-  });
-
-  const envelope = res.payload;
-  const status = envelope
-    ? mapMtnStatus({
-        statusCode: envelope.statusCode,
-        transactionState: envelope.data?.transactionState,
-      })
-    : "failed";
-
-  // MTN can answer 200 with a rejecting statusCode — that is a transfer that
-  // did not happen, and it must not be stored as one that did.
-  if (!res.ok || status === "failed") {
-    return {
-      ok: false,
-      message: res.message,
-      route: "MTN",
-      providerOrderId: null,
-      providerCode: null,
-      providerStatus: envelope?.data?.transactionState ?? envelope?.statusCode ?? null,
-      status: "failed",
-      charged: null,
-    };
-  }
-
-  return {
-    ok: true,
-    message: res.message,
-    route: "MTN",
-    // MADAPI answers about the id we sent, so that id *is* the upstream
-    // reference — there is no other one to store.
-    providerOrderId: transactionId,
-    providerCode: envelope?.data?.productCode ?? productCode,
-    providerStatus: envelope?.data?.transactionState ?? null,
-    status,
-    charged: mtnValueCharged(envelope?.data?.valueCharged, envelope?.data?.unit),
   };
 }
 
@@ -287,40 +255,21 @@ export async function readBundleStatus(order: {
     };
   }
 
-  if (normaliseRoute(order.fulfilledBy) === "MTN") {
-    const config = await getMtnConfig();
-    // Deliberately not gated on `isReady`: an order already sent through MTN
-    // still has to be readable after the switch has been turned off again.
-    if (!config.clientId || !config.clientSecret) {
+  // From the row, never from today's settings: the route is a switch an admin
+  // can throw at any moment, and an order placed through one upstream has to
+  // stay readable afterwards.
+  const route = normaliseRoute(order.fulfilledBy);
+  if (route !== RESELLER_ROUTE) {
+    const adapter = carrierById(route);
+    if (!adapter) {
       return {
         ok: false,
-        message: "MTN credentials are no longer configured.",
+        message: `No adapter for ${route} is installed any more.`,
         providerStatus: null,
         status: null,
       };
     }
-
-    const res = await transferStatus(config, order.providerOrderId);
-    const envelope = res.payload;
-    if (!res.ok || !envelope) {
-      return { ok: false, message: res.message, providerStatus: null, status: null };
-    }
-
-    return {
-      ok: true,
-      message: mtnMessage({
-        statusCode: envelope.statusCode,
-        statusMessage: envelope.statusMessage,
-        supportMessage: envelope.supportMessage,
-        downstreamStatusCode: envelope.downstreamStatusCode,
-        transactionState: envelope.data?.transactionState,
-      }),
-      providerStatus: envelope.data?.transactionState ?? envelope.statusCode ?? null,
-      status: mapMtnStatus({
-        statusCode: envelope.statusCode,
-        transactionState: envelope.data?.transactionState,
-      }),
-    };
+    return adapter.readStatus(order.providerOrderId);
   }
 
   const res = await getProviderOrder(order.providerOrderId);

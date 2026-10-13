@@ -1,12 +1,17 @@
-import { NETWORKS, type Network } from "../networks.ts";
+import type { Network } from "../networks.ts";
 
 /**
- * Which MTN product a bundle size corresponds to.
+ * Which carrier product a bundle size corresponds to.
  *
- * MADAPI identifies what is being transferred by `productCode` (or
- * `productId`) — codes issued per account, which no amount of reading the
- * specification will tell you. They are therefore typed in by an admin on the
- * Developer tab rather than derived from anything.
+ * A carrier API identifies what is being sold by a `productCode` — codes
+ * issued per account, which no amount of reading a specification will tell
+ * you. They are therefore typed in by an admin on the Developer tab rather
+ * than derived from anything.
+ *
+ * One mapping per *network*, not per carrier: the sizes on sale differ between
+ * MTN, Telecel and the two AirtelTigo ladders, and a carrier that covers two
+ * networks still needs a different code for the same number of gigabytes on
+ * each.
  *
  * It is stored as text, one bundle per line:
  *
@@ -84,24 +89,20 @@ export function productCodeFor(mapping: ProductMapping, sizeGb: number): string 
  * Bundle sizes that are on sale but have no product code.
  *
  * The admin console shows this so the gap is visible *before* the switch is
- * thrown, rather than discovered one failed order at a time. Only MTN sizes
- * count — the other networks never route this way.
+ * thrown, rather than discovered one failed order at a time. Only this
+ * network's sizes count.
  */
 export function unmappedSizes(
   mapping: ProductMapping,
   bundles: Array<{ network: string; sizeGb: number; isActive: boolean }>,
+  network: Network,
 ): number[] {
   const missing = new Set<number>();
   for (const bundle of bundles) {
-    if (bundle.network !== "MTN" || !bundle.isActive) continue;
+    if (bundle.network !== network || !bundle.isActive) continue;
     if (!productCodeFor(mapping, bundle.sizeGb)) missing.add(sizeKey(bundle.sizeGb));
   }
   return [...missing].sort((a, b) => a - b);
-}
-
-/** True when `value` names one of the networks we sell. Guards a stored route. */
-export function isKnownNetwork(value: unknown): value is Network {
-  return typeof value === "string" && (NETWORKS as readonly string[]).includes(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -119,8 +120,30 @@ export function isKnownNetwork(value: unknown): value is Network {
  * dies at render with "the module has no exports at all". Keeping shared
  * constants out of those files is the only reliable guard.
  */
-export const CODE_FIELD_PREFIX = "mtnCode__";
-export const PRODUCT_CODES_SUBMITTED = "mtnProductCodesSubmitted";
+export const CODE_FIELD_PREFIX = "carrierCode__";
+export const PRODUCT_CODES_SUBMITTED_PREFIX = "productCodesSubmitted__";
+
+/** The input holding one network's code for one bundle size. */
+export function codeFieldName(network: Network, sizeGb: number): string {
+  return `${CODE_FIELD_PREFIX}${network}__${sizeGb}`;
+}
+
+/** The marker saying this network's product-code form was the one submitted. */
+export function productCodesSubmittedField(network: Network): string {
+  return `${PRODUCT_CODES_SUBMITTED_PREFIX}${network}`;
+}
+
+/**
+ * Read a size back out of a field name, for the network being saved. Returns
+ * null for a field belonging to another network or shaped wrongly, so one
+ * network's form can never rewrite another's mapping.
+ */
+export function sizeFromCodeField(field: string, network: Network): number | null {
+  const prefix = `${CODE_FIELD_PREFIX}${network}__`;
+  if (!field.startsWith(prefix)) return null;
+  const size = Number(field.slice(prefix.length));
+  return Number.isFinite(size) && size > 0 ? size : null;
+}
 
 export interface ProductRow {
   sizeGb: number;
@@ -153,17 +176,18 @@ export interface ProductRows {
  *
  * Inactive bundles get a row too, marked as such, so a code can be set before
  * the size goes on sale. Switching a bundle on otherwise leaves it routing to
- * the old provider until somebody remembers to come back here.
+ * the reseller until somebody remembers to come back here.
  */
 export function productRows(
   mapping: ProductMapping,
   bundles: Array<{ network: string; sizeGb: number; isActive: boolean }>,
+  network: Network,
 ): ProductRows {
   const ladder: ProductRow[] = [];
   const inLadder = new Set<number>();
 
   for (const bundle of bundles) {
-    if (bundle.network !== "MTN") continue;
+    if (bundle.network !== network) continue;
     const key = sizeKey(bundle.sizeGb);
     if (inLadder.has(key)) continue; // defensive: the table is unique on (network, size)
     inLadder.add(key);

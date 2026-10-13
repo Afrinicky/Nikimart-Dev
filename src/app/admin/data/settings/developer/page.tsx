@@ -1,66 +1,100 @@
 import type { Metadata } from "next";
-import { DeveloperSettingsForm } from "@/components/admin/DeveloperSettingsForm";
-import { getMtnConfig, mtnEnvStatus } from "@/lib/data-bundles/mtn/config";
-import { productRows, unmappedSizes } from "@/lib/data-bundles/mtn/products";
-import { getAllBundles } from "@/lib/data-bundles/catalog";
+import {
+  DeveloperSettingsForm,
+  type CarrierView,
+  type NetworkView,
+} from "@/components/admin/DeveloperSettingsForm";
+import { getDataSettings, productCodesSettingKey, routeSettingKey } from "@/lib/data-bundles/settings";
+import { NETWORK_INFO, NETWORKS } from "@/lib/data-bundles/networks";
+import { CARRIERS, carrierForNetwork } from "@/lib/data-bundles/carriers/registry";
+import { normaliseRoute } from "@/lib/data-bundles/carriers/rules";
+import {
+  parseProductMapping,
+  productRows,
+  unmappedSizes,
+} from "@/lib/data-bundles/carriers/products";
+import { getAllBundles, type Bundle } from "@/lib/data-bundles/catalog";
 import { siteUrl } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Developer — Data Store Settings — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 /**
- * Developer settings: the fulfilment route, the product codes, and a read-only
- * view of the environment.
+ * Developer settings: how each network is fulfilled, the product codes behind
+ * it, and a read-only view of the environment.
  *
- * Nothing secret reaches this page. `mtnEnvStatus` reports which variables are
+ * Every row is derived — the networks from the network list, their carriers
+ * from the registry, their bundle sizes from the price ladder. Nothing here is
+ * a list that could fall behind the thing it describes, which is what makes a
+ * new carrier a one-line registry change rather than an edit to this page.
+ *
+ * Nothing secret reaches the browser. The adapters report which variables are
  * set and never what they hold, so the props handed to the client component
  * contain no credential, masked or otherwise.
  */
 export default async function AdminDataDeveloperSettingsPage() {
-  const mtn = await getMtnConfig();
+  const settings = (await getDataSettings()) as unknown as Record<string, string>;
 
-  // The product-code rows are the price ladder itself, so there is no list of
-  // sizes maintained here that could fall behind the one being sold. `unmapped`
-  // is the same data read as a warning: sizes on sale with no code, which would
-  // quietly keep using the old route.
-  let rows = productRows(mtn.products, []);
-  let unmapped: number[] = [];
+  let bundles: Bundle[] = [];
   try {
-    const bundles = await getAllBundles();
-    rows = productRows(mtn.products, bundles);
-    unmapped = unmappedSizes(mtn.products, bundles);
+    bundles = await getAllBundles();
   } catch {
-    // The ladder is unreadable (not migrated, database briefly away). Falling
-    // back to no rows keeps the rest of the page usable — and, importantly,
-    // every stored code then shows as an orphan rather than appearing lost.
-    rows = productRows(mtn.products, []);
+    // The ladder is unreadable (not migrated, database briefly away). The page
+    // is still worth showing: every stored code then appears as an orphan
+    // rather than appearing lost.
   }
 
-  const callbackUrl = new URL("/api/data-bundles/mtn/callback", siteUrl()).toString();
+  const networks: NetworkView[] = NETWORKS.map((network) => {
+    const adapter = carrierForNetwork(network);
+    const { ready, missing } = adapter?.readiness() ?? { ready: false, missing: [] };
+
+    // The pre-multi-network key is read only when the current one is empty, so
+    // codes typed before the other networks existed are not silently lost.
+    const raw =
+      settings[productCodesSettingKey(network)] ||
+      (network === "MTN" ? settings.mtnProductCodes : "") ||
+      "";
+    const mapping = parseProductMapping(raw);
+    const rows = productRows(mapping, bundles, network);
+
+    return {
+      network,
+      label: NETWORK_INFO[network].label,
+      carrierId: adapter?.id ?? null,
+      carrierLabel: adapter?.label ?? null,
+      live: adapter ? normaliseRoute(settings[routeSettingKey(network)]) === adapter.id : false,
+      ready,
+      missing,
+      usesProductCodes: adapter?.usesProductCodes ?? false,
+      ladder: rows.ladder,
+      orphans: rows.orphans,
+      productProblems: mapping.problems,
+      unmapped: unmappedSizes(mapping, bundles, network),
+      mappedCount: mapping.codes.size,
+    };
+  });
+
+  const carriers: CarrierView[] = CARRIERS.map((adapter) => ({
+    id: adapter.id,
+    label: adapter.label,
+    env: adapter.envVars(),
+    hasTest: typeof adapter.test === "function",
+    callbackUrl: new URL(
+      `/api/data-bundles/${adapter.id.toLowerCase()}/callback`,
+      siteUrl(),
+    ).toString(),
+  }));
 
   return (
     <div className="max-w-3xl">
       <p className="text-sm text-niki-ink/60">
         Integrations for the bundle business. Credentials live in the deployment&apos;s
-        environment variables; what is editable here is the route and the product codes. Nothing
-        on this page changes how an order is delivered until the fulfilment route is switched
+        environment variables; what is editable here is each network&apos;s route and its product
+        codes. Nothing on this page changes how an order is delivered until a route is switched
         over.
       </p>
       <div className="mt-6">
-        <DeveloperSettingsForm
-          view={{
-            route: mtn.routeEnabled ? "MTN" : "JUSTICE",
-            routeReady: mtn.isReady,
-            missing: mtn.missing,
-            env: mtnEnvStatus(),
-            ladder: rows.ladder,
-            orphans: rows.orphans,
-            productProblems: mtn.products.problems,
-            unmapped,
-            mappedCount: mtn.products.codes.size,
-            callbackUrl,
-          }}
-        />
+        <DeveloperSettingsForm view={{ networks, carriers }} />
       </div>
     </div>
   );

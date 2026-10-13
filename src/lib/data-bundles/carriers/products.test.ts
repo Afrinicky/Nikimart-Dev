@@ -1,10 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  codeFieldName,
   parseProductMapping,
   productCodeFor,
   productRows,
   serialiseProductMapping,
+  sizeFromCodeField,
   unmappedSizes,
 } from "./products.ts";
 
@@ -55,12 +57,16 @@ test("an unmapped size has no code — it is never guessed at", () => {
 
 test("the console can see which MTN bundles are still missing a code", () => {
   const mapping = parseProductMapping("5 = CODE_5");
-  const missing = unmappedSizes(mapping, [
-    { network: "MTN", sizeGb: 5, isActive: true },
-    { network: "MTN", sizeGb: 10, isActive: true },
-    { network: "MTN", sizeGb: 20, isActive: false }, // not on sale, not a gap
-    { network: "TELECEL", sizeGb: 15, isActive: true }, // never routes to MTN
-  ]);
+  const missing = unmappedSizes(
+    mapping,
+    [
+      { network: "MTN", sizeGb: 5, isActive: true },
+      { network: "MTN", sizeGb: 10, isActive: true },
+      { network: "MTN", sizeGb: 20, isActive: false }, // not on sale, not a gap
+      { network: "TELECEL", sizeGb: 15, isActive: true }, // another network's ladder
+    ],
+    "MTN",
+  );
   assert.deepEqual(missing, [10]);
 });
 
@@ -71,12 +77,16 @@ test("a later line wins, so a corrected code replaces the one above it", () => {
 
 test("the rows to edit come from the ladder, not from a list kept here", () => {
   const mapping = parseProductMapping("5 = CODE_5");
-  const { ladder } = productRows(mapping, [
-    { network: "MTN", sizeGb: 10, isActive: true },
-    { network: "MTN", sizeGb: 1, isActive: true },
-    { network: "MTN", sizeGb: 5, isActive: true },
-    { network: "TELECEL", sizeGb: 15, isActive: true }, // never routes to MTN
-  ]);
+  const { ladder } = productRows(
+    mapping,
+    [
+      { network: "MTN", sizeGb: 10, isActive: true },
+      { network: "MTN", sizeGb: 1, isActive: true },
+      { network: "MTN", sizeGb: 5, isActive: true },
+      { network: "TELECEL", sizeGb: 15, isActive: true }, // another network's ladder
+    ],
+    "MTN",
+  );
 
   // Smallest first, every MTN size present, codes filled in where known.
   assert.deepEqual(
@@ -92,18 +102,22 @@ test("the rows to edit come from the ladder, not from a list kept here", () => {
 test("a bundle that is not on sale still gets a row, marked as such", () => {
   // So a code can be set before the size goes live, rather than the size going
   // live and quietly routing to the old provider until somebody comes back.
-  const { ladder } = productRows(parseProductMapping(""), [
-    { network: "MTN", sizeGb: 20, isActive: false },
-  ]);
+  const { ladder } = productRows(
+    parseProductMapping(""),
+    [{ network: "MTN", sizeGb: 20, isActive: false }],
+    "MTN",
+  );
   assert.equal(ladder.length, 1);
   assert.equal(ladder[0].isActive, false);
 });
 
 test("a code for a size no longer in the ladder is kept, not discarded", () => {
   const mapping = parseProductMapping("5 = CODE_5\n50 = CODE_50");
-  const { ladder, orphans } = productRows(mapping, [
-    { network: "MTN", sizeGb: 5, isActive: true },
-  ]);
+  const { ladder, orphans } = productRows(
+    mapping,
+    [{ network: "MTN", sizeGb: 5, isActive: true }],
+    "MTN",
+  );
   assert.deepEqual(ladder.map((r) => r.sizeGb), [5]);
   assert.deepEqual(orphans.map((r) => [r.sizeGb, r.code]), [[50, "CODE_50"]]);
 });
@@ -127,4 +141,26 @@ test("what is saved is what is read back", () => {
   assert.equal(productCodeFor(reparsed, 1.5), "CODE_1500MB");
   assert.equal(productCodeFor(reparsed, 5), "CODE_5");
   assert.deepEqual(reparsed.problems, []);
+});
+
+test("each network's mapping is its own — one form cannot rewrite another's", () => {
+  // The whole mapping is rebuilt from the fields submitted, so a field
+  // belonging to another network leaking into that rebuild would silently wipe
+  // codes the admin never touched.
+  const mtnField = codeFieldName("MTN", 5);
+  assert.equal(sizeFromCodeField(mtnField, "MTN"), 5);
+  assert.equal(sizeFromCodeField(mtnField, "TELECEL"), null);
+  assert.equal(sizeFromCodeField(codeFieldName("TELECEL", 15), "MTN"), null);
+});
+
+test("a field name that is not a code field is ignored, not misread as a size", () => {
+  assert.equal(sizeFromCodeField("dataRouteMTN", "MTN"), null);
+  assert.equal(sizeFromCodeField("carrierCode__MTN__", "MTN"), null);
+  assert.equal(sizeFromCodeField("carrierCode__MTN__abc", "MTN"), null);
+  assert.equal(sizeFromCodeField("carrierCode__MTN__0", "MTN"), null);
+  assert.equal(sizeFromCodeField("carrierCode__MTN__-5", "MTN"), null);
+});
+
+test("a fractional size survives the round trip through a field name", () => {
+  assert.equal(sizeFromCodeField(codeFieldName("MTN", 1.5), "MTN"), 1.5);
 });

@@ -1,39 +1,27 @@
 import "server-only";
-import { getDataSettings } from "@/lib/data-bundles/settings";
 import { normaliseMsisdnFormat, toMtnMsisdn, type MsisdnFormat } from "@/lib/data-bundles/mtn/msisdn";
-import { parseProductMapping, type ProductMapping } from "@/lib/data-bundles/mtn/products";
 
 /**
- * The MTN integration's configuration, from two places on purpose.
+ * How to talk to MTN: credentials and the per-account values MADAPI needs.
  *
- *   The environment   every credential and per-account value MTN issues. They
- *                     are secrets or near enough, they are set once when the
- *                     account is provisioned, and they belong in the
- *                     platform's own secret store — not in a settings table
- *                     that is inside every database snapshot the console can
- *                     download.
+ * All of it from the environment. These are secrets or near enough, they are
+ * set once when the account is provisioned, and they belong in the platform's
+ * own secret store — not in a settings table that is inside every database
+ * snapshot the console can download.
  *
- *   The settings      the two things that have to be changeable *now*: the
- *                     route switch, because turning the route off is how you
- *                     stop it and that cannot wait on a deploy, and the
- *                     product codes, because a bundle size added to the
- *                     ladder needs a line against it the same afternoon.
+ * What is *not* here is anything about whether to use MTN at all. The route
+ * switch and the product codes are stored settings, because they have to be
+ * changeable now rather than at the next deploy, and they are read by the
+ * router — which treats every carrier alike — rather than by this file.
  *
- * The split is not arbitrary: it is "what a deploy may gate" against "what
- * must never be gated by one".
- *
- * `isReady` is the only thing callers should ask before using the route. It is
- * false until every value a transfer cannot be built without is present, so a
- * partly-provisioned environment fails closed instead of sending MTN something
- * malformed on a customer's paid order.
+ * `missing` is the only thing callers should ask before using the route. It is
+ * non-empty until every value a transfer cannot be built without is present,
+ * so a partly-provisioned environment fails closed instead of sending MTN
+ * something malformed on a customer's paid order.
  */
 
 export interface MtnConfig {
-  /** True when the admin has switched MTN bundles onto this route. */
-  routeEnabled: boolean;
-  /** True when the route is switched on AND everything it needs is present. */
-  isReady: boolean;
-  /** What is missing, for the console to show. Empty when ready. */
+  /** Environment variables still needed. Empty when MTN can be used. */
   missing: string[];
 
   base: string;
@@ -52,7 +40,6 @@ export interface MtnConfig {
   msisdnFormat: MsisdnFormat;
   agentId: string;
   callbackEnabled: boolean;
-  products: ProductMapping;
 }
 
 function env(name: string): string {
@@ -129,27 +116,12 @@ const REQUIRED: Array<[keyof MtnConfig, string]> = [
   ["targetSystem", "MTN_TARGET_SYSTEM"],
 ];
 
-/**
- * Build the config from the environment plus the two stored settings.
- *
- * Takes the settings rather than reading them, so a caller that has just
- * *written* one can judge the result without reading it back. That read is not
- * reliably fresh — `getDataSettings` is memoised per request and cached across
- * them, so a save followed by a re-read inside one server action can
- * legitimately return the values from before the save. Validating the route
- * switch against a stale read would let it be thrown while the product list
- * was still empty.
- */
-export function buildMtnConfig(settings: {
-  dataRouteMTN?: string;
-  mtnProductCodes?: string;
-}): MtnConfig {
+/** How to talk to MTN, as the environment currently describes it. */
+export function mtnConfig(): MtnConfig {
   const msisdnFormat = normaliseMsisdnFormat(env("MTN_MSISDN_FORMAT"));
   const senderLocal = env("MTN_SENDER_MSISDN");
 
   const config: MtnConfig = {
-    routeEnabled: (settings.dataRouteMTN ?? "").trim().toUpperCase() === "MTN",
-    isReady: false,
     missing: [],
 
     base: (env("MTN_API_BASE") || "https://api.mtn.com/v1").replace(/\/+$/, ""),
@@ -169,7 +141,6 @@ export function buildMtnConfig(settings: {
     msisdnFormat,
     agentId: env("MTN_AGENT_ID"),
     callbackEnabled: on(env("MTN_CALLBACK_ENABLED"), true),
-    products: parseProductMapping(settings.mtnProductCodes),
   };
 
   config.missing = REQUIRED.filter(([key]) => !config[key]).map(([, name]) => name);
@@ -181,22 +152,5 @@ export function buildMtnConfig(settings: {
       m === "MTN_SENDER_MSISDN" ? "MTN_SENDER_MSISDN (not a Ghana mobile number)" : m,
     );
   }
-  config.isReady = config.routeEnabled && config.missing.length === 0;
-
   return config;
-}
-
-/** The MTN configuration as it stands right now. */
-export async function getMtnConfig(): Promise<MtnConfig> {
-  return buildMtnConfig(await getDataSettings());
-}
-
-/**
- * Whether the environment is provisioned, regardless of the switch.
- *
- * The console uses this to tell "not set up" apart from "set up and turned
- * off", which are two different things to an admin looking at a dark route.
- */
-export async function isMtnConfigured(): Promise<boolean> {
-  return (await getMtnConfig()).missing.length === 0;
 }
