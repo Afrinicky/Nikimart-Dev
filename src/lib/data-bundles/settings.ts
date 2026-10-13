@@ -170,51 +170,26 @@ export const DATA_SETTINGS_DEFAULTS = {
   //
   //   JUSTICE  the reseller API that has always fulfilled every order.
   //   MTN      MTN's own Customer Data Transfer API, transferring out of a
-  //            Nickimart MTN line (see the keys below).
+  //            Nickimart MTN line (credentials in the environment).
   //
   // It defaults to JUSTICE and nothing moves it but an admin on the Developer
   // tab. That is the point: the MTN route ships inert, and a store that never
   // opens that tab behaves exactly as it did before it existed. The other
   // three networks have no setting at all — MTN's transfer API can only credit
   // an MTN subscriber, so there is no choice to offer.
+  //
+  // This is a setting rather than an environment variable precisely because it
+  // is the one thing that must be changeable *now*: turning the route off is
+  // how you stop it, and that cannot wait on a deploy.
   dataRouteMTN: "JUSTICE",
 
-  // --- Developer: MTN Customer Data Transfer (MADAPI) -----------------------
-  // Credentials and per-account values from developers.mtn.com. Every one of
-  // them is blank by default, and the route refuses to run until the ones it
-  // needs are filled in — a half-configured switch fails closed rather than
-  // sending malformed transfers at a live customer's order.
-  mtnApiBase: "https://api.mtn.com/v1",
-  // The app's Consumer key and Consumer secret: the OAuth2 client-credentials
-  // pair. The secret is write-only in the console — it is never rendered back.
-  mtnClientId: "",
-  mtnClientSecret: "",
-  // The Nickimart MTN line the data is transferred *out of*, and its PIN where
-  // the account requires one. Left empty when it does not, and then no `pin`
-  // is sent at all rather than an empty one.
-  mtnSenderMsisdn: "",
-  mtnSenderPin: "",
-  // Per-account values MADAPI requires on the request. MTN issues these; there
-  // is no sensible default to guess, so an empty targetSystem blocks the route.
-  mtnTargetSystem: "",
-  mtnOriginChannelId: "",
-  mtnCountryCode: "GH",
-  // The `network` query parameter, where the account expects one.
-  mtnNetworkParam: "",
-  // What is being transferred. DATA for bundles; the field exists because the
-  // same endpoint also moves airtime.
-  mtnTransferType: "DATA",
-  // INTERNATIONAL (233XXXXXXXXX) or LOCAL (0XXXXXXXXX) — see mtn/msisdn.ts.
-  mtnMsisdnFormat: "INTERNATIONAL",
-  // Optional agent identifier, where the account is set up to attribute
-  // transfers to one.
-  mtnAgentId: "",
-  // Whether to hand MTN a callback URL for status updates. On by default; an
-  // account whose callbacks cannot reach us is better off turned off here, so
-  // the status sweep is the only thing asking.
-  mtnCallbackEnabled: "1",
   // Bundle size to MTN product code, one per line ("5 = MTN_DATA_5GB").
   // See mtn/products.ts for the format and what an unreadable line does.
+  //
+  // Here rather than in the environment because it is not a secret and it
+  // moves: every bundle size added to the ladder needs a line, and needing a
+  // redeploy to sell a new size is the kind of friction that ends with the
+  // size being sold through the wrong provider instead.
   mtnProductCodes: "",
 } as const;
 

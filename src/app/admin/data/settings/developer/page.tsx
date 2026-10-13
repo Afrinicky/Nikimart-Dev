@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { DeveloperSettingsForm } from "@/components/admin/DeveloperSettingsForm";
 import { getDataSettings } from "@/lib/data-bundles/settings";
-import { getMtnConfig } from "@/lib/data-bundles/mtn/config";
+import { getMtnConfig, mtnEnvStatus } from "@/lib/data-bundles/mtn/config";
 import { unmappedSizes } from "@/lib/data-bundles/mtn/products";
 import { getAllBundles } from "@/lib/data-bundles/catalog";
 import { siteUrl } from "@/lib/site";
@@ -10,11 +10,12 @@ export const metadata: Metadata = { title: "Developer — Data Store Settings �
 export const dynamic = "force-dynamic";
 
 /**
- * Developer settings: the API credentials and the fulfilment route.
+ * Developer settings: the fulfilment route, the product codes, and a read-only
+ * view of the environment.
  *
- * It reads the stored secrets only to report *whether* each is set — the
- * values themselves never leave the server, so there is nothing on this page
- * for a shared screen or a browser extension to pick up.
+ * Nothing secret reaches this page. `mtnEnvStatus` reports which variables are
+ * set and never what they hold, so the props handed to the client component
+ * contain no credential, masked or otherwise.
  */
 export default async function AdminDataDeveloperSettingsPage() {
   const [settings, mtn] = await Promise.all([getDataSettings(), getMtnConfig()]);
@@ -35,9 +36,10 @@ export default async function AdminDataDeveloperSettingsPage() {
   return (
     <div className="max-w-3xl">
       <p className="text-sm text-niki-ink/60">
-        Integrations and API credentials for the bundle business. Everything here is stored in
-        this console — there is nothing to redeploy. Nothing on this page changes how an order is
-        delivered until the fulfilment route below is switched over.
+        Integrations for the bundle business. Credentials live in the deployment&apos;s
+        environment variables; what is editable here is the route and the product codes. Nothing
+        on this page changes how an order is delivered until the fulfilment route is switched
+        over.
       </p>
       <div className="mt-6">
         <DeveloperSettingsForm
@@ -45,22 +47,8 @@ export default async function AdminDataDeveloperSettingsPage() {
             route: mtn.routeEnabled ? "MTN" : "JUSTICE",
             routeReady: mtn.isReady,
             missing: mtn.missing,
-            hasClientSecret: Boolean(settings.mtnClientSecret),
-            hasPin: Boolean(settings.mtnSenderPin),
-            values: {
-              mtnApiBase: settings.mtnApiBase,
-              mtnClientId: settings.mtnClientId,
-              mtnSenderMsisdn: settings.mtnSenderMsisdn,
-              mtnTargetSystem: settings.mtnTargetSystem,
-              mtnOriginChannelId: settings.mtnOriginChannelId,
-              mtnCountryCode: settings.mtnCountryCode,
-              mtnNetworkParam: settings.mtnNetworkParam,
-              mtnTransferType: settings.mtnTransferType,
-              mtnMsisdnFormat: settings.mtnMsisdnFormat,
-              mtnAgentId: settings.mtnAgentId,
-              mtnCallbackEnabled: settings.mtnCallbackEnabled,
-              mtnProductCodes: settings.mtnProductCodes,
-            },
+            env: mtnEnvStatus(),
+            productCodes: settings.mtnProductCodes,
             productProblems: mtn.products.problems,
             unmapped,
             mappedCount: mtn.products.codes.size,
