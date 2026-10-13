@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import {
   Banknote,
   Bell,
+  Code2,
   DatabaseBackup,
   FileSpreadsheet,
   MessageSquare,
@@ -66,6 +67,7 @@ const ICONS = {
   backup: DatabaseBackup,
   sheet: FileSpreadsheet,
   audit: Scale,
+  code: Code2,
 } as const;
 
 export type TabIcon = keyof typeof ICONS;
