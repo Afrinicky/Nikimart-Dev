@@ -9,6 +9,11 @@ import {
 } from "@/lib/data-bundles/settings";
 import { buildMtnConfig, getMtnConfig } from "@/lib/data-bundles/mtn/config";
 import { testMtnCredentials } from "@/lib/data-bundles/mtn/client";
+import {
+  CODE_FIELD_PREFIX,
+  PRODUCT_CODES_SUBMITTED,
+  serialiseProductMapping,
+} from "@/lib/data-bundles/mtn/products";
 
 /**
  * Saving the Developer tab.
@@ -48,10 +53,25 @@ export async function updateDeveloperSettings(
 
   const entries: Record<string, string> = {};
 
-  // Saved as typed, newlines and all — mtn/products.ts is what interprets it,
-  // and it reports the lines it cannot read rather than discarding them.
-  if (fd.has("mtnProductCodes")) {
-    entries.mtnProductCodes = String(fd.get("mtnProductCodes") ?? "").trim();
+  // The product codes arrive as one field per bundle — `mtnCode__5` for the
+  // 5GB bundle — because the console builds its rows from the price ladder
+  // rather than from a list kept here. Rebuilding the whole mapping from what
+  // was submitted is what makes a cleared field actually clear the code; a
+  // merge would leave no way to remove one.
+  //
+  // The marker distinguishes "this form had no codes in it" from "every code
+  // was cleared". Without it, saving the route on the other form would wipe
+  // the list, which is precisely the kind of accident this tab must not have.
+  if (fd.has(PRODUCT_CODES_SUBMITTED)) {
+    const codes: Array<[number, string]> = [];
+    for (const [field, value] of fd.entries()) {
+      if (!field.startsWith(CODE_FIELD_PREFIX)) continue;
+      const sizeGb = Number(field.slice(CODE_FIELD_PREFIX.length));
+      if (!Number.isFinite(sizeGb) || sizeGb <= 0) continue;
+      codes.push([sizeGb, String(value ?? "")]);
+    }
+    // Sorted, trimmed, blanks dropped — so saving twice writes the same string.
+    entries.mtnProductCodes = serialiseProductMapping(codes);
   }
 
   let notice: string | undefined;

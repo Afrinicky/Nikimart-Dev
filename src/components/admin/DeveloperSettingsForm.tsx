@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { Check, Minus } from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
@@ -10,6 +11,10 @@ import {
   updateDeveloperSettings,
   type DeveloperSettingsState,
 } from "@/lib/data-bundles/developer-actions";
+import {
+  CODE_FIELD_PREFIX,
+  PRODUCT_CODES_SUBMITTED,
+} from "@/lib/data-bundles/mtn/products";
 
 /**
  * The Developer tab: the fulfilment route, the product codes, and a read-only
@@ -33,14 +38,23 @@ export interface EnvVarView {
   fallback?: string;
 }
 
+export interface ProductRowView {
+  sizeGb: number;
+  code: string;
+  isActive: boolean;
+}
+
 export interface DeveloperSettingsView {
   route: string;
   routeReady: boolean;
   /** Names of environment variables still needed. Never values. */
   missing: string[];
   env: EnvVarView[];
-  productCodes: string;
-  /** Lines of the product list that could not be read. */
+  /** One row per MTN bundle in the price ladder, smallest first. */
+  ladder: ProductRowView[];
+  /** Codes whose bundle is no longer in the ladder. */
+  orphans: ProductRowView[];
+  /** Lines of the stored list that could not be read. */
   productProblems: string[];
   /** Active MTN bundle sizes with no product code yet. */
   unmapped: number[];
@@ -153,26 +167,81 @@ export function DeveloperSettingsForm({ view }: { view: DeveloperSettingsView })
       <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Product codes</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
-          Which MTN product each bundle size corresponds to — one per line, as
-          <code className="mx-1 font-mono text-xs">size = CODE</code>. A size with no code here is
-          sent to the current provider instead, never guessed at.
+          Which MTN product each bundle corresponds to. The rows come straight from the price
+          ladder, so adding a bundle on the{" "}
+          <Link
+            href="/admin/data/bundles"
+            className="font-medium text-niki-orange hover:underline"
+          >
+            Bundle prices
+          </Link>{" "}
+          tab puts it here automatically. A size left blank is sent to the current provider
+          instead, never guessed at.
         </p>
+
         <form action={formAction} className="mt-4 space-y-4" noValidate>
-          <Field label="Size to product code" htmlFor="mtnProductCodes" hint="e.g. 5 = MTN_DATA_5GB">
-            <textarea
-              id="mtnProductCodes"
-              name="mtnProductCodes"
-              rows={8}
-              defaultValue={view.productCodes}
-              placeholder={"1 = MTN_DATA_1GB\n5 = MTN_DATA_5GB\n10 = MTN_DATA_10GB"}
-              className={`${inputClass} font-mono`}
-            />
-          </Field>
+          <input type="hidden" name={PRODUCT_CODES_SUBMITTED} value="1" />
+
+          {view.ladder.length === 0 ? (
+            <p className="rounded-xl bg-niki-ink/5 px-4 py-6 text-center text-sm text-niki-ink/60">
+              No MTN bundles in the price ladder yet. Add one on the Bundle prices tab and it
+              will appear here.
+            </p>
+          ) : (
+            <ul className="divide-y divide-niki-edge rounded-xl ring-1 ring-niki-edge">
+              {view.ladder.map((row) => (
+                <li key={row.sizeGb} className="flex items-center gap-3 p-3">
+                  <span className="flex w-24 shrink-0 flex-col">
+                    <span className="font-display text-sm font-bold text-niki-ink">
+                      {row.sizeGb}GB
+                    </span>
+                    {row.isActive ? null : (
+                      <span className="text-[11px] font-medium text-niki-ink/45">not on sale</span>
+                    )}
+                  </span>
+                  <input
+                    name={`${CODE_FIELD_PREFIX}${row.sizeGb}`}
+                    defaultValue={row.code}
+                    placeholder="MTN product code"
+                    aria-label={`MTN product code for the ${row.sizeGb}GB bundle`}
+                    autoComplete="off"
+                    className={`${inputClass} font-mono`}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {view.orphans.length > 0 ? (
+            <div className="rounded-xl bg-niki-ink/5 p-3">
+              <p className="text-xs font-semibold text-niki-ink">No longer in the price ladder</p>
+              <p className="mt-0.5 text-xs text-niki-ink/55">
+                These bundles have been removed or resized. Their codes are kept in case the size
+                comes back — clear a field to drop it for good.
+              </p>
+              <ul className="mt-2 space-y-2">
+                {view.orphans.map((row) => (
+                  <li key={row.sizeGb} className="flex items-center gap-3">
+                    <span className="w-24 shrink-0 text-sm font-medium text-niki-ink/60">
+                      {row.sizeGb}GB
+                    </span>
+                    <input
+                      name={`${CODE_FIELD_PREFIX}${row.sizeGb}`}
+                      defaultValue={row.code}
+                      aria-label={`MTN product code kept for ${row.sizeGb}GB`}
+                      autoComplete="off"
+                      className={`${inputClass} font-mono`}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {view.productProblems.length > 0 ? (
             <p className="rounded-xl bg-niki-danger/10 px-4 py-3 text-sm text-niki-danger">
-              These lines could not be read and are being ignored:{" "}
-              {view.productProblems.join(" · ")}
+              These stored lines could not be read and are being ignored:{" "}
+              {view.productProblems.join(" \u00b7 ")}
             </p>
           ) : null}
           {view.unmapped.length > 0 ? (

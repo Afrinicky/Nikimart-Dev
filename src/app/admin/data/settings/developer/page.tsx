@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { DeveloperSettingsForm } from "@/components/admin/DeveloperSettingsForm";
-import { getDataSettings } from "@/lib/data-bundles/settings";
 import { getMtnConfig, mtnEnvStatus } from "@/lib/data-bundles/mtn/config";
-import { unmappedSizes } from "@/lib/data-bundles/mtn/products";
+import { productRows, unmappedSizes } from "@/lib/data-bundles/mtn/products";
 import { getAllBundles } from "@/lib/data-bundles/catalog";
 import { siteUrl } from "@/lib/site";
 
@@ -18,17 +17,23 @@ export const dynamic = "force-dynamic";
  * contain no credential, masked or otherwise.
  */
 export default async function AdminDataDeveloperSettingsPage() {
-  const [settings, mtn] = await Promise.all([getDataSettings(), getMtnConfig()]);
+  const mtn = await getMtnConfig();
 
-  // The gap worth seeing before the switch is thrown: sizes on sale that have
-  // no MTN product code and would therefore quietly keep using the old route.
+  // The product-code rows are the price ladder itself, so there is no list of
+  // sizes maintained here that could fall behind the one being sold. `unmapped`
+  // is the same data read as a warning: sizes on sale with no code, which would
+  // quietly keep using the old route.
+  let rows = productRows(mtn.products, []);
   let unmapped: number[] = [];
   try {
     const bundles = await getAllBundles();
+    rows = productRows(mtn.products, bundles);
     unmapped = unmappedSizes(mtn.products, bundles);
   } catch {
-    // The ladder is unreadable (not migrated, database briefly away). The rest
-    // of the page is still worth showing.
+    // The ladder is unreadable (not migrated, database briefly away). Falling
+    // back to no rows keeps the rest of the page usable — and, importantly,
+    // every stored code then shows as an orphan rather than appearing lost.
+    rows = productRows(mtn.products, []);
   }
 
   const callbackUrl = new URL("/api/data-bundles/mtn/callback", siteUrl()).toString();
@@ -48,7 +53,8 @@ export default async function AdminDataDeveloperSettingsPage() {
             routeReady: mtn.isReady,
             missing: mtn.missing,
             env: mtnEnvStatus(),
-            productCodes: settings.mtnProductCodes,
+            ladder: rows.ladder,
+            orphans: rows.orphans,
             productProblems: mtn.products.problems,
             unmapped,
             mappedCount: mtn.products.codes.size,
