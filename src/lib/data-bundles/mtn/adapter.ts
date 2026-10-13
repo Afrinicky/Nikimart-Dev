@@ -1,5 +1,4 @@
 import "server-only";
-import type { Network } from "@/lib/data-bundles/networks";
 import type {
   CarrierAdapter,
   CarrierEnvVar,
@@ -26,9 +25,6 @@ import { toMtnMsisdn } from "@/lib/data-bundles/mtn/msisdn";
  * product codes, what does it need configured, place one order, read one
  * status — and nothing else in the system changes when one appears.
  */
-
-/** The networks MTN can credit. Its transfer API reaches no other. */
-const MTN_NETWORKS: readonly Network[] = ["MTN"];
 
 function config(): MtnConfig {
   // Read fresh each time rather than captured at module load. It is cheap —
@@ -152,9 +148,9 @@ async function readStatus(providerOrderId: string): Promise<CarrierStatusRead> {
 }
 
 export const mtnAdapter: CarrierAdapter = {
+  // Label and networks come from the carrier catalogue, so this adapter and
+  // the console cannot disagree about what MTN serves.
   id: "MTN",
-  label: "MTN Customer Data Transfer",
-  networks: MTN_NETWORKS,
   usesProductCodes: true,
 
   envVars(): CarrierEnvVar[] {

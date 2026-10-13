@@ -1,6 +1,11 @@
 import "server-only";
 import type { DataOrderStatus, Network } from "@/lib/data-bundles/networks";
-import type { CarrierId, CarrierSummary } from "@/lib/data-bundles/carriers/rules";
+import {
+  carrierCatalogById,
+  carrierCatalogForNetwork,
+  type CarrierId,
+  type CarrierSummary,
+} from "@/lib/data-bundles/carriers/rules";
 import { mtnAdapter } from "@/lib/data-bundles/mtn/adapter";
 
 /**
@@ -89,11 +94,10 @@ export interface CarrierEnvVar {
 }
 
 export interface CarrierAdapter {
+  /** Which catalogue entry this implements. Its label and networks come from
+   *  there, so an adapter cannot disagree with the console about what it
+   *  serves. */
   id: CarrierId;
-  /** How it reads in the console. */
-  label: string;
-  /** The networks it can deliver to. One carrier may cover several. */
-  networks: readonly Network[];
   /** Whether it addresses a bundle by a per-size product code. */
   usesProductCodes: boolean;
   /** Every variable it reads, and whether each is set. Values never included. */
@@ -119,11 +123,10 @@ export interface CarrierAdapter {
  */
 export const CARRIERS: readonly CarrierAdapter[] = [mtnAdapter];
 
-/** The carrier covering a network, or null when none does yet. */
+/** The carrier covering a network, or null when none has an adapter yet. */
 export function carrierForNetwork(network: string): CarrierAdapter | null {
-  return (
-    CARRIERS.find((c) => (c.networks as readonly string[]).includes(network)) ?? null
-  );
+  const entry = carrierCatalogForNetwork(network);
+  return entry ? carrierById(entry.id) : null;
 }
 
 export function carrierById(id: string): CarrierAdapter | null {
@@ -133,10 +136,11 @@ export function carrierById(id: string): CarrierAdapter | null {
 /** The routing view of a carrier: what `decideRoute` needs, nothing more. */
 export function summarise(adapter: CarrierAdapter): CarrierSummary {
   const { ready, missing } = adapter.readiness();
+  const entry = carrierCatalogById(adapter.id);
   return {
     id: adapter.id,
-    label: adapter.label,
-    networks: adapter.networks,
+    label: entry?.productLabel ?? adapter.id,
+    networks: entry?.networks ?? [],
     ready,
     missing,
     usesProductCodes: adapter.usesProductCodes,
