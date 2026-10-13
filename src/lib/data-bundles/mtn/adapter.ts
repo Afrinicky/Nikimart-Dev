@@ -8,7 +8,12 @@ import type {
 } from "@/lib/data-bundles/carriers/registry";
 import { carrierTransactionId } from "@/lib/data-bundles/carriers/rules";
 import { mtnConfig, mtnEnvStatus, type MtnConfig } from "@/lib/data-bundles/mtn/config";
-import { transferDataBundle, transferStatus, testMtnCredentials } from "@/lib/data-bundles/mtn/client";
+import {
+  probeTargetSystem,
+  transferDataBundle,
+  transferStatus,
+  testMtnCredentials,
+} from "@/lib/data-bundles/mtn/client";
 import { mapMtnStatus, mtnMessage, mtnValueCharged } from "@/lib/data-bundles/mtn/status";
 import { toMtnMsisdn } from "@/lib/data-bundles/mtn/msisdn";
 
@@ -165,12 +170,37 @@ export const mtnAdapter: CarrierAdapter = {
   place,
   readStatus,
 
+  /**
+   * Two checks, neither of which can move anything.
+   *
+   * The credentials first, because nothing else can be judged until they work.
+   * Then the target system — the one value MTN publishes no list for, probed
+   * through a status read for a transaction id that was never used. Together
+   * they cover both of the things that are unknowable from the specification
+   * alone, and neither transfers data, spends the line's balance or touches an
+   * order.
+   */
   async test() {
     const cfg = config();
     if (!cfg.clientId || !cfg.clientSecret) {
       return { ok: false, message: "Set MTN_CLIENT_ID and MTN_CLIENT_SECRET in the environment first." };
     }
-    const res = await testMtnCredentials(cfg);
-    return { ok: res.ok, message: res.message };
+
+    const auth = await testMtnCredentials(cfg);
+    if (!auth.ok) return { ok: false, message: auth.message };
+
+    if (!cfg.targetSystem) {
+      return {
+        ok: true,
+        message:
+          "MTN accepted the credentials. MTN_TARGET_SYSTEM is not set yet — set a value and press this again to find out whether MTN accepts it.",
+      };
+    }
+
+    const probe = await probeTargetSystem(cfg);
+    return {
+      ok: probe.ok,
+      message: `MTN accepted the credentials. Target system: ${probe.message}`,
+    };
   },
 };

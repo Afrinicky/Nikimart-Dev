@@ -40,10 +40,23 @@ export interface MtnConfig {
   msisdnFormat: MsisdnFormat;
   agentId: string;
   callbackEnabled: boolean;
+  /** The `operation` query parameter on the status read. */
+  operation: string;
+  /** Optional body fields some accounts require. Omitted when unset. */
+  paysrc: string;
+  srcAccountType: number | null;
+  dstAccountType: number | null;
 }
 
 function env(name: string): string {
   return (process.env[name] ?? "").trim();
+}
+
+/** An int32 body field, or null when unset — so it is omitted rather than sent as 0. */
+function intOrNull(raw: string): number | null {
+  if (raw === "") return null;
+  const n = Number(raw);
+  return Number.isInteger(n) ? n : null;
 }
 
 /** True unless the value is an explicit off, matching the rest of the settings. */
@@ -75,6 +88,10 @@ export const MTN_ENV_VARS = [
   { name: "MTN_TRANSFER_TYPE", label: "Transfer type", required: false },
   { name: "MTN_MSISDN_FORMAT", label: "Number format", required: false },
   { name: "MTN_AGENT_ID", label: "Agent ID", required: false },
+  { name: "MTN_OPERATION", label: "Status operation", required: false },
+  { name: "MTN_PAYSRC", label: "Payment source", required: false },
+  { name: "MTN_SRC_ACCOUNT_TYPE", label: "Source account type", required: false },
+  { name: "MTN_DST_ACCOUNT_TYPE", label: "Destination account type", required: false },
   { name: "MTN_API_BASE", label: "API base URL", required: false },
   { name: "MTN_CALLBACK_ENABLED", label: "Status callbacks", required: false },
 ] as const;
@@ -95,6 +112,7 @@ const FALLBACKS: Record<string, string> = {
   MTN_TRANSFER_TYPE: "DATA",
   MTN_MSISDN_FORMAT: "INTERNATIONAL",
   MTN_CALLBACK_ENABLED: "on",
+  MTN_OPERATION: "the transfer type",
 };
 
 /** Which variables are set, for the console. Values never included. */
@@ -141,6 +159,13 @@ export function mtnConfig(): MtnConfig {
     msisdnFormat,
     agentId: env("MTN_AGENT_ID"),
     callbackEnabled: on(env("MTN_CALLBACK_ENABLED"), true),
+    // The status read takes an `operation`, which the specification types as a
+    // free string with no enum. It is not necessarily the same word as the
+    // transfer type, so it is settable on its own and falls back to it.
+    operation: env("MTN_OPERATION") || env("MTN_TRANSFER_TYPE") || "DATA",
+    paysrc: env("MTN_PAYSRC"),
+    srcAccountType: intOrNull(env("MTN_SRC_ACCOUNT_TYPE")),
+    dstAccountType: intOrNull(env("MTN_DST_ACCOUNT_TYPE")),
   };
 
   config.missing = REQUIRED.filter(([key]) => !config[key]).map(([, name]) => name);
