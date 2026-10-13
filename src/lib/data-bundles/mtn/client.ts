@@ -183,14 +183,35 @@ export async function mtnToken(config: MtnConfig): Promise<MtnResult<string>> {
 // Calls
 // ---------------------------------------------------------------------------
 
-function headersFor(config: MtnConfig, token: string, transactionId?: string) {
+/**
+ * Headers, per endpoint — and they are genuinely different.
+ *
+ * The transfer takes `transactionId`, `x-country-code` and
+ * `x-origin-channelid`, and carries `targetSystem` in the *body*. The status
+ * read takes `targetSystem` and `x-country-code` as headers and defines
+ * neither of the other two. Sending the union to both looks harmless and is
+ * the kind of thing an API gateway rejects for an undeclared header, so each
+ * call builds only what its own operation declares.
+ */
+function baseHeaders(token: string, countryCode: string) {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
     Accept: "application/json",
   };
-  if (config.countryCode) headers["x-country-code"] = config.countryCode;
+  if (countryCode) headers["x-country-code"] = countryCode;
+  return headers;
+}
+
+function transferHeaders(config: MtnConfig, token: string, transactionId: string) {
+  const headers = baseHeaders(token, config.countryCode);
   if (config.originChannelId) headers["x-origin-channelid"] = config.originChannelId;
   if (transactionId) headers.transactionId = transactionId;
+  return headers;
+}
+
+function statusHeaders(config: MtnConfig, token: string) {
+  const headers = baseHeaders(token, config.countryCode);
+  if (config.targetSystem) headers.targetSystem = config.targetSystem;
   return headers;
 }
 
@@ -266,12 +287,18 @@ export async function transferDataBundle(
   if (config.agentId) body.agentId = config.agentId;
   if (config.pin) body.pin = config.pin;
   if (input.callbackUrl) body.callbackUrl = input.callbackUrl;
+  // The specification's remaining optional fields. Unset on most accounts, and
+  // then absent from the request rather than sent as an empty string or a zero
+  // — which for an int32 field would be a real value, not a blank.
+  if (config.paysrc) body.paysrc = config.paysrc;
+  if (config.srcAccountType !== null) body.srcAccountType = config.srcAccountType;
+  if (config.dstAccountType !== null) body.dstAccountType = config.dstAccountType;
 
   try {
     const res = await fetch(url, {
       method: "POST",
       headers: {
-        ...headersFor(config, auth.payload, input.transactionId),
+        ...transferHeaders(config, auth.payload, input.transactionId),
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
@@ -314,15 +341,12 @@ export async function transferStatus(
   const url = new URL(`${config.base}/customers/transactionStatus`);
   url.searchParams.set("transactionId", transactionId);
   if (config.networkParam) url.searchParams.set("network", config.networkParam);
-  url.searchParams.set("operation", config.transferType);
+  if (config.operation) url.searchParams.set("operation", config.operation);
 
   try {
-    const headers = headersFor(config, auth.payload);
-    if (config.targetSystem) headers.targetSystem = config.targetSystem;
-
     const res = await fetch(url, {
       method: "GET",
-      headers,
+      headers: statusHeaders(config, auth.payload),
       cache: "no-store",
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
@@ -340,6 +364,66 @@ export async function transferStatus(
     console.error(`[data-bundles] MTN status ${transactionId} failed: ${reason}`);
     return { ok: false, message: "Could not reach MTN.", status: 0, payload: null, transactionId };
   }
+}
+
+/**
+ * Try a `targetSystem` value without transferring anything.
+ *
+ * `targetSystem` is required on a transfer and MTN publishes no list of valid
+ * values — not in the specification, not on the product page, not in the
+ * portal's own sample, where the field sits blank. It is issued per account,
+ * and the only way to learn it has been to ask MTN and wait.
+ *
+ * But the *status read* takes the same `targetSystem` as a header, and asking
+ * it about a transaction id that was never used cannot transfer data, cannot
+ * spend the line's balance and cannot touch an order. So it is safe to call
+ * with any id at all — and the reply distinguishes the two failures that
+ * matter: a rejected `targetSystem` is an error about the value itself, while
+ * a transaction that simply does not exist means MTN accepted the value and
+ * looked for the transaction.
+ *
+ * That turns an unknown into something testable: set a candidate, press the
+ * button, read which kind of "no" comes back.
+ *
+ * It is a probe, not a proof. MTN could accept a value here and still reject
+ * it on a transfer. It is strictly better than guessing on a customer's paid
+ * order, which is the alternative.
+ */
+export async function probeTargetSystem(
+  config: MtnConfig,
+): Promise<{ ok: boolean; message: string }> {
+  if (!config.targetSystem) {
+    return { ok: false, message: "No target system is set." };
+  }
+
+  // An id that cannot belong to a real transfer: ours are derived from an
+  // order reference and never look like this.
+  const res = await transferStatus(config, `PROBE${Date.now().toString(36).toUpperCase()}`);
+
+  // Reaching MTN at all is most of the answer. A 400 or 403 naming the target
+  // system is a rejection of the value; anything else means the value got far
+  // enough for MTN to go looking for a transaction that was never there.
+  const says = `${res.message} ${res.payload?.statusMessage ?? ""}`.toLowerCase();
+  const rejected =
+    (res.status === 400 || res.status === 403) &&
+    /target\s*system|invalid|not\s*supported|unknown/.test(says);
+
+  if (res.status === 0) {
+    return { ok: false, message: res.message };
+  }
+  if (res.status === 401) {
+    return { ok: false, message: "MTN rejected the credentials, so the target system was never reached." };
+  }
+  if (rejected) {
+    return {
+      ok: false,
+      message: `MTN did not accept "${config.targetSystem}": ${res.message}`,
+    };
+  }
+  return {
+    ok: true,
+    message: `MTN accepted "${config.targetSystem}" and looked for the transaction (it replied: ${res.message}). That is the expected answer for an id that was never used.`,
+  };
 }
 
 /**
