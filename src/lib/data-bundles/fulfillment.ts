@@ -13,14 +13,12 @@ import {
   mapProviderStatus,
   networkLabel,
   type DataOrderStatus,
-  type Network,
 } from "@/lib/data-bundles/networks";
 import {
   createProviderAfa,
-  createProviderOrder,
-  getProviderOrder,
   isDataProviderConfigured,
 } from "@/lib/data-bundles/provider";
+import { canDispatch, placeBundleOrder, readBundleStatus } from "@/lib/data-bundles/routing";
 import {
   creditAfaCommission,
   creditAgentCommission,
@@ -140,15 +138,17 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
     return { ok: false, message: "This order has already been sent to the provider." };
   }
 
-  if (!isDataProviderConfigured()) {
+  // Asked of the route this order would actually take, not of one provider:
+  // an MTN-routed order does not need the reseller's API key, and refusing it
+  // for want of one would make the MTN route depend on a credential it never
+  // uses.
+  const ready = await canDispatch(order);
+  if (!ready.ok) {
     await dataDb.dataOrder.update({
       where: { id: orderId },
-      data: {
-        status: "paid",
-        providerMessage: "Waiting for the data provider API key to be configured.",
-      },
+      data: { status: "paid", providerMessage: ready.waitingMessage },
     });
-    return { ok: false, message: "The data provider is not configured." };
+    return { ok: false, message: ready.message };
   }
 
   // Claim the dispatch before calling out. If two admins hit "retry" at once,
@@ -161,17 +161,30 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
     return { ok: false, message: "This order is already being processed." };
   }
 
-  const res = await createProviderOrder({
-    phone: order.recipientPhone,
-    size: order.sizeGb,
-    network: order.network as Network,
-    callback: callbackUrl(order.reference),
+  // Which upstream delivers this is decided in lib/data-bundles/routing, not
+  // here: fulfilment owns the order's lifecycle and should not care. The
+  // router always has an answer, and in any doubt that answer is the provider
+  // that has always delivered — so a half-configured MTN route can never
+  // strand an order somebody has already paid for.
+  const res = await placeBundleOrder({
+    reference: order.reference,
+    network: order.network,
+    sizeGb: order.sizeGb,
+    recipientPhone: order.recipientPhone,
+    // The *previous* attempt's time, read before this dispatch overwrote it,
+    // so a deliberate re-order gets its own MTN transaction id rather than
+    // colliding with the attempt that failed.
+    dispatchedAt: order.dispatchedAt,
   });
 
-  if (!res.ok || !res.payload?.id) {
+  if (!res.ok || !res.providerOrderId) {
     await dataDb.dataOrder.update({
       where: { id: orderId },
-      data: { status: "failed", providerMessage: res.message.slice(0, 500) },
+      data: {
+        status: "failed",
+        providerMessage: res.message.slice(0, 500),
+        fulfilledBy: res.route,
+      },
     });
     after(async () => {
       await notifyDataOrderFailed(orderId);
@@ -181,20 +194,25 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
     return { ok: false, message: res.message };
   }
 
-  const status = mapProviderStatus(res.payload.status);
-  // What the provider says it charged. Recorded in its own column as well as
+  const status = res.status;
+  // What the upstream says it charged. Recorded in its own column as well as
   // over the ladder's cost, because the provider-wallet bookkeeping has to
   // subtract our own spending from the balance to work out what was funded —
   // and a bundle nobody ever typed a cost against would otherwise subtract
   // nothing and make an ordinary sale look like somebody else's withdrawal.
-  const charged = typeof res.payload.price === "number" ? res.payload.price / 100 : null;
+  //
+  // An MTN transfer often reports its value in volume rather than money, and
+  // that is not a cost in cedis; the router returns null for it rather than a
+  // figure that would read as a catastrophic loss on the margin report.
+  const charged = res.charged;
   await dataDb.dataOrder.update({
     where: { id: orderId },
     data: {
       status,
-      providerOrderId: res.payload.id,
-      providerCode: res.payload.orderCode ?? null,
-      providerStatus: res.payload.status ?? null,
+      fulfilledBy: res.route,
+      providerOrderId: res.providerOrderId,
+      providerCode: res.providerCode,
+      providerStatus: res.providerStatus,
       providerMessage: res.message.slice(0, 500),
       ...(charged === null ? {} : { providerCost: charged }),
       // Keep it on the margin report too, but never let it change what the
@@ -290,6 +308,14 @@ export async function applyProviderStatus(
   orderId: string,
   providerStatus: string | null | undefined,
   message?: string,
+  /**
+   * The status already mapped, for a caller whose upstream does not speak the
+   * reseller's vocabulary. MTN reports acceptance and outcome as two separate
+   * fields that only mean something read together (see mtn/status.ts), so the
+   * MTN route maps them itself and passes the answer in. Left out, the
+   * reseller's own mapping is used exactly as before.
+   */
+  mapped?: DataOrderStatus,
 ): Promise<DataOrderStatus | null> {
   const order = await dataDb.dataOrder.findUnique({
     where: { id: orderId },
@@ -300,7 +326,7 @@ export async function applyProviderStatus(
     return order.status as DataOrderStatus;
   }
 
-  const next = mapProviderStatus(providerStatus);
+  const next = mapped ?? mapProviderStatus(providerStatus);
   await dataDb.dataOrder.update({
     where: { id: orderId },
     data: {
@@ -350,18 +376,26 @@ async function settleOrderCommissions(orderId: string): Promise<void> {
   if (order?.agentId) await releaseReferralRewards(order.agentId);
 }
 
-/** Re-read an order from the provider and apply whatever it says. */
+/**
+ * Re-read an order from the upstream holding it and apply whatever it says.
+ *
+ * `fulfilledBy` is read from the row rather than from the current settings on
+ * purpose: the route is a switch an admin can throw at any moment, and an
+ * order placed through one provider has to stay readable afterwards. Asking
+ * whichever provider is configured *today* about an order the other one is
+ * holding would answer "not found" and look like a failure.
+ */
 export async function refreshDataOrder(orderId: string): Promise<DispatchResult> {
   const order = await dataDb.dataOrder.findUnique({
     where: { id: orderId },
-    select: { providerOrderId: true },
+    select: { providerOrderId: true, fulfilledBy: true },
   });
   if (!order?.providerOrderId) {
     return { ok: false, message: "This order hasn't been sent to the provider yet." };
   }
-  const res = await getProviderOrder(order.providerOrderId);
+  const res = await readBundleStatus(order);
   if (!res.ok) return { ok: false, message: res.message };
-  await applyProviderStatus(orderId, res.payload?.status, res.message);
+  await applyProviderStatus(orderId, res.providerStatus, res.message, res.status ?? undefined);
   return { ok: true, message: res.message };
 }
 

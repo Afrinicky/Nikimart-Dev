@@ -6,7 +6,7 @@ import { ModuleTabs } from "@/components/admin/ModuleTabs";
 export const dynamic = "force-dynamic";
 
 /**
- * Store settings, now a module of three tabs rather than one page.
+ * Store settings, now a module of four tabs rather than one page.
  *
  * Backups belong here and not in a module of their own: this is where the
  * bundle business's own configuration lives, and protecting that database is
@@ -15,6 +15,11 @@ export const dynamic = "force-dynamic";
  * thirteen entries long. Export sits beside it and stays a separate tab: the
  * two are easy to confuse and must not be, since only one of them can put the
  * database back.
+ *
+ * Developer is the fourth: API credentials and the fulfilment route, kept here
+ * rather than in environment variables so the people who operate the store can
+ * change them without a deploy. It is last because it is the tab you visit
+ * once and then leave alone.
  */
 export default function DataStoreSettingsLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -30,6 +35,7 @@ export default function DataStoreSettingsLayout({ children }: { children: React.
             { href: "/admin/data/settings", label: "Storefront", icon: "settings", exact: true },
             { href: "/admin/data/settings/backups", label: "Backups", icon: "backup" },
             { href: "/admin/data/settings/export", label: "Export", icon: "sheet" },
+            { href: "/admin/data/settings/developer", label: "Developer", icon: "code" },
           ]}
         />
       </div>

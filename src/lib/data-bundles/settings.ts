@@ -164,6 +164,33 @@ export const DATA_SETTINGS_DEFAULTS = {
   backupRetainDaily: "14",
   backupRetainWeekly: "8",
   backupRetainMonthly: "12",
+
+  // --- Developer: how MTN orders are fulfilled ------------------------------
+  // Which upstream actually delivers an MTN bundle.
+  //
+  //   JUSTICE  the reseller API that has always fulfilled every order.
+  //   MTN      MTN's own Customer Data Transfer API, transferring out of a
+  //            Nickimart MTN line (credentials in the environment).
+  //
+  // It defaults to JUSTICE and nothing moves it but an admin on the Developer
+  // tab. That is the point: the MTN route ships inert, and a store that never
+  // opens that tab behaves exactly as it did before it existed. The other
+  // three networks have no setting at all — MTN's transfer API can only credit
+  // an MTN subscriber, so there is no choice to offer.
+  //
+  // This is a setting rather than an environment variable precisely because it
+  // is the one thing that must be changeable *now*: turning the route off is
+  // how you stop it, and that cannot wait on a deploy.
+  dataRouteMTN: "JUSTICE",
+
+  // Bundle size to MTN product code, one per line ("5 = MTN_DATA_5GB").
+  // See mtn/products.ts for the format and what an unreadable line does.
+  //
+  // Here rather than in the environment because it is not a secret and it
+  // moves: every bundle size added to the ladder needs a line, and needing a
+  // redeploy to sell a new size is the kind of friction that ends with the
+  // size being sold through the wrong provider instead.
+  mtnProductCodes: "",
 } as const;
 
 export type DataSettingKey = keyof typeof DATA_SETTINGS_DEFAULTS;

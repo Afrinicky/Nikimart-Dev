@@ -1,0 +1,12 @@
+-- MTN Customer Data Transfer: remember which upstream delivered an order.
+--
+-- Until now there was only one, so there was nothing to record. With MTN's own
+-- transfer API as a second route, a status read has to go back to whichever
+-- provider is actually holding the order — not to whichever one is configured
+-- at the moment somebody presses refresh. The route is an admin setting and
+-- can be changed at any time, so re-deriving it would ask the wrong upstream
+-- about every order placed before the switch.
+--
+-- Null is the existing provider (see mtn/route-rules.ts, normaliseRoute), so
+-- every row already in the table reads correctly without being backfilled.
+ALTER TABLE "DataOrder" ADD COLUMN IF NOT EXISTS "fulfilledBy" TEXT;

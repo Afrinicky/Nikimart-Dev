@@ -121,6 +121,14 @@ model DataOrder {
   /// work out what was funded, and a ladder cost of zero turns an ordinary
   /// sale into an apparent withdrawal by somebody else.
   providerCost    Float?
+  /// Which upstream actually delivered this order — "JUSTICE" for the reseller
+  /// API, "MTN" for MTN's own Customer Data Transfer. Null on every order
+  /// placed before the MTN route existed, and read as JUSTICE (see
+  /// mtn/route-rules.ts). It has to be stored rather than re-derived, because
+  /// the route is a setting an admin can change: re-deriving it would send a
+  /// status read to whichever provider is configured *today* instead of the
+  /// one that is actually holding the order.
+  fulfilledBy     String?
   /// When Paystack was last asked about an unpaid order. Stops the sweep and
   /// the tracker asking about the same reference over and over.
   lastVerifiedAt  DateTime?
