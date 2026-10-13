@@ -27,13 +27,75 @@ import { NETWORKS, type Network } from "../networks.ts";
  */
 
 /**
- * The carriers that can have an adapter. A carrier is a company we hold
- * credentials with, which is not the same as a network: AirtelTigo sells both
- * iShare and BigTime through one account, so one carrier covers two of our
- * networks.
+ * The carriers, whether or not one has an integration yet.
+ *
+ * A carrier is a company we hold credentials with, which is not the same as a
+ * network: AirtelTigo sells both iShare and BigTime through one account, so
+ * one carrier covers two of our networks.
+ *
+ * This list is deliberately separate from the adapter registry. Telecel and
+ * AirtelTigo are carriers we are working on and have no adapter for, and the
+ * console still needs to show them — a tab that says "no API yet, using the
+ * current provider" is useful; a tab that silently does not exist is not. So
+ * the catalogue describes every carrier and the registry says which of them
+ * can actually take an order.
+ *
+ * It is also the single source for a carrier's networks and name, so an
+ * adapter cannot disagree with the console about which networks it serves.
  */
+export interface CarrierCatalogEntry {
+  id: CarrierId;
+  /** The URL segment for this carrier's tab. */
+  slug: string;
+  label: string;
+  /** How the integration reads once it exists. */
+  productLabel: string;
+  networks: readonly Network[];
+}
+
 export const CARRIER_IDS = ["MTN", "TELECEL", "AIRTELTIGO"] as const;
 export type CarrierId = (typeof CARRIER_IDS)[number];
+
+export const CARRIER_CATALOG: readonly CarrierCatalogEntry[] = [
+  {
+    id: "MTN",
+    slug: "mtn",
+    label: "MTN",
+    productLabel: "MTN Customer Data Transfer",
+    networks: ["MTN"],
+  },
+  {
+    id: "TELECEL",
+    slug: "telecel",
+    label: "Telecel",
+    productLabel: "Telecel Direct",
+    networks: ["TELECEL"],
+  },
+  {
+    id: "AIRTELTIGO",
+    slug: "airteltigo",
+    label: "AirtelTigo",
+    productLabel: "AirtelTigo Direct",
+    // One account, both ladders — which is the whole reason a carrier and a
+    // network are not the same thing.
+    networks: ["AIRTELTIGO_ISHARE", "AIRTELTIGO_BIGTIME"],
+  },
+];
+
+export function carrierCatalogById(id: string): CarrierCatalogEntry | null {
+  return CARRIER_CATALOG.find((c) => c.id === id) ?? null;
+}
+
+export function carrierCatalogBySlug(slug: string): CarrierCatalogEntry | null {
+  return CARRIER_CATALOG.find((c) => c.slug === slug.toLowerCase()) ?? null;
+}
+
+/** The carrier whose networks include this one, from the catalogue. */
+export function carrierCatalogForNetwork(network: string): CarrierCatalogEntry | null {
+  return (
+    CARRIER_CATALOG.find((c) => (c.networks as readonly string[]).includes(network)) ?? null
+  );
+}
 
 /** The reseller that has always fulfilled every order. */
 export const RESELLER_ROUTE = "JUSTICE";

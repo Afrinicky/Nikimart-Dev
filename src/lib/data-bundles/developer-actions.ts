@@ -11,7 +11,11 @@ import {
 } from "@/lib/data-bundles/settings";
 import { NETWORKS } from "@/lib/data-bundles/networks";
 import { carrierById } from "@/lib/data-bundles/carriers/registry";
-import { isCarrierId, RESELLER_ROUTE } from "@/lib/data-bundles/carriers/rules";
+import {
+  carrierCatalogById,
+  isCarrierId,
+  RESELLER_ROUTE,
+} from "@/lib/data-bundles/carriers/rules";
 import {
   parseProductMapping,
   productCodesSubmittedField,
@@ -93,10 +97,15 @@ export async function updateDeveloperSettings(
       continue;
     }
 
+    const entry = carrierCatalogById(chosen);
     const adapter = carrierById(chosen);
-    if (!adapter || !(adapter.networks as readonly string[]).includes(network)) {
-      return { error: `There is no direct ${chosen} route for ${network} yet.` };
+    if (!entry || !(entry.networks as readonly string[]).includes(network)) {
+      return { error: `${chosen} does not serve ${network}.` };
     }
+    if (!adapter) {
+      return { error: `There is no ${entry.label} integration yet — ${network} stays with the current provider.` };
+    }
+    const label = entry.productLabel;
 
     const { ready, missing } = adapter.readiness();
     if (!ready) {
@@ -120,13 +129,13 @@ export async function updateDeveloperSettings(
         entries[key] ?? stored[key] ?? (network === "MTN" ? stored.mtnProductCodes : "") ?? "";
       if (parseProductMapping(raw).codes.size === 0) {
         return {
-          error: `Add at least one ${adapter.label} product code before switching ${network} orders over.`,
+          error: `Add at least one ${label} product code before switching ${network} orders over.`,
         };
       }
     }
 
     entries[field] = chosen;
-    notice = `${network} orders will now be delivered by ${adapter.label}.`;
+    notice = `${network} orders will now be delivered by ${label}.`;
   }
 
   if (Object.keys(entries).length === 0) return { ok: true };
@@ -134,7 +143,9 @@ export async function updateDeveloperSettings(
   await saveDataSettings(entries);
 
   updateTag(DATA_SETTINGS_TAG);
-  revalidatePath("/admin/data/settings/developer");
+  // "layout" so every carrier's tab is refreshed, not just the one posted
+  // from — a saved switch changes the readiness note on the others too.
+  revalidatePath("/admin/data/settings/developer", "layout");
   revalidatePath("/admin/data");
   return { ok: true, notice };
 }
@@ -154,12 +165,16 @@ export async function testCarrierConnection(
 ): Promise<DeveloperSettingsState> {
   await requireAdmin();
 
-  const adapter = carrierById(str(fd, "carrierId"));
-  if (!adapter) return { error: "No such carrier." };
-  if (!adapter.test) return { error: `${adapter.label} offers no connection test.` };
+  const carrierId = str(fd, "carrierId");
+  const entry = carrierCatalogById(carrierId);
+  const adapter = carrierById(carrierId);
+  if (!entry) return { error: "No such carrier." };
+  if (!adapter) return { error: `There is no ${entry.label} integration yet.` };
+  if (!adapter.test) return { error: `${entry.productLabel} offers no connection test.` };
 
   const res = await adapter.test();
   if (!res.ok) return { error: res.message };
+  const label = entry.productLabel;
 
   const { missing } = adapter.readiness();
   // Credentials that just authenticated are not what is missing, whatever the
@@ -168,7 +183,7 @@ export async function testCarrierConnection(
   return {
     ok: true,
     notice: outstanding.length
-      ? `${adapter.label} accepted the credentials. Still needed before orders can route: ${outstanding.join(", ")}.`
-      : `${adapter.label} accepted the credentials.`,
+      ? `${label} accepted the credentials. Still needed before orders can route: ${outstanding.join(", ")}.`
+      : `${label} accepted the credentials.`,
   };
 }
