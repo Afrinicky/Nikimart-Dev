@@ -81,6 +81,49 @@ export const SETTINGS_DEFAULTS = {
   affiliateMaxRate: "10",
   // The public affiliate headline. "{rate}" is replaced with affiliateMaxRate.
   affiliatePitch: "You can earn up to {rate}% on each product you refer.",
+  // --- Affiliate programme --------------------------------------------------
+  // Master switch. "0" closes the console to everybody but the admin, hides
+  // the public pitch and stops new attribution; existing commission still
+  // clears and still gets paid, because it was already earned.
+  affiliateProgramEnabled: "1",
+  // Whether people who are neither sellers nor agents may apply. "0" leaves
+  // the programme open to existing traders only.
+  affiliateApplicationsOpen: "1",
+  // Sellers and data-bundle agents have already been vetted once, so they are
+  // admitted on first visit rather than queued behind an application. Turn
+  // either off to review every single affiliate by hand.
+  affiliateAutoApproveSellers: "1",
+  affiliateAutoApproveAgents: "1",
+  // How long a referral stays attributed to the affiliate who sent it, in
+  // days. Snapshotted onto each attribution when it is created, so shortening
+  // this never retroactively unpicks one that is already running.
+  affiliateAttributionWindowDays: "30",
+  // Which click wins when a visitor arrives through two affiliates' links:
+  // "last" (the most recent, the industry norm) or "first".
+  affiliateAttributionModel: "last",
+  // Days after delivery before commission becomes payable — the window in
+  // which a return or a refund can still take it back. "0" pays on delivery.
+  affiliateReturnWindowDays: "7",
+  // The smallest payout an affiliate may request (GH₵), and the flat fee taken
+  // off each one.
+  affiliateMinPayout: "20",
+  affiliatePayoutFee: "0",
+  // Refuse commission when the buyer is the affiliate's own account. There is
+  // no legitimate reason to turn this off; it is a setting so that an admin
+  // can see that it is on.
+  affiliateBlockSelfReferral: "1",
+  // How many referred orders one buyer account may put through one affiliate's
+  // links in a day before the rest are flagged for review. "0" switches the
+  // check off.
+  affiliateMaxOrdersPerVisitorPerDay: "3",
+  // The caption that goes out with a shared product when neither the affiliate
+  // nor the product has one of its own.
+  affiliateShareMessage:
+    "Grab this on Nickimart — genuine goods, nationwide delivery. Order with my link below 👇",
+  // The programme's terms, shown in the console and on the application form.
+  affiliateTerms: "",
+  // Where an affiliate goes for help. Empty falls back to site-wide support.
+  affiliateSupportWhatsapp: "",
   // How staff (sellers, freight, pickup, admins) are alerted about orders and
   // jobs: "sms" | "email" | "both". Buyers are always alerted on both channels.
   staffNotifyChannel: "both",

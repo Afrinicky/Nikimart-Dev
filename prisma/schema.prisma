@@ -282,7 +282,14 @@ model Affiliate {
   email          String   @default("")
   code           String?  @unique
   note           String   @default("")
-  // active | suspended. Suspended affiliates stop earning on new orders.
+  /**
+   * pending | active | suspended | rejected.
+   *
+   * Only an active affiliate earns on new orders. "pending" is somebody whose
+   * application has not been decided — they can see the console and the
+   * catalogue, because a programme nobody can look at is one nobody joins, but
+   * their links do not attribute until they are approved.
+   */
   status         String   @default("active")
   // Optional per-affiliate commission override (percent). Null = program default.
   commissionRate Float?
@@ -293,24 +300,72 @@ model Affiliate {
   userId String? @unique
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  payouts AffiliatePayout[]
-  orders  Order[]
+  // --- Affiliate console ----------------------------------------------------
+  /**
+   * How this affiliate got here: "self" (applied), "seller" / "agent" (an
+   * existing Nickimart trader who was admitted automatically), or "admin"
+   * (created in the console). Kept because the three are reviewed differently.
+   */
+  source        String    @default("admin")
+  /**
+   * The caption that goes out with every share unless the affiliate has
+   * written one for that product. Empty falls back to the programme default.
+   */
+  shareMessage  String    @default("")
+  /** The flyer colourway this affiliate last chose, so it stays theirs. */
+  flyerTheme    String    @default("")
+  // Where a payout is sent. Asked once rather than on every request.
+  payoutMethod  String    @default("")
+  payoutName    String    @default("")
+  payoutNumber  String    @default("")
+  payoutNetwork String    @default("")
+  approvedAt    DateTime?
+  /** The admin who decided. A plain id: the audit trail is AffiliateEvent. */
+  approvedById  String    @default("")
+  suspendedAt   DateTime?
+  suspendReason String    @default("")
+  lastSharedAt  DateTime?
+
+  payouts     AffiliatePayout[]
+  orders      Order[]
+  products    AffiliateProduct[]
+  referrals   AffiliateReferral[]
+  clicks      AffiliateClick[]
+  commissions AffiliateCommission[]
+  flags       AffiliateFraudFlag[]
+  events      AffiliateEvent[]
 }
 
 model AffiliatePayout {
   id        String    @id @default(cuid())
   amount    Float
-  status    String    @default("pending") // pending | paid
+  // pending | processing | paid | rejected
+  status    String    @default("pending")
   method    String    @default("")
   reference String?
   note      String?
   createdAt DateTime  @default(now())
   paidAt    DateTime?
 
+  // Where it is going, snapshotted from the affiliate's payout details at the
+  // moment they asked — changing them later must not rewrite a paid request.
+  accountName   String    @default("")
+  accountNumber String    @default("")
+  network       String    @default("")
+  decidedAt     DateTime?
+  decidedById   String    @default("")
+  rejectReason  String    @default("")
+
   affiliateId String
   affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
 
+  // The commission lines this payout settles. A payout is the sum of named
+  // lines rather than a number typed against a balance, so what was paid for
+  // can always be shown.
+  commissions AffiliateCommission[]
+
   @@index([affiliateId])
+  @@index([status])
 }
 
 model Product {
@@ -433,6 +488,10 @@ model Product {
 
   images     ProductImage[]
   orderItems OrderItem[]
+
+  // Affiliate programme: who is promoting this listing, and what it has earned.
+  affiliatePromotions AffiliateProduct[]
+  affiliateCommissions AffiliateCommission[]
 }
 
 model ProductImage {
@@ -494,6 +553,11 @@ model Order {
 
   items    OrderItem[]
   shipment Shipment?
+
+  // The per-line affiliate commission ledger for this order. `affiliateCommission`
+  // above is the order-level snapshot; these are what actually gets paid, and
+  // what gets reversed when an order is cancelled, returned or refunded.
+  affiliateCommissions AffiliateCommission[]
 }
 
 model OrderItem {
@@ -552,6 +616,8 @@ model OrderItem {
   order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId String
   product   Product @relation(fields: [productId], references: [id])
+
+  affiliateCommissionEntry AffiliateCommission?
 
   @@index([purchaseOrderId])
 }
@@ -1182,4 +1248,305 @@ model LegalPolicy {
 
   updatedAt DateTime @updatedAt
   updatedBy String   @default("")
+}
+
+// ---------------------------------------------------------------------------
+// Affiliate console
+// ---------------------------------------------------------------------------
+//
+// The programme has three moving parts and they are deliberately separate
+// tables rather than columns on Affiliate:
+//
+//   * what somebody chose to promote      → AffiliateProduct
+//   * who arrived through which link      → AffiliateReferral / AffiliateClick
+//   * what is owed and whether it cleared → AffiliateCommission
+//
+// Commission is a ledger, one row per order line, because that is the only
+// shape that survives the things that actually happen to orders. A single
+// number on the order cannot say which line was returned, cannot be partially
+// reversed, and cannot be pointed at the payout that settled it. Every rule
+// that decided an amount is snapshotted onto the row, so a rate change or a
+// policy change tomorrow can never rewrite what somebody earned today.
+
+/**
+ * Somebody asking to join the programme.
+ *
+ * Its own table rather than a pending Affiliate row: a rejected applicant can
+ * apply again, and the decision history is worth keeping either way. Sellers
+ * and data-bundle agents are admitted without one when the admin has left
+ * auto-approval on — they have already been vetted once.
+ */
+model AffiliateApplication {
+  id       String  @id @default(cuid())
+  /** The signed-in account that applied. Null only for an imported record. */
+  userId   String?
+  fullName String
+  phone    String  @default("")
+  email    String  @default("")
+  /** JSON-encoded string[] of channel keys: whatsapp, instagram, tiktok, … */
+  channels String  @default("[]")
+  /** How many people they reach, in their own words. */
+  audience String  @default("")
+  note     String  @default("")
+  /** The referral code they would like, if it is free when approved. */
+  desiredCode String @default("")
+
+  // pending | approved | rejected
+  status       String    @default("pending")
+  decidedAt    DateTime?
+  decidedById  String    @default("")
+  decisionNote String    @default("")
+  /** The affiliate created on approval. */
+  affiliateId  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
+  @@index([userId])
+}
+
+/**
+ * One product an affiliate has chosen to promote, and the link that is theirs.
+ *
+ * The link code is per affiliate *and* per product rather than one code per
+ * affiliate, because "which of my links is working" is the first question
+ * anybody promoting more than one thing asks, and a shared code cannot answer
+ * it. `/r/<linkCode>` records the click and sets the attribution cookie before
+ * redirecting, so attribution does not depend on JavaScript running.
+ */
+model AffiliateProduct {
+  id          String    @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  /** The short, shareable code this affiliate's link to this product carries. */
+  linkCode String @unique
+  /** The caption shared with it. Empty falls back to the affiliate's own. */
+  shareMessage String @default("")
+  flyerTheme   String @default("")
+  /** Paused links stay in the list and keep their history, but are not pushed. */
+  active       Boolean @default(true)
+  clicks       Int     @default(0)
+  lastSharedAt DateTime?
+  createdAt    DateTime @default(now())
+
+  @@unique([affiliateId, productId])
+  @@index([productId])
+  @@index([affiliateId, createdAt])
+}
+
+/**
+ * A live attribution: this visitor belongs to this affiliate until it expires.
+ *
+ * The window is snapshotted in days on the row and resolved into `expiresAt`,
+ * so changing the policy moves new attributions and leaves existing ones
+ * exactly where the buyer and the affiliate were told they stood.
+ *
+ * `visitorId` is a first-party cookie, not a fingerprint. Once the visitor
+ * signs in, `userId` is filled in too, which is what lets an attribution
+ * survive the jump from the phone they clicked on to the laptop they bought on.
+ */
+model AffiliateReferral {
+  id          String    @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  visitorId   String
+  /** The product whose link brought them, when it was a product link. */
+  productId   String?
+  linkCode    String  @default("")
+  // link | code | manual
+  source      String  @default("link")
+  landingPath String  @default("")
+  /** Set when the visitor signs in, so a device change keeps the attribution. */
+  userId      String?
+
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  expiresAt   DateTime
+  /** The policy that produced `expiresAt`, snapshotted. */
+  windowDays  Int      @default(30)
+  // last | first — which click wins when a visitor clicks two affiliates' links.
+  model       String   @default("last")
+  /** Orders attributed through it, for the console's conversion figures. */
+  orders      Int      @default(0)
+
+  @@unique([affiliateId, visitorId])
+  @@index([visitorId, lastSeenAt])
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/**
+ * One visit through an affiliate link.
+ *
+ * Kept per click rather than as a counter because the counter cannot answer
+ * the two questions that matter: which channel is working, and is one device
+ * clicking a link four hundred times. The address and the browser are stored
+ * hashed — enough to spot that, not enough to identify a shopper.
+ */
+model AffiliateClick {
+  id          String    @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  productId   String?
+  linkCode    String    @default("")
+  visitorId   String    @default("")
+  /** whatsapp | facebook | instagram | tiktok | x | direct … */
+  channel     String    @default("")
+  path        String    @default("")
+  referer     String    @default("")
+  ipHash      String    @default("")
+  uaHash      String    @default("")
+  createdAt   DateTime  @default(now())
+
+  @@index([affiliateId, createdAt])
+  @@index([productId])
+  @@index([linkCode])
+}
+
+/**
+ * What one order line earned an affiliate, and where that stands.
+ *
+ * One row per order line, unique on the line, which is what makes the whole
+ * thing safe against the duplicate payment notifications the gateway sends:
+ * accruing twice is a constraint violation, not a double payout.
+ *
+ * The lifecycle is the point of the table:
+ *
+ *   pending  — the order is paid but not delivered. Nothing is payable.
+ *   clearing — delivered, inside the return window. Still not payable.
+ *   cleared  — the return window has passed. Payable.
+ *   paid     — settled by the payout named in `payoutId`.
+ *   reversed — the order was cancelled, returned or refunded. `reversedAmount`
+ *              carries how much was taken back, so a partial refund reduces
+ *              the commission in proportion rather than voiding it.
+ */
+model AffiliateCommission {
+  id          String    @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  orderId     String
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItemId String    @unique
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+
+  // --- what it was computed from, snapshotted at sale time -----------------
+  quantity               Int    @default(1)
+  unitPrice              Float  @default(0)
+  /** The line value the percent was applied to. */
+  baseAmount             Float  @default(0)
+  rate                   Float  @default(0)
+  amount                 Float  @default(0)
+  // seller | platform — whose money funds it.
+  fundedBy               String @default("")
+  // product | category | affiliate | default — which rule set the rate.
+  ruleSource             String @default("default")
+  platformCommissionRate Float  @default(0)
+  attributionWindowDays  Int    @default(30)
+  returnWindowDays       Int    @default(0)
+
+  // --- where it stands ------------------------------------------------------
+  // pending | clearing | cleared | paid | reversed
+  status         String    @default("pending")
+  /** Earliest moment this may be paid: delivery + the return window. */
+  holdUntil      DateTime?
+  deliveredAt    DateTime?
+  clearedAt      DateTime?
+  reversedAt     DateTime?
+  reversedAmount Float     @default(0)
+  reversalReason String    @default("")
+
+  payoutId String?
+  payout   AffiliatePayout? @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  adjustments AffiliateAdjustment[]
+
+  @@index([affiliateId, status])
+  @@index([orderId])
+  @@index([productId])
+  @@index([payoutId])
+  @@index([createdAt])
+}
+
+/**
+ * A deliberate change to a commission: a refund, a return, a correction.
+ *
+ * Separate from the commission row so the row's current state and the reasons
+ * it got there are both recoverable. An admin reversing half of a line leaves
+ * a record of who did it and why, which is the difference between an accounts
+ * query that can be answered and one that cannot.
+ */
+model AffiliateAdjustment {
+  id           String               @id @default(cuid())
+  commissionId String?
+  commission   AffiliateCommission? @relation(fields: [commissionId], references: [id], onDelete: SetNull)
+  affiliateId  String
+  orderId      String?
+  // refund | return | cancellation | correction | clawback | release
+  kind         String
+  /** Signed: negative takes commission back, positive restores it. */
+  amount       Float    @default(0)
+  reason       String   @default("")
+  actorId      String   @default("")
+  createdAt    DateTime @default(now())
+
+  @@index([affiliateId, createdAt])
+  @@index([commissionId])
+  @@index([orderId])
+}
+
+/**
+ * Something that looked like abuse.
+ *
+ * Raised by the attribution engine rather than by a human, and never silently
+ * destructive: a blocking flag stops the commission accruing, a warning one
+ * lets it through and puts it in front of an admin. Both are rows here, so
+ * "why did this order not earn" always has an answer.
+ */
+model AffiliateFraudFlag {
+  id          String    @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  orderId     String?
+  /**
+   * self_referral | same_account | same_device | same_ip | velocity |
+   * expired_window | suspended | duplicate_payment | rate_anomaly
+   */
+  kind        String
+  // info | warn | block
+  severity    String    @default("warn")
+  detail      String    @default("")
+  // open | cleared | upheld
+  status      String    @default("open")
+  resolvedAt  DateTime?
+  resolvedById String   @default("")
+  createdAt   DateTime  @default(now())
+
+  @@index([affiliateId, status])
+  @@index([kind, createdAt])
+  @@index([orderId])
+}
+
+/** The audit trail for everything an admin or an affiliate does in here. */
+model AffiliateEvent {
+  id          String     @id @default(cuid())
+  affiliateId String?
+  affiliate   Affiliate? @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  actorId     String     @default("")
+  actorName   String     @default("")
+  /** approved | suspended | rate_changed | payout_paid | product_enrolled … */
+  action      String
+  detail      String     @default("")
+  createdAt   DateTime   @default(now())
+
+  @@index([affiliateId, createdAt])
+  @@index([action, createdAt])
 }

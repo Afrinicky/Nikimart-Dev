@@ -1,98 +1,230 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowUpRight, Plus, Settings } from "lucide-react";
+import { Suspense } from "react";
+import { ArrowUpRight, Plus } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ExportButton } from "@/components/admin/ExportButton";
+import { AffiliateModuleHeader } from "@/components/admin/AffiliateModuleHeader";
+import { AffiliateStatusButton } from "@/components/admin/AffiliateAdminTools";
+import { ConsoleFilters } from "@/components/affiliate/ConsoleFilters";
+import { ConsolePill, ConsoleRow, ConsoleTable, formatWhen, td } from "@/components/affiliate/ConsoleTable";
 import { requireDashboard } from "@/lib/session";
-import { getAffiliateOverview, getAllAffiliatesWithStats } from "@/lib/affiliate";
-import { getAffiliateRate } from "@/lib/settings";
-import { formatPrice } from "@/lib/format";
+import { getAffiliateOverview } from "@/lib/affiliate";
+import {
+  AFFILIATE_SOURCE_OPTIONS,
+  AFFILIATE_STATUS_OPTIONS,
+  getAffiliateRoster,
+} from "@/lib/affiliate-admin";
+import { getAffiliatePolicy } from "@/lib/affiliate-settings";
+import { perPageFrom } from "@/lib/data-bundles/order-filters";
+import { formatMoney, formatPrice } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Affiliates — Admin — Nickimart" };
+export const dynamic = "force-dynamic";
 
-export default async function AdminAffiliatesPage() {
+const STATUS_LABELS: Record<string, string> = {
+  active: "Active",
+  pending: "Awaiting approval",
+  suspended: "Suspended",
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  self: "Applied",
+  seller: "Seller",
+  agent: "Bundle agent",
+  admin: "Added by admin",
+};
+
+/**
+ * The roster: everybody promoting Nickimart, and what each is worth.
+ *
+ * Rebuilt as a console table because the old version computed every
+ * affiliate's earnings in a loop and rendered all of them on one page — fine
+ * at twenty affiliates, a timeout at two thousand. Filtered, paged and
+ * counted in grouped queries now, and showing the figures an admin actually
+ * reconciles against: clicks, orders, commission, what is payable.
+ */
+export default async function AdminAffiliatesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    status?: string;
+    source?: string;
+    q?: string;
+    page?: string;
+    per?: string;
+  }>;
+}) {
   await requireDashboard("/admin");
-  const [overview, rows, rate] = await Promise.all([getAffiliateOverview(), getAllAffiliatesWithStats(), getAffiliateRate()]);
+  const params = await searchParams;
+
+  const status = AFFILIATE_STATUS_OPTIONS.some((o) => o.value === params.status)
+    ? params.status!
+    : "all";
+  const source = AFFILIATE_SOURCE_OPTIONS.some((o) => o.value === params.source)
+    ? params.source!
+    : "all";
+  const query = (params.q ?? "").trim();
+  const perPage = perPageFrom(params.per, 25);
+  const page = Math.max(1, Number(params.page) || 1);
+
+  const [overview, policy, { rows, total }] = await Promise.all([
+    getAffiliateOverview(),
+    getAffiliatePolicy(),
+    getAffiliateRoster({ status, source, q: query, page, perPage }),
+  ]);
+  const pageCount = Math.max(1, Math.ceil(total / perPage));
 
   return (
     <Container className="py-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-niki-ink">Affiliates</h1>
-          <p className="mt-1 text-sm text-niki-ink/60">
-            Affiliates earn on products enrolled in the programme — sellers enrol theirs at their own
-            expense, and you can enrol any product at Nickimart&apos;s (capped at half the platform
-            commission). Default rate {rate}%, overridable per category and per product.
-          </p>
-        </div>
+      <AffiliateModuleHeader />
+
+      {!policy.enabled ? (
+        <p className="mt-5 rounded-2xl bg-niki-gold/15 px-4 py-3 text-sm text-amber-800 ring-1 ring-niki-gold/30">
+          The programme is switched off: no new attribution is being recorded. Commission already
+          earned still clears and still pays.{" "}
+          <Link href="/admin/affiliates/settings" className="font-semibold underline">
+            Turn it back on
+          </Link>
+          .
+        </p>
+      ) : null}
+
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-niki-ink/60">
+          Default commission {policy.defaultRate}%, overridable per category, per product and per
+          affiliate. Referrals are attributed for {policy.attributionWindowDays} days.
+        </p>
         <div className="flex flex-wrap items-center gap-2">
           <ExportButton dataset="affiliates" />
-          <Link href="/admin/settings" className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white">
-            <Settings className="h-4 w-4" /> Program settings
-          </Link>
-          <Link href="/admin/affiliates/new" className="flex items-center gap-2 rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white hover:bg-niki-orange-light">
+          <Link
+            href="/admin/affiliates/new"
+            className="flex items-center gap-2 rounded-lg bg-niki-orange px-5 py-2.5 text-sm font-semibold text-white hover:bg-niki-orange-light"
+          >
             <Plus className="h-4 w-4" /> Add affiliate
           </Link>
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-3">
+      <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatCard label="Affiliates" value={`${overview.active}/${overview.total} active`} />
-        <StatCard label="Referred sales" value={formatPrice(overview.referredSales)} href="/admin/finance/breakdown/gmv" />
-        <StatCard label="Commission earned" value={formatPrice(overview.commissionEarned)} href="/admin/finance/breakdown/affiliateCost" />
-        <StatCard label="Paid to affiliates" value={formatPrice(overview.paidOut)} href="/admin/finance/breakdown/affiliate" />
-        <StatCard label="Owed to affiliates" value={formatPrice(overview.owed)} href="/admin/finance" />
+        <StatCard
+          label="Referred sales"
+          value={formatPrice(overview.referredSales)}
+          href="/admin/finance/breakdown/gmv"
+        />
+        <StatCard
+          label="Commission earned"
+          value={formatMoney(overview.commissionEarned)}
+          href="/admin/affiliates/commissions"
+        />
+        <StatCard
+          label="Paid to affiliates"
+          value={formatMoney(overview.paidOut)}
+          href="/admin/affiliates/payouts"
+        />
+        <StatCard
+          label="Owed"
+          value={formatMoney(overview.owed)}
+          href="/admin/affiliates/payouts?status=pending"
+        />
       </div>
 
-      {/* Roster */}
-      <h2 className="mt-8 font-display text-lg font-bold text-niki-ink">All affiliates</h2>
-      {rows.length === 0 ? (
-        <p className="mt-4 rounded-2xl bg-white p-8 text-center text-sm text-niki-ink/50 ring-1 ring-niki-edge">
-          No affiliates yet. People can join via <span className="font-semibold">Start Selling → Become an affiliate</span>, or add one here.
-        </p>
-      ) : (
-        <div className="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-niki-edge">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="border-b border-niki-edge text-xs uppercase tracking-wide text-niki-ink/50">
-              <tr>
-                <th className="px-5 py-3 font-semibold">Affiliate</th>
-                <th className="px-5 py-3 font-semibold">Code</th>
-                <th className="px-5 py-3 font-semibold">Status</th>
-                <th className="px-5 py-3 font-semibold">Referred</th>
-                <th className="px-5 py-3 font-semibold">Earned</th>
-                <th className="px-5 py-3 font-semibold">Available</th>
-                <th className="px-5 py-3 font-semibold sr-only">Manage</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-niki-edge">
-              {rows.map((a) => (
-                <tr key={a.id} className="hover:bg-niki-surface">
-                  <td className="px-5 py-3 font-medium text-niki-ink">
-                    {a.name}
-                    {a.isUser ? <span className="ml-2 rounded-lg bg-niki-trust/10 px-2 py-0.5 text-[10px] font-semibold text-niki-trust">Self-registered</span> : null}
-                  </td>
-                  <td className="px-5 py-3 font-mono text-xs text-niki-orange">{a.code ?? "—"}</td>
-                  <td className="px-5 py-3">
-                    <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${a.status === "active" ? "bg-niki-success/10 text-niki-success" : "bg-niki-danger/10 text-niki-danger"}`}>
-                      {a.status === "active" ? "Active" : "Suspended"}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-niki-ink/70">{a.earnings.referredOrders}</td>
-                  <td className="px-5 py-3 text-niki-ink/70">{formatPrice(a.earnings.earned)}</td>
-                  <td className="px-5 py-3 font-semibold text-niki-ink">{formatPrice(a.earnings.available)}</td>
-                  <td className="px-5 py-3 text-right">
-                    <Link href={`/admin/affiliates/${a.id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-niki-orange hover:underline">
-                      Manage <ArrowUpRight className="h-3.5 w-3.5" />
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="mt-4">
+        <Suspense fallback={<div className="h-40" />}>
+          <ConsoleFilters
+            query={query}
+            searchPlaceholder="Search by name, code, email or phone…"
+            selects={[
+              { key: "status", label: "Filter by status", value: status, options: AFFILIATE_STATUS_OPTIONS },
+              { key: "source", label: "Filter by source", value: source, options: AFFILIATE_SOURCE_OPTIONS },
+            ]}
+            shown={rows.length}
+            total={total}
+            page={page}
+            pageCount={pageCount}
+            noun="affiliates"
+          />
+        </Suspense>
+      </div>
+
+      <ConsoleTable
+        columns={[
+          "Affiliate",
+          "Code",
+          "Source",
+          "Status",
+          "Products",
+          "Clicks",
+          "Orders",
+          "Sales",
+          "Commission",
+          "Payable",
+          "Actions",
+        ]}
+        minWidth={1340}
+        page={page}
+        pageCount={pageCount}
+        perPage={perPage}
+        empty="No affiliates match these filters. People join from the affiliate page, or you can add one here."
+      >
+        {rows.map((a) => (
+          <ConsoleRow key={a.id}>
+            <td className={td}>
+              <Link
+                href={`/admin/affiliates/${a.id}`}
+                className="font-semibold text-niki-ink hover:text-niki-orange"
+              >
+                {a.name}
+              </Link>
+              <p className="truncate text-[11px] text-niki-ink/45">
+                {a.email || a.phone || "—"}
+                {a.openFlags > 0 ? (
+                  <Link
+                    href={`/admin/affiliates/fraud?q=${encodeURIComponent(a.code || a.name)}`}
+                    className="ml-1.5 font-semibold text-niki-danger hover:underline"
+                  >
+                    {a.openFlags} flag{a.openFlags === 1 ? "" : "s"}
+                  </Link>
+                ) : null}
+              </p>
+            </td>
+            <td className={`${td} font-mono text-xs font-semibold text-niki-orange`}>
+              {a.code || "—"}
+            </td>
+            <td className={`${td} text-xs text-niki-ink/55`}>
+              {SOURCE_LABELS[a.source] ?? a.source}
+              {a.isUser ? "" : " · no login"}
+              <span className="mt-0.5 block text-[10px] text-niki-ink/35">
+                joined {formatWhen(a.createdAt)}
+              </span>
+            </td>
+            <td className={td}>
+              <ConsolePill status={a.status} label={STATUS_LABELS[a.status] ?? a.status} />
+            </td>
+            <td className={`${td} text-niki-ink/70`}>{a.products}</td>
+            <td className={`${td} text-niki-ink/70`}>{a.clicks.toLocaleString("en-GB")}</td>
+            <td className={`${td} text-niki-ink/70`}>{a.orders}</td>
+            <td className={`${td} text-niki-ink/70`}>{formatPrice(a.sales)}</td>
+            <td className={`${td} font-figures font-bold text-niki-ink`}>{formatMoney(a.earned)}</td>
+            <td className={`${td} font-figures font-bold text-niki-success`}>
+              {formatMoney(a.payable)}
+            </td>
+            <td className={td}>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <AffiliateStatusButton id={a.id} status={a.status} />
+                <Link
+                  href={`/admin/affiliates/${a.id}`}
+                  className="niki-press inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-bold text-niki-ink/60 ring-1 ring-niki-edge-strong hover:bg-niki-surface"
+                >
+                  Manage <ArrowUpRight className="h-3 w-3" />
+                </Link>
+              </div>
+            </td>
+          </ConsoleRow>
+        ))}
+      </ConsoleTable>
     </Container>
   );
 }

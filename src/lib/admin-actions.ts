@@ -12,6 +12,7 @@ import { ROLES } from "@/lib/roles";
 import { buildProductData, parseImages, validateProduct } from "@/lib/product-form";
 import { syncProductImages } from "@/lib/product-images";
 import { releaseStockForOrder } from "@/lib/stock";
+import { syncAffiliateCommissions } from "@/lib/affiliate-ledger";
 
 export type CrudState = { error?: string; fieldErrors?: Record<string, string> };
 
@@ -505,7 +506,14 @@ export async function setOrderStatus(fd: FormData): Promise<void> {
       shipmentData.transitAt = now;
     }
     await prisma.shipment.updateMany({ where: { orderId: id }, data: shipmentData });
+
+    // Affiliate commission follows the order: delivery starts the return
+    // window, a cancellation reverses it. Run after the shipment write so the
+    // delivery timestamp it reads is the one just set.
+    await syncAffiliateCommissions(id);
+
     revalidatePath("/admin/orders");
+    revalidatePath("/affiliate");
     revalidatePath("/account");
     revalidatePath("/freight");
     revalidatePath("/pickup");
