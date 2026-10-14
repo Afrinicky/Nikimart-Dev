@@ -121,6 +121,129 @@ function readToken(json: unknown): { token: string; ttlMs: number } | null {
  * MADAPI's token endpoint documents; `grant_type=client_credentials` is the
  * body. Nothing about either is logged.
  */
+/**
+ * What a rejection actually said.
+ *
+ * The gateway in front of MADAPI reports a bad token request in at least
+ * three shapes — `error` / `error_description` from OAuth2, `fault.faultstring`
+ * from Apigee, and a plain `message` — and it was being reduced to "HTTP 400",
+ * which says only that something was wrong with a request we cannot see. The
+ * difference between "unsupported grant type" and "invalid client" is the
+ * whole diagnosis, so every shape is read and the raw body is the last resort.
+ */
+function errorDetail(json: unknown, text: string, status: number): string {
+  if (typeof json === "object" && json !== null) {
+    const record = json as Record<string, unknown>;
+    const fault = record.fault as Record<string, unknown> | undefined;
+    const candidates = [
+      record.error_description,
+      record.message,
+      record.statusMessage,
+      fault?.faultstring,
+      record.error,
+    ];
+    for (const value of candidates) {
+      if (typeof value === "string" && value.trim()) return `${value.trim()} (HTTP ${status})`;
+    }
+  }
+  const body = text.trim().slice(0, 200);
+  return body ? `HTTP ${status}: ${body}` : `HTTP ${status}`;
+}
+
+/**
+ * The ways a client-credentials token is asked for, in the order they are
+ * tried.
+ *
+ * There is a standard for this and then there is what a given gateway
+ * actually accepts. MADAPI sits behind Apigee, whose token endpoint commonly
+ * wants `grant_type` as a *query parameter* rather than in the body — and a
+ * request that puts it in the body comes back as a bare HTTP 400, which is
+ * indistinguishable from a wrong secret unless you already know to look.
+ *
+ * Rather than pick one and leave an operator guessing, all three standard
+ * dialects are tried in turn and the first that yields a token wins. Each is a
+ * legitimate reading of the OAuth2 client-credentials grant; none of them can
+ * do anything but ask for a token.
+ *
+ * The winner is remembered per client id, so this costs one extra round trip
+ * once rather than on every call.
+ */
+type TokenDialect = "basic-body" | "basic-query" | "body-credentials";
+
+const DIALECTS: readonly TokenDialect[] = ["basic-body", "basic-query", "body-credentials"];
+
+const dialectInUse = new Map<string, TokenDialect>();
+
+export function describeDialect(dialect: TokenDialect): string {
+  if (dialect === "basic-query") return "Basic auth with grant_type in the query";
+  if (dialect === "body-credentials") return "credentials in the body";
+  return "Basic auth with grant_type in the body";
+}
+
+function tokenRequest(
+  config: MtnConfig,
+  dialect: TokenDialect,
+): { url: string; headers: Record<string, string>; body: string } {
+  const base = `${config.base}/oauth/access_token`;
+  const basic = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
+  const form = {
+    "Content-Type": "application/x-www-form-urlencoded",
+    Accept: "application/json",
+  };
+
+  if (dialect === "basic-query") {
+    return {
+      url: `${base}?grant_type=client_credentials`,
+      headers: { Authorization: `Basic ${basic}`, ...form },
+      body: "",
+    };
+  }
+  if (dialect === "body-credentials") {
+    const body = new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+    });
+    return { url: base, headers: { ...form }, body: body.toString() };
+  }
+  return {
+    url: base,
+    headers: { Authorization: `Basic ${basic}`, ...form },
+    body: "grant_type=client_credentials",
+  };
+}
+
+async function requestToken(
+  config: MtnConfig,
+  dialect: TokenDialect,
+): Promise<{ token: string; ttlMs: number } | { error: string; status: number }> {
+  const { url, headers, body } = tokenRequest(config, dialect);
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    // A dialect that carries everything in the query sends no body at all;
+    // an empty string would still set Content-Length: 0, which some gateways
+    // reject alongside a form content type.
+    ...(body === "" ? {} : { body }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+
+  const text = await res.text().catch(() => "");
+  let json: unknown = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    // Non-JSON body — errorDetail keeps it as the message.
+  }
+
+  const read = readToken(json);
+  if (!res.ok || !read) {
+    return { error: errorDetail(json, text, res.status), status: res.status };
+  }
+  return read;
+}
+
 export async function mtnToken(config: MtnConfig): Promise<MtnResult<string>> {
   if (!config.clientId || !config.clientSecret) {
     return { ok: false, message: "MTN credentials are not set.", status: 0, payload: null };
@@ -131,52 +254,51 @@ export async function mtnToken(config: MtnConfig): Promise<MtnResult<string>> {
     return { ok: true, message: "OK", status: 200, payload: cached.token };
   }
 
-  const basic = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
-  try {
-    const res = await fetch(`${config.base}/oauth/access_token`, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${basic}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
-      body: "grant_type=client_credentials",
-      cache: "no-store",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
+  // The dialect that worked last time first, then the rest.
+  const known = dialectInUse.get(config.clientId);
+  const order = known ? [known, ...DIALECTS.filter((d) => d !== known)] : DIALECTS;
 
-    const text = await res.text().catch(() => "");
-    let json: unknown = null;
+  const failures: string[] = [];
+  let lastStatus = 0;
+
+  for (const dialect of order) {
+    let result;
     try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      // Non-JSON body — the message below still says what happened.
+      result = await requestToken(config, dialect);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      console.error(`[data-bundles] MTN token request failed: ${reason}`);
+      return { ok: false, message: "Could not reach MTN.", status: 0, payload: null };
     }
 
-    const read = readToken(json);
-    if (!res.ok || !read) {
-      const detail =
-        (typeof json === "object" && json !== null
-          ? String((json as Record<string, unknown>).message ?? "")
-          : "") || `HTTP ${res.status}`;
-      return {
-        ok: false,
-        message: `MTN sign-in failed: ${detail}`,
-        status: res.status,
-        payload: null,
-      };
+    if ("token" in result) {
+      dialectInUse.set(config.clientId, dialect);
+      tokens.set(config.clientId, {
+        token: result.token,
+        expiresAt: Date.now() + Math.max(result.ttlMs - TOKEN_SKEW_MS, 30_000),
+      });
+      return { ok: true, message: "OK", status: 200, payload: result.token };
     }
 
-    tokens.set(config.clientId, {
-      token: read.token,
-      expiresAt: Date.now() + Math.max(read.ttlMs - TOKEN_SKEW_MS, 30_000),
-    });
-    return { ok: true, message: "OK", status: res.status, payload: read.token };
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    console.error(`[data-bundles] MTN token request failed: ${reason}`);
-    return { ok: false, message: "Could not reach MTN.", status: 0, payload: null };
+    failures.push(`${describeDialect(dialect)} — ${result.error}`);
+    lastStatus = result.status;
+
+    // 401 means the gateway understood the request and rejected the
+    // credentials. Trying another way of phrasing the same wrong secret only
+    // produces the same answer, and repeated failed sign-ins are their own
+    // problem on somebody else's system.
+    if (result.status === 401) break;
   }
+
+  // A stored value with a stray newline from a copy-paste is the single most
+  // common cause of a token request that is well-formed and still refused, and
+  // it is invisible in every dashboard. Worth saying before the detail.
+  return {
+    ok: false,
+    message: `MTN would not issue a token. Check the key and secret for a stray space or line break, then: ${failures.join(" · ")}`,
+    status: lastStatus,
+    payload: null,
+  };
 }
 
 // ---------------------------------------------------------------------------
