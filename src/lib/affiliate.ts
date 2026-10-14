@@ -1,8 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { money, resolveCommissionRate } from "@/lib/commission";
-import { getAffiliateRate, getCommissionRate } from "@/lib/settings";
-import { resolveAffiliateRate } from "@/lib/affiliate-commission";
+import { money } from "@/lib/commission";
+import { getLedgerBalance } from "@/lib/affiliate-ledger";
 
 export const REFERRAL_COOKIE = "nikimart_ref";
 
@@ -21,83 +20,6 @@ export async function generateAffiliateCode(seed = ""): Promise<string> {
     if (!clash) return code;
   }
   return `NIKI${Date.now().toString(36).toUpperCase()}`;
-}
-
-/** One product an affiliate can promote, with what they'd earn on a sale. */
-export interface PromotableProduct {
-  id: string;
-  name: string;
-  slug: string;
-  price: number;
-  image: string | null;
-  emoji: string;
-  categoryName: string;
-  vendorName: string;
-  /** Effective commission percent of the item price. */
-  rate: number;
-  /** Cash earned on a single unit at the current price. */
-  earnPerSale: number;
-  /** "seller" (the shop funds it) or "platform" (Nickimart funds it). */
-  fundedBy: string;
-}
-
-/**
- * Every product currently enrolled in the affiliate programme, with the
- * commission an affiliate earns on each. Enrolment is per product — a seller
- * opts in at their own expense, or an admin opts in at Nickimart's — so this is
- * the definitive list of what an affiliate can share.
- */
-export async function getPromotableProducts(): Promise<PromotableProduct[]> {
-  const [products, defaultCommission, defaultAffiliateRate] = await Promise.all([
-    prisma.product.findMany({
-      where: { affiliateEnabled: true, isArchived: false },
-      orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        price: true,
-        image: true,
-        emoji: true,
-        affiliateEnabled: true,
-        affiliateEnrolledBy: true,
-        affiliateCommissionRate: true,
-        category: { select: { name: true, commissionRate: true, affiliateCommissionRate: true } },
-        vendor: { select: { businessName: true } },
-        images: { orderBy: { order: "asc" }, take: 1, select: { url: true } },
-      },
-    }),
-    getCommissionRate(),
-    getAffiliateRate(),
-  ]);
-
-  return products
-    .map((p) => {
-      const platformCommissionRate = resolveCommissionRate(p.category?.commissionRate, defaultCommission);
-      const resolved = resolveAffiliateRate({
-        affiliateEnabled: p.affiliateEnabled,
-        affiliateEnrolledBy: p.affiliateEnrolledBy,
-        affiliateCommissionRate: p.affiliateCommissionRate,
-        categoryAffiliateRate: p.category?.affiliateCommissionRate,
-        defaultAffiliateRate,
-        platformCommissionRate,
-      });
-      return {
-        id: p.id,
-        name: p.name,
-        slug: p.slug,
-        price: p.price,
-        image: p.images[0]?.url ?? p.image ?? null,
-        emoji: p.emoji,
-        categoryName: p.category?.name ?? "—",
-        vendorName: p.vendor?.businessName ?? "—",
-        rate: resolved.rate,
-        earnPerSale: money((p.price * resolved.rate) / 100),
-        fundedBy: resolved.fundedBy,
-      };
-    })
-    .filter((p) => p.rate > 0)
-    .sort((a, b) => b.earnPerSale - a.earnPerSale);
 }
 
 export interface AffiliateEarnings {
@@ -128,16 +50,32 @@ export interface AffiliateOverview {
   owed: number;
 }
 
-/** Program-wide affiliate KPIs. */
+/**
+ * Program-wide affiliate KPIs.
+ *
+ * Commission comes off the ledger, which nets out reversals and refunds, and
+ * falls back to the order-level snapshots for a platform whose referrals all
+ * predate the ledger. Referred sales stay on the orders: that is the GMV the
+ * programme produced, and it does not shrink because a commission was clawed
+ * back on one line of one order.
+ */
 export async function getAffiliateOverview(): Promise<AffiliateOverview> {
-  const [affiliates, orders, payouts] = await Promise.all([
+  const [affiliates, orders, payouts, commissions] = await Promise.all([
     prisma.affiliate.findMany({ select: { status: true } }),
     prisma.order.findMany({ where: { affiliateId: { not: null }, status: { notIn: ["cancelled", "pending"] } }, select: { subtotal: true, affiliateCommission: true } }),
     prisma.affiliatePayout.findMany({ select: { amount: true, status: true } }),
+    prisma.affiliateCommission
+      .findMany({ select: { amount: true, reversedAmount: true } })
+      .catch(() => [] as { amount: number; reversedAmount: number }[]),
   ]);
-  const commissionEarned = orders.reduce((s, o) => s + o.affiliateCommission, 0);
+  const commissionEarned =
+    commissions.length > 0
+      ? commissions.reduce((s, c) => s + Math.max(0, c.amount - c.reversedAmount), 0)
+      : orders.reduce((s, o) => s + o.affiliateCommission, 0);
   const paidOut = payouts.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
-  const pending = payouts.filter((p) => p.status === "pending").reduce((s, p) => s + p.amount, 0);
+  const pending = payouts
+    .filter((p) => p.status === "pending" || p.status === "processing")
+    .reduce((s, p) => s + p.amount, 0);
   return {
     total: affiliates.length,
     active: affiliates.filter((a) => a.status === "active").length,
@@ -167,19 +105,49 @@ export async function getAllAffiliatesWithStats(): Promise<AffiliateRow[]> {
 }
 
 /**
- * Compute an affiliate's referral earnings + payout position. Commission only
- * becomes payable once the referred order is delivered — mirroring how seller
- * earnings clear — so a payout is never made against an order that can still
- * be cancelled.
+ * Compute an affiliate's referral earnings + payout position.
+ *
+ * Read off the commission ledger (lib/affiliate-ledger), which is the one
+ * thing that knows about reversals, partial refunds, the return window after
+ * delivery, and which payout settled which line. Commission only becomes
+ * payable once the referred order has been delivered *and* its return window
+ * has run out, so a payout is never made against a sale that can still come
+ * back.
+ *
+ * Orders placed before the ledger existed have no rows in it, so an affiliate
+ * with none falls back to the order-level snapshots. Without that, every
+ * historical referral would read as zero the day this shipped.
  */
 export async function getAffiliateEarnings(affiliateId: string): Promise<AffiliateEarnings> {
-  const [orders, payouts] = await Promise.all([
-    prisma.order.findMany({
-      where: { affiliateId, status: { notIn: ["cancelled", "pending"] } },
-      select: { affiliateCommission: true, status: true },
-    }),
+  const [ledger, payouts] = await Promise.all([
+    getLedgerBalance(affiliateId),
     prisma.affiliatePayout.findMany({ where: { affiliateId }, select: { amount: true, status: true } }),
   ]);
+
+  const paidOut = payouts.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
+  const pendingPayouts = payouts
+    .filter((p) => p.status === "pending" || p.status === "processing")
+    .reduce((s, p) => s + p.amount, 0);
+
+  if (ledger.lines > 0) {
+    return {
+      referredOrders: ledger.orders,
+      earned: ledger.earned,
+      // Everything the affiliate cannot touch yet: the order has not been
+      // delivered, or it has and the buyer can still send it back.
+      inEscrow: money(ledger.pending + ledger.clearing),
+      cleared: money(ledger.cleared + ledger.paid),
+      paidOut: money(paidOut),
+      pendingPayouts: money(pendingPayouts),
+      available: money(Math.max(0, ledger.cleared - pendingPayouts)),
+    };
+  }
+
+  // --- Pre-ledger orders ----------------------------------------------------
+  const orders = await prisma.order.findMany({
+    where: { affiliateId, status: { notIn: ["cancelled", "pending"] } },
+    select: { affiliateCommission: true, status: true },
+  });
 
   let earned = 0;
   let cleared = 0;
@@ -190,8 +158,6 @@ export async function getAffiliateEarnings(affiliateId: string): Promise<Affilia
     else inEscrow += o.affiliateCommission;
   }
 
-  const paidOut = payouts.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
-  const pendingPayouts = payouts.filter((p) => p.status === "pending").reduce((s, p) => s + p.amount, 0);
   return {
     referredOrders: orders.length,
     earned: money(earned),

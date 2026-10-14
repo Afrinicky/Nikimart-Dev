@@ -6,6 +6,7 @@ import { RegistrationFeePanel } from "@/components/agent/RegistrationFeePanel";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getAgentForUser, getAnnouncements } from "@/lib/data-bundles/agents";
+import { getWorkspaces } from "@/lib/workspaces";
 import { getDataStoreConfig, getLeaderboardConfig } from "@/lib/data-bundles/settings";
 import { registrationFeeStatus } from "@/lib/data-bundles/registration-fee";
 import { formatMoney } from "@/lib/format";
@@ -30,7 +31,7 @@ export default async function AgentLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
-  const [agent, store, leaderboard, notices, account] = await Promise.all([
+  const [agent, store, leaderboard, notices, account, workspaces] = await Promise.all([
     getAgentForUser(user.id),
     getDataStoreConfig(),
     getLeaderboardConfig(),
@@ -40,6 +41,8 @@ export default async function AgentLayout({
     prisma.user
       .findUnique({ where: { id: user.id }, select: { mustChangePassword: true } })
       .catch(() => null),
+    // The other consoles this person holds, for the switcher in the sidebar.
+    getWorkspaces({ id: user.id, role: user.role }),
   ]);
 
   if (!agent) redirect("/become-an-agent");
@@ -77,6 +80,7 @@ export default async function AgentLayout({
         afaEnabled: store.afaEnabled,
         leaderboardEnabled: leaderboard.enabled,
       }}
+      workspaces={workspaces}
       announcements={notices.map((n) => ({
         id: n.id,
         title: n.title,

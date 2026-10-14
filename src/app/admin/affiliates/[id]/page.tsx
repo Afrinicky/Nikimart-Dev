@@ -11,6 +11,8 @@ import { DeleteButton } from "@/components/admin/DeleteButton";
 import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getAffiliateEarnings } from "@/lib/affiliate";
+import { EVENT_LABELS, getAffiliateEvents } from "@/lib/affiliate-admin";
+import { formatWhen } from "@/components/affiliate/ConsoleTable";
 import { getAffiliateRate } from "@/lib/settings";
 import { siteUrl } from "@/lib/site";
 import { createAffiliatePayout, markAffiliatePayoutPaid, setAffiliateStatus, deleteAffiliate } from "@/lib/finance-actions";
@@ -24,7 +26,7 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
   const affiliate = await prisma.affiliate.findUnique({ where: { id }, include: { payouts: { orderBy: { createdAt: "desc" } } } });
   if (!affiliate) notFound();
 
-  const [earnings, rate, referred] = await Promise.all([
+  const [earnings, rate, referred, activity, counts] = await Promise.all([
     getAffiliateEarnings(affiliate.id),
     getAffiliateRate(),
     prisma.order.findMany({
@@ -33,7 +35,18 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
       take: 10,
       select: { id: true, orderNumber: true, createdAt: true, subtotal: true, affiliateCommission: true },
     }),
+    getAffiliateEvents(affiliate.id, 20),
+    // What this account is actually doing: products on their list, clicks
+    // their links have pulled, and anything flagged against them.
+    Promise.all([
+      prisma.affiliateProduct.count({ where: { affiliateId: affiliate.id } }).catch(() => 0),
+      prisma.affiliateClick.count({ where: { affiliateId: affiliate.id } }).catch(() => 0),
+      prisma.affiliateFraudFlag
+        .count({ where: { affiliateId: affiliate.id, status: "open" } })
+        .catch(() => 0),
+    ]),
   ]);
+  const [productCount, clickCount, openFlags] = counts;
   const suspended = affiliate.status !== "active";
 
   return (
@@ -56,6 +69,36 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
               <StatCard label="Earned" value={formatPrice(earnings.earned)} />
               <StatCard label="Paid out" value={formatPrice(earnings.paidOut)} />
               <StatCard label="Available" value={formatPrice(earnings.available)} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <StatCard label="Products promoted" value={productCount} />
+              <StatCard label="Link clicks" value={clickCount.toLocaleString("en-GB")} />
+              <StatCard
+                label="Held until delivery"
+                value={formatPrice(earnings.inEscrow)}
+                href={`/admin/affiliates/commissions?q=${encodeURIComponent(affiliate.code ?? affiliate.name)}&status=pending`}
+              />
+              <StatCard
+                label="Open abuse flags"
+                value={openFlags}
+                href={`/admin/affiliates/fraud?q=${encodeURIComponent(affiliate.code ?? affiliate.name)}`}
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={`/admin/affiliates/commissions?q=${encodeURIComponent(affiliate.code ?? affiliate.name)}`}
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white"
+              >
+                Commission ledger
+              </Link>
+              <Link
+                href={`/admin/affiliates/payouts?q=${encodeURIComponent(affiliate.code ?? affiliate.name)}`}
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white"
+              >
+                Payout requests
+              </Link>
             </div>
 
             {/* Pending payout requests from this affiliate */}
@@ -122,6 +165,32 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
                 </ul>
               </div>
             ) : null}
+
+            {/* Everything done to this account, newest first. */}
+            <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
+              <h2 className="font-display text-lg font-bold text-niki-ink">Activity</h2>
+              {activity.length === 0 ? (
+                <p className="mt-3 text-sm text-niki-ink/50">Nothing recorded yet.</p>
+              ) : (
+                <ul className="mt-3 divide-y divide-niki-edge text-sm">
+                  {activity.map((e) => (
+                    <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                      <span className="min-w-0">
+                        <span className="font-medium text-niki-ink">
+                          {EVENT_LABELS[e.action] ?? e.action}
+                        </span>
+                        {e.detail ? (
+                          <span className="block truncate text-xs text-niki-ink/45">{e.detail}</span>
+                        ) : null}
+                      </span>
+                      <span className="shrink-0 text-xs text-niki-ink/45">
+                        {e.actorName || "System"} · {formatWhen(e.createdAt)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
 
           {/* Management sidebar */}
@@ -132,7 +201,9 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
               {affiliate.phone ? <p className="mt-1 flex items-center gap-1.5 text-sm text-niki-ink/60"><Phone className="h-3.5 w-3.5" />{affiliate.phone}</p> : null}
               {affiliate.email ? <p className="mt-1 flex items-center gap-1.5 text-sm text-niki-ink/60"><Mail className="h-3.5 w-3.5" />{affiliate.email}</p> : null}
               <p className="mt-3 text-xs text-niki-ink/40">Referral link</p>
-              <p className="break-all font-mono text-xs text-niki-orange">{siteUrl().replace(/^https?:\/\//, "")}/?ref={affiliate.code}</p>
+              <p className="break-all font-mono text-xs text-niki-orange">
+                {siteUrl().replace(/^https?:\/\//, "")}/r/{affiliate.code}
+              </p>
             </div>
 
             <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">

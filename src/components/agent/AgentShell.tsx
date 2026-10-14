@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { AgentAccountMenu } from "@/components/agent/AgentAccountMenu";
+import { WorkspaceSwitcher } from "@/components/workspace/WorkspaceSwitcher";
+import type { Workspace } from "@/lib/workspace-nav";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import {
   AnnouncementPopup,
@@ -104,11 +106,18 @@ function readCollapsed(): boolean {
 export function AgentShell({
   store,
   announcements = [],
+  workspaces = [],
   children,
 }: {
   store: { name: string; slug: string; code: string; afaEnabled: boolean; leaderboardEnabled: boolean };
   /** Live announcements; unseen ones pop up, and the rest feed the bell. */
   announcements?: PopupAnnouncement[];
+  /**
+   * The other consoles this person holds — a shop, an affiliate account, the
+   * admin console. Plenty of agents are more than one thing on Nickimart, and
+   * before this the only way across was to know the URL.
+   */
+  workspaces?: Workspace[];
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -171,6 +180,8 @@ export function AgentShell({
           <ChevronLeft className={cn("h-3.5 w-3.5 transition-transform", collapsed && "rotate-180")} />
           {!collapsed ? "Minimize" : null}
         </button>
+
+        <WorkspaceSwitcher workspaces={workspaces} collapsed={collapsed} active="agent" />
 
         <nav className="scrollbar-none flex-1 overflow-y-auto px-3 pb-4">
           {!collapsed ? (

@@ -1,17 +1,22 @@
 "use server";
 
 import { revalidatePath, updateTag } from "next/cache";
-import { cookies } from "next/headers";
 import { after } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { callbackOrigin } from "@/lib/site";
 import { requireUser } from "@/lib/session";
-import { getCommissionRate, getAffiliateRate } from "@/lib/settings";
-import { REFERRAL_COOKIE } from "@/lib/affiliate";
+import { getCommissionRate } from "@/lib/settings";
 
 import { resolveCommissionRate } from "@/lib/commission";
-import { affiliateLineCommission, resolveAffiliateRate } from "@/lib/affiliate-commission";
+import { affiliateLineCommission } from "@/lib/affiliate-commission";
+import { resolveProductRate } from "@/lib/affiliate-policy";
+import {
+  markReferralConverted,
+  recordFraudSignals,
+  resolveOrderAttribution,
+} from "@/lib/affiliate-attribution";
+import { accrueAffiliateCommissions, syncAffiliateCommissions } from "@/lib/affiliate-ledger";
 import { releaseStockForOrder, tracksStock } from "@/lib/stock";
 import { PRODUCTS_TAG } from "@/lib/catalog";
 import { priceCart } from "@/lib/cart-pricing";
@@ -160,36 +165,46 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   // Platform commission snapshot: category override, else the global default.
   const defaultCommission = await getCommissionRate();
 
-  // Affiliate attribution: a referral cookie set by ?ref=CODE. It only earns on
-  // products actually enrolled in the programme, and never on the referrer's
-  // own purchases.
-  const refCode = (await cookies()).get(REFERRAL_COOKIE)?.value;
-  const referrer = refCode
-    ? await prisma.affiliate.findUnique({
-        where: { code: refCode },
-        select: { id: true, userId: true, status: true, commissionRate: true },
-      })
-    : null;
-  const activeReferrer = referrer && referrer.status === "active" && referrer.userId !== user.id ? referrer : null;
-  const defaultAffiliateRate = activeReferrer
-    ? (activeReferrer.commissionRate ?? (await getAffiliateRate()))
-    : 0;
+  /**
+   * Affiliate attribution.
+   *
+   * Decided in lib/affiliate-attribution, which reads the referral cookies,
+   * finds every live attribution on this visitor (by device *and* by account,
+   * so clicking on a phone and buying on a laptop still counts), applies the
+   * configured window and attribution model, and refuses a self-referral.
+   * What comes back is a verdict: a referral that was found and refused is
+   * still returned, with the reasons, so the order can record them.
+   *
+   * It only ever earns on products actually enrolled in the programme — the
+   * rate resolution below is what enforces that, per line.
+   */
+  const attribution = await resolveOrderAttribution({
+    id: user.id,
+    email: user.email,
+    phone: null,
+  });
+  const activeReferrer = attribution?.attributed ? attribution : null;
+  const defaultAffiliateRate = activeReferrer ? activeReferrer.defaultRate : 0;
 
   const lineItems = data.items
     .filter((i) => productById.has(i.productId))
     .map((i) => {
       const p = productById.get(i.productId)!;
       const commissionRate = resolveCommissionRate(p.category?.commissionRate, defaultCommission);
+      // Which rule set the rate is kept as well as the rate itself: the
+      // affiliate console has to be able to explain what somebody earns, and
+      // the ledger has to keep that answer after the product is edited.
       const affiliate = activeReferrer
-        ? resolveAffiliateRate({
+        ? resolveProductRate({
             affiliateEnabled: p.affiliateEnabled,
             affiliateEnrolledBy: p.affiliateEnrolledBy,
             affiliateCommissionRate: p.affiliateCommissionRate,
             categoryAffiliateRate: p.category?.affiliateCommissionRate,
             defaultAffiliateRate,
+            affiliateOverride: activeReferrer.affiliateOverride,
             platformCommissionRate: commissionRate,
           })
-        : { rate: 0, fundedBy: "" as const };
+        : { rate: 0, fundedBy: "" as const, source: "default" as const };
       // The priced line from the landed-cost engine. Matched by product id; a
       // line the engine dropped (an archived product, say) is filtered out
       // below rather than ordered at a price nobody computed.
@@ -206,6 +221,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         affiliateCommissionRate: affiliate.rate,
         affiliateCommission: affiliateLineCommission(p.price, i.quantity, affiliate.rate),
         affiliateFundedBy: affiliate.fundedBy,
+        affiliateRuleSource: affiliate.source,
         priced,
       };
     })
@@ -246,7 +262,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   const hasAbroadItems = pricing.hasAbroad;
 
   // The order's affiliate commission is the sum of its enrolled lines.
-  const affiliateId = activeReferrer?.id ?? null;
+  const affiliateId = activeReferrer?.affiliateId ?? null;
   const affiliateCommission =
     Math.round(lineItems.reduce((s, i) => s + i.affiliateCommission, 0) * 100) / 100;
 
@@ -353,6 +369,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
                 consolidationPointId: i.priced!.point?.id ?? null,
               })),
             },
+
             // Fulfilment only starts once the order is paid. The simulated flow
             // is paid immediately, so the shipment is created here. The Paystack
             // flow defers shipment creation to payment confirmation (see
@@ -372,8 +389,51 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
                   },
                 },
           },
+          // The line ids come back so the affiliate commission ledger can be
+          // written against them — one row per line, which is the only shape
+          // that survives a single line being returned later.
+          include: { items: { select: { id: true, productId: true } } },
         });
       });
+
+      /**
+       * The affiliate commission ledger for this order.
+       *
+       * Written from the snapshots the lines already carry, so it cannot
+       * disagree with what the buyer was charged, and keyed on the line, so a
+       * payment notification arriving twice produces one ledger rather than
+       * two. Everything suspicious about the referral is recorded against the
+       * order at the same time, whether or not it earned.
+       */
+      if (attribution) {
+        if (activeReferrer) {
+          const byProduct = new Map(lineItems.map((i) => [i.productId, i]));
+          await accrueAffiliateCommissions({
+            orderId: order.id,
+            affiliateId: attribution.affiliateId,
+            attributionWindowDays: attribution.windowDays,
+            lines: order.items.flatMap((row) => {
+              const line = byProduct.get(row.productId);
+              if (!line || line.affiliateCommission <= 0) return [];
+              return [
+                {
+                  orderItemId: row.id,
+                  productId: row.productId,
+                  quantity: line.quantity,
+                  unitPrice: line.unitPrice,
+                  rate: line.affiliateCommissionRate,
+                  amount: line.affiliateCommission,
+                  fundedBy: line.affiliateFundedBy,
+                  ruleSource: line.affiliateRuleSource,
+                  platformCommissionRate: line.commissionRate,
+                },
+              ];
+            }),
+          });
+          await markReferralConverted(attribution.referralId);
+        }
+        await recordFraudSignals(attribution.affiliateId, order.id, attribution.signals);
+      }
 
       // Real payment: start a Paystack transaction and hand back the hosted
       // checkout URL. If initialization fails, cancel the just-created order so
@@ -397,6 +457,8 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
             .update({ where: { id: order.id }, data: { status: "cancelled" } })
             .catch(() => {});
           await releaseStockForOrder(order.id).catch(() => {});
+          // The order never happened, so neither did the commission.
+          await syncAffiliateCommissions(order.id);
           updateTag(PRODUCTS_TAG);
           return {
             ok: false,

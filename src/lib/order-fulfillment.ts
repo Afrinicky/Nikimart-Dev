@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyOrderConfirmed, notifyStaffNewOrder } from "@/lib/order-notifications";
 import { toPesewas } from "@/lib/payments";
+import { syncAffiliateCommissions } from "@/lib/affiliate-ledger";
 
 /**
  * Confirm that the amount actually captured covers the order before settling it.
@@ -74,6 +75,11 @@ export async function markOrderPaid(
       })
       .catch(() => {});
   }
+  // Bring the affiliate commission ledger into line with the order's new
+  // state. Derived rather than incremented, so the duplicate notifications
+  // this gateway sends cannot move it twice.
+  if (order) await syncAffiliateCommissions(order.id);
+
   if (order && !order.shipment) {
     const freightAgent =
       order.deliveryMethod === "delivery"

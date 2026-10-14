@@ -18,6 +18,7 @@ import {
   type ShipmentTimestamps,
 } from "@/lib/tracking";
 import { notifyShipmentUpdate, notifyNextResponsible } from "@/lib/order-notifications";
+import { syncAffiliateCommissions } from "@/lib/affiliate-ledger";
 
 export type ConfirmState = { ok?: boolean; error?: string };
 
@@ -113,6 +114,10 @@ export async function confirmShipmentStage(_prev: ConfirmState, fd: FormData): P
 
   await prisma.shipment.update({ where: { id: shipment.id }, data });
   await prisma.order.update({ where: { id: shipment.order.id }, data: { status: orderStatusForStage(status) } });
+
+  // Delivery confirmed on the shipment is what starts an affiliate's return
+  // window, so the commission ledger is reconciled from the same transition.
+  await syncAffiliateCommissions(shipment.order.id);
 
   // Tell the buyer their order moved forward, and hand the job to the next role
   // — after the response so notifications never block the confirmation.

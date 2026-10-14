@@ -125,14 +125,30 @@ export async function deleteAffiliate(fd: FormData): Promise<void> {
   }
 }
 
-/** Mark a pending affiliate payout (e.g. an affiliate's request) as paid. */
+/**
+ * Mark a pending affiliate payout (e.g. an affiliate's request) as paid.
+ *
+ * The commission lines the request claimed are settled in the same breath.
+ * Without that the ledger would still count them as payable, and the affiliate
+ * could ask to be paid for them again — the payout would be recorded and the
+ * balance would not move.
+ */
 export async function markAffiliatePayoutPaid(fd: FormData): Promise<void> {
   await requireAdmin();
   const id = str(fd, "id");
   if (!id) return;
-  await prisma.affiliatePayout.updateMany({ where: { id, status: "pending" }, data: { status: "paid", paidAt: new Date() } });
+  const flipped = await prisma.affiliatePayout.updateMany({
+    where: { id, status: { in: ["pending", "processing"] } },
+    data: { status: "paid", paidAt: new Date() },
+  });
+  if (flipped.count > 0) {
+    await prisma.affiliateCommission
+      .updateMany({ where: { payoutId: id }, data: { status: "paid" } })
+      .catch(() => {});
+  }
   revalidateFinance();
   revalidatePath("/affiliate");
+  revalidatePath("/admin/affiliates/payouts");
 }
 
 /** Record a commission payment to an affiliate (marked paid). */
@@ -146,17 +162,51 @@ export async function createAffiliatePayout(_prev: CrudState, fd: FormData): Pro
   const affiliate = await prisma.affiliate.findUnique({ where: { id: affiliateId }, select: { id: true } });
   if (!affiliate) return { error: "Affiliate not found." };
 
-  await prisma.affiliatePayout.create({
+  const paid = Math.round(value * 100) / 100;
+  const payout = await prisma.affiliatePayout.create({
     data: {
       affiliateId,
-      amount: Math.round(value * 100) / 100,
+      amount: paid,
       status: "paid",
       method: str(fd, "method"),
       reference: str(fd, "reference") || null,
       note: str(fd, "note") || null,
       paidAt: new Date(),
     },
+    select: { id: true },
   });
+
+  /**
+   * Settle the commission this payment covers.
+   *
+   * A payment recorded here is money that has actually left, so the lines it
+   * covers have to stop being payable — otherwise the affiliate's console would
+   * still offer the same commission for payout and the platform would pay it
+   * twice. Oldest cleared first, up to the amount paid; a payment larger than
+   * anything cleared simply settles what there is and the rest is a credit the
+   * next cleared line meets.
+   */
+  const cleared = await prisma.affiliateCommission
+    .findMany({
+      where: { affiliateId, status: "cleared", payoutId: null },
+      orderBy: { clearedAt: "asc" },
+      select: { id: true, amount: true, reversedAmount: true },
+    })
+    .catch(() => [] as { id: string; amount: number; reversedAmount: number }[]);
+
+  const covered: string[] = [];
+  let running = 0;
+  for (const line of cleared) {
+    if (running >= paid - 0.005) break;
+    covered.push(line.id);
+    running += Math.max(0, line.amount - line.reversedAmount);
+  }
+  if (covered.length > 0) {
+    await prisma.affiliateCommission
+      .updateMany({ where: { id: { in: covered } }, data: { payoutId: payout.id, status: "paid" } })
+      .catch(() => {});
+  }
+
   revalidateFinance();
   redirect(`/admin/affiliates/${affiliateId}`);
 }

@@ -8,6 +8,8 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
 import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getSellerEarnings } from "@/lib/seller";
+import { getWorkspaces } from "@/lib/workspaces";
+import { WorkspaceBar } from "@/components/workspace/WorkspaceBar";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
 
@@ -26,6 +28,11 @@ const ACTIONS = [
 
 export default async function SellerDashboardPage() {
   const user = await requireDashboard("/seller");
+
+  // The other consoles this person holds. Plenty of sellers are also bundle
+  // agents or affiliates, and the seller area is a set of ordinary pages
+  // rather than a console shell, so the switcher goes above the page.
+  const workspaces = await getWorkspaces({ id: user.id, role: user.role });
 
   const vendor = await prisma.vendor.findFirst({
     where: { ownerId: user.id },
@@ -88,6 +95,8 @@ export default async function SellerDashboardPage() {
       </PageHeader>
 
       <Container className="py-8">
+        <WorkspaceBar workspaces={workspaces} active="seller" className="mb-6" />
+
         {!vendor ? (
           <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl bg-niki-black p-6">
             <p className="flex-1 text-sm text-white/80">
