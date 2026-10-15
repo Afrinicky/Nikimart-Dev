@@ -21,7 +21,9 @@ export default async function EditVendorPage({ params }: { params: Params }) {
     prisma.user.findMany({
       where: { role: { in: ["SELLER", "ADMIN"] } },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, email: true },
+      // Which of them already runs a shop: an account owns at most one, so
+      // offering an owner who has one is offering a save that cannot succeed.
+      select: { id: true, name: true, email: true, vendor: { select: { id: true } } },
     }),
     getActiveConsolidationPoints(),
   ]);

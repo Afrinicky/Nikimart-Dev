@@ -10,6 +10,7 @@ import { PRODUCTS_TAG, VENDORS_TAG } from "@/lib/catalog";
 import { buildProductData, parseImages, validateProduct } from "@/lib/product-form";
 import { syncProductImages } from "@/lib/product-images";
 import type { CrudState } from "@/lib/admin-actions";
+import { DB_UNIQUE_VIOLATION, describeDbError, failedOn } from "@/lib/db-errors";
 
 /** The vendor (shop) owned by the current seller, or null. */
 async function currentVendor() {
@@ -26,6 +27,34 @@ function zodErrors(error: z.ZodError): CrudState {
     if (typeof key === "string" && !fieldErrors[key]) fieldErrors[key] = issue.message;
   }
   return { error: "Please fix the highlighted fields.", fieldErrors };
+}
+
+/**
+ * A failed registration, in words the person filling the form can act on.
+ *
+ * This used to answer every failure with "please try again", which is the one
+ * thing that cannot work when the cause is a constraint: the same details fail
+ * the same way forever and nothing says which detail to change. The two
+ * constraints a shop can trip are now named, and anything else is logged so
+ * there is something to read when somebody reports it.
+ */
+function registerVendorError(thrown: unknown): VendorRegisterState {
+  const failure = describeDbError(thrown);
+
+  if (failure.code === DB_UNIQUE_VIOLATION) {
+    if (failedOn(failure, "ownerId")) {
+      return { error: "You already have a shop on Nickimart — open your seller dashboard to manage it." };
+    }
+    if (failedOn(failure, "slug")) {
+      return {
+        error: "A shop with that name has just been registered. Try a slightly different name.",
+        fieldErrors: { businessName: "Already taken." },
+      };
+    }
+  }
+
+  console.error("[seller] shop registration failed", thrown);
+  return { error: "Couldn't register your shop. Please try again." };
 }
 
 function revalidate() {
@@ -237,6 +266,12 @@ export async function registerVendor(_prev: VendorRegisterState, fd: FormData): 
       .map((w) => w[0]?.toUpperCase() ?? "")
       .join("") || "NM";
 
+  // Whether the shop row exists yet decides what a failure after this point
+  // means: before it, the registration did not happen and the form should come
+  // back; after it, the shop is real and sending them back to the form would
+  // have them try to register a second one they cannot have.
+  let created = false;
+
   try {
     const slug = await uniqueVendorSlug(businessName);
     await prisma.vendor.create({
@@ -266,6 +301,8 @@ export async function registerVendor(_prev: VendorRegisterState, fd: FormData): 
       },
     });
 
+    created = true;
+
     // Promote the account to SELLER and record the contact phone. The sign-in
     // email is deliberately left alone: this form doesn't verify ownership of
     // the address, so letting it rewrite the login identity would turn shop
@@ -278,14 +315,24 @@ export async function registerVendor(_prev: VendorRegisterState, fd: FormData): 
         ...(phone ? { phone } : {}),
       },
     });
-  } catch {
-    return { error: "Couldn't register your shop. Please try again." };
+  } catch (thrown) {
+    if (!created) return registerVendorError(thrown);
+    // The shop is registered and only the role write failed. Carry on to the
+    // dashboard rather than claim the registration failed, and leave a line in
+    // the log: this account needs its role put right by hand.
+    console.error("[seller] shop created but the account role was not updated", thrown);
   }
 
-  // Refresh the JWT so the new SELLER role takes effect without a re-login.
+  // Refresh the JWT so the new SELLER role takes effect without a re-login. A
+  // failure here costs a sign-out and back in, not the registration, so it
+  // must not take the shop down with it.
   if (user.role !== "ADMIN") {
-    const { unstable_update } = await import("@/lib/auth");
-    await unstable_update({ role: "SELLER" } as never);
+    try {
+      const { unstable_update } = await import("@/lib/auth");
+      await unstable_update({ role: "SELLER" } as never);
+    } catch (thrown) {
+      console.error("[seller] couldn't refresh the session after registration", thrown);
+    }
   }
 
   revalidatePath("/seller");
