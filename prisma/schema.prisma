@@ -314,6 +314,12 @@ model Affiliate {
   shareMessage  String    @default("")
   /** The flyer colourway this affiliate last chose, so it stays theirs. */
   flyerTheme    String    @default("")
+  /**
+   * Their own flyer design, as JSON, layered over the house design the admin
+   * sets. Empty means they are happy with the house style — which is also what
+   * lets an admin change it and have the change reach them.
+   */
+  flyerDesign   String    @default("")
   // Where a payout is sent. Asked once rather than on every request.
   payoutMethod  String    @default("")
   payoutName    String    @default("")

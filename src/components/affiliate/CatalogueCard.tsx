@@ -16,8 +16,9 @@ import {
   addPromotedProduct,
   removePromotedProduct,
 } from "@/lib/affiliate-console-actions";
+import { SelectBox } from "@/components/affiliate/BulkShare";
 import { renderShareMessage } from "@/lib/affiliate-policy";
-import { formatPrice } from "@/lib/format";
+import { discountPercent, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 /**
@@ -73,6 +74,26 @@ export function CatalogueCard({
   const [pending, startTransition] = useTransition();
 
   const link = product.linkCode ? `${linkBase}/${product.linkCode}` : null;
+  const off = discountPercent(product.price, product.oldPrice ?? undefined);
+
+  // What the bulk share needs if this card is ticked. Built here, from the
+  // same numbers the card prints, so a selection can never carry a price the
+  // card is not showing.
+  const selectable = {
+    id: product.id,
+    name: product.name,
+    price: formatPrice(product.price),
+    oldPrice: product.oldPrice ? formatPrice(product.oldPrice) : null,
+    discount: off ? `-${off}%` : null,
+    image: product.image,
+    emoji: product.emoji,
+    gradientFrom: product.gradientFrom,
+    gradientTo: product.gradientTo,
+    shopName: product.shopName,
+    categoryName: product.categoryName,
+    linkCode: product.linkCode,
+    eligible: product.eligible,
+  };
 
   async function copy() {
     if (!link) return;
@@ -107,7 +128,13 @@ export function CatalogueCard({
   }
 
   return (
-    <li className="flex flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-niki-edge">
+    <li className="relative flex flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-niki-edge">
+      {/* Over the picture but outside the link, so ticking never navigates. */}
+      <SelectBox
+        product={selectable}
+        className="absolute left-2 top-11 z-10 h-7 w-7 rounded-lg bg-white/90 shadow-sm ring-1 ring-niki-edge backdrop-blur"
+      />
+
       <Link href={`/affiliate/shop/${product.slug}`} className="block">
         <span
           className="relative flex aspect-square w-full items-center justify-center overflow-hidden"

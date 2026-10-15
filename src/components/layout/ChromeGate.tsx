@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 
 /**
  * Hides the storefront's own chrome — top bar, header, footer, mobile nav —
- * inside the admin and agent consoles.
+ * inside the admin, agent and affiliate consoles.
  *
  * A console used to be a page on the shop: the shop's header sat above it and
  * its footer below, which was tolerable when console navigation was a row of
@@ -15,7 +15,7 @@ import { usePathname } from "next/navigation";
  * layout — session, cart, locations — are shared by both, and splitting the
  * tree to move four elements would mean maintaining two copies of them.
  */
-const CONSOLE_PREFIXES = ["/admin", "/agent"];
+const CONSOLE_PREFIXES = ["/admin", "/agent", "/affiliate"];
 
 export function ChromeGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

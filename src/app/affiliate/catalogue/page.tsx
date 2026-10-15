@@ -11,14 +11,22 @@ import {
   td,
 } from "@/components/affiliate/ConsoleTable";
 import { CatalogueRowActions } from "@/components/affiliate/CatalogueRowActions";
+import {
+  BulkShareBar,
+  SelectAll,
+  SelectBox,
+  SelectionProvider,
+} from "@/components/affiliate/BulkShare";
 import { StatCard } from "@/components/dashboard/StatCard";
-import { requireAffiliateConsole } from "@/lib/affiliate-console";
+import { affiliateStoreLink, requireAffiliateConsole } from "@/lib/affiliate-console";
 import {
   CATALOGUE_ELIGIBILITY_OPTIONS,
   CATALOGUE_SORT_OPTIONS,
   getAffiliateCatalogue,
   getCatalogueFacets,
+  toSelectable,
 } from "@/lib/affiliate-catalogue";
+import { getAffiliateBranding } from "@/lib/affiliate-branding";
 import { perPageFrom } from "@/lib/data-bundles/order-filters";
 import { formatPrice } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
@@ -64,8 +72,9 @@ export default async function AffiliateCataloguePage({
   const perPage = perPageFrom(params.per, 25);
   const page = Math.max(1, Number(params.page) || 1);
 
-  const [facets, result] = await Promise.all([
+  const [facets, branding, result] = await Promise.all([
     getCatalogueFacets(),
+    getAffiliateBranding(affiliate),
     getAffiliateCatalogue(
       affiliate.id,
       {
@@ -84,8 +93,10 @@ export default async function AffiliateCataloguePage({
   const linkBase = `${siteUrl()}/r`;
   const defaultMessage = affiliate.shareMessage;
 
+  const selectable = result.products.map(toSelectable);
+
   return (
-    <div>
+    <SelectionProvider>
       <ModuleHeader
         title="Catalogue"
         subtitle="Every product on Nickimart, with what each one pays you."
@@ -152,8 +163,15 @@ export default async function AffiliateCataloguePage({
         </Suspense>
       </div>
 
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-niki-ink/55">
+          Tick a few and share them together — each one gets its own link.
+        </p>
+        <SelectAll products={selectable} />
+      </div>
+
       <ConsoleTable
-        columns={["Product", "Shop", "Category", "Price", "Commission", "You earn", "Funded by", "Actions"]}
+        columns={["", "Product", "Shop", "Category", "Price", "Commission", "You earn", "Funded by", "Actions"]}
         minWidth={1120}
         page={page}
         pageCount={pageCount}
@@ -162,6 +180,9 @@ export default async function AffiliateCataloguePage({
       >
         {result.products.map((p) => (
           <ConsoleRow key={p.id}>
+            <td className={`${td} w-10`}>
+              <SelectBox product={toSelectable(p)} />
+            </td>
             <td className={td}>
               <div className="flex items-center gap-2.5">
                 <span
@@ -229,6 +250,16 @@ export default async function AffiliateCataloguePage({
           </ConsoleRow>
         ))}
       </ConsoleTable>
-    </div>
+
+      <BulkShareBar
+        design={branding.design}
+        watermark={branding.watermark}
+        logoUrl={branding.logoUrl}
+        linkBase={linkBase}
+        caption={defaultMessage}
+        storeLink={affiliateStoreLink(affiliate.code)}
+        suspended={affiliate.status !== "active"}
+      />
+    </SelectionProvider>
   );
 }

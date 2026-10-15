@@ -74,7 +74,7 @@ export default async function StartSellingPage() {
             </EarnCard>
           ) : null}
 
-          <EarnCard href="/affiliate" icon={Gift} title="Become an affiliate" cta="Start referring">
+          <EarnCard href="/become-an-affiliate" icon={Gift} title="Become an affiliate" cta="Start referring">
             No shop or stock needed. <strong className="text-niki-ink">{pitch}</strong> Share
             products from your affiliate catalogue and earn on every sale referred through your
             links.

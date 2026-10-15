@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Settings } from "lucide-react";
+import Link from "next/link";
+import { Palette, Settings } from "lucide-react";
 import { ModuleHeader, PanelHeading } from "@/components/admin/ModuleHeader";
 import {
   AffiliateCodeForm,
@@ -52,6 +53,27 @@ export default async function AffiliateSettingsPage() {
           }}
           defaultShareMessage={policy.shareMessage}
         />
+      </section>
+
+      <section className="mt-5 rounded-2xl bg-white p-5 ring-1 ring-niki-edge sm:p-6">
+        <PanelHeading
+          title="Flyer design"
+          subtitle="The colours, the layout and the lettering on the flyers you share."
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/affiliate/settings/flyer"
+            className="niki-press inline-flex items-center gap-2 rounded-lg bg-niki-orange px-4 py-2.5 text-sm font-semibold text-white hover:bg-niki-orange-light"
+          >
+            <Palette className="h-4 w-4" />
+            Design my flyer
+          </Link>
+          <p className="text-sm text-niki-ink/55">
+            {affiliate.flyerDesign
+              ? "You're using a design of your own."
+              : "You're using Nickimart's house design."}
+          </p>
+        </div>
       </section>
 
       <section className="mt-5 rounded-2xl bg-white p-5 ring-1 ring-niki-edge sm:p-6">
