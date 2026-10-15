@@ -45,6 +45,8 @@ export interface AffiliateAccount {
   commissionRate: number | null;
   shareMessage: string;
   flyerTheme: string;
+  /** Their own flyer design as stored JSON. Empty means the house style. */
+  flyerDesign: string;
   payoutMethod: string;
   payoutName: string;
   payoutNumber: string;
@@ -96,6 +98,7 @@ export const getAffiliateWorkspace = cache(
             commissionRate: true,
             shareMessage: true,
             flyerTheme: true,
+            flyerDesign: true,
             payoutMethod: true,
             payoutName: true,
             payoutNumber: true,
@@ -971,8 +974,9 @@ export type { LedgerBalance };
  *
  * Membership, not role, is what gates this: an affiliate is any signed-in user
  * with an Affiliate row, so somebody can be a customer, a seller, a bundle
- * agent and an affiliate at once. Anyone without one is sent to `/affiliate`,
- * which is the pitch and the application rather than an error.
+ * agent and an affiliate at once. Anyone without one is sent to
+ * `/become-an-affiliate`, which is the pitch and the application rather than
+ * an error.
  *
  * A suspended affiliate is *not* bounced. They keep the console, because the
  * first thing somebody does when their account goes on hold is go looking for
@@ -988,6 +992,6 @@ export async function requireAffiliateConsole(): Promise<{
   const user = await requireUser();
   const workspace = await getAffiliateWorkspace({ id: user.id, role: user.role });
   const affiliate = workspace.affiliate;
-  if (!affiliate) redirect("/affiliate");
+  if (!affiliate) redirect("/become-an-affiliate");
   return { user, affiliate, policy: workspace.policy };
 }

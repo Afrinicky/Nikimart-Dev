@@ -8,6 +8,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { ConsolePill } from "@/components/affiliate/ConsoleTable";
 import { prisma } from "@/lib/prisma";
 import { affiliateLink, requireAffiliateConsole } from "@/lib/affiliate-console";
+import { getAffiliateBranding } from "@/lib/affiliate-branding";
 import { getCatalogueProduct } from "@/lib/affiliate-catalogue";
 import { getAffiliatePolicy } from "@/lib/affiliate-settings";
 import { discountPercent, formatMoney, formatPrice } from "@/lib/format";
@@ -45,9 +46,10 @@ export default async function AffiliateProductPage({
   });
   if (!product) notFound();
 
-  const [resolved, policy, earnings] = await Promise.all([
+  const [resolved, policy, branding, earnings] = await Promise.all([
     getCatalogueProduct(affiliate.id, product.slug),
     getAffiliatePolicy(),
+    getAffiliateBranding(affiliate),
     prisma.affiliateCommission
       .aggregate({
         where: { affiliateId: affiliate.id, productId: id },
@@ -151,7 +153,13 @@ export default async function AffiliateProductPage({
           }}
           imageUrl={resolved.image}
           initialMessage={message}
-          initialTheme={promotion?.flyerTheme || affiliate.flyerTheme}
+          design={
+            promotion?.flyerTheme
+              ? { ...branding.design, theme: promotion.flyerTheme }
+              : branding.design
+          }
+          watermark={branding.watermark}
+          logoUrl={branding.logoUrl}
           link={link}
         />
       </section>

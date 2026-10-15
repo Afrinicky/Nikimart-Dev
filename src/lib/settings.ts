@@ -124,6 +124,14 @@ export const SETTINGS_DEFAULTS = {
   affiliateTerms: "",
   // Where an affiliate goes for help. Empty falls back to site-wide support.
   affiliateSupportWhatsapp: "",
+  // The house flyer design, as JSON (see lib/affiliate-flyer). Empty is the
+  // built-in layout. An affiliate's own design layers on top of this one, so
+  // changing it here reaches everybody who has not overridden that part.
+  affiliateFlyerDesign: "",
+  // The watermark on a shared photograph, as JSON (see lib/affiliate-watermark).
+  // The photograph itself is never otherwise touched — no frame, no lettering —
+  // so this mark is the only thing that travels with it.
+  affiliateWatermark: "",
   // How staff (sellers, freight, pickup, admins) are alerted about orders and
   // jobs: "sms" | "email" | "both". Buyers are always alerted on both channels.
   staffNotifyChannel: "both",

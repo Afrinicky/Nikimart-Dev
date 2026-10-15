@@ -10,6 +10,8 @@ import { admissionRoute } from "@/lib/affiliate-policy";
 import { getLedgerBalance } from "@/lib/affiliate-ledger";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { formatMoney } from "@/lib/format";
+import { MAX_BULK_SHARE, resolveFlyerDesign } from "@/lib/affiliate-flyer";
+import { getHouseBranding } from "@/lib/affiliate-branding";
 
 /**
  * What an affiliate can do from their own console.
@@ -194,6 +196,91 @@ export async function addPromotedProduct(fd: FormData): Promise<void> {
   }
 
   revalidateConsole(fd);
+}
+
+/**
+ * Make sure every one of these products is on the list, and hand back the link
+ * for each.
+ *
+ * What "share these five" needs: five links that track. Adding them one at a
+ * time from the browser would be five round trips and a half-done list if one
+ * of them failed, so this is one call that is safe to repeat — a product
+ * already on the list keeps the link it already has.
+ */
+export async function ensurePromotedProducts(
+  productIds: string[],
+): Promise<Record<string, string>> {
+  const { affiliate } = await requireAffiliate();
+  if (!affiliate) return {};
+
+  const ids = [...new Set(productIds.filter(Boolean))].slice(0, MAX_BULK_SHARE);
+  if (ids.length === 0) return {};
+
+  // Only listings that are actually on the storefront; an archived one would
+  // mint a link to a page nobody can buy from.
+  const products = await prisma.product
+    .findMany({ where: { id: { in: ids }, isArchived: false }, select: { id: true } })
+    .catch(() => [] as { id: string }[]);
+
+  const existing = await prisma.affiliateProduct
+    .findMany({
+      where: { affiliateId: affiliate.id, productId: { in: products.map((p) => p.id) } },
+      select: { productId: true, linkCode: true },
+    })
+    .catch(() => [] as { productId: string; linkCode: string }[]);
+
+  const codes = new Map(existing.map((e) => [e.productId, e.linkCode]));
+
+  for (const product of products) {
+    if (codes.has(product.id)) continue;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const linkCode = newLinkCode();
+      try {
+        await prisma.affiliateProduct.create({
+          data: { affiliateId: affiliate.id, productId: product.id, linkCode },
+        });
+        codes.set(product.id, linkCode);
+        break;
+      } catch {
+        // Either the code collided — try another — or it was added in the
+        // meantime, in which case its own code is the one to use.
+        const row = await prisma.affiliateProduct
+          .findUnique({
+            where: { affiliateId_productId: { affiliateId: affiliate.id, productId: product.id } },
+            select: { linkCode: true },
+          })
+          .catch(() => null);
+        if (row) {
+          codes.set(product.id, row.linkCode);
+          break;
+        }
+      }
+    }
+  }
+
+  revalidatePath("/affiliate/products");
+  return Object.fromEntries(codes);
+}
+
+/** Note that a batch went out, so the list's "last shared" is honest. */
+export async function recordBulkShare(productIds: string[]): Promise<void> {
+  const { affiliate } = await requireAffiliate();
+  if (!affiliate) return;
+  const ids = [...new Set(productIds.filter(Boolean))].slice(0, MAX_BULK_SHARE);
+  if (ids.length === 0) return;
+
+  const now = new Date();
+  await Promise.all([
+    prisma.affiliateProduct
+      .updateMany({
+        where: { affiliateId: affiliate.id, productId: { in: ids } },
+        data: { lastSharedAt: now },
+      })
+      .catch(() => null),
+    prisma.affiliate
+      .update({ where: { id: affiliate.id }, data: { lastSharedAt: now } })
+      .catch(() => null),
+  ]);
 }
 
 /** Take a product off the list. Its history stays in the ledger. */
@@ -489,4 +576,59 @@ function revalidateConsole(fd: FormData): void {
   revalidatePath("/affiliate/products");
   if (from.startsWith("/affiliate")) revalidatePath(from);
   else revalidatePath("/affiliate/catalogue");
+}
+
+// ---------------------------------------------------------------------------
+// Their own flyer
+// ---------------------------------------------------------------------------
+
+/**
+ * Save this affiliate's flyer design.
+ *
+ * Resolved against the *house* design before it is stored, so what is kept is
+ * a complete, drawable design — and so anything the resolver refuses never
+ * reaches the column. Clearing it is a separate action rather than saving an
+ * empty value, because "take me back to the house style" and "I have designed
+ * something that happens to match it" are different intentions, and only the
+ * first should keep following the admin's future changes.
+ */
+export async function saveFlyerDesign(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { user, affiliate } = await requireAffiliate();
+  if (!affiliate) return { error: "You're not an affiliate yet." };
+
+  const raw = str(fd, "design");
+  if (!raw) return { error: "Nothing to save." };
+
+  const house = await getHouseBranding();
+  const design = resolveFlyerDesign(raw, house.house);
+
+  try {
+    await prisma.affiliate.update({
+      where: { id: affiliate.id },
+      // The colourway is part of the design now, so the studio's own
+      // remembered theme is cleared — otherwise it would keep overriding the
+      // one they have just chosen here.
+      data: { flyerDesign: JSON.stringify(design), flyerTheme: "" },
+    });
+  } catch {
+    return { error: "Couldn't save your design. Please try again." };
+  }
+
+  await record(affiliate.id, user.id, "flyer_design_changed", "Own flyer design saved");
+  revalidatePath("/affiliate/settings/flyer");
+  revalidatePath("/affiliate/products");
+  return { ok: true, message: "Your design is saved." };
+}
+
+/** Go back to the house style, and keep following it from then on. */
+export async function clearFlyerDesign(fd: FormData): Promise<void> {
+  const { user, affiliate } = await requireAffiliate();
+  if (!affiliate) return;
+  void fd;
+
+  await prisma.affiliate
+    .update({ where: { id: affiliate.id }, data: { flyerDesign: "", flyerTheme: "" } })
+    .catch(() => null);
+  await record(affiliate.id, user.id, "flyer_design_changed", "Back to the house design");
+  revalidatePath("/affiliate/settings/flyer");
 }

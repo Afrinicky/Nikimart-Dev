@@ -1,10 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  DEFAULT_FLYER_DESIGN,
+  bulkShareText,
+  FLYER_SLOTS,
+  MAX_FLYER_EXTRAS,
   coverSource,
+  designTheme,
   flyerFileName,
   flyerTheme,
+  newFlyerExtra,
   productFlyerShareText,
+  resolveFlyerDesign,
   wrapLines,
 } from "./affiliate-flyer.ts";
 
@@ -133,4 +140,166 @@ test("an unknown theme key falls back rather than drawing nothing", () => {
 test("the filename is a safe slug of the product", () => {
   assert.equal(flyerFileName("Kente Throw — Royal Blue!"), "kente-throw-royal-blue-nickimart.png");
   assert.equal(flyerFileName("***"), "nickimart-product-nickimart.png");
+});
+
+// ---------------------------------------------------------------------------
+// The design
+// ---------------------------------------------------------------------------
+
+test("nothing stored means the design it falls back to", () => {
+  assert.deepEqual(resolveFlyerDesign("", DEFAULT_FLYER_DESIGN), DEFAULT_FLYER_DESIGN);
+  assert.deepEqual(resolveFlyerDesign(null, DEFAULT_FLYER_DESIGN), DEFAULT_FLYER_DESIGN);
+});
+
+test("unreadable JSON falls back rather than throwing on a share", () => {
+  assert.deepEqual(resolveFlyerDesign("{not json", DEFAULT_FLYER_DESIGN), DEFAULT_FLYER_DESIGN);
+  assert.deepEqual(resolveFlyerDesign("[1,2,3]", DEFAULT_FLYER_DESIGN), DEFAULT_FLYER_DESIGN);
+});
+
+test("a stored design only overrides what it names", () => {
+  const design = resolveFlyerDesign(
+    JSON.stringify({ frame: { height: 500 }, text: { name: { size: 60 } } }),
+    DEFAULT_FLYER_DESIGN,
+  );
+  assert.equal(design.frame.height, 500);
+  assert.equal(design.frame.top, DEFAULT_FLYER_DESIGN.frame.top, "untouched frame values stay");
+  assert.equal(design.text.name.size, 60);
+  assert.equal(design.text.name.weight, DEFAULT_FLYER_DESIGN.text.name.weight);
+  assert.equal(design.text.price.size, DEFAULT_FLYER_DESIGN.text.price.size);
+});
+
+test("an affiliate's design layers onto the admin's rather than the built-in one", () => {
+  const house = resolveFlyerDesign(JSON.stringify({ theme: "midnight", frame: { side: 70 } }));
+  const theirs = resolveFlyerDesign(JSON.stringify({ frame: { radius: 0 } }), house);
+  assert.equal(theirs.theme, "midnight", "the house theme reaches them");
+  assert.equal(theirs.frame.side, 70, "so does the house margin");
+  assert.equal(theirs.frame.radius, 0, "and their own change wins");
+});
+
+test("sizes out of any sane range are clamped, not accepted", () => {
+  const design = resolveFlyerDesign(
+    JSON.stringify({
+      frame: { height: 99999, side: -40 },
+      text: { price: { size: 0 }, name: { dx: 10_000 } },
+    }),
+  );
+  assert.ok(design.frame.height <= 1000);
+  assert.ok(design.frame.side >= 0);
+  assert.ok(design.text.price.size >= 10);
+  assert.ok(design.text.name.dx <= 400);
+});
+
+test("a colour that isn't one is refused", () => {
+  const design = resolveFlyerDesign(
+    JSON.stringify({ colours: { accent: "javascript:alert(1)", highlight: "#ff0000" } }),
+  );
+  assert.equal(design.colours.accent, DEFAULT_FLYER_DESIGN.colours.accent);
+  assert.equal(design.colours.highlight, "#ff0000");
+});
+
+test("an unknown font or theme falls back to one that exists", () => {
+  const design = resolveFlyerDesign(
+    JSON.stringify({ theme: "neon", text: { name: { font: "comic" } } }),
+  );
+  assert.equal(design.theme, DEFAULT_FLYER_DESIGN.theme);
+  assert.equal(design.text.name.font, DEFAULT_FLYER_DESIGN.text.name.font);
+});
+
+test("an element can be switched off and back on", () => {
+  const off = resolveFlyerDesign(JSON.stringify({ text: { sharedBy: { visible: false } } }));
+  assert.equal(off.text.sharedBy.visible, false);
+  const on = resolveFlyerDesign(JSON.stringify({ text: { sharedBy: { visible: true } } }), off);
+  assert.equal(on.text.sharedBy.visible, true);
+});
+
+test("the theme's colours come through, with overrides on top", () => {
+  const plain = designTheme(resolveFlyerDesign(JSON.stringify({ theme: "clean" })));
+  assert.equal(plain.accent, "#1d4ed8");
+  const tweaked = designTheme(
+    resolveFlyerDesign(JSON.stringify({ theme: "clean", colours: { accent: "#123456" } })),
+  );
+  assert.equal(tweaked.accent, "#123456");
+  assert.equal(tweaked.card, plain.card, "what wasn't overridden is the theme's");
+});
+
+// --- Added features ---------------------------------------------------------
+
+test("added lines are kept, capped and cleaned", () => {
+  const design = resolveFlyerDesign(
+    JSON.stringify({
+      extras: [
+        { id: "a", text: "Free delivery", slot: "onImage", align: "right", background: "#ff0000" },
+        { id: "b", text: "   ", slot: "header" },
+        { id: "c", text: "Call 024", slot: "aboveFooter", align: "nonsense" },
+        { id: "d", text: "Four" },
+        { id: "e", text: "Five" },
+        { id: "f", text: "Six" },
+      ],
+    }),
+  );
+  // The blank one is dropped; the cap is applied before that, so five survive
+  // the slice and four of them have words.
+  assert.ok(design.extras.length <= MAX_FLYER_EXTRAS);
+  assert.ok(design.extras.every((e) => e.text.trim() !== ""));
+
+  const first = design.extras[0];
+  assert.equal(first.slot, "onImage");
+  assert.equal(first.align, "right");
+  assert.equal(first.background, "#ff0000");
+
+  const call = design.extras.find((e) => e.id === "c");
+  assert.equal(call?.align, "left", "an alignment that isn't one falls back");
+});
+
+test("removing every added line is a design, not a missing field", () => {
+  const withOne = resolveFlyerDesign(JSON.stringify({ extras: [{ id: "a", text: "Hi" }] }));
+  assert.equal(withOne.extras.length, 1);
+  const withNone = resolveFlyerDesign(JSON.stringify({ extras: [] }), withOne);
+  assert.deepEqual(withNone.extras, [], "an empty list means they took it off");
+});
+
+test("a new added line starts usable", () => {
+  const extra = newFlyerExtra("x1");
+  assert.equal(extra.id, "x1");
+  assert.ok(extra.text.trim().length > 0);
+  assert.ok(FLYER_SLOTS.some((s) => s.key === extra.slot));
+});
+
+// ---------------------------------------------------------------------------
+// Sharing several at once
+// ---------------------------------------------------------------------------
+
+const picks = [
+  { name: "Kente throw", price: "GH₵240", link: "https://nickimart.com/r/AAA" },
+  { name: "Clay teapot", price: "GH₵95", link: "https://nickimart.com/r/BBB" },
+];
+
+test("a bulk message carries every product and every link", () => {
+  const text = bulkShareText(picks, "Lovely things today");
+  for (const pick of picks) {
+    assert.ok(text.includes(pick.name), `${pick.name} is missing`);
+    assert.ok(text.includes(pick.link), `${pick.name}'s link is missing`);
+    assert.ok(text.includes(pick.price), `${pick.name}'s price is missing`);
+  }
+  assert.ok(text.includes("Lovely things today"));
+});
+
+test("the caption leads once rather than per product", () => {
+  const text = bulkShareText(picks, "Order with my link");
+  assert.equal(text.split("Order with my link").length - 1, 1);
+});
+
+test("one product falls back to the ordinary single share", () => {
+  const text = bulkShareText([picks[0]], "{product} for {price} — {link}");
+  assert.equal(text, "Kente throw for GH₵240 — https://nickimart.com/r/AAA");
+});
+
+test("products with no link are left out rather than listed unbuyable", () => {
+  const text = bulkShareText([picks[0], { name: "Mystery", price: "GH₵1", link: "" }], "Hi");
+  assert.ok(!text.includes("Mystery"));
+  assert.ok(text.includes("Kente throw"));
+});
+
+test("nothing to share is just the caption", () => {
+  assert.equal(bulkShareText([], "  Nothing today  "), "Nothing today");
 });

@@ -12,8 +12,20 @@ import {
   td,
 } from "@/components/affiliate/ConsoleTable";
 import { CatalogueRowActions } from "@/components/affiliate/CatalogueRowActions";
+import {
+  BulkShareBar,
+  SelectAll,
+  SelectBox,
+  SelectionProvider,
+} from "@/components/affiliate/BulkShare";
 import { StatCard } from "@/components/dashboard/StatCard";
-import { PROMOTED_STATUS_OPTIONS, getPromotedProducts, requireAffiliateConsole } from "@/lib/affiliate-console";
+import {
+  PROMOTED_STATUS_OPTIONS,
+  affiliateStoreLink,
+  getPromotedProducts,
+  requireAffiliateConsole,
+} from "@/lib/affiliate-console";
+import { getAffiliateBranding } from "@/lib/affiliate-branding";
 import { perPageFrom } from "@/lib/data-bundles/order-filters";
 import { formatMoney, formatPrice } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
@@ -47,12 +59,10 @@ export default async function AffiliateProductsPage({
   const perPage = perPageFrom(params.per, 25);
   const page = Math.max(1, Number(params.page) || 1);
 
-  const { rows, total } = await getPromotedProducts(affiliate.id, {
-    status,
-    q: query,
-    page,
-    perPage,
-  });
+  const [{ rows, total }, branding] = await Promise.all([
+    getPromotedProducts(affiliate.id, { status, q: query, page, perPage }),
+    getAffiliateBranding(affiliate),
+  ]);
   const pageCount = Math.max(1, Math.ceil(total / perPage));
   const linkBase = `${siteUrl()}/r`;
 
@@ -60,8 +70,26 @@ export default async function AffiliateProductsPage({
   const commission = rows.reduce((s, r) => s + r.commission, 0);
   const stale = rows.filter((r) => !r.eligible).length;
 
+  // What the bulk share carries for each row, from the same numbers the table
+  // prints.
+  const selectable = rows.map((r) => ({
+    id: r.productId,
+    name: r.name,
+    price: formatPrice(r.price),
+    oldPrice: null,
+    discount: null,
+    image: r.image,
+    emoji: r.emoji,
+    gradientFrom: "#f1f5f9",
+    gradientTo: "#cbd5e1",
+    shopName: r.shopName,
+    categoryName: r.categoryName,
+    linkCode: r.linkCode,
+    eligible: r.eligible,
+  }));
+
   return (
-    <div>
+    <SelectionProvider>
       <ModuleHeader
         title="My products"
         subtitle="The products you promote, each with its own link and its own figures."
@@ -103,8 +131,15 @@ export default async function AffiliateProductsPage({
         </Suspense>
       </div>
 
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-niki-ink/55">
+          Tick a few to send them all in one message.
+        </p>
+        <SelectAll products={selectable} />
+      </div>
+
       <ConsoleTable
-        columns={["Product", "Link", "Rate", "Clicks", "Orders", "Commission", "State", "Last shared", "Actions"]}
+        columns={["", "Product", "Link", "Rate", "Clicks", "Orders", "Commission", "State", "Last shared", "Actions"]}
         minWidth={1180}
         page={page}
         pageCount={pageCount}
@@ -113,6 +148,9 @@ export default async function AffiliateProductsPage({
       >
         {rows.map((r) => (
           <ConsoleRow key={r.id}>
+            <td className={`${td} w-10`}>
+              <SelectBox product={selectable.find((p) => p.id === r.productId)!} />
+            </td>
             <td className={td}>
               <div className="flex items-center gap-2.5">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-niki-surface text-lg">
@@ -181,6 +219,16 @@ export default async function AffiliateProductsPage({
           </ConsoleRow>
         ))}
       </ConsoleTable>
-    </div>
+
+      <BulkShareBar
+        design={branding.design}
+        watermark={branding.watermark}
+        logoUrl={branding.logoUrl}
+        linkBase={linkBase}
+        caption={affiliate.shareMessage}
+        storeLink={affiliateStoreLink(affiliate.code)}
+        suspended={affiliate.status !== "active"}
+      />
+    </SelectionProvider>
   );
 }

@@ -34,6 +34,7 @@ export function AFFILIATE_MODULE_TABS(counts: {
       badge: counts.applications,
     },
     { href: "/admin/affiliates/products", label: "Product eligibility", icon: "gift" },
+    { href: "/admin/affiliates/branding", label: "Branding", icon: "sheet" },
     { href: "/admin/affiliates/commissions", label: "Commissions", icon: "receipt" },
     {
       href: "/admin/affiliates/payouts",

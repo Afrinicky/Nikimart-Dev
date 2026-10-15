@@ -5,15 +5,18 @@ import { Suspense } from "react";
 import { ArrowLeft, ExternalLink, Store } from "lucide-react";
 import { ModuleHeader } from "@/components/admin/ModuleHeader";
 import { CatalogueCard } from "@/components/affiliate/CatalogueCard";
+import { BulkShareBar, SelectAll, SelectionProvider } from "@/components/affiliate/BulkShare";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { TablePager } from "@/components/admin/TablePager";
 import { ConsoleFilters } from "@/components/affiliate/ConsoleFilters";
 import { prisma } from "@/lib/prisma";
-import { requireAffiliateConsole } from "@/lib/affiliate-console";
+import { affiliateStoreLink, requireAffiliateConsole } from "@/lib/affiliate-console";
+import { getAffiliateBranding } from "@/lib/affiliate-branding";
 import {
   CATALOGUE_ELIGIBILITY_OPTIONS,
   CATALOGUE_SORT_OPTIONS,
   getAffiliateCatalogue,
+  toSelectable,
 } from "@/lib/affiliate-catalogue";
 import { perPageFrom } from "@/lib/data-bundles/order-filters";
 import { formatPrice } from "@/lib/format";
@@ -86,12 +89,10 @@ export default async function AffiliateShopStorefrontPage({
   const perPage = perPageFrom(sp.per, 25);
   const page = Math.max(1, Number(sp.page) || 1);
 
-  const result = await getAffiliateCatalogue(
-    affiliate.id,
-    { shop: slug, q: query, eligibility, sort },
-    page,
-    perPage,
-  );
+  const [result, branding] = await Promise.all([
+    getAffiliateCatalogue(affiliate.id, { shop: slug, q: query, eligibility, sort }, page, perPage),
+    getAffiliateBranding(affiliate),
+  ]);
   const pageCount = Math.max(1, Math.ceil(result.total / perPage));
 
   // The shop's own totals, not the filtered page's.
@@ -100,7 +101,7 @@ export default async function AffiliateShopStorefrontPage({
   const best = eligible.reduce((max, p) => Math.max(max, p.earnPerSale), 0);
 
   return (
-    <div>
+    <SelectionProvider>
       <Link
         href="/affiliate/shop/shops"
         className="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold text-niki-ink/55 hover:text-niki-orange"
@@ -183,6 +184,13 @@ export default async function AffiliateShopStorefrontPage({
         </p>
       ) : (
         <div className="mt-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-niki-ink/55">
+              Tick a few and share them together — each one gets its own link.
+            </p>
+            <SelectAll products={result.products.map(toSelectable)} />
+          </div>
+
           <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
             {result.products.map((p) => (
               <CatalogueCard
@@ -221,6 +229,16 @@ export default async function AffiliateShopStorefrontPage({
           </Suspense>
         </div>
       )}
-    </div>
+
+      <BulkShareBar
+        design={branding.design}
+        watermark={branding.watermark}
+        logoUrl={branding.logoUrl}
+        linkBase={`${siteUrl()}/r`}
+        caption={affiliate.shareMessage}
+        storeLink={affiliateStoreLink(affiliate.code)}
+        suspended={affiliate.status !== "active"}
+      />
+    </SelectionProvider>
   );
 }

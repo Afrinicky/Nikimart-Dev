@@ -5,14 +5,17 @@ import { ShoppingBag, Store } from "lucide-react";
 import { ModuleHeader } from "@/components/admin/ModuleHeader";
 import { ConsoleFilters } from "@/components/affiliate/ConsoleFilters";
 import { CatalogueCard } from "@/components/affiliate/CatalogueCard";
+import { BulkShareBar, SelectAll, SelectionProvider } from "@/components/affiliate/BulkShare";
 import { TablePager } from "@/components/admin/TablePager";
-import { requireAffiliateConsole } from "@/lib/affiliate-console";
+import { affiliateStoreLink, requireAffiliateConsole } from "@/lib/affiliate-console";
 import {
   CATALOGUE_ELIGIBILITY_OPTIONS,
   CATALOGUE_SORT_OPTIONS,
   getAffiliateCatalogue,
   getCatalogueFacets,
+  toSelectable,
 } from "@/lib/affiliate-catalogue";
+import { getAffiliateBranding } from "@/lib/affiliate-branding";
 import { perPageFrom } from "@/lib/data-bundles/order-filters";
 import { siteUrl } from "@/lib/site";
 
@@ -57,8 +60,9 @@ export default async function AffiliateShopPage({
   const perPage = perPageFrom(params.per, 25);
   const page = Math.max(1, Number(params.page) || 1);
 
-  const [facets, result] = await Promise.all([
+  const [facets, branding, result] = await Promise.all([
     getCatalogueFacets(),
+    getAffiliateBranding(affiliate),
     getAffiliateCatalogue(
       affiliate.id,
       { q: query, category: params.category, shop: params.shop, eligibility, sort },
@@ -68,8 +72,10 @@ export default async function AffiliateShopPage({
   ]);
   const pageCount = Math.max(1, Math.ceil(result.total / perPage));
 
+  const selectable = result.products.map(toSelectable);
+
   return (
-    <div>
+    <SelectionProvider>
       <ModuleHeader
         title="Browse products"
         subtitle="The Nickimart storefront, with what each product pays you."
@@ -131,6 +137,13 @@ export default async function AffiliateShopPage({
         </p>
       ) : (
         <div className="mt-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-niki-ink/55">
+              Tick a few and share them together — each one gets its own link.
+            </p>
+            <SelectAll products={selectable} />
+          </div>
+
           <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
             {result.products.map((p) => (
               <CatalogueCard
@@ -169,6 +182,16 @@ export default async function AffiliateShopPage({
           </Suspense>
         </div>
       )}
-    </div>
+
+      <BulkShareBar
+        design={branding.design}
+        watermark={branding.watermark}
+        logoUrl={branding.logoUrl}
+        linkBase={`${siteUrl()}/r`}
+        caption={affiliate.shareMessage}
+        storeLink={affiliateStoreLink(affiliate.code)}
+        suspended={affiliate.status !== "active"}
+      />
+    </SelectionProvider>
   );
 }

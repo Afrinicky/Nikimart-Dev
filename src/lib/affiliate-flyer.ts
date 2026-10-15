@@ -152,6 +152,401 @@ export const FLYER_HEIGHT = 1350; // 4:5 — the tallest a WhatsApp preview show
 const FONT_STACK = "'Helvetica Neue', Helvetica, Arial, 'Segoe UI', system-ui, sans-serif";
 
 // ---------------------------------------------------------------------------
+// The design
+// ---------------------------------------------------------------------------
+
+/**
+ * How the flyer is laid out and lettered.
+ *
+ * The flyer used to be a fixed drawing with a choice of six colourways, which
+ * was fine until the people whose shops it advertises wanted it to look like
+ * their shop. So the layout is now data: an admin sets the house design, and
+ * an affiliate may take it and make it theirs.
+ *
+ * Deliberately a schema rather than a free canvas. Elements flow — header,
+ * picture, name, price, message, footer — and each one carries its own type
+ * and a nudge, so a design can be made distinctly somebody's without any of
+ * them being able to produce a flyer with the price off the bottom edge. The
+ * frame is the one thing with real geometry, because "how much of this is the
+ * photograph" is the decision that actually changes the look.
+ *
+ * Every number is clamped on the way in (see resolveFlyerDesign). The design
+ * arrives as JSON from a database column somebody can edit, so nothing here
+ * may assume it is sane.
+ */
+
+/** The faces on offer. System stacks only — a flyer must not wait on a font. */
+export const FLYER_FONTS = [
+  { key: "sans", label: "Helvetica", stack: "'Helvetica Neue', Helvetica, Arial, 'Segoe UI', system-ui, sans-serif" },
+  { key: "grotesk", label: "Modern", stack: "'Segoe UI', Roboto, system-ui, 'Helvetica Neue', sans-serif" },
+  { key: "rounded", label: "Rounded", stack: "'Trebuchet MS', 'Lucida Grande', 'Segoe UI', sans-serif" },
+  { key: "condensed", label: "Condensed", stack: "'Arial Narrow', 'Helvetica Neue', Impact, sans-serif" },
+  { key: "poster", label: "Poster", stack: "Impact, 'Arial Black', 'Helvetica Neue', sans-serif" },
+  { key: "serif", label: "Serif", stack: "Georgia, 'Times New Roman', Times, serif" },
+  { key: "mono", label: "Typewriter", stack: "'Courier New', Courier, monospace" },
+] as const;
+
+export type FlyerFontKey = (typeof FLYER_FONTS)[number]["key"];
+
+export function fontStack(key: string | null | undefined): string {
+  return (FLYER_FONTS.find((f) => f.key === key) ?? FLYER_FONTS[0]).stack;
+}
+
+/** The weights offered. Canvas takes any number; four is a choice, not a list. */
+export const FLYER_WEIGHTS = [
+  { value: 400, label: "Regular" },
+  { value: 600, label: "Medium" },
+  { value: 700, label: "Bold" },
+  { value: 800, label: "Heavy" },
+] as const;
+
+export interface FlyerTextStyle {
+  /** Point size in the flyer's own 1080×1350 space. */
+  size: number;
+  font: FlyerFontKey;
+  weight: number;
+  italic: boolean;
+  /** Hex colour. Empty inherits whatever the theme gives this element. */
+  color: string;
+  uppercase: boolean;
+  visible: boolean;
+  /** Nudge, in flyer pixels. Bounded, so nothing can be pushed off the page. */
+  dx: number;
+  dy: number;
+}
+
+/** Every piece of lettering on the flyer, in the order it is drawn. */
+export const FLYER_TEXT_KEYS = [
+  "shop",
+  "category",
+  "badge",
+  "discount",
+  "name",
+  "price",
+  "oldPrice",
+  "message",
+  "footerLabel",
+  "link",
+  "sharedBy",
+] as const;
+
+export type FlyerTextKey = (typeof FLYER_TEXT_KEYS)[number];
+
+/** What each one is, for the editor's labels. */
+export const FLYER_TEXT_LABELS: Record<FlyerTextKey, string> = {
+  shop: "Shop name",
+  category: "Category line",
+  badge: "Nickimart badge",
+  discount: "Discount flash",
+  name: "Product name",
+  price: "Price",
+  oldPrice: "Old price",
+  message: "Your message",
+  footerLabel: "Call to action",
+  link: "Link",
+  sharedBy: "Shared-by line",
+};
+
+/** Where an added feature sits. Slots, so nothing can land off the page. */
+export const FLYER_SLOTS = [
+  { key: "header", label: "Under the shop name" },
+  { key: "onImage", label: "On the picture" },
+  { key: "underImage", label: "Under the picture" },
+  { key: "aboveFooter", label: "Above the link bar" },
+] as const;
+
+export type FlyerSlot = (typeof FLYER_SLOTS)[number]["key"];
+
+export const FLYER_ALIGNMENTS = [
+  { key: "left", label: "Left" },
+  { key: "center", label: "Centre" },
+  { key: "right", label: "Right" },
+] as const;
+
+export type FlyerAlign = (typeof FLYER_ALIGNMENTS)[number]["key"];
+
+/**
+ * Something the designer added themselves.
+ *
+ * The eleven elements the flyer is made of can each be switched off, which
+ * covers taking a feature away. This covers putting one on: a line of your
+ * own — "FREE DELIVERY IN ACCRA", "CALL 024…", a shop's slogan — in one of
+ * four slots, with or without a pill behind it.
+ *
+ * Slots rather than coordinates for the same reason the rest of the layout
+ * flows: somebody should be able to make the flyer theirs without being able
+ * to make one with the price underneath the footer.
+ */
+export interface FlyerExtra {
+  /** Stable across edits, so the editor can keep a row's focus. */
+  id: string;
+  text: string;
+  slot: FlyerSlot;
+  align: FlyerAlign;
+  /** A pill behind the words. Empty draws the words alone. */
+  background: string;
+  style: FlyerTextStyle;
+}
+
+/** More than this and the flyer is a leaflet. */
+export const MAX_FLYER_EXTRAS = 4;
+
+export interface FlyerDesign {
+  /** The colourway everything inherits from. */
+  theme: string;
+  /** Colour overrides; empty inherits the theme's own. */
+  colours: {
+    backdropFrom: string;
+    backdropTo: string;
+    card: string;
+    accent: string;
+    highlight: string;
+    ink: string;
+    discount: string;
+  };
+  /** The photograph's frame — the part of the flyer that is the product. */
+  frame: {
+    /** Distance from the top of the flyer. */
+    top: number;
+    /** Margin left and right. Also the page's own margin. */
+    side: number;
+    height: number;
+    radius: number;
+  };
+  /** The bar along the bottom that carries the link. */
+  footer: {
+    height: number;
+    radius: number;
+    /** Distance from the bottom of the flyer to the bottom of the bar. */
+    bottom: number;
+  };
+  /** The badge in the top corner. */
+  badge: { label: string; radius: number };
+  /** The price's highlighter pill. Off leaves the price as plain lettering. */
+  pricePill: boolean;
+  text: Record<FlyerTextKey, FlyerTextStyle>;
+  /** Lines the designer added. Each one can be removed again. */
+  extras: FlyerExtra[];
+}
+
+function style(
+  size: number,
+  weight: number,
+  extra: Partial<FlyerTextStyle> = {},
+): FlyerTextStyle {
+  return {
+    size,
+    font: "sans",
+    weight,
+    italic: false,
+    color: "",
+    uppercase: false,
+    visible: true,
+    dx: 0,
+    dy: 0,
+    ...extra,
+  };
+}
+
+/** The house design: the flyer exactly as it was drawn before any of this. */
+export const DEFAULT_FLYER_DESIGN: FlyerDesign = {
+  theme: "nickimart",
+  colours: {
+    backdropFrom: "",
+    backdropTo: "",
+    card: "",
+    accent: "",
+    highlight: "",
+    ink: "",
+    discount: "#dc2626",
+  },
+  frame: { top: 140, side: 48, height: 700, radius: 32 },
+  footer: { height: 104, radius: 32, bottom: 92 },
+  badge: { label: "NICKIMART", radius: 26 },
+  pricePill: true,
+  text: {
+    shop: style(40, 800, { uppercase: true }),
+    category: style(22, 600, { uppercase: true }),
+    badge: style(24, 800, { uppercase: true }),
+    discount: style(34, 800, { uppercase: true }),
+    name: style(46, 800),
+    price: style(62, 800),
+    oldPrice: style(34, 600),
+    message: style(30, 600),
+    footerLabel: style(26, 800, { uppercase: true }),
+    link: style(34, 800),
+    sharedBy: style(22, 600),
+  },
+  extras: [],
+};
+
+/** A new added line, ready for the editor to hand to somebody. */
+export function newFlyerExtra(id: string): FlyerExtra {
+  return {
+    id,
+    text: "Free delivery in Accra",
+    slot: "underImage",
+    align: "left",
+    background: "",
+    style: style(28, 700),
+  };
+}
+
+// --- Resolution -------------------------------------------------------------
+
+function clamp(value: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+/** A hex colour, or "" for "inherit". Anything else is not a colour. */
+function colour(value: unknown, fallback: string): string {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  if (trimmed === "") return "";
+  return /^#[0-9a-fA-F]{3,8}$/.test(trimmed) ? trimmed : fallback;
+}
+
+function boolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function resolveStyle(raw: unknown, fallback: FlyerTextStyle): FlyerTextStyle {
+  const v = (raw ?? {}) as Partial<Record<keyof FlyerTextStyle, unknown>>;
+  const font = FLYER_FONTS.some((f) => f.key === v.font) ? (v.font as FlyerFontKey) : fallback.font;
+  return {
+    // 10px is unreadable and 200px covers the page; both ends are a mistake
+    // rather than a style, so the clamp is generous and still finite.
+    size: clamp(v.size, 10, 200, fallback.size),
+    font,
+    weight: clamp(v.weight, 100, 900, fallback.weight),
+    italic: boolean(v.italic, fallback.italic),
+    color: colour(v.color, fallback.color),
+    uppercase: boolean(v.uppercase, fallback.uppercase),
+    visible: boolean(v.visible, fallback.visible),
+    dx: clamp(v.dx, -400, 400, fallback.dx),
+    dy: clamp(v.dy, -400, 400, fallback.dy),
+  };
+}
+
+/**
+ * A design from whatever was stored, merged onto a fallback.
+ *
+ * Two levels of fallback matter: an affiliate's design falls back to the
+ * admin's house design, and the house design falls back to the built-in one.
+ * So this takes the fallback rather than assuming the default — which is what
+ * lets an admin change the house style and have it reach every affiliate who
+ * has not overridden that particular part.
+ */
+export function resolveFlyerDesign(
+  raw: string | null | undefined | Record<string, unknown>,
+  fallback: FlyerDesign = DEFAULT_FLYER_DESIGN,
+): FlyerDesign {
+  let parsed: Record<string, unknown> = {};
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (trimmed === "") return fallback;
+    try {
+      const value = JSON.parse(trimmed);
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        parsed = value as Record<string, unknown>;
+      }
+    } catch {
+      // Unreadable JSON is a design nobody can fix from here. The fallback is
+      // a flyer that still goes out.
+      return fallback;
+    }
+  } else if (raw && typeof raw === "object") {
+    parsed = raw as Record<string, unknown>;
+  } else {
+    return fallback;
+  }
+
+  const colours = (parsed.colours ?? {}) as Record<string, unknown>;
+  const frame = (parsed.frame ?? {}) as Record<string, unknown>;
+  const footer = (parsed.footer ?? {}) as Record<string, unknown>;
+  const badge = (parsed.badge ?? {}) as Record<string, unknown>;
+  const text = (parsed.text ?? {}) as Record<string, unknown>;
+
+  const resolved: FlyerDesign = {
+    theme: PRODUCT_FLYER_THEMES.some((t) => t.key === parsed.theme)
+      ? String(parsed.theme)
+      : fallback.theme,
+    colours: {
+      backdropFrom: colour(colours.backdropFrom, fallback.colours.backdropFrom),
+      backdropTo: colour(colours.backdropTo, fallback.colours.backdropTo),
+      card: colour(colours.card, fallback.colours.card),
+      accent: colour(colours.accent, fallback.colours.accent),
+      highlight: colour(colours.highlight, fallback.colours.highlight),
+      ink: colour(colours.ink, fallback.colours.ink),
+      discount: colour(colours.discount, fallback.colours.discount),
+    },
+    frame: {
+      top: clamp(frame.top, 0, 600, fallback.frame.top),
+      side: clamp(frame.side, 0, 240, fallback.frame.side),
+      // The floor is a frame you can still see; the ceiling leaves room for
+      // the price and the footer, which are the point of the flyer.
+      height: clamp(frame.height, 200, 1000, fallback.frame.height),
+      radius: clamp(frame.radius, 0, 160, fallback.frame.radius),
+    },
+    footer: {
+      height: clamp(footer.height, 48, 220, fallback.footer.height),
+      radius: clamp(footer.radius, 0, 110, fallback.footer.radius),
+      bottom: clamp(footer.bottom, 16, 300, fallback.footer.bottom),
+    },
+    badge: {
+      label: typeof badge.label === "string" ? badge.label.slice(0, 24) : fallback.badge.label,
+      radius: clamp(badge.radius, 0, 60, fallback.badge.radius),
+    },
+    pricePill: boolean(parsed.pricePill, fallback.pricePill),
+    text: { ...fallback.text },
+    extras: fallback.extras,
+  };
+
+  for (const key of FLYER_TEXT_KEYS) {
+    resolved.text[key] = resolveStyle(text[key], fallback.text[key]);
+  }
+
+  // Added lines are the designer's own, so there is no per-item fallback to
+  // merge onto: an entry that is not an object is dropped rather than
+  // half-invented, and the list is capped at a length that still reads.
+  const extras = Array.isArray(parsed.extras) ? parsed.extras : null;
+  if (extras) {
+    resolved.extras = extras
+      .filter((e): e is Record<string, unknown> => Boolean(e) && typeof e === "object")
+      .slice(0, MAX_FLYER_EXTRAS)
+      .map((e, i) => ({
+        id: typeof e.id === "string" && e.id ? e.id.slice(0, 24) : `extra-${i}`,
+        text: typeof e.text === "string" ? e.text.slice(0, 80) : "",
+        slot: FLYER_SLOTS.some((sl) => sl.key === e.slot) ? (e.slot as FlyerSlot) : "underImage",
+        align: FLYER_ALIGNMENTS.some((a) => a.key === e.align) ? (e.align as FlyerAlign) : "left",
+        background: colour(e.background, ""),
+        style: resolveStyle(e.style, style(28, 700)),
+      }))
+      .filter((e) => e.text.trim() !== "");
+  } else {
+    resolved.extras = fallback.extras;
+  }
+
+  return resolved;
+}
+
+/** The colourway a design is built on, with its own overrides applied. */
+export function designTheme(design: FlyerDesign): ProductFlyerTheme {
+  const base = flyerTheme(design.theme);
+  return {
+    ...base,
+    backdropFrom: design.colours.backdropFrom || base.backdropFrom,
+    backdropTo: design.colours.backdropTo || base.backdropTo,
+    card: design.colours.card || base.card,
+    accent: design.colours.accent || base.accent,
+    highlight: design.colours.highlight || base.highlight,
+    ink: design.colours.ink || base.ink,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Geometry (testable on its own)
 // ---------------------------------------------------------------------------
 
@@ -258,22 +653,28 @@ function roundRect(
   ctx.roundRect(x, y, w, h, r);
 }
 
-/** Shrink the text until it fits `maxWidth`, never below `min`. */
+/**
+ * Shrink the text until it fits `maxWidth`, never below `min`.
+ *
+ * Takes the style rather than a weight, so a headline that has to come down
+ * two points keeps the face and the weight it was given. Leaves the context's
+ * font set to whatever it settled on, which is what the caller then draws in.
+ */
 function fitFont(
   ctx: CanvasRenderingContext2D,
   text: string,
   maxWidth: number,
   start: number,
   min: number,
-  weight = "700",
+  style: FlyerTextStyle,
 ): number {
   let size = start;
   while (size > min) {
-    ctx.font = `${weight} ${size}px ${FONT_STACK}`;
+    ctx.font = fontFor(style, size);
     if (ctx.measureText(text).width <= maxWidth) break;
     size -= 2;
   }
-  ctx.font = `${weight} ${size}px ${FONT_STACK}`;
+  ctx.font = fontFor(style, size);
   return size;
 }
 
@@ -284,20 +685,87 @@ export interface FlyerImage {
   height: number;
 }
 
+/** A text style as a canvas font string. */
+function fontFor(style: FlyerTextStyle, size = style.size): string {
+  return `${style.italic ? "italic " : ""}${style.weight} ${size}px ${fontStack(style.font)}`;
+}
+
+/** The text as it is drawn: the style decides whether it shouts. */
+function cased(text: string, style: FlyerTextStyle): string {
+  return style.uppercase ? text.toUpperCase() : text;
+}
+
+/**
+ * One added line, drawn at a y and returned with the height it used.
+ *
+ * Alignment picks the edge rather than a coordinate, and the pill — when there
+ * is one — is sized from the words, so a line somebody types in the editor
+ * cannot come out overlapping the thing below it.
+ */
+function drawExtra(
+  ctx: CanvasRenderingContext2D,
+  extra: FlyerExtra,
+  box: { left: number; width: number; y: number },
+  theme: ProductFlyerTheme,
+): number {
+  const text = cased(extra.text, extra.style);
+  if (!extra.style.visible || !text.trim()) return 0;
+
+  ctx.font = fontFor(extra.style);
+  const textWidth = Math.min(ctx.measureText(text).width, box.width - 48);
+  const padding = extra.background ? 28 : 0;
+  const pillWidth = textWidth + padding * 2;
+  const pillHeight = extra.style.size + (extra.background ? 24 : 8);
+
+  const x =
+    extra.align === "right"
+      ? box.left + box.width - pillWidth
+      : extra.align === "center"
+        ? box.left + (box.width - pillWidth) / 2
+        : box.left;
+
+  const left = x + extra.style.dx;
+  const top = box.y + extra.style.dy;
+
+  if (extra.background) {
+    ctx.fillStyle = extra.background;
+    roundRect(ctx, left, top, pillWidth, pillHeight, pillHeight / 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = extra.style.color || (extra.background ? "#ffffff" : theme.ink);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.font = fontFor(extra.style);
+  ctx.fillText(text, left + padding, top + pillHeight / 2, box.width - 48);
+
+  return pillHeight + 12;
+}
+
+export interface DrawFlyerOptions {
+  data: ProductFlyerData;
+  design: FlyerDesign;
+  image?: FlyerImage | null;
+}
+
 /**
  * Draw the whole flyer. The context is expected to be 1080×1350; everything
  * below is in those coordinates, so the caller can scale for a retina export
  * by scaling the context, not the layout.
+ *
+ * The design decides every size, face and colour; the layout decides where
+ * things go, flowing down the page from the frame. That split is the reason
+ * somebody can be given control of the look without being handed a way to
+ * produce a flyer with the price off the bottom edge.
  */
-export function drawProductFlyer(
-  ctx: CanvasRenderingContext2D,
-  data: ProductFlyerData,
-  theme: ProductFlyerTheme,
-  image: FlyerImage | null = null,
-): void {
+export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFlyerOptions): void {
+  const { data, design } = options;
+  const image = options.image ?? null;
+  const theme = designTheme(design);
   const W = FLYER_WIDTH;
   const H = FLYER_HEIGHT;
-  const margin = 48;
+  const margin = design.frame.side;
+  const contentWidth = W - margin * 2;
 
   // --- Backdrop -------------------------------------------------------------
   const bg = ctx.createLinearGradient(0, 0, 0, H);
@@ -309,36 +777,58 @@ export function drawProductFlyer(
   ctx.textBaseline = "middle";
 
   // --- Header: the shop, then what this is ---------------------------------
-  ctx.textAlign = "left";
-  ctx.fillStyle = theme.ink;
-  const shop = data.shopName.toUpperCase();
-  fitFont(ctx, shop, W * 0.52, 40, 22, "800");
-  ctx.fillText(shop, margin, 64);
+  const shopStyle = design.text.shop;
+  if (shopStyle.visible && data.shopName) {
+    ctx.textAlign = "left";
+    ctx.fillStyle = shopStyle.color || theme.ink;
+    const shop = cased(data.shopName, shopStyle);
+    // Shrunk to fit rather than clipped: a long shop name is the one piece of
+    // this somebody did not choose.
+    fitFont(ctx, shop, W * 0.52, shopStyle.size, Math.min(22, shopStyle.size), shopStyle);
+    ctx.fillText(shop, margin + shopStyle.dx, 64 + shopStyle.dy);
+  }
 
-  ctx.font = `600 22px ${FONT_STACK}`;
-  ctx.fillStyle = theme.inkSoft;
-  ctx.fillText(data.categoryName.toUpperCase(), margin, 104);
+  const categoryStyle = design.text.category;
+  if (categoryStyle.visible && data.categoryName) {
+    ctx.textAlign = "left";
+    ctx.font = fontFor(categoryStyle);
+    ctx.fillStyle = categoryStyle.color || theme.inkSoft;
+    ctx.fillText(cased(data.categoryName, categoryStyle), margin + categoryStyle.dx, 104 + categoryStyle.dy);
+  }
 
-  // The brand pill, right-aligned: this is a Nickimart listing, and a flyer
-  // that does not say so is a flyer people do not trust enough to tap.
-  const brand = "NICKIMART";
-  ctx.font = `800 24px ${FONT_STACK}`;
-  const brandWidth = ctx.measureText(brand).width + 48;
-  ctx.fillStyle = theme.accent;
-  roundRect(ctx, W - margin - brandWidth, 42, brandWidth, 52, 26);
-  ctx.fill();
-  ctx.fillStyle = theme.onAccent;
-  ctx.textAlign = "center";
-  ctx.fillText(brand, W - margin - brandWidth / 2, 69);
+  // Anything the designer added under the header.
+  let headerY = 128;
+  for (const extra of design.extras.filter((e) => e.slot === "header")) {
+    headerY += drawExtra(ctx, extra, { left: margin, width: contentWidth, y: headerY }, theme);
+  }
+
+  // The badge in the corner: this is a Nickimart listing, and a flyer that
+  // does not say so is a flyer people do not trust enough to tap.
+  const badgeStyle = design.text.badge;
+  if (badgeStyle.visible && design.badge.label) {
+    const label = cased(design.badge.label, badgeStyle);
+    ctx.font = fontFor(badgeStyle);
+    const badgeWidth = ctx.measureText(label).width + 48;
+    const badgeHeight = badgeStyle.size + 28;
+    const badgeX = W - margin - badgeWidth + badgeStyle.dx;
+    const badgeY = 42 + badgeStyle.dy;
+    ctx.fillStyle = theme.accent;
+    roundRect(ctx, badgeX, badgeY, badgeWidth, badgeHeight, design.badge.radius);
+    ctx.fill();
+    ctx.fillStyle = badgeStyle.color || theme.onAccent;
+    ctx.textAlign = "center";
+    ctx.font = fontFor(badgeStyle);
+    ctx.fillText(label, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2);
+  }
 
   // --- The photograph -------------------------------------------------------
   const cardX = margin;
-  const cardY = 140;
-  const cardW = W - margin * 2;
-  const cardH = 700;
+  const cardY = design.frame.top;
+  const cardW = contentWidth;
+  const cardH = design.frame.height;
 
   ctx.save();
-  roundRect(ctx, cardX, cardY, cardW, cardH, 32);
+  roundRect(ctx, cardX, cardY, cardW, cardH, design.frame.radius);
   ctx.fillStyle = theme.card;
   ctx.fill();
   ctx.clip();
@@ -355,112 +845,195 @@ export function drawProductFlyer(
     placeholder.addColorStop(1, data.gradientTo || "#cbd5e1");
     ctx.fillStyle = placeholder;
     ctx.fillRect(cardX, cardY, cardW, cardH);
-    ctx.font = `400 320px ${FONT_STACK}`;
+    ctx.font = `400 ${Math.min(cardW, cardH) * 0.45}px ${FONT_STACK}`;
     ctx.textAlign = "center";
     ctx.fillText(data.emoji || "🛍️", cardX + cardW / 2, cardY + cardH / 2);
   }
   ctx.restore();
 
   // The discount flash, over the corner of the photograph.
-  if (data.discount) {
-    ctx.font = `800 34px ${FONT_STACK}`;
-    const flash = data.discount.toUpperCase();
+  const discountStyle = design.text.discount;
+  if (discountStyle.visible && data.discount) {
+    const flash = cased(data.discount, discountStyle);
+    ctx.font = fontFor(discountStyle);
     const flashWidth = ctx.measureText(flash).width + 52;
-    ctx.fillStyle = "#dc2626";
-    roundRect(ctx, cardX + 24, cardY + 24, flashWidth, 62, 31);
+    const flashHeight = discountStyle.size + 28;
+    const flashX = cardX + 24 + discountStyle.dx;
+    const flashY = cardY + 24 + discountStyle.dy;
+    ctx.fillStyle = design.colours.discount || "#dc2626";
+    roundRect(ctx, flashX, flashY, flashWidth, flashHeight, flashHeight / 2);
     ctx.fill();
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = discountStyle.color || "#ffffff";
     ctx.textAlign = "center";
-    ctx.fillText(flash, cardX + 24 + flashWidth / 2, cardY + 55);
+    ctx.font = fontFor(discountStyle);
+    ctx.fillText(flash, flashX + flashWidth / 2, flashY + flashHeight / 2);
+  }
+
+  // Added lines that sit on the picture itself, stacked up from its foot.
+  const onImage = design.extras.filter((e) => e.slot === "onImage");
+  if (onImage.length > 0) {
+    let stickerY = cardY + cardH - 24;
+    for (const extra of [...onImage].reverse()) {
+      const height = extra.style.size + (extra.background ? 24 : 8) + 12;
+      stickerY -= height;
+      drawExtra(ctx, extra, { left: cardX + 24, width: cardW - 48, y: stickerY }, theme);
+    }
   }
 
   // --- Name and price ------------------------------------------------------
-  const nameTop = cardY + cardH + 46;
+  const nameStyle = design.text.name;
+  let cursor = cardY + cardH + 46;
+
+  // Added lines between the picture and the name.
+  for (const extra of design.extras.filter((e) => e.slot === "underImage")) {
+    cursor += drawExtra(ctx, extra, { left: margin, width: contentWidth, y: cursor }, theme);
+  }
+  ctx.textBaseline = "middle";
   ctx.textAlign = "left";
-  ctx.fillStyle = theme.ink;
-  const nameSize = 46;
-  ctx.font = `800 ${nameSize}px ${FONT_STACK}`;
-  const nameLines = wrapLines(
-    data.name,
-    cardW,
-    (t) => {
-      ctx.font = `800 ${nameSize}px ${FONT_STACK}`;
-      return ctx.measureText(t).width;
-    },
-    2,
-  );
-  nameLines.forEach((line, i) => {
-    ctx.font = `800 ${nameSize}px ${FONT_STACK}`;
-    ctx.fillText(line, margin, nameTop + i * (nameSize + 10));
-  });
 
-  const priceTop = nameTop + nameLines.length * (nameSize + 10) + 18;
+  if (nameStyle.visible && data.name) {
+    ctx.fillStyle = nameStyle.color || theme.ink;
+    const nameLines = wrapLines(
+      cased(data.name, nameStyle),
+      contentWidth,
+      (t) => {
+        ctx.font = fontFor(nameStyle);
+        return ctx.measureText(t).width;
+      },
+      2,
+    );
+    nameLines.forEach((line, i) => {
+      ctx.font = fontFor(nameStyle);
+      ctx.fillText(line, margin + nameStyle.dx, cursor + nameStyle.dy + i * (nameStyle.size + 10));
+    });
+    cursor += nameLines.length * (nameStyle.size + 10) + 18;
+  }
 
-  // The price sits in a highlighter pill — the one thing on the flyer somebody
-  // scrolling has to be able to read at a glance.
-  ctx.font = `800 62px ${FONT_STACK}`;
-  const priceWidth = ctx.measureText(data.price).width;
-  ctx.fillStyle = theme.highlight;
-  roundRect(ctx, margin - 18, priceTop - 44, priceWidth + 44, 88, 44);
-  ctx.fill();
-  ctx.fillStyle = "#111827";
-  ctx.font = `800 62px ${FONT_STACK}`;
-  ctx.fillText(data.price, margin + 4, priceTop);
+  const priceStyle = design.text.price;
+  let priceEndX = margin;
+  if (priceStyle.visible && data.price) {
+    const price = cased(data.price, priceStyle);
+    const priceY = cursor + priceStyle.dy + priceStyle.size * 0.35;
+    ctx.font = fontFor(priceStyle);
+    const priceWidth = ctx.measureText(price).width;
 
-  if (data.oldPrice) {
-    ctx.font = `600 34px ${FONT_STACK}`;
-    const oldX = margin + priceWidth + 52;
-    ctx.fillStyle = theme.inkSoft;
-    ctx.fillText(data.oldPrice, oldX, priceTop + 4);
-    const oldWidth = ctx.measureText(data.oldPrice).width;
-    ctx.strokeStyle = theme.inkSoft;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(oldX - 2, priceTop + 4);
-    ctx.lineTo(oldX + oldWidth + 2, priceTop + 4);
-    ctx.stroke();
+    // The price sits in a highlighter pill — the one thing on the flyer
+    // somebody scrolling has to be able to read at a glance.
+    if (design.pricePill) {
+      const pillHeight = priceStyle.size + 26;
+      ctx.fillStyle = theme.highlight;
+      roundRect(
+        ctx,
+        margin - 18 + priceStyle.dx,
+        priceY - pillHeight / 2,
+        priceWidth + 44,
+        pillHeight,
+        pillHeight / 2,
+      );
+      ctx.fill();
+    }
+    ctx.fillStyle = priceStyle.color || (design.pricePill ? "#111827" : theme.ink);
+    ctx.font = fontFor(priceStyle);
+    ctx.fillText(price, margin + 4 + priceStyle.dx, priceY);
+    priceEndX = margin + priceStyle.dx + priceWidth + 52;
+
+    const oldStyle = design.text.oldPrice;
+    if (oldStyle.visible && data.oldPrice) {
+      ctx.font = fontFor(oldStyle);
+      const oldX = priceEndX + oldStyle.dx;
+      const oldY = priceY + 4 + oldStyle.dy;
+      ctx.fillStyle = oldStyle.color || theme.inkSoft;
+      ctx.fillText(data.oldPrice, oldX, oldY);
+      const oldWidth = ctx.measureText(data.oldPrice).width;
+      ctx.strokeStyle = oldStyle.color || theme.inkSoft;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(oldX - 2, oldY);
+      ctx.lineTo(oldX + oldWidth + 2, oldY);
+      ctx.stroke();
+    }
+    cursor = priceY + priceStyle.size * 0.65 + 34;
   }
 
   // --- The affiliate's own words -------------------------------------------
-  const footerTop = H - 196;
-  const messageTop = priceTop + 78;
-  const messageSize = 30;
-  ctx.fillStyle = theme.ink;
-  const messageLines = wrapLines(
-    data.message,
-    cardW,
-    (t) => {
-      ctx.font = `600 ${messageSize}px ${FONT_STACK}`;
-      return ctx.measureText(t).width;
-    },
-    // However many lines are left between the price and the footer.
-    Math.max(1, Math.floor((footerTop - messageTop - 20) / (messageSize + 10))),
-  );
-  messageLines.forEach((line, i) => {
-    ctx.font = `600 ${messageSize}px ${FONT_STACK}`;
-    ctx.fillText(line, margin, messageTop + i * (messageSize + 10));
-  });
+  const footerTop = H - design.footer.bottom - design.footer.height;
+  const messageStyle = design.text.message;
+  if (messageStyle.visible && data.message) {
+    const messageTop = cursor + messageStyle.dy;
+    ctx.fillStyle = messageStyle.color || theme.ink;
+    ctx.textAlign = "left";
+    const messageLines = wrapLines(
+      cased(data.message, messageStyle),
+      contentWidth,
+      (t) => {
+        ctx.font = fontFor(messageStyle);
+        return ctx.measureText(t).width;
+      },
+      // However many lines are left between the price and the footer.
+      Math.max(1, Math.floor((footerTop - messageTop - 20) / (messageStyle.size + 10))),
+    );
+    messageLines.forEach((line, i) => {
+      ctx.font = fontFor(messageStyle);
+      ctx.fillText(line, margin + messageStyle.dx, messageTop + i * (messageStyle.size + 10));
+    });
+  }
+
+  // Added lines just above the link bar — where a phone number or a delivery
+  // promise reads best, because it is the last thing before the call to act.
+  const aboveFooter = design.extras.filter((e) => e.slot === "aboveFooter");
+  if (aboveFooter.length > 0) {
+    let footerExtraY = footerTop - 16;
+    for (const extra of [...aboveFooter].reverse()) {
+      const height = extra.style.size + (extra.background ? 24 : 8) + 12;
+      footerExtraY -= height;
+      drawExtra(ctx, extra, { left: margin, width: contentWidth, y: footerExtraY }, theme);
+    }
+  }
 
   // --- Footer: where to buy it ---------------------------------------------
-  const barHeight = 104;
+  ctx.textBaseline = "middle";
+  const barHeight = design.footer.height;
   ctx.fillStyle = theme.accent;
-  roundRect(ctx, margin, footerTop, cardW, barHeight, 32);
+  roundRect(ctx, margin, footerTop, contentWidth, barHeight, design.footer.radius);
   ctx.fill();
 
-  ctx.fillStyle = theme.onAccent;
   ctx.textAlign = "center";
-  ctx.font = `800 26px ${FONT_STACK}`;
-  ctx.fillText("ORDER ON NICKIMART", W / 2, footerTop + 36);
-  fitFont(ctx, data.link, cardW - 80, 34, 20, "800");
-  ctx.fillText(data.link, W / 2, footerTop + 74);
+  const labelStyle = design.text.footerLabel;
+  const linkStyle = design.text.link;
+  // The two footer lines share the bar, so they are placed against its middle
+  // rather than its top: a taller bar keeps them centred instead of leaving a
+  // gap underneath.
+  const barMid = footerTop + barHeight / 2;
+  const hasLabel = labelStyle.visible && Boolean(data.link);
+  if (hasLabel) {
+    ctx.fillStyle = labelStyle.color || theme.onAccent;
+    ctx.font = fontFor(labelStyle);
+    ctx.fillText(
+      cased("Order on Nickimart", labelStyle),
+      W / 2 + labelStyle.dx,
+      barMid - labelStyle.size * 0.7 + labelStyle.dy,
+    );
+  }
+  if (linkStyle.visible && data.link) {
+    ctx.fillStyle = linkStyle.color || theme.onAccent;
+    fitFont(ctx, data.link, contentWidth - 80, linkStyle.size, 18, linkStyle);
+    ctx.fillText(
+      data.link,
+      W / 2 + linkStyle.dx,
+      hasLabel ? barMid + linkStyle.size * 0.6 + linkStyle.dy : barMid + linkStyle.dy,
+    );
+  }
 
-  ctx.fillStyle = theme.inkSoft;
-  ctx.font = `600 22px ${FONT_STACK}`;
-  ctx.fillText(
-    data.sharedBy ? `Shared by ${data.sharedBy}` : "Pay on delivery options available",
-    W / 2,
-    footerTop + barHeight + 34,
-  );
+  const sharedStyle = design.text.sharedBy;
+  if (sharedStyle.visible) {
+    ctx.fillStyle = sharedStyle.color || theme.inkSoft;
+    ctx.font = fontFor(sharedStyle);
+    ctx.fillText(
+      data.sharedBy ? `Shared by ${data.sharedBy}` : "Pay on delivery options available",
+      W / 2 + sharedStyle.dx,
+      footerTop + barHeight + 34 + sharedStyle.dy,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -495,6 +1068,55 @@ export function productFlyerShareText(input: ShareTextInput): string {
   // even when the affiliate's caption is a single word.
   const headline = `*${input.productName}* — ${input.price}`;
   return caption.includes(input.productName) ? caption : `${headline}\n\n${caption}`;
+}
+
+/**
+ * The most products one share can carry.
+ *
+ * Ten is what a share sheet will accept as files on the platforms that take
+ * files at all, and roughly what a WhatsApp message can list before it is a
+ * catalogue somebody scrolls past.
+ */
+export const MAX_BULK_SHARE = 10;
+
+export interface BulkShareItem {
+  name: string;
+  price: string;
+  link: string;
+}
+
+/**
+ * The message that carries several products at once.
+ *
+ * A numbered list rather than a wall of links, because what arrives in WhatsApp
+ * is read on a phone and the thing somebody taps has to be attached to a name
+ * and a price. The caption leads, once, rather than repeating per product —
+ * five copies of "genuine goods, nationwide delivery" is how a post gets
+ * scrolled past.
+ */
+export function bulkShareText(items: BulkShareItem[], caption: string): string {
+  const live = items.filter((i) => i.link);
+  if (live.length === 0) return caption.trim();
+  if (live.length === 1) {
+    return productFlyerShareText({
+      productName: live[0].name,
+      price: live[0].price,
+      shopName: "",
+      link: live[0].link,
+      template: caption,
+    });
+  }
+
+  const lines = [`*${live.length} picks from Nickimart* 🛍️`];
+  const intro = caption.trim();
+  if (intro) lines.push("", intro);
+  lines.push("");
+  live.forEach((item, i) => {
+    lines.push(`${i + 1}. *${item.name}* — ${item.price}`);
+    lines.push(item.link);
+    if (i < live.length - 1) lines.push("");
+  });
+  return lines.join("\n");
 }
 
 /** The filename a saved flyer gets. */

@@ -4,6 +4,7 @@ import { money, resolveCommissionRate } from "@/lib/commission";
 import { getCommissionRate } from "@/lib/settings";
 import { getAffiliatePolicy } from "@/lib/affiliate-settings";
 import { resolveProductRate, type RateSource } from "@/lib/affiliate-policy";
+import { discountPercent, formatPrice } from "@/lib/format";
 
 /**
  * The catalogue an affiliate browses: **every** active, publicly listed
@@ -387,5 +388,45 @@ export async function getCatalogueFacets(): Promise<{
       { value: "all", label: "All shops" },
       ...vendors.map((v) => ({ value: v.slug, label: v.businessName })),
     ],
+  };
+}
+
+/**
+ * A catalogue row as the bulk-share selection needs it.
+ *
+ * Money arrives formatted rather than raw: the selection is carried into a
+ * client component that draws it onto a canvas, and formatting it there would
+ * mean the picture and the page could disagree about what something costs.
+ */
+export function toSelectable(p: CatalogueProduct): {
+  id: string;
+  name: string;
+  price: string;
+  oldPrice: string | null;
+  discount: string | null;
+  image: string | null;
+  emoji: string;
+  gradientFrom: string;
+  gradientTo: string;
+  shopName: string;
+  categoryName: string;
+  linkCode: string | null;
+  eligible: boolean;
+} {
+  const off = discountPercent(p.price, p.oldPrice ?? undefined);
+  return {
+    id: p.id,
+    name: p.name,
+    price: formatPrice(p.price),
+    oldPrice: p.oldPrice ? formatPrice(p.oldPrice) : null,
+    discount: off ? `-${off}%` : null,
+    image: p.image,
+    emoji: p.emoji,
+    gradientFrom: p.gradientFrom,
+    gradientTo: p.gradientTo,
+    shopName: p.vendorName,
+    categoryName: p.categoryName,
+    linkCode: p.linkCode,
+    eligible: p.eligible,
   };
 }

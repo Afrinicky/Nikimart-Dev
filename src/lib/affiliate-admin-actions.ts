@@ -11,6 +11,9 @@ import { getCommissionRate } from "@/lib/settings";
 import { formatMoney } from "@/lib/format";
 import { PRODUCTS_TAG } from "@/lib/catalog";
 import { updateTag } from "next/cache";
+import { SETTINGS_TAG } from "@/lib/settings";
+import { resolveFlyerDesign } from "@/lib/affiliate-flyer";
+import { resolveWatermark } from "@/lib/affiliate-watermark";
 
 /**
  * What an admin can do to the affiliate programme.
@@ -521,4 +524,70 @@ export async function resolveFraudFlag(fd: FormData): Promise<void> {
   });
   await record(flag.affiliateId, admin, "flag_resolved", `${flag.kind} → ${status}`);
   revalidatePath("/admin/affiliates/fraud");
+}
+
+// ---------------------------------------------------------------------------
+// Branding
+// ---------------------------------------------------------------------------
+
+/**
+ * Store a JSON setting.
+ *
+ * Written straight rather than through the general settings form, because the
+ * value is a whole design and the only honest validation is to resolve it the
+ * way the drawing will: anything the resolver refuses never reaches the
+ * column, so a flyer can never be stored in a state that cannot be drawn.
+ */
+async function putSetting(key: string, value: string): Promise<void> {
+  await prisma.siteSetting.upsert({
+    where: { key },
+    update: { value },
+    create: { key, value },
+  });
+  updateTag(SETTINGS_TAG);
+}
+
+/**
+ * The house flyer design.
+ *
+ * Every affiliate inherits this, part by part: their own design is layered
+ * over it rather than replacing it, so changing the house accent here reaches
+ * everybody who has not chosen an accent of their own.
+ */
+export async function saveHouseFlyerDesign(
+  _prev: AdminActionState,
+  fd: FormData,
+): Promise<AdminActionState> {
+  const admin = await requireAdmin();
+  const raw = str(fd, "design");
+  if (!raw) return { error: "Nothing to save." };
+
+  // Resolved before it is stored, so the column only ever holds a design the
+  // drawing can read — and so a hand-edited value cannot smuggle in a size
+  // that puts the price off the page.
+  const design = resolveFlyerDesign(raw);
+  await putSetting("affiliateFlyerDesign", JSON.stringify(design));
+  await record(null, admin, "flyer_design_changed", "House flyer design updated");
+
+  revalidatePath("/admin/affiliates/branding");
+  revalidatePath("/affiliate", "layout");
+  return { ok: true, message: "House design saved." };
+}
+
+/** The watermark on shared photographs. */
+export async function saveAffiliateWatermark(
+  _prev: AdminActionState,
+  fd: FormData,
+): Promise<AdminActionState> {
+  const admin = await requireAdmin();
+  const raw = str(fd, "watermark");
+  if (!raw) return { error: "Nothing to save." };
+
+  const watermark = resolveWatermark(raw);
+  await putSetting("affiliateWatermark", JSON.stringify(watermark));
+  await record(null, admin, "watermark_changed", watermark.enabled ? watermark.text : "Switched off");
+
+  revalidatePath("/admin/affiliates/branding");
+  revalidatePath("/affiliate", "layout");
+  return { ok: true, message: "Watermark saved." };
 }
