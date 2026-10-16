@@ -107,18 +107,73 @@ export async function getQueueView({
   return { groups: sorted.slice(start, start + perPage), total: sorted.length, all };
 }
 
-/** One queue row by its token, with the other rows from the same supplier. */
+/** The four parts a queue key is built from. */
+export function partsFromKey(key: string): {
+  vendorId: string;
+  supplier: string;
+  forwarderId: string;
+  routeId: string;
+} | null {
+  const bits = key.split("::");
+  if (bits.length !== 4) return null;
+  return { vendorId: bits[0], supplier: bits[1], forwarderId: bits[2], routeId: bits[3] };
+}
+
+/**
+ * One queue row by its token — and, when it is no longer in the queue, what
+ * happened to it.
+ *
+ * The second half is not a nicety. Placing a purchase is the one action that
+ * removes the row the admin is looking at, and Next re-renders the page it
+ * was taken from as part of the same response. A window that only knew how to
+ * show a queue row answered its own success with "Page not found": the
+ * purchase went through, and the screen said the opposite.
+ *
+ * So a token that no longer names a waiting parcel resolves to the purchases
+ * that now cover it, matched on the same supplier, shop and lane the key was
+ * built from.
+ */
 export async function getQueueGroup(token: string): Promise<{
   group: QueueGroup | null;
   siblings: QueueGroup[];
+  /** Purchases covering this key, newest first. Only read when the row is gone. */
+  placed: PurchaseRecord[];
 }> {
   const key = keyFromToken(token);
-  if (!key) return { group: null, siblings: [] };
+  if (!key) return { group: null, siblings: [], placed: [] };
+
   const all = await getPurchaseQueue();
   const group = all.find((g) => g.key === key) ?? null;
-  if (!group) return { group: null, siblings: [] };
-  const mine = supplierKey(group);
-  return { group, siblings: all.filter((g) => g.key !== group.key && supplierKey(g) === mine) };
+  if (group) {
+    const mine = supplierKey(group);
+    return {
+      group,
+      siblings: all.filter((g) => g.key !== group.key && supplierKey(g) === mine),
+      placed: [],
+    };
+  }
+
+  return { group: null, siblings: [], placed: await purchasesForKey(key) };
+}
+
+/**
+ * The purchases that cover a queue key, newest first.
+ *
+ * Matched on the supplier the key was built from rather than on the key
+ * itself, which is never stored. A purchase bought across two lanes carries
+ * no route of its own, so the lane is deliberately not part of the match:
+ * what the admin needs to see is "this supplier's parcel was bought, here is
+ * the reference", and narrowing further would hide the very purchase they
+ * just made.
+ */
+async function purchasesForKey(key: string): Promise<PurchaseRecord[]> {
+  const parts = partsFromKey(key);
+  if (!parts) return [];
+  const wanted = parts.supplier.trim().toLowerCase();
+  const rows = await getPurchaseOrders();
+  return rows.filter(
+    (p) => (p.supplierUrl || p.supplierName).trim().toLowerCase() === wanted,
+  );
 }
 
 export const PLACED_STATUS_OPTIONS = [

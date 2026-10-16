@@ -143,12 +143,26 @@ export function describeSchedule(
  * Everything bought and not yet ordered from a supplier, grouped.
  *
  * Pass a `vendorId` for a seller's own view of the same queue.
+ *
+ * A line leaves the queue when a purchase is attached to it — and also when
+ * its consignment has been confirmed as ordered, which is the case a detached
+ * line used to fall through: cancel a purchase on an order that has since
+ * shipped and the line came back as something to buy.
  */
 export async function getPurchaseQueue(vendorId?: string): Promise<QueueGroup[]> {
   const items = await prisma.orderItem.findMany({
     where: {
       purchaseOrderId: null,
-      order: { status: { in: [...LIVE_STATUSES] } },
+      order: {
+        status: { in: [...LIVE_STATUSES] },
+        // Nothing already on its way. A detached line — a purchase that was
+        // cancelled, a record cleaned up — would otherwise reappear here as
+        // something to buy, on an order whose goods are in a container off
+        // Tema. The shipment's own confirmation is the honest test: a stamped
+        // "ordered from the supplier" means somebody has said it was bought,
+        // whether or not the purchase record survived.
+        OR: [{ shipment: null }, { shipment: { processingAt: null } }],
+      },
       product: {
         productType: { in: [...ABROAD_TYPES] },
         supplierDelivers: false,

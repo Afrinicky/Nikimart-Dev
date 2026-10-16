@@ -4,7 +4,7 @@ import { AlertTriangle, ClipboardList, PackageCheck, Ship, Wallet } from "lucide
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { FulfilmentTabs } from "@/components/admin/retail/FulfilmentTabs";
-import { TableFilters } from "@/components/admin/retail/TableFilters";
+import { TableFilters } from "@/components/admin/TableFilters";
 import { OrderRowActions } from "@/components/admin/retail/OrderRowActions";
 import { PaymentPill, StagePill } from "@/components/admin/retail/StagePill";
 import { OrderPager } from "@/components/data/OrderPager";
@@ -87,12 +87,12 @@ export default async function AdminOrdersPage({
         crumbs={[{ label: "Admin", href: "/admin" }, { label: "Order fulfilment" }]}
       />
 
-      <Container className="space-y-5 py-8">
+      <Container className="space-y-4 py-6 sm:space-y-5 sm:py-8">
         <FulfilmentTabs counts={{ "/admin/orders": summary.total, "/admin/orders/placement": summary.toPlace }} />
 
         {/* What is waiting on a person right now. Unfiltered on purpose: an
             order paid for in February is still somebody waiting today. */}
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-5">
           <Stat
             label="Awaiting payment"
             value={String(summary.awaitingPayment)}
@@ -139,13 +139,14 @@ export default async function AdminOrdersPage({
           <TableFilters
             query={query}
             searchPlaceholder="Search by order number, buyer, phone, product…"
+            searchLabel="Search orders"
             noun="orders"
             exportHref="/admin/export/orders"
             shown={orders.length}
             total={total}
             page={page}
             pageCount={pageCount}
-            selects={[
+            filters={[
               { key: "stage", label: "Filter by status", value: stage, options: stageOptions },
               {
                 key: "payment",
@@ -168,8 +169,8 @@ export default async function AdminOrdersPage({
             No orders match these filters.
           </p>
         ) : (
-          <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
-            <div className="-mx-5 overflow-x-auto px-5">
+          <div className="rounded-2xl bg-white p-4 ring-1 ring-niki-edge sm:p-5">
+            <div className="-mx-4 overflow-x-auto px-4 sm:-mx-5 sm:px-5">
               <table className="w-full min-w-[1180px] border-separate border-spacing-0 text-sm">
                 <thead>
                   <tr className="bg-niki-surface/70">
@@ -335,14 +336,18 @@ function Stat({
   return (
     <ActionLink
       href={href}
-      className="niki-focus group block rounded-2xl bg-white p-5 ring-1 ring-niki-edge transition-colors hover:ring-niki-orange/50"
+      className="niki-focus group block rounded-2xl bg-white p-3.5 ring-1 ring-niki-edge transition-colors hover:ring-niki-orange/50 sm:p-5"
     >
-      <div className="flex items-center gap-2 text-niki-ink/50">
-        <Icon className="h-4 w-4" />
-        <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
+      <div className="flex items-center gap-1.5 text-niki-ink/50 sm:gap-2">
+        <Icon className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+        <span className="truncate text-[10px] font-semibold uppercase tracking-wide sm:text-xs">
+          {label}
+        </span>
       </div>
-      <p className={`mt-2 font-figures text-2xl font-bold ${tones[tone]}`}>{value}</p>
-      {hint ? <p className="mt-0.5 text-xs text-niki-ink/50">{hint}</p> : null}
+      <p className={`mt-1.5 font-figures text-lg font-bold sm:mt-2 sm:text-2xl ${tones[tone]}`}>
+        {value}
+      </p>
+      {hint ? <p className="mt-0.5 text-[11px] text-niki-ink/50 sm:text-xs">{hint}</p> : null}
     </ActionLink>
   );
 }

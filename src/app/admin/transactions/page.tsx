@@ -6,6 +6,7 @@ import { ModuleHeader } from "@/components/admin/ModuleHeader";
 import { TableFilters } from "@/components/admin/TableFilters";
 import { TablePager } from "@/components/admin/TablePager";
 import { TransactionsTable } from "@/components/admin/TransactionsTable";
+import { TransactionTabs } from "@/components/admin/retail/TransactionTabs";
 import { Receipt } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { perPageFrom } from "@/lib/data-bundles/order-filters";
@@ -102,7 +103,11 @@ export default async function AdminRetailTransactionsPage({
         icon={Receipt}
       />
 
-      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="mt-5 sm:mt-6">
+        <TransactionTabs />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Tile
           label="Money in"
           value={formatMoney(totals.in)}

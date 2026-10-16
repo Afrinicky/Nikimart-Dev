@@ -17,31 +17,30 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
-  id                String    @id @default(cuid())
-  name              String?
-  email             String    @unique
-  emailVerified     DateTime?
-  image             String?
-  phone             String?
-  passwordHash      String?
+  id                 String    @id @default(cuid())
+  name               String?
+  email              String    @unique
+  emailVerified      DateTime?
+  image              String?
+  phone              String?
+  passwordHash       String?
   /**
    * True when the password on this account was issued rather than chosen — an
    * agent registered by another agent is sent one with their username. It has
    * been through an SMS gateway and an inbox and two people know it, so the
    * console will not show them anything until they have replaced it.
    */
-  mustChangePassword Boolean @default(false)
+  mustChangePassword Boolean   @default(false)
   /**
    * Whether a code is asked for after the password. Off unless the owner turns
    * it on — a second step nobody chose is a lockout waiting to happen, and the
    * people on this platform sign in from one phone with one SIM.
    */
-  twoFactorEnabled   Boolean @default(false)
+  twoFactorEnabled   Boolean   @default(false)
   /// email | sms — where that code is sent.
-  twoFactorChannel   String  @default("email")
+  twoFactorChannel   String    @default("email")
   /**
    * The one sign-in this account currently holds.
-   *
    * Sessions are stateless tokens, so without this an account signed into on
    * two phones is two valid tokens and no way to tell them apart. Every
    * sign-in writes a fresh id here and stamps it into the token it issues; a
@@ -52,33 +51,35 @@ model User {
   activeSessionAt    DateTime?
   // Role gates every dashboard. SQLite has no enums, so we store the role as a
   // string constrained by the Role helper in src/lib/roles.ts.
-  role              String    @default("CUSTOMER")
+  role               String    @default("CUSTOMER")
   // Default delivery address + preferred pickup centre (set at registration).
-  address           String?
-  preferredPickupId String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  address            String?
+  preferredPickupId  String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  accounts        Account[]
-  sessions        Session[]
-  vendor          Vendor?
-  orders          Order[]
-  pickupPoint     PickupPoint?         @relation("PickupOperator")
-  preferredPickup PickupPoint?         @relation("PreferredPickup", fields: [preferredPickupId], references: [id], onDelete: SetNull)
-  shipments       Shipment[]           @relation("FreightAgent")
-  passwordResets  PasswordResetToken[]
+  accounts            Account[]
+  sessions            Session[]
+  vendor              Vendor?
+  orders              Order[]
+  pickupPoint         PickupPoint?         @relation("PickupOperator")
+  preferredPickup     PickupPoint?         @relation("PreferredPickup", fields: [preferredPickupId], references: [id], onDelete: SetNull)
+  shipments           Shipment[]           @relation("FreightAgent")
+  passwordResets      PasswordResetToken[]
   twoFactorChallenges TwoFactorChallenge[]
-  affiliate       Affiliate?
+  affiliate           Affiliate?
   /// Conversations with an affiliate who referred them, and the messages in them.
-  affiliateThreads  AffiliateThread[]  @relation("AffiliateThreadCustomer")
-  affiliateMessages AffiliateMessage[] @relation("AffiliateMessageAuthor")
+  affiliateThreads    AffiliateThread[]    @relation("AffiliateThreadCustomer")
+  affiliateMessages   AffiliateMessage[]   @relation("AffiliateMessageAuthor")
   // No `dataAgent` relation: agent accounts live in the data-bundle database
   // (prisma/data/schema.prisma), which Postgres cannot reference from here.
   /**
+   * /**
    * When this person accepted the terms at registration.
    */
-  termsAcceptedAt DateTime?
-  purchasesPlaced PurchaseOrder[] @relation("PurchasePlacedBy")
+  termsAcceptedAt     DateTime?
+  purchasesPlaced     PurchaseOrder[]      @relation("PurchasePlacedBy")
+  supplierPayments    PurchasePayment[]    @relation("PurchasePaymentBy")
 }
 
 // Single-use, time-limited password-reset tokens. Only the SHA-256 hash of the
@@ -100,12 +101,10 @@ model PasswordResetToken {
 
 /**
  * A code that has been sent and is waiting to be typed back.
- *
  * Two jobs, told apart by `purpose`, because a challenge raised to prove
  * somebody can receive codes must not be spendable as a sign-in: SIGN_IN is
  * created only once a password has already been checked, and ENABLE only for
  * somebody already signed in.
- *
  * The code is stored as a SHA-256 hash, never itself. `attempts` is what makes
  * six digits worth anything — without a cap they are a million guesses, which
  * is an afternoon.
@@ -117,15 +116,15 @@ model TwoFactorChallenge {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   /// SIGN_IN | ENABLE
-  purpose   String   @default("SIGN_IN")
-  codeHash  String
+  purpose    String    @default("SIGN_IN")
+  codeHash   String
   /// Where it was sent, so the screen can say so without guessing again.
-  channel   String   @default("email")
-  expiresAt DateTime
-  attempts  Int      @default(0)
+  channel    String    @default("email")
+  expiresAt  DateTime
+  attempts   Int       @default(0)
   /// Set the moment it is spent. A consumed challenge is never valid again.
   consumedAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   @@index([userId])
   @@index([expiresAt])
@@ -253,7 +252,7 @@ model Vendor {
    * When the shop owner accepted the seller policy.
    */
   termsAcceptedAt DateTime?
-  purchaseOrders PurchaseOrder[]
+  purchaseOrders  PurchaseOrder[]
 }
 
 // Seller settlement records. Created by admins in the Finance console to pay a
@@ -287,7 +286,6 @@ model Affiliate {
   note           String   @default("")
   /**
    * pending | active | suspended | rejected.
-   *
    * Only an active affiliate earns on new orders. "pending" is somebody whose
    * application has not been decided — they can see the console and the
    * catalogue, because a programme nobody can look at is one nobody joins, but
@@ -305,6 +303,7 @@ model Affiliate {
 
   // --- Affiliate console ----------------------------------------------------
   /**
+   * /**
    * How this affiliate got here: "self" (applied), "seller" / "agent" (an
    * existing Nickimart trader who was admitted automatically), or "admin"
    * (created in the console). Kept because the three are reviewed differently.
@@ -315,7 +314,9 @@ model Affiliate {
    * written one for that product. Empty falls back to the programme default.
    */
   shareMessage  String    @default("")
-  /** The flyer colourway this affiliate last chose, so it stays theirs. */
+  /**
+   * The flyer colourway this affiliate last chose, so it stays theirs.
+   */
   flyerTheme    String    @default("")
   /**
    * Their own flyer design, as JSON, layered over the house design the admin
@@ -329,7 +330,9 @@ model Affiliate {
   payoutNumber  String    @default("")
   payoutNetwork String    @default("")
   approvedAt    DateTime?
-  /** The admin who decided. A plain id: the audit trail is AffiliateEvent. */
+  /**
+   * The admin who decided. A plain id: the audit trail is AffiliateEvent.
+   */
   approvedById  String    @default("")
   suspendedAt   DateTime?
   suspendReason String    @default("")
@@ -433,17 +436,17 @@ model Product {
   // from Guangzhou has a GH vendor and a CN product; before this, origin came
   // from the vendor alone and every such listing priced as domestic. Blank
   // falls back to the vendor's originCountry.
-  originCountry   String @default("")
+  originCountry   String        @default("")
   // Who to buy it from when the time comes: the listing the seller copied, the
   // supplier's name, and how the buyer reaches them. All three appear on the
   // order-placement queue, so all three are columns rather than free text.
-  sourceUrl       String @default("")
-  supplierName    String @default("")
-  supplierContact String @default("")
+  sourceUrl       String        @default("")
+  supplierName    String        @default("")
+  supplierContact String        @default("")
   // air | sea | road | express — mirrored from the chosen lane.
-  freightMode     String @default("")
+  freightMode     String        @default("")
   // Leg 1 (GH₵ per unit): supplier → the forwarder's warehouse abroad.
-  supplierFreight Float  @default(0)
+  supplierFreight Float         @default(0)
   // The consolidation point this listing gathers at: the forwarder's Ghana
   // warehouse for an import, or a local point for domestic goods. The column
   // keeps its old name — every listing, order line and shipment points at it.
@@ -501,7 +504,7 @@ model Product {
   orderItems OrderItem[]
 
   // Affiliate programme: who is promoting this listing, and what it has earned.
-  affiliatePromotions AffiliateProduct[]
+  affiliatePromotions  AffiliateProduct[]
   affiliateCommissions AffiliateCommission[]
 }
 
@@ -595,10 +598,10 @@ model OrderItem {
   // well as order level because a cart can mix an imported item with a local
   // one, and a seller payout must not be computed off freight the seller never
   // charged.
-  supplierFreight      Float   @default(0)
-  internationalFreight Float   @default(0)
-  domesticFreight      Float   @default(0)
-  freightMode          String  @default("")
+  supplierFreight      Float  @default(0)
+  internationalFreight Float  @default(0)
+  domesticFreight      Float  @default(0)
+  freightMode          String @default("")
 
   // The single shipping figure the buyer was shown and agreed to. The itemised
   // columns above stay for the seller payout and the finance reports; this is
@@ -657,9 +660,9 @@ model PickupPoint {
   preferredByUsers User[]  @relation("PreferredPickup")
 
   // Sellers whose origin/consolidation hub is this point.
-  originVendors Vendor[]       @relation("VendorOrigin")
+  originVendors Vendor[]          @relation("VendorOrigin")
   // Ghana arrival points whose domestic leg starts from this point.
-  arrivalHubFor ArrivalPoint[] @relation("ArrivalHub")
+  arrivalHubFor ArrivalPoint[]    @relation("ArrivalHub")
   // The grid: every run that starts or ends at this station.
   laneFeesFrom  ShippingLaneFee[] @relation("LaneOriginPickup")
   laneFeesTo    ShippingLaneFee[] @relation("LaneDest")
@@ -712,9 +715,9 @@ model ArrivalPoint {
   // The grid, lanes that land here, shops and order lines that gather here.
   laneFeesFrom   ShippingLaneFee[] @relation("LaneOriginPoint")
   laneFeesTo     ShippingLaneFee[] @relation("LaneDestPoint")
-  routesInto     ForwarderRoute[] @relation("RouteDestination")
-  vendors        Vendor[]         @relation("VendorConsolidation")
-  consolidatedIn OrderItem[]      @relation("ItemConsolidation")
+  routesInto     ForwarderRoute[]  @relation("RouteDestination")
+  vendors        Vendor[]          @relation("VendorConsolidation")
+  consolidatedIn OrderItem[]       @relation("ItemConsolidation")
 
   @@index([forwarderId])
 }
@@ -816,7 +819,7 @@ model FreightForwarder {
 
   // --- Collection abroad ----------------------------------------------------
   // The country they collect in: CN, AE, US…
-  originCountry String @default("")
+  originCountry     String @default("")
   // Their warehouse in that country: where a supplier dispatches goods to
   // before the consignment leaves for Ghana. Sellers are shown this.
   collectionAddress String @default("")
@@ -966,16 +969,16 @@ model ForwarderRouteRate {
 // converted cedi figure would mean re-typing every rate on the day the cedi
 // moves; storing the quoted figure plus this means correcting one number.
 model Currency {
-  code      String @id
-  name      String @default("")
-  symbol    String @default("")
+  code       String   @id
+  name       String   @default("")
+  symbol     String   @default("")
   /// What one unit of this currency is worth in GH₵.
-  rateToGhs Float  @default(1)
-  isActive  Boolean @default(true)
+  rateToGhs  Float    @default(1)
+  isActive   Boolean  @default(true)
   /// Whether the scheduled refresh may overwrite the rate. Off pins it by hand.
-  autoUpdate Boolean @default(true)
+  autoUpdate Boolean  @default(true)
   /// Where the current figure came from: a provider's host, or "manual".
-  source     String  @default("")
+  source     String   @default("")
   updatedAt  DateTime @updatedAt
 }
 
@@ -1015,6 +1018,50 @@ model PurchaseOrder {
   totalCost Float  @default(0)
   note      String @default("")
 
+  // --- The paper trail ------------------------------------------------------
+  //
+  // What a purchase record has to survive is the supplier who took the money
+  // and never shipped. Without these columns the platform knew only that an
+  // admin had pressed a button: not what was paid, in what currency, through
+  // which channel, against which invoice, or what the supplier promised in
+  // writing. None of that can be reconstructed afterwards, and all of it is
+  // what a claim — to the supplier, to a bank, to a payment processor — is
+  // made of.
+
+  /// What the supplier calls this order on their side, for quoting back.
+  supplierOrderNo String @default("")
+  /// The currency the supplier was actually paid in. Blank = GH₵.
+  currency        String @default("")
+  /// The rate used to convert that currency to GH₵, for the books. 0 = 1:1.
+  fxRate          Float  @default(0)
+  /// The agreed price in the supplier's currency. 0 = not recorded.
+  supplierCost    Float  @default(0)
+  /// Settled so far, in GH₵ — derived from the payments below on every write,
+  /// so a tile never has to add up a child table to show one number.
+  amountPaid      Float  @default(0)
+
+  /// Where the supplier's own paperwork lives: an invoice, a proforma, a
+  /// receipt, a signed agreement, a chat export. Links rather than uploads —
+  /// the documents already live in a drive or an inbox, and a copy that can
+  /// drift from the original is worse than a pointer to it.
+  invoiceUrl   String @default("")
+  receiptUrl   String @default("")
+  agreementUrl String @default("")
+  /// Anything else worth keeping, one per line: "WeChat export: <link>".
+  documents    String @default("")
+
+  /// The supplier's own tracking, for the leg before the forwarder has it.
+  supplierTracking String    @default("")
+  supplierCarrier  String    @default("")
+  /// When the supplier said it would reach the forwarder.
+  expectedAt       DateTime?
+
+  /// Open when something has gone wrong with this purchase and money is at
+  /// stake: none | raised | refunded | written_off.
+  disputeStatus String    @default("none")
+  disputeNote   String    @default("")
+  disputeAt     DateTime?
+
   placedAt   DateTime?
   placedById String?
   placedBy   User?     @relation("PurchasePlacedBy", fields: [placedById], references: [id], onDelete: SetNull)
@@ -1022,12 +1069,54 @@ model PurchaseOrder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  items OrderItem[]
+  items    OrderItem[]
+  payments PurchasePayment[]
 
   @@index([status])
   @@index([vendorId])
   @@index([forwarderId])
   @@index([routeId])
+  @@index([disputeStatus])
+}
+
+/**
+ * One payment made to a supplier against one purchase.
+ * A row rather than a column on the purchase, because a supplier is rarely
+ * paid once: a deposit to start the order, the balance before it ships, a
+ * freight charge on top. Each of those left Nickimart on a different day,
+ * through a different channel, with a different reference — and a claim for
+ * money that never bought anything is assembled out of exactly those three
+ * facts, per payment.
+ * `amount` is in the purchase's currency; `amountGhs` is what actually left
+ * the account, snapshotted at the rate of the day so a later FX move cannot
+ * rewrite the books.
+ */
+model PurchasePayment {
+  id         String        @id @default(cuid())
+  purchaseId String
+  purchase   PurchaseOrder @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  amount    Float  @default(0)
+  currency  String @default("")
+  amountGhs Float  @default(0)
+
+  /// momo | bank | card | cash | crypto | other — how the money moved.
+  method     String @default("")
+  /// The transfer id, MoMo reference, or whatever can be quoted to a bank.
+  reference  String @default("")
+  /// deposit | balance | freight | refund | other.
+  kind       String @default("deposit")
+  /// A link to the receipt for this payment specifically.
+  receiptUrl String @default("")
+  note       String @default("")
+
+  paidAt       DateTime @default(now())
+  recordedById String?
+  recordedBy   User?    @relation("PurchasePaymentBy", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([purchaseId, paidAt])
 }
 
 model Shipment {
@@ -1102,22 +1191,21 @@ model SiteSetting {
 
 /**
  * A notice on the mall's own dashboards.
- *
  * Its own table, not one shared with the bundle side: different audiences,
  * different people writing, separate databases. One table would make a notice
  * to data agents appearing on a shop dashboard an accident waiting to happen
  * rather than an impossibility.
  */
 model Announcement {
-  id    String @id @default(cuid())
-  title String
-  body  String
+  id        String    @id @default(cuid())
+  title     String
+  body      String
   /// info | warning | success — the accent on the notice card.
-  tone  String @default("info")
+  tone      String    @default("info")
   /// CUSTOMERS | VENDORS | EVERYONE.
-  audience String  @default("EVERYONE")
-  isActive Boolean @default(true)
-  isPinned Boolean @default(false)
+  audience  String    @default("EVERYONE")
+  isActive  Boolean   @default(true)
+  isPinned  Boolean   @default(false)
   /// Null publishAt means now; null expiresAt means until somebody hides it.
   publishAt DateTime?
   expiresAt DateTime?
@@ -1132,41 +1220,39 @@ model Announcement {
 
 /**
  * An automatic message the admin has rewritten.
- *
  * Absent means "use the default in lib/message-templates.ts". Present means
  * the admin has had their say, and the switches are explicit rather than
  * inferred from empty text: silencing half a message is a decision, not a
  * blank field.
  */
 model MessageTemplate {
-  key          String  @id
-  sms          String  @default("")
-  emailSubject String  @default("")
-  emailBody    String  @default("")
-  smsEnabled   Boolean @default(true)
-  emailEnabled Boolean @default(true)
-  updatedBy    String  @default("")
-  updatedAt    DateTime @updatedAt @default(now())
+  key          String   @id
+  sms          String   @default("")
+  emailSubject String   @default("")
+  emailBody    String   @default("")
+  smsEnabled   Boolean  @default(true)
+  emailEnabled Boolean  @default(true)
+  updatedBy    String   @default("")
+  updatedAt    DateTime @default(now()) @updatedAt
 }
 
 /**
  * A message the admin sent on purpose.
- *
  * A broadcast costs real money per recipient and cannot be recalled, so the
  * record of one is part of sending it rather than an extra.
  */
 model Broadcast {
-  id         String @id @default(cuid())
+  id         String   @id @default(cuid())
   audience   String
   /// sms | email | both
-  channel    String @default("sms")
-  subject    String @default("")
+  channel    String   @default("sms")
+  subject    String   @default("")
   body       String
   /// How many the audience resolved to, and how many the gateway accepted.
-  recipients Int    @default(0)
-  delivered  Int    @default(0)
-  failed     Int    @default(0)
-  sentBy     String @default("")
+  recipients Int      @default(0)
+  delivered  Int      @default(0)
+  failed     Int      @default(0)
+  sentBy     String   @default("")
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
@@ -1286,33 +1372,42 @@ model LegalPolicy {
 
 /**
  * Somebody asking to join the programme.
- *
  * Its own table rather than a pending Affiliate row: a rejected applicant can
  * apply again, and the decision history is worth keeping either way. Sellers
  * and data-bundle agents are admitted without one when the admin has left
  * auto-approval on — they have already been vetted once.
  */
 model AffiliateApplication {
-  id       String  @id @default(cuid())
-  /** The signed-in account that applied. Null only for an imported record. */
-  userId   String?
-  fullName String
-  phone    String  @default("")
-  email    String  @default("")
-  /** JSON-encoded string[] of channel keys: whatsapp, instagram, tiktok, … */
-  channels String  @default("[]")
-  /** How many people they reach, in their own words. */
-  audience String  @default("")
-  note     String  @default("")
-  /** The referral code they would like, if it is free when approved. */
-  desiredCode String @default("")
+  id          String  @id @default(cuid())
+  /**
+   * The signed-in account that applied. Null only for an imported record.
+   */
+  userId      String?
+  fullName    String
+  phone       String  @default("")
+  email       String  @default("")
+  /**
+   * JSON-encoded string[] of channel keys: whatsapp, instagram, tiktok, …
+   */
+  channels    String  @default("[]")
+  /**
+   * How many people they reach, in their own words.
+   */
+  audience    String  @default("")
+  note        String  @default("")
+  /**
+   * The referral code they would like, if it is free when approved.
+   */
+  desiredCode String  @default("")
 
   // pending | approved | rejected
   status       String    @default("pending")
   decidedAt    DateTime?
   decidedById  String    @default("")
   decisionNote String    @default("")
-  /** The affiliate created on approval. */
+  /**
+   * The affiliate created on approval.
+   */
   affiliateId  String?
 
   createdAt DateTime @default(now())
@@ -1323,7 +1418,6 @@ model AffiliateApplication {
 
 /**
  * One product an affiliate has chosen to promote, and the link that is theirs.
- *
  * The link code is per affiliate *and* per product rather than one code per
  * affiliate, because "which of my links is working" is the first question
  * anybody promoting more than one thing asks, and a shared code cannot answer
@@ -1337,16 +1431,22 @@ model AffiliateProduct {
   productId   String
   product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  /** The short, shareable code this affiliate's link to this product carries. */
-  linkCode String @unique
-  /** The caption shared with it. Empty falls back to the affiliate's own. */
-  shareMessage String @default("")
-  flyerTheme   String @default("")
-  /** Paused links stay in the list and keep their history, but are not pushed. */
-  active       Boolean @default(true)
-  clicks       Int     @default(0)
+  /**
+   * The short, shareable code this affiliate's link to this product carries.
+   */
+  linkCode     String    @unique
+  /**
+   * The caption shared with it. Empty falls back to the affiliate's own.
+   */
+  shareMessage String    @default("")
+  flyerTheme   String    @default("")
+  /**
+   * Paused links stay in the list and keep their history, but are not pushed.
+   */
+  active       Boolean   @default(true)
+  clicks       Int       @default(0)
   lastSharedAt DateTime?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
   @@unique([affiliateId, productId])
   @@index([productId])
@@ -1355,11 +1455,9 @@ model AffiliateProduct {
 
 /**
  * A live attribution: this visitor belongs to this affiliate until it expires.
- *
  * The window is snapshotted in days on the row and resolved into `expiresAt`,
  * so changing the policy moves new attributions and leaves existing ones
  * exactly where the buyer and the affiliate were told they stood.
- *
  * `visitorId` is a first-party cookie, not a fingerprint. Once the visitor
  * signs in, `userId` is filled in too, which is what lets an attribution
  * survive the jump from the phone they clicked on to the laptop they bought on.
@@ -1370,23 +1468,31 @@ model AffiliateReferral {
   affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
 
   visitorId   String
-  /** The product whose link brought them, when it was a product link. */
+  /**
+   * The product whose link brought them, when it was a product link.
+   */
   productId   String?
   linkCode    String  @default("")
   // link | code | manual
   source      String  @default("link")
   landingPath String  @default("")
-  /** Set when the visitor signs in, so a device change keeps the attribution. */
+  /**
+   * Set when the visitor signs in, so a device change keeps the attribution.
+   */
   userId      String?
 
   firstSeenAt DateTime @default(now())
   lastSeenAt  DateTime @default(now())
   expiresAt   DateTime
-  /** The policy that produced `expiresAt`, snapshotted. */
+  /**
+   * The policy that produced `expiresAt`, snapshotted.
+   */
   windowDays  Int      @default(30)
   // last | first — which click wins when a visitor clicks two affiliates' links.
   model       String   @default("last")
-  /** Orders attributed through it, for the console's conversion figures. */
+  /**
+   * Orders attributed through it, for the console's conversion figures.
+   */
   orders      Int      @default(0)
 
   @@unique([affiliateId, visitorId])
@@ -1397,7 +1503,6 @@ model AffiliateReferral {
 
 /**
  * One visit through an affiliate link.
- *
  * Kept per click rather than as a counter because the counter cannot answer
  * the two questions that matter: which channel is working, and is one device
  * clicking a link four hundred times. The address and the browser are stored
@@ -1410,7 +1515,9 @@ model AffiliateClick {
   productId   String?
   linkCode    String    @default("")
   visitorId   String    @default("")
-  /** whatsapp | facebook | instagram | tiktok | x | direct … */
+  /**
+   * whatsapp | facebook | instagram | tiktok | x | direct …
+   */
   channel     String    @default("")
   path        String    @default("")
   referer     String    @default("")
@@ -1425,20 +1532,17 @@ model AffiliateClick {
 
 /**
  * What one order line earned an affiliate, and where that stands.
- *
  * One row per order line, unique on the line, which is what makes the whole
  * thing safe against the duplicate payment notifications the gateway sends:
  * accruing twice is a constraint violation, not a double payout.
- *
  * The lifecycle is the point of the table:
- *
- *   pending  — the order is paid but not delivered. Nothing is payable.
- *   clearing — delivered, inside the return window. Still not payable.
- *   cleared  — the return window has passed. Payable.
- *   paid     — settled by the payout named in `payoutId`.
- *   reversed — the order was cancelled, returned or refunded. `reversedAmount`
- *              carries how much was taken back, so a partial refund reduces
- *              the commission in proportion rather than voiding it.
+ * pending  — the order is paid but not delivered. Nothing is payable.
+ * clearing — delivered, inside the return window. Still not payable.
+ * cleared  — the return window has passed. Payable.
+ * paid     — settled by the payout named in `payoutId`.
+ * reversed — the order was cancelled, returned or refunded. `reversedAmount`
+ * carries how much was taken back, so a partial refund reduces
+ * the commission in proportion rather than voiding it.
  */
 model AffiliateCommission {
   id          String    @id @default(cuid())
@@ -1454,7 +1558,9 @@ model AffiliateCommission {
   // --- what it was computed from, snapshotted at sale time -----------------
   quantity               Int    @default(1)
   unitPrice              Float  @default(0)
-  /** The line value the percent was applied to. */
+  /**
+   * The line value the percent was applied to.
+   */
   baseAmount             Float  @default(0)
   rate                   Float  @default(0)
   amount                 Float  @default(0)
@@ -1469,7 +1575,9 @@ model AffiliateCommission {
   // --- where it stands ------------------------------------------------------
   // pending | clearing | cleared | paid | reversed
   status         String    @default("pending")
-  /** Earliest moment this may be paid: delivery + the return window. */
+  /**
+   * Earliest moment this may be paid: delivery + the return window.
+   */
   holdUntil      DateTime?
   deliveredAt    DateTime?
   clearedAt      DateTime?
@@ -1494,7 +1602,6 @@ model AffiliateCommission {
 
 /**
  * A deliberate change to a commission: a refund, a return, a correction.
- *
  * Separate from the commission row so the row's current state and the reasons
  * it got there are both recoverable. An admin reversing half of a line leaves
  * a record of who did it and why, which is the difference between an accounts
@@ -1508,11 +1615,13 @@ model AffiliateAdjustment {
   orderId      String?
   // refund | return | cancellation | correction | clawback | release
   kind         String
-  /** Signed: negative takes commission back, positive restores it. */
-  amount       Float    @default(0)
-  reason       String   @default("")
-  actorId      String   @default("")
-  createdAt    DateTime @default(now())
+  /**
+   * Signed: negative takes commission back, positive restores it.
+   */
+  amount       Float                @default(0)
+  reason       String               @default("")
+  actorId      String               @default("")
+  createdAt    DateTime             @default(now())
 
   @@index([affiliateId, createdAt])
   @@index([commissionId])
@@ -1521,44 +1630,47 @@ model AffiliateAdjustment {
 
 /**
  * Something that looked like abuse.
- *
  * Raised by the attribution engine rather than by a human, and never silently
  * destructive: a blocking flag stops the commission accruing, a warning one
  * lets it through and puts it in front of an admin. Both are rows here, so
  * "why did this order not earn" always has an answer.
  */
 model AffiliateFraudFlag {
-  id          String    @id @default(cuid())
-  affiliateId String
-  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
-  orderId     String?
+  id           String    @id @default(cuid())
+  affiliateId  String
+  affiliate    Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  orderId      String?
   /**
    * self_referral | same_account | same_device | same_ip | velocity |
    * expired_window | suspended | duplicate_payment | rate_anomaly
    */
-  kind        String
+  kind         String
   // info | warn | block
-  severity    String    @default("warn")
-  detail      String    @default("")
+  severity     String    @default("warn")
+  detail       String    @default("")
   // open | cleared | upheld
-  status      String    @default("open")
-  resolvedAt  DateTime?
-  resolvedById String   @default("")
-  createdAt   DateTime  @default(now())
+  status       String    @default("open")
+  resolvedAt   DateTime?
+  resolvedById String    @default("")
+  createdAt    DateTime  @default(now())
 
   @@index([affiliateId, status])
   @@index([kind, createdAt])
   @@index([orderId])
 }
 
-/** The audit trail for everything an admin or an affiliate does in here. */
+/**
+ * The audit trail for everything an admin or an affiliate does in here.
+ */
 model AffiliateEvent {
   id          String     @id @default(cuid())
   affiliateId String?
   affiliate   Affiliate? @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
   actorId     String     @default("")
   actorName   String     @default("")
-  /** approved | suspended | rate_changed | payout_paid | product_enrolled … */
+  /**
+   * approved | suspended | rate_changed | payout_paid | product_enrolled …
+   */
   action      String
   detail      String     @default("")
   createdAt   DateTime   @default(now())
@@ -1569,7 +1681,6 @@ model AffiliateEvent {
 
 /**
  * One conversation an affiliate is part of.
- *
  * Two jobs, one shape. `kind: "customer"` is the affiliate and the buyer they
  * referred: product questions before the order, where-is-it after it, returns
  * and repeat purchases. `kind: "support"` is the affiliate and Nickimart: the
@@ -1577,11 +1688,9 @@ model AffiliateEvent {
  * why has this not moved in a week — and `escalatedFrom` points back at the
  * customer thread that prompted it, so an answer can be traced to the question
  * that caused it and relayed with Nickimart's name on it.
- *
  * Unread is not a column. Each party has a `readAt`, and whether there is
  * something new is that timestamp against `lastMessageAt` and who sent it —
  * derived on every read, so a counter cannot drift away from the messages.
- *
  * Nothing here touches money. An affiliate assisting a buyer needs the order's
  * progress and its contents; they do not need what was paid, how, or what is
  * still owed, and none of it is reachable from this table.
@@ -1629,8 +1738,8 @@ model AffiliateThread {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  messages   AffiliateMessage[]
-  followUps  AffiliateFollowUp[]
+  messages  AffiliateMessage[]
+  followUps AffiliateFollowUp[]
 
   @@index([affiliateId, lastMessageAt])
   @@index([customerId])
@@ -1640,11 +1749,9 @@ model AffiliateThread {
 
 /**
  * One message in a thread.
- *
  * `internal` is a note the other side never sees — the affiliate's own record
  * of what they tried, or support's working note. It lives with the
  * conversation because that is where it is useful and nowhere else.
- *
  * `relayedFrom` is what makes a relayed update verifiable: when an affiliate
  * passes on what support told them, the customer's copy points at the message
  * it came from, so the buyer is shown that the answer is Nickimart's and not
@@ -1655,12 +1762,12 @@ model AffiliateMessage {
   threadId String
   thread   AffiliateThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
-  authorId String?
-  author   User?   @relation("AffiliateMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  authorId   String?
+  author     User?   @relation("AffiliateMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   /// affiliate | customer | support
-  authorRole String @default("affiliate")
+  authorRole String  @default("affiliate")
   /// Snapshotted, so a closed account still leaves a readable record.
-  authorName String @default("")
+  authorName String  @default("")
 
   body     String
   internal Boolean @default(false)
@@ -1676,7 +1783,6 @@ model AffiliateMessage {
 
 /**
  * An outstanding action that has been dealt with.
- *
  * The follow-up list itself is computed from the orders and the threads, so
  * this table is only the acknowledgement. `key` encodes the state the item was
  * handled in — the order and the stage it was sitting at, the message it was

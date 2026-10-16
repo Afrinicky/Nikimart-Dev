@@ -8,6 +8,7 @@ import {
   confirmStageForOrders,
   orderIdsForItems,
   orderIdsForPurchase,
+  rollBackPlacement,
 } from "@/lib/retail/stage-sync";
 
 /**
@@ -36,6 +37,8 @@ export type PurchaseState = {
   ok?: boolean;
   error?: string;
   reference?: string;
+  /** The record just written, so the caller can open it and fill in the money. */
+  purchaseId?: string;
   /** How many customer orders the purchase just covered. */
   orders?: number;
 };
@@ -132,7 +135,7 @@ export async function placePurchaseOrder(
     await confirmStageForOrders(await orderIdsForItems(items.map((i) => i.id)), "processing");
 
     revalidatePurchasing();
-    return { ok: true, reference: created.reference, orders: covered };
+    return { ok: true, reference: created.reference, purchaseId: created.id, orders: covered };
   } catch {
     return { error: "Couldn't record that purchase." };
   }
@@ -166,6 +169,11 @@ export async function updatePurchaseStatus(fd: FormData): Promise<void> {
   // The forwarder has the parcel: the next milestone on the buyer's timeline,
   // and the admin confirming it here is the only person who knows.
   if (status === "received") await confirmStageForOrders(covered, "at_forwarder");
+
+  // Cancelling says the goods were never bought, so the orders it covered
+  // have to stop reading "ordered from the supplier". Without this they sat
+  // in transit on the tracker while their lines were back in the buy queue.
+  if (status === "cancelled") await rollBackPlacement(covered);
 
   revalidatePurchasing();
 }

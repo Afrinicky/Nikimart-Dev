@@ -296,13 +296,23 @@ function BatchBar({ rows, onClear }: { rows: QueueRowView[]; onClear: () => void
           Recorded as {state.reference} — {state.orders ?? 0} customer order
           {state.orders === 1 ? "" : "s"} moved to “ordered from supplier”.
         </p>
-        <button
-          type="button"
-          onClick={onClear}
-          className="niki-press niki-focus mt-2 text-xs font-semibold text-niki-ink/60 underline-offset-2 hover:underline"
-        >
-          Clear the selection
-        </button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {state.purchaseId ? (
+            <ActionLink
+              href={`/admin/orders/placement/purchase/${state.purchaseId}`}
+              className="niki-press niki-focus rounded-full bg-niki-black px-4 py-2 text-xs font-semibold text-white"
+            >
+              Record what was paid
+            </ActionLink>
+          ) : null}
+          <button
+            type="button"
+            onClick={onClear}
+            className="niki-press niki-focus rounded-full px-3 py-2 text-xs font-semibold text-niki-ink/60 hover:bg-niki-black/5"
+          >
+            Clear the selection
+          </button>
+        </div>
       </div>
     );
   }

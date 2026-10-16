@@ -1,4 +1,5 @@
-import { ExternalLink, FileText } from "lucide-react";
+import { ExternalLink, Eye, FileText } from "lucide-react";
+import { ActionLink } from "@/components/ui/motion";
 import { PURCHASE_STATUS_LABELS, type PurchaseRecord } from "@/lib/purchasing";
 import { updatePurchaseStatus } from "@/lib/purchasing-actions";
 import { formatPrice } from "@/lib/format";
@@ -55,7 +56,12 @@ export function PlacedPurchasesTable({ purchases }: { purchases: PurchaseRecord[
                 className="border-b border-niki-edge transition-colors last:border-0 hover:bg-niki-surface/50"
               >
                 <td className={`${td} font-mono text-xs font-semibold text-niki-ink`}>
-                  {p.reference}
+                  <ActionLink
+                    href={`/admin/orders/placement/purchase/${p.id}`}
+                    className="hover:text-niki-orange"
+                  >
+                    {p.reference}
+                  </ActionLink>
                   {p.note ? (
                     <span
                       className="mt-0.5 block max-w-[12rem] truncate font-sans text-[11px] font-normal text-niki-ink/45"
@@ -131,6 +137,14 @@ export function PlacedPurchasesTable({ purchases }: { purchases: PurchaseRecord[
 
                 <td className={td}>
                   <div className="flex items-center gap-1">
+                    <ActionLink
+                      href={`/admin/orders/placement/purchase/${p.id}`}
+                      aria-label={`Open ${p.reference}`}
+                      title="Open the purchase — payments, receipts, the paper trail"
+                      className="niki-press niki-focus inline-flex h-8 w-8 items-center justify-center rounded-full text-niki-trust ring-1 ring-niki-edge hover:bg-niki-trust/10"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </ActionLink>
                     {p.status === "placed" ? (
                       <StatusButton
                         id={p.id}
