@@ -71,6 +71,9 @@ export interface AffiliateWorkspace {
     status: string;
     createdAt: Date;
     decisionNote: string;
+    /** What they were quoted to join, and whether it has been paid. */
+    feeAmount: number;
+    feePaidAt: Date | null;
   } | null;
 }
 
@@ -117,7 +120,14 @@ export const getAffiliateWorkspace = cache(
         .findFirst({
           where: { userId: user.id },
           orderBy: { createdAt: "desc" },
-          select: { id: true, status: true, createdAt: true, decisionNote: true },
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            decisionNote: true,
+            feeAmount: true,
+            feePaidAt: true,
+          },
         })
         .catch(() => null),
     ]);

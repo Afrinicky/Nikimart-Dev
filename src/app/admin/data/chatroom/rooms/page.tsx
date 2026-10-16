@@ -32,7 +32,9 @@ export default async function AdminChatroomRoomsPage() {
   return (
     <ChatroomShell unread={unread}>
       <div className="space-y-4">
-        <GroupRoomForm agents={agents} />
+        <GroupRoomForm
+          people={agents.map((a) => ({ id: a.id, name: a.storeName, hint: a.code }))}
+        />
         <ConversationList
           rows={rows}
           basePath="/admin/data/chatroom"

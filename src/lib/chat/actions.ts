@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
+import { prisma } from "@/lib/prisma";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import { recordNotification } from "@/lib/data-bundles/notifications";
@@ -33,10 +34,14 @@ export type ChatState = { ok?: boolean; error?: string; message?: string; id?: s
 
 function revalidateChat(conversationId?: string) {
   revalidatePath("/admin/data/chatroom");
+  revalidatePath("/admin/affiliates/chatroom");
   revalidatePath("/agent/chatroom");
+  revalidatePath("/affiliate/chatroom");
   if (conversationId) {
     revalidatePath(`/admin/data/chatroom/${conversationId}`);
+    revalidatePath(`/admin/affiliates/chatroom/${conversationId}`);
     revalidatePath(`/agent/chatroom/${conversationId}`);
+    revalidatePath(`/affiliate/chatroom/${conversationId}`);
   }
 }
 
@@ -209,6 +214,11 @@ const roomSchema = z.object({
   /** all-agents | chosen */
   audience: z.enum(["all-agents", "chosen"]),
   agentIds: z.array(z.string().trim().min(1)).max(500).optional(),
+  /**
+   * Which community the room is for. The two never mix: a room holding agents
+   * and affiliates would be a room where neither knows who the others are.
+   */
+  community: z.enum(["agents", "affiliates"]).default("agents"),
 });
 
 /** Create a group room and put people in it. Admins only. */
@@ -223,22 +233,31 @@ export async function createGroupRoom(
     title: fd.get("title"),
     audience: fd.get("audience") ?? "chosen",
     agentIds: fd.getAll("agentIds").map(String).filter(Boolean),
+    community: fd.get("community") ?? "agents",
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
   }
 
+  const everybody = parsed.data.audience === "all-agents";
+  const chosen = parsed.data.agentIds ?? [];
+
   try {
-    const agents =
-      parsed.data.audience === "all-agents"
-        ? await dataDb.dataAgent.findMany({
-            where: { status: "active" },
-            select: { id: true, storeName: true },
-          })
-        : await dataDb.dataAgent.findMany({
-            where: { id: { in: parsed.data.agentIds ?? [] } },
-            select: { id: true, storeName: true },
-          });
+    // One shape out of two tables: an id and the name the room should show.
+    const people: { kind: "AGENT" | "AFFILIATE"; id: string; name: string }[] =
+      parsed.data.community === "affiliates"
+        ? (
+            await prisma.affiliate.findMany({
+              where: everybody ? { status: "active" } : { id: { in: chosen } },
+              select: { id: true, name: true },
+            })
+          ).map((a) => ({ kind: "AFFILIATE" as const, id: a.id, name: a.name }))
+        : (
+            await dataDb.dataAgent.findMany({
+              where: everybody ? { status: "active" } : { id: { in: chosen } },
+              select: { id: true, storeName: true },
+            })
+          ).map((a) => ({ kind: "AGENT" as const, id: a.id, name: a.storeName }));
 
     const conversation = await dataDb.dataConversation.create({
       data: {
@@ -248,9 +267,9 @@ export async function createGroupRoom(
         members: {
           create: [
             { participant: viewer.key, displayName: viewer.name, role: "OWNER" },
-            ...agents.map((a) => ({
-              participant: participantKey("AGENT", a.id),
-              displayName: a.storeName,
+            ...people.map((p) => ({
+              participant: participantKey(p.kind, p.id),
+              displayName: p.name,
             })),
           ],
         },
@@ -259,7 +278,7 @@ export async function createGroupRoom(
     });
 
     revalidateChat();
-    return { ok: true, id: conversation.id, message: `Room created with ${agents.length} members.` };
+    return { ok: true, id: conversation.id, message: `Room created with ${people.length} members.` };
   } catch {
     return { error: "Couldn't create that room." };
   }
@@ -321,11 +340,19 @@ export async function openDirect(otherKey: string): Promise<ChatState> {
 }
 
 async function displayNameFor(kind: string, id: string): Promise<string> {
-  if (kind !== "AGENT") return "Nickimart";
-  const agent = await dataDb.dataAgent
-    .findUnique({ where: { id }, select: { storeName: true } })
-    .catch(() => null);
-  return agent?.storeName ?? "Agent";
+  if (kind === "AGENT") {
+    const agent = await dataDb.dataAgent
+      .findUnique({ where: { id }, select: { storeName: true } })
+      .catch(() => null);
+    return agent?.storeName ?? "Agent";
+  }
+  if (kind === "AFFILIATE") {
+    const affiliate = await prisma.affiliate
+      .findUnique({ where: { id }, select: { name: true } })
+      .catch(() => null);
+    return affiliate?.name ?? "Affiliate";
+  }
+  return "Nickimart";
 }
 
 // ---------------------------------------------------------------------------
