@@ -6,7 +6,10 @@ import {
   isSafeSourceUrl,
   normaliseProductType,
   parseAbroadTerms,
+  publicAbroadInfo,
+  publicAbroadTerms,
   serialiseAbroadTerms,
+  SOURCING_FIELDS,
   type AbroadTerms,
 } from "./abroad.ts";
 
@@ -121,4 +124,74 @@ test("both spellings of the product type mean the same thing", () => {
   assert.equal(normaliseProductType("preorder"), "shipped_from_abroad");
   assert.equal(normaliseProductType("service"), "service");
   assert.equal(normaliseProductType(""), "in_stock");
+});
+
+// ---------------------------------------------------------------------------
+// What a buyer is not shown
+// ---------------------------------------------------------------------------
+
+test("the public terms carry everything a buyer needs and no sourcing", () => {
+  const full: AbroadTerms = {
+    ...EMPTY_ABROAD_TERMS,
+    sourceUrl: "https://www.alibaba.com/product-detail/thing_123.html",
+    supplierName: "Guangzhou Hardware Co",
+    supplierContact: "+86 139 0000 0000",
+    sourceLocation: "Guangzhou, China",
+    originCountry: "CN",
+    estimatedArrival: "4-5 weeks",
+    processingDays: 7,
+    minimumOrders: 3,
+    supplierDelivers: true,
+    forwarderId: "fwd-1",
+    consolidationPointId: "point-1",
+    routeId: "route-1",
+    supplierFreight: 40,
+    balanceInstruction: "Settle the freight on collection.",
+    refundPolicy: "Full refund if it never lands.",
+  };
+
+  const shown = publicAbroadTerms(full);
+
+  // Gone: where it is bought, from whom, and how they are reached.
+  assert.equal(shown.sourceUrl, "");
+  assert.equal(shown.supplierName, "");
+  assert.equal(shown.supplierContact, "");
+
+  // Kept: everything the buyer is actually owed.
+  assert.equal(shown.sourceLocation, "Guangzhou, China");
+  assert.equal(shown.originCountry, "CN");
+  assert.equal(shown.estimatedArrival, "4-5 weeks");
+  assert.equal(shown.processingDays, 7);
+  assert.equal(shown.minimumOrders, 3);
+  assert.equal(shown.supplierDelivers, true);
+  assert.equal(shown.forwarderId, "fwd-1");
+  assert.equal(shown.consolidationPointId, "point-1");
+  assert.equal(shown.routeId, "route-1");
+  assert.equal(shown.supplierFreight, 40);
+  assert.equal(shown.balanceInstruction, "Settle the freight on collection.");
+  assert.equal(shown.refundPolicy, "Full refund if it never lands.");
+});
+
+test("the seller's own copy is untouched", () => {
+  const full: AbroadTerms = { ...EMPTY_ABROAD_TERMS, supplierName: "Guangzhou Hardware Co" };
+  publicAbroadTerms(full);
+  assert.equal(full.supplierName, "Guangzhou Hardware Co");
+});
+
+test("the stored JSON loses the sourcing keys entirely, not just their values", () => {
+  const stored = {
+    estimatedArrival: "4 weeks",
+    sourceUrl: "https://1688.com/x",
+    supplierName: "A supplier",
+    supplierContact: "wechat: abc",
+  };
+  const shown = publicAbroadInfo(stored);
+
+  for (const key of SOURCING_FIELDS) {
+    assert.ok(!(key in shown), `${key} is still a key on the public terms`);
+  }
+  assert.equal(shown.estimatedArrival, "4 weeks");
+  // Nothing of it survives into what is serialised to the browser.
+  assert.ok(!JSON.stringify(shown).includes("1688.com"));
+  assert.ok(!JSON.stringify(shown).includes("A supplier"));
 });

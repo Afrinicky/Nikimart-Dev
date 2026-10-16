@@ -373,8 +373,8 @@ export function FlyerDesigner({
         </Section>
 
         <Section
-          title="Added lines"
-          hint="Your own wording — a delivery promise, a phone number, a slogan."
+          title="Added features"
+          hint="Anything you put on the flyer yourself — your own wording, or a second copy of one of its own parts."
           badge={
             design.extras.length > 0 ? (
               <span className="rounded-md bg-niki-orange/10 px-1.5 py-0.5 text-[10px] font-bold text-niki-orange">
@@ -396,12 +396,26 @@ export function FlyerDesigner({
               <div key={extra.id} className="rounded-xl bg-niki-surface p-3">
                 <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
-                    <TextField
-                      label="Wording"
-                      value={extra.text}
-                      maxLength={80}
-                      onChange={(v) => patchExtra(extra.id, { text: v })}
-                    />
+                    {extra.source === "custom" ? (
+                      <TextField
+                        label="Wording"
+                        value={extra.text}
+                        maxLength={80}
+                        onChange={(v) => patchExtra(extra.id, { text: v })}
+                      />
+                    ) : (
+                      // A borrowed feature has no words of its own: it draws
+                      // the product's, and saying so is more use than an input
+                      // that would be ignored.
+                      <div>
+                        <span className="mb-1.5 block text-xs font-semibold text-niki-ink/70">
+                          Shows
+                        </span>
+                        <p className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge">
+                          {FLYER_TEXT_LABELS[extra.source]} — follows the product
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <button
                     type="button"

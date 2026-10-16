@@ -6,11 +6,12 @@ import {
   FLYER_SLOTS,
   MAX_FLYER_EXTRAS,
   NUDGE_LIMIT,
-  bulkShareText,
   clampNudge,
   clampSize,
   coverSource,
   designTheme,
+  extraWords,
+  flyerContent,
   flyerFileName,
   flyerTheme,
   hitAt,
@@ -19,6 +20,7 @@ import {
   resolveFlyerDesign,
   wrapLines,
   type FlyerHit,
+  type ProductFlyerData,
 } from "./affiliate-flyer.ts";
 
 /**
@@ -275,39 +277,47 @@ test("a new added line starts usable", () => {
 // Sharing several at once
 // ---------------------------------------------------------------------------
 
-const picks = [
-  { name: "Kente throw", price: "GH₵240", link: "https://nickimart.com/r/AAA" },
-  { name: "Clay teapot", price: "GH₵95", link: "https://nickimart.com/r/BBB" },
-];
+test("each product in a batch gets a message carrying only its own link", () => {
+  const picks = [
+    { name: "Kente throw", price: "GH\u20b5240", shop: "Kumasi Weaves", link: "https://nickimart.com/r/AAA" },
+    { name: "Clay teapot", price: "GH\u20b595", shop: "Clay & Co", link: "https://nickimart.com/r/BBB" },
+  ];
 
-test("a bulk message carries every product and every link", () => {
-  const text = bulkShareText(picks, "Lovely things today");
-  for (const pick of picks) {
-    assert.ok(text.includes(pick.name), `${pick.name} is missing`);
-    assert.ok(text.includes(pick.link), `${pick.name}'s link is missing`);
-    assert.ok(text.includes(pick.price), `${pick.name}'s price is missing`);
-  }
-  assert.ok(text.includes("Lovely things today"));
+  // What the batch share now builds: one message per product, the way it
+  // would read if that product had been shared on its own. A message that
+  // carried the other product's link is the bug this guards.
+  const messages = picks.map((pick) =>
+    productFlyerShareText({
+      productName: pick.name,
+      price: pick.price,
+      shopName: pick.shop,
+      link: pick.link,
+      template: "Lovely things today",
+    }),
+  );
+
+  messages.forEach((text, i) => {
+    const mine = picks[i];
+    const theirs = picks[1 - i];
+    assert.ok(text.includes(mine.name), `${mine.name} is missing from its own message`);
+    assert.ok(text.includes(mine.link), `${mine.name}'s link is missing`);
+    assert.ok(!text.includes(theirs.name), `${theirs.name} leaked into ${mine.name}'s message`);
+    assert.ok(!text.includes(theirs.link), `${theirs.name}'s link leaked into ${mine.name}'s`);
+  });
 });
 
-test("the caption leads once rather than per product", () => {
-  const text = bulkShareText(picks, "Order with my link");
-  assert.equal(text.split("Order with my link").length - 1, 1);
-});
-
-test("one product falls back to the ordinary single share", () => {
-  const text = bulkShareText([picks[0]], "{product} for {price} — {link}");
-  assert.equal(text, "Kente throw for GH₵240 — https://nickimart.com/r/AAA");
-});
-
-test("products with no link are left out rather than listed unbuyable", () => {
-  const text = bulkShareText([picks[0], { name: "Mystery", price: "GH₵1", link: "" }], "Hi");
-  assert.ok(!text.includes("Mystery"));
-  assert.ok(text.includes("Kente throw"));
-});
-
-test("nothing to share is just the caption", () => {
-  assert.equal(bulkShareText([], "  Nothing today  "), "Nothing today");
+test("a batched message reads exactly like one shared on its own", () => {
+  const input = {
+    productName: "Kente throw",
+    price: "GH\u20b5240",
+    shopName: "Kumasi Weaves",
+    link: "https://nickimart.com/r/AAA",
+    template: "{product} for {price} \u2014 {link}",
+  };
+  assert.equal(
+    productFlyerShareText(input),
+    "Kente throw for GH\u20b5240 \u2014 https://nickimart.com/r/AAA",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -364,4 +374,111 @@ test("a pinched size cannot leave what the design can store", () => {
   assert.equal(clampSize(9999), FLYER_SIZE_RANGE.max);
   const design = resolveFlyerDesign({ text: { name: { size: clampSize(9999) } } });
   assert.equal(design.text.name.size, FLYER_SIZE_RANGE.max);
+});
+
+// ---------------------------------------------------------------------------
+// Features: deleted, added back, and added twice
+// ---------------------------------------------------------------------------
+
+const SAMPLE: ProductFlyerData = {
+  name: "Kente throw",
+  price: "GH₵240",
+  oldPrice: "GH₵300",
+  discount: "-20%",
+  shopName: "Kumasi Weaves",
+  categoryName: "Home",
+  message: "Lovely things today",
+  link: "nickimart.com/r/AAA",
+  sharedBy: "Ama",
+  emoji: "🧵",
+  gradientFrom: "#fff",
+  gradientTo: "#eee",
+};
+
+test("an added feature can borrow any of the flyer's own facts", () => {
+  const design = DEFAULT_FLYER_DESIGN;
+  const words = (source: Parameters<typeof flyerContent>[0]) =>
+    flyerContent(source, SAMPLE, design);
+
+  assert.equal(words("price"), "GH₵240");
+  assert.equal(words("oldPrice"), "GH₵300");
+  assert.equal(words("name"), "Kente throw");
+  assert.equal(words("shop"), "Kumasi Weaves");
+  assert.equal(words("category"), "Home");
+  assert.equal(words("discount"), "-20%");
+  assert.equal(words("message"), "Lovely things today");
+  assert.equal(words("link"), "nickimart.com/r/AAA");
+  assert.equal(words("badge"), design.badge.label);
+  assert.equal(words("footerLabel"), "Order on Nickimart");
+  assert.equal(words("sharedBy"), "Shared by Ama");
+  assert.equal(words("custom"), "");
+});
+
+test("a borrowed feature follows the product rather than freezing its words", () => {
+  const extra = newFlyerExtra("x1", "price");
+  assert.equal(extraWords(extra, SAMPLE, DEFAULT_FLYER_DESIGN), "GH₵240");
+  assert.equal(
+    extraWords(extra, { ...SAMPLE, price: "GH₵99" }, DEFAULT_FLYER_DESIGN),
+    "GH₵99",
+  );
+});
+
+test("a borrowed feature starts at the size the built-in one uses", () => {
+  assert.equal(newFlyerExtra("x1", "price").style.size, DEFAULT_FLYER_DESIGN.text.price.size);
+  assert.equal(newFlyerExtra("x2", "name").style.size, DEFAULT_FLYER_DESIGN.text.name.size);
+});
+
+test("the same feature can be added more than once", () => {
+  const design = resolveFlyerDesign({
+    extras: [
+      { id: "a", source: "price", slot: "onImage" },
+      { id: "b", source: "price", slot: "aboveFooter" },
+    ],
+  });
+  assert.equal(design.extras.length, 2);
+  assert.deepEqual(
+    design.extras.map((e) => e.source),
+    ["price", "price"],
+  );
+});
+
+test("an empty borrowed feature survives; an empty one of your own does not", () => {
+  const design = resolveFlyerDesign({
+    extras: [
+      { id: "a", source: "price", text: "" },
+      { id: "b", source: "custom", text: "   " },
+      { id: "c", source: "custom", text: "Free delivery" },
+    ],
+  });
+  assert.deepEqual(
+    design.extras.map((e) => e.id),
+    ["a", "c"],
+  );
+});
+
+test("an unknown source falls back to somebody's own words", () => {
+  const design = resolveFlyerDesign({
+    extras: [{ id: "a", source: "nonsense", text: "Hello" }],
+  });
+  assert.equal(design.extras[0].source, "custom");
+});
+
+test("the flyer carries more added features than it used to", () => {
+  assert.ok(MAX_FLYER_EXTRAS >= 12);
+  const design = resolveFlyerDesign({
+    extras: Array.from({ length: 40 }, (_, i) => ({ id: `x${i}`, source: "price" })),
+  });
+  assert.equal(design.extras.length, MAX_FLYER_EXTRAS);
+});
+
+test("the link bar can be switched off and back on", () => {
+  assert.equal(DEFAULT_FLYER_DESIGN.footer.visible, true);
+  assert.equal(resolveFlyerDesign({ footer: { visible: false } }).footer.visible, false);
+  assert.equal(
+    resolveFlyerDesign({ footer: { visible: true } }, {
+      ...DEFAULT_FLYER_DESIGN,
+      footer: { ...DEFAULT_FLYER_DESIGN.footer, visible: false },
+    }).footer.visible,
+    true,
+  );
 });

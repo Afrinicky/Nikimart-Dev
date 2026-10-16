@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 export interface CartItem {
   productId: string;
@@ -73,6 +73,60 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [items, ready]);
 
+  /**
+   * The actions, each stable for the life of the provider.
+   *
+   * They used to be rebuilt inside the same `useMemo` as the totals, so every
+   * change to the cart handed out new function identities. Anything with one
+   * of them in an effect's dependencies then re-ran that effect on every
+   * change — and an effect that writes to the cart re-triggered itself, which
+   * is a render loop that leaves the page alive but unable to finish a
+   * navigation. Functional updates are what make this possible: none of them
+   * needs to close over the current items.
+   */
+  const addItem = useCallback<CartContextValue["addItem"]>((item, quantity) => {
+    // The first add is a whole minimum order, not one unit of it. A carton
+    // of twelve added as a single bottle would be silently corrected at
+    // checkout, which is the moment a buyer least wants to be surprised.
+    const min = minimumFor(item);
+    const amount = Math.max(1, Math.round(quantity ?? min));
+    setItems((prev) => {
+      const existing = prev.find((i) => i.productId === item.productId);
+      if (existing) {
+        return prev.map((i) =>
+          i.productId === item.productId
+            ? { ...i, moq: item.moq ?? i.moq, quantity: i.quantity + amount }
+            : i,
+        );
+      }
+      return [...prev, { ...item, quantity: Math.max(amount, min) }];
+    });
+  }, []);
+
+  const updateQuantity = useCallback<CartContextValue["updateQuantity"]>((productId, quantity) => {
+    setItems((prev) =>
+      prev.flatMap((i) => {
+        if (i.productId !== productId) return [i];
+        const min = minimumFor(i);
+        // Stepping below the minimum removes the line rather than parking
+        // it at a quantity the seller will not accept. Wanting fewer than
+        // the minimum means not wanting it.
+        if (quantity < min) return [];
+        return [{ ...i, quantity }];
+      }),
+    );
+  }, []);
+
+  const removeItem = useCallback<CartContextValue["removeItem"]>((productId) => {
+    setItems((prev) => prev.filter((i) => i.productId !== productId));
+  }, []);
+
+  // Returning `prev` when there is nothing to clear lets React bail out
+  // instead of re-rendering everything for a second empty array.
+  const clear = useCallback<CartContextValue["clear"]>(() => {
+    setItems((prev) => (prev.length === 0 ? prev : []));
+  }, []);
+
   const value = useMemo<CartContextValue>(() => {
     const count = items.reduce((sum, i) => sum + i.quantity, 0);
     const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
@@ -81,40 +135,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       count,
       subtotal,
       ready,
-      addItem: (item, quantity) => {
-        // The first add is a whole minimum order, not one unit of it. A carton
-        // of twelve added as a single bottle would be silently corrected at
-        // checkout, which is the moment a buyer least wants to be surprised.
-        const min = minimumFor(item);
-        const amount = Math.max(1, Math.round(quantity ?? min));
-        setItems((prev) => {
-          const existing = prev.find((i) => i.productId === item.productId);
-          if (existing) {
-            return prev.map((i) =>
-              i.productId === item.productId
-                ? { ...i, moq: item.moq ?? i.moq, quantity: i.quantity + amount }
-                : i,
-            );
-          }
-          return [...prev, { ...item, quantity: Math.max(amount, min) }];
-        });
-      },
-      updateQuantity: (productId, quantity) =>
-        setItems((prev) =>
-          prev.flatMap((i) => {
-            if (i.productId !== productId) return [i];
-            const min = minimumFor(i);
-            // Stepping below the minimum removes the line rather than parking
-            // it at a quantity the seller will not accept. Wanting fewer than
-            // the minimum means not wanting it.
-            if (quantity < min) return [];
-            return [{ ...i, quantity }];
-          }),
-        ),
-      removeItem: (productId) => setItems((prev) => prev.filter((i) => i.productId !== productId)),
-      clear: () => setItems([]),
+      addItem,
+      updateQuantity,
+      removeItem,
+      clear,
     };
-  }, [items, ready]);
+  }, [items, ready, addItem, updateQuantity, removeItem, clear]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

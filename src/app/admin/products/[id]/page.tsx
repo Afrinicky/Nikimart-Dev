@@ -32,7 +32,8 @@ export default async function EditProductPage({ params }: { params: Params }) {
   ]);
   if (!row) notFound();
 
-  const product = mapProduct(row);
+  // The admin sees every listing's sourcing; it is their own marketplace.
+  const product = mapProduct(row, { includeSourcing: true });
   const action = updateProduct.bind(null, id);
 
   return (
