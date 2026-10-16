@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 import { generateAffiliateCode } from "@/lib/affiliate";
 import { maxPlatformFundedRate, maxSellerFundedRate } from "@/lib/affiliate-commission";
+import { commitRegistrationOnApproval } from "@/lib/affiliate-registration";
 import {
   markLinesPaid,
   releaseCommission,
@@ -81,7 +82,25 @@ export async function approveApplication(_prev: AdminActionState, fd: FormData):
 
   const application = await prisma.affiliateApplication.findUnique({
     where: { id },
-    select: { id: true, userId: true, fullName: true, email: true, phone: true, desiredCode: true, status: true },
+    select: {
+      id: true,
+      userId: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      desiredCode: true,
+      status: true,
+      referredById: true,
+      inviteId: true,
+      feeGross: true,
+      feeWaiverPercent: true,
+      feeWaived: true,
+      feeAmount: true,
+      feeReferrerShare: true,
+      feeMethod: true,
+      feePaidAt: true,
+      feeReference: true,
+    },
   });
   if (!application) return { error: "That application no longer exists." };
   if (application.status === "approved") return { ok: true };
@@ -122,6 +141,12 @@ export async function approveApplication(_prev: AdminActionState, fd: FormData):
     } catch {
       return { error: "Couldn't create the affiliate account. Is that code already taken?" };
     }
+
+    // The quote this application was given, committed onto the account: what
+    // they owe, who recruited them, and the reward that releases once the fee
+    // is settled. Recorded rather than recomputed, so a fee change next month
+    // never rewrites what this registration was.
+    await commitRegistrationOnApproval({ affiliateId, application });
   }
 
   await prisma.affiliateApplication.update({

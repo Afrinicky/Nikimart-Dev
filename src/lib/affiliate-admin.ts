@@ -43,6 +43,8 @@ export function AFFILIATE_MODULE_TABS(counts: {
       icon: "banknote",
       badge: counts.payouts,
     },
+    { href: "/admin/affiliates/teams", label: "Teams", icon: "network" },
+    { href: "/admin/affiliates/invites", label: "Registration links", icon: "ticket" },
     {
       href: "/admin/affiliates/support",
       label: "Enquiries",

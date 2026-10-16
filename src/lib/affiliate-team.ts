@@ -596,3 +596,147 @@ export async function getTeamSummary(affiliate: {
     return empty;
   }
 }
+
+// ---------------------------------------------------------------------------
+// The admin's view
+// ---------------------------------------------------------------------------
+
+export interface ReferralOverviewRow {
+  id: string;
+  name: string;
+  code: string;
+  status: string;
+  /** Who recruited them. */
+  recruiterName: string;
+  recruiterId: string | null;
+  /** How many they have recruited themselves, at each level. */
+  level1: number;
+  level2: number;
+  /** What their team has earned them, live. */
+  teamEarned: number;
+  /** Still outstanding on their own registration. */
+  owes: number;
+  joinedAt: Date;
+}
+
+export interface ReferralOverview {
+  rows: ReferralOverviewRow[];
+  /** Affiliates who were recruited by somebody. */
+  recruited: number;
+  /** Affiliates who have recruited at least one person. */
+  recruiters: number;
+  /** Everything the programme has paid out in team earnings and rewards. */
+  paidOut: number;
+  /** And everything it still owes. */
+  payable: number;
+  /** Registration fees still being cleared out of commission. */
+  feesOutstanding: number;
+  /** The biggest teams, for the chart. */
+  top: { key: string; label: string; value: number; href: string }[];
+}
+
+const EMPTY_OVERVIEW: ReferralOverview = {
+  rows: [],
+  recruited: 0,
+  recruiters: 0,
+  paidOut: 0,
+  payable: 0,
+  feesOutstanding: 0,
+  top: [],
+};
+
+/**
+ * Who recruited whom, and what it has cost.
+ *
+ * One read for the whole screen. The question an admin arrives with is whether
+ * the programme is paying for itself — so what it has paid out and what it
+ * still owes are counted across everybody rather than per affiliate, and the
+ * table answers "whose team is actually selling".
+ */
+export async function getReferralOverview(take = 100): Promise<ReferralOverview> {
+  try {
+    const [affiliates, earnings] = await Promise.all([
+      prisma.affiliate.findMany({
+        orderBy: { createdAt: "desc" },
+        take,
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          status: true,
+          createdAt: true,
+          referredById: true,
+          registrationOwed: true,
+          registrationPaidAt: true,
+          referredBy: { select: { id: true, name: true } },
+          _count: { select: { recruits: true } },
+        },
+      }),
+      prisma.affiliateTeamEarning.groupBy({
+        by: ["affiliateId", "status"],
+        _sum: { amount: true, reversedAmount: true },
+      }),
+    ]);
+
+    const live = new Map<string, number>();
+    let paidOut = 0;
+    let payable = 0;
+    for (const row of earnings) {
+      const amount = money((row._sum.amount ?? 0) - (row._sum.reversedAmount ?? 0));
+      if (row.status === "reversed") continue;
+      live.set(row.affiliateId, money((live.get(row.affiliateId) ?? 0) + amount));
+      if (row.status === "paid") paidOut = money(paidOut + amount);
+      else payable = money(payable + amount);
+    }
+
+    // Level 2 for the listed affiliates, in one read rather than per row.
+    const ids = affiliates.map((a) => a.id);
+    const grandchildren = ids.length
+      ? await prisma.affiliate.findMany({
+          where: { referredBy: { referredById: { in: ids } } },
+          select: { referredBy: { select: { referredById: true } } },
+        })
+      : [];
+    const level2 = new Map<string, number>();
+    for (const g of grandchildren) {
+      const key = g.referredBy?.referredById;
+      if (!key) continue;
+      level2.set(key, (level2.get(key) ?? 0) + 1);
+    }
+
+    const rows: ReferralOverviewRow[] = affiliates.map((a) => ({
+      id: a.id,
+      name: a.name,
+      code: a.code ?? "",
+      status: a.status,
+      recruiterName: a.referredBy?.name ?? "",
+      recruiterId: a.referredBy?.id ?? null,
+      level1: a._count.recruits,
+      level2: level2.get(a.id) ?? 0,
+      teamEarned: live.get(a.id) ?? 0,
+      owes: a.registrationPaidAt ? 0 : money(Math.max(0, a.registrationOwed)),
+      joinedAt: a.createdAt,
+    }));
+
+    return {
+      rows,
+      recruited: rows.filter((r) => r.recruiterId).length,
+      recruiters: rows.filter((r) => r.level1 > 0).length,
+      paidOut,
+      payable,
+      feesOutstanding: money(rows.reduce((sum, r) => sum + r.owes, 0)),
+      top: rows
+        .filter((r) => r.level1 + r.level2 > 0)
+        .sort((a, b) => b.level1 + b.level2 - (a.level1 + a.level2))
+        .slice(0, 8)
+        .map((r) => ({
+          key: r.id,
+          label: r.name,
+          value: r.level1 + r.level2,
+          href: `/admin/affiliates/${r.id}`,
+        })),
+    };
+  } catch {
+    return { ...EMPTY_OVERVIEW };
+  }
+}

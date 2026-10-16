@@ -2,6 +2,7 @@
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getAffiliateForUser, generateAffiliateCode } from "@/lib/affiliate";
@@ -12,6 +13,14 @@ import {
   getLedgerBalance,
   releaseLinesFromPayout,
 } from "@/lib/affiliate-ledger";
+import {
+  commitRegistrationOnApproval,
+  quoteAffiliateRegistration,
+  settlementMethodFor,
+  startAffiliateFeePayment,
+  startApplicationFeePayment,
+} from "@/lib/affiliate-registration";
+import { consumeAffiliateInvite } from "@/lib/affiliate-invites";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { formatMoney } from "@/lib/format";
 import { MAX_BULK_SHARE, resolveFlyerDesign } from "@/lib/affiliate-flyer";
@@ -98,31 +107,95 @@ export async function joinAffiliateProgramme(
   const phone = str(fd, "phone");
   const desired = str(fd, "code").replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 12);
 
-  if (route === "apply") {
+  // What it costs them to join, and who is owed a share of it. Zero fee and no
+  // referral code is the ordinary case, and leaves everything below untouched.
+  const offer = await quoteAffiliateRegistration({
+    referralCode: str(fd, "ref"),
+    inviteCode: str(fd, "invite"),
+  });
+  const feeMethod = settlementMethodFor(offer, str(fd, "feeMethod"));
+  const payNow = feeMethod === "UPFRONT" && offer.quote.payable > 0;
+  const feeFields = {
+    referralCode: offer.referralCode.slice(0, 32),
+    referredById: offer.referrer?.id ?? null,
+    inviteId: offer.invite?.id ?? null,
+    feeGross: offer.quote.gross,
+    feeWaiverPercent: offer.quote.waiverPercent,
+    feeWaived: offer.quote.waived,
+    feeAmount: offer.quote.payable,
+    feeReferrerShare: offer.quote.referrerShare,
+    feeMethod,
+  };
+
+  // A fee that has to be paid before the account opens makes an application of
+  // everybody, auto-approval or not: an account opened for somebody who then
+  // never pays is the one outcome collecting up front exists to prevent.
+  if (route === "apply" || payNow) {
     const open = await prisma.affiliateApplication
-      .findFirst({ where: { userId: user.id, status: "pending" }, select: { id: true } })
+      .findFirst({
+        where: { userId: user.id, status: "pending" },
+        select: { id: true, feeAmount: true, feePaidAt: true },
+      })
       .catch(() => null);
-    if (open) return { ok: true, message: "Your application is already with us." };
+    // An application waiting on a payment is not a duplicate — it is somebody
+    // coming back to finish paying, which is exactly what should happen.
+    if (open && !(payNow && !open.feePaidAt)) {
+      return { ok: true, message: "Your application is already with us." };
+    }
 
     const channels = fd.getAll("channels").map((c) => String(c)).filter(Boolean).slice(0, 12);
+    let applicationId = open?.id ?? "";
     try {
-      await prisma.affiliateApplication.create({
-        data: {
-          userId: user.id,
-          fullName: name,
-          phone,
-          email: user.email ?? "",
-          channels: JSON.stringify(channels),
-          audience: str(fd, "audience").slice(0, 200),
-          note: str(fd, "note").slice(0, 1000),
-          desiredCode: desired,
-        },
-      });
+      if (open) {
+        await prisma.affiliateApplication.update({
+          where: { id: open.id },
+          data: { ...feeFields, paymentStatus: "pending" },
+        });
+      } else {
+        const created = await prisma.affiliateApplication.create({
+          data: {
+            userId: user.id,
+            fullName: name,
+            phone,
+            email: user.email ?? "",
+            channels: JSON.stringify(channels),
+            audience: str(fd, "audience").slice(0, 200),
+            note: str(fd, "note").slice(0, 1000),
+            desiredCode: desired,
+            ...feeFields,
+            // Nothing to collect is a settled state, not a pending one: an
+            // application clearing its fee out of commission must never look
+            // like one waiting on a payment that will never come.
+            paymentStatus: payNow ? "pending" : "none",
+          },
+          select: { id: true },
+        });
+        applicationId = created.id;
+        if (offer.invite) await consumeAffiliateInvite(offer.invite.code);
+      }
     } catch {
       return { error: "Couldn't send your application. Please try again." };
     }
     await record(null, user.id, "application_submitted", name);
     revalidatePath("/affiliate");
+
+    // Straight to Paystack. That is the whole point of collecting up front:
+    // they pay on the form they just filled in, not after somebody decides to
+    // approve them.
+    if (payNow) {
+      const payment = await startApplicationFeePayment({
+        id: applicationId,
+        email: user.email ?? "",
+        fullName: name,
+        feeAmount: offer.quote.payable,
+      });
+      if (!payment.ok) return { error: payment.error };
+      // Thrown rather than returned, and outside the try above so it is not
+      // caught and turned into an error.
+      if (payment.authorizationUrl) redirect(payment.authorizationUrl);
+      return { ok: true, message: "Payment received — we'll activate your account shortly." };
+    }
+
     return { ok: true, message: "Application sent — we'll be in touch shortly." };
   }
 
@@ -147,6 +220,13 @@ export async function joinAffiliateProgramme(
       select: { id: true },
     });
     await record(created.id, user.id, "affiliate_created", `Auto-admitted (${code})`);
+    // What they owe, who recruited them, and the reward that releases when the
+    // fee is settled. With no fee and no referral this writes zeroes.
+    await commitRegistrationOnApproval({
+      affiliateId: created.id,
+      application: { ...feeFields, feePaidAt: null, feeReference: null },
+    });
+    if (offer.invite) await consumeAffiliateInvite(offer.invite.code);
   } catch {
     return { error: "Couldn't set up your affiliate account. Please try again." };
   }
@@ -613,4 +693,41 @@ export async function clearFlyerDesign(fd: FormData): Promise<void> {
     .catch(() => null);
   await record(affiliate.id, user.id, "flyer_design_changed", "Back to the house design");
   revalidatePath("/affiliate/settings/flyer");
+}
+
+// ---------------------------------------------------------------------------
+// Settling a registration fee early
+// ---------------------------------------------------------------------------
+
+/**
+ * Pay off a registration fee that is clearing out of commission.
+ *
+ * Nobody is asked to do this — the fee clears itself, which is what they were
+ * promised. It is offered because an affiliate who would rather not have their
+ * first commissions held back should be able to say so, and because paying it
+ * is what releases their recruiter's reward.
+ *
+ * Takes nothing and returns nothing: every exit is a redirect, so there is no
+ * state for a form to render and no field for a browser to lie about.
+ */
+export async function payRegistrationFee(): Promise<void> {
+  const user = await requireUser();
+  const affiliate = await prisma.affiliate.findUnique({
+    where: { userId: user.id },
+    select: {
+      id: true,
+      name: true,
+      registrationFee: true,
+      registrationMethod: true,
+      registrationPaidAt: true,
+      registrationOwed: true,
+    },
+  });
+  if (!affiliate) redirect("/become-an-affiliate");
+
+  const payment = await startAffiliateFeePayment(affiliate, user.email ?? "");
+  revalidatePath("/affiliate/team");
+  if (!payment.ok) redirect("/affiliate/team?fee=error");
+  // No gateway configured (local, preview): it settled directly.
+  redirect(payment.authorizationUrl ?? "/affiliate/team?fee=paid");
 }

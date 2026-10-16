@@ -266,6 +266,198 @@ export function AffiliatePolicyForm({
         </label>
       </fieldset>
 
+      {/* --- Joining ------------------------------------------------------ */}
+      <fieldset className="space-y-4">
+        <legend className="font-display font-bold text-niki-ink">Registration fee</legend>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className={field}>What it costs to join (GH₵)</span>
+            <input
+              name="affiliateRegistrationFee"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={settings.affiliateRegistrationFee}
+              className={inputClass}
+            />
+            <span className={hint}>
+              Zero is free to join, which is how the programme has always run. Set it and the
+              signup form starts quoting and collecting it. The data bundle programme and shop
+              registration each have their own price, set in their own console.
+            </span>
+          </label>
+
+          <label className="block">
+            <span className={field}>How it is settled</span>
+            <select
+              name="affiliateRegistrationPaymentMode"
+              defaultValue={settings.affiliateRegistrationPaymentMode}
+              className={inputClass}
+            >
+              <option value="BOTH">Either — they choose</option>
+              <option value="UPFRONT">Paid before the account opens</option>
+              <option value="COMMISSION">Cleared out of their commission</option>
+            </select>
+            <span className={hint}>
+              Paid up front means the account is not opened until the money is in. Cleared out of
+              commission means they owe it, and the first commissions to clear pay it off before
+              they can withdraw anything.
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      {/* --- Recruiting --------------------------------------------------- */}
+      <fieldset className="space-y-4">
+        <legend className="font-display font-bold text-niki-ink">Teams and recruiting</legend>
+
+        <Toggle
+          name="affiliateReferralEnabled"
+          value={settings.affiliateReferralEnabled}
+          label="Affiliates may recruit each other"
+          hint="Off hides the team screens and stops new team earnings. What has already been earned stays earned."
+        />
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className={field}>Share of a recruit&apos;s commission (%)</span>
+            <input
+              name="affiliateTeamPercentLevel1"
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              defaultValue={settings.affiliateTeamPercentLevel1}
+              className={inputClass}
+            />
+            <span className={hint}>
+              Credited to whoever recruited them, every time they earn. A share of the commission,
+              never of the sale — the commission is already a percentage of the sale.
+            </span>
+          </label>
+          <label className="block">
+            <span className={field}>Joining reward (GH₵)</span>
+            <input
+              name="affiliateReferralLevel1Reward"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={settings.affiliateReferralLevel1Reward}
+              className={inputClass}
+            />
+            <span className={hint}>
+              Paid once, and only when the person they recruited has actually paid their
+              registration fee.
+            </span>
+          </label>
+        </div>
+
+        <Toggle
+          name="affiliateReferralLevel2Enabled"
+          value={settings.affiliateReferralLevel2Enabled}
+          label="Pay a second level"
+          hint="Their recruiter's recruiter earns too. Off ignores the two figures below rather than deleting them."
+        />
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className={field}>Second-level share (%)</span>
+            <input
+              name="affiliateTeamPercentLevel2"
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              defaultValue={settings.affiliateTeamPercentLevel2}
+              className={inputClass}
+            />
+          </label>
+          <label className="block">
+            <span className={field}>Second-level joining reward (GH₵)</span>
+            <input
+              name="affiliateReferralLevel2Reward"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={settings.affiliateReferralLevel2Reward}
+              className={inputClass}
+            />
+          </label>
+        </div>
+
+        <label className="block max-w-sm">
+          <span className={field}>Smallest commission that pays a team share (GH₵)</span>
+          <input
+            name="affiliateReferralMinCommission"
+            type="number"
+            min="0"
+            step="0.01"
+            defaultValue={settings.affiliateReferralMinCommission}
+            className={inputClass}
+          />
+          <span className={hint}>Zero counts every sale.</span>
+        </label>
+      </fieldset>
+
+      {/* --- Waivers ------------------------------------------------------ */}
+      <fieldset className="space-y-4">
+        <legend className="font-display font-bold text-niki-ink">What a recruiter can offer</legend>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className={field}>Discount for a recruit (%)</span>
+            <input
+              name="affiliateReferralWaiverPercent"
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              defaultValue={settings.affiliateReferralWaiverPercent}
+              className={inputClass}
+            />
+            <span className={hint}>
+              Off the registration fee, for somebody arriving through a referral link. A recruiter
+              can be given a figure of their own on their page.
+            </span>
+          </label>
+          <label className="block">
+            <span className={field}>Recruiter keeps (%)</span>
+            <input
+              name="affiliateReferrerSharePercent"
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              defaultValue={settings.affiliateReferrerSharePercent}
+              className={inputClass}
+            />
+            <span className={hint}>
+              Of whatever the recruit does pay. The discount decides what they are charged; this
+              decides who keeps it.
+            </span>
+          </label>
+        </div>
+
+        <Toggle
+          name="affiliateReferralFullWaiverPaysReward"
+          value={settings.affiliateReferralFullWaiverPaysReward}
+          label="A fee waived in full still pays the joining reward"
+          hint="Off by default: a reward for a registration nobody paid for is what makes inventing recruits profitable."
+        />
+
+        <label className="block">
+          <span className={field}>What recruiting pays, in your own words</span>
+          <textarea
+            name="affiliateReferralPitch"
+            rows={2}
+            maxLength={300}
+            defaultValue={settings.affiliateReferralPitch}
+            className={inputClass}
+          />
+        </label>
+      </fieldset>
+
       {state.error ? (
         <p className="animate-fade-up rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger ring-1 ring-niki-danger/20">
           {state.error}
