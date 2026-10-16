@@ -36,7 +36,7 @@ export function FaqForm({
         <div className="w-40">
           <SubmitButton>{submitLabel}</SubmitButton>
         </div>
-        <Link href="/admin/faqs" className="text-sm font-medium text-niki-ink/60 hover:text-niki-ink">
+        <Link href="/admin/settings/faqs" className="text-sm font-medium text-niki-ink/60 hover:text-niki-ink">
           Cancel
         </Link>
       </div>

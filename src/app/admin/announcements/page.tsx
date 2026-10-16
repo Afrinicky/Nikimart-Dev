@@ -5,6 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { ModuleHeader } from "@/components/admin/ModuleHeader";
 import { ModuleTabs } from "@/components/admin/ModuleTabs";
 import { ANNOUNCEMENT_MODULE_TABS } from "@/lib/announcement-module";
+import { countOpenComplaints } from "@/lib/retail/complaints";
 import { TableFilters } from "@/components/admin/TableFilters";
 import { TablePager } from "@/components/admin/TablePager";
 import { AnnouncementsTable } from "@/components/admin/AnnouncementsTable";
@@ -88,7 +89,7 @@ export default async function AdminRetailAnnouncementsPage({
       </div>
 
       <div className="mt-5">
-        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("retail")} />
+        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("retail", 0, await countOpenComplaints())} />
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">

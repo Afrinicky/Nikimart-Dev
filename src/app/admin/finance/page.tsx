@@ -91,7 +91,7 @@ export default async function AdminFinancePage() {
           )}
           <div className="mt-4 flex flex-wrap gap-2 text-sm">
             <Link href="/admin/settings" className="font-semibold text-niki-orange hover:underline">Edit default →</Link>
-            <Link href="/admin/categories" className="font-semibold text-niki-orange hover:underline">Per-category →</Link>
+            <Link href="/admin/settings/categories" className="font-semibold text-niki-orange hover:underline">Per-category →</Link>
           </div>
 
           {/* Where affiliate commission actually comes from. */}

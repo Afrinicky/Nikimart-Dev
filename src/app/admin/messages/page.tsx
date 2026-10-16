@@ -5,6 +5,7 @@ import { ModuleHeader } from "@/components/admin/ModuleHeader";
 import { ModuleTabs } from "@/components/admin/ModuleTabs";
 import { ActionLink } from "@/components/ui/motion";
 import { ANNOUNCEMENT_MODULE_TABS } from "@/lib/announcement-module";
+import { countOpenComplaints } from "@/lib/retail/complaints";
 import { listTemplates } from "@/lib/messages";
 import { templateGroups } from "@/lib/message-templates";
 import { isSmsConfigured, emailStatus } from "@/lib/notifications";
@@ -38,7 +39,7 @@ export default async function AdminRetailMessagesPage() {
         icon={Megaphone}
       />
       <div className="mt-5">
-        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("retail")} />
+        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("retail", 0, await countOpenComplaints())} />
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">

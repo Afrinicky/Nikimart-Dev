@@ -49,7 +49,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
           Affiliates only earn on products enrolled in the programme. Sellers enrol their own products
           at their own expense; you can enrol any product at Nickimart&apos;s expense from the product
           page, capped at half the platform commission on that item. Set the per-category default in{" "}
-          <Link href="/admin/categories" className="font-semibold text-niki-orange hover:underline">Categories</Link>.
+          <Link href="/admin/settings/categories" className="font-semibold text-niki-orange hover:underline">Categories</Link>.
         </p>
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           <Field label="Default commission (%)" htmlFor="affiliateRate" hint="Used when neither the product nor its category sets a rate">

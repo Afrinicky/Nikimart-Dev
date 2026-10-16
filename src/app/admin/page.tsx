@@ -639,7 +639,7 @@ export default async function AdminDashboardPage({
         <Panel
           title="Categories"
           subtitle="Revenue by category"
-          href="/admin/categories"
+          href="/admin/settings/categories"
           linkLabel="All categories"
         >
           <BarList

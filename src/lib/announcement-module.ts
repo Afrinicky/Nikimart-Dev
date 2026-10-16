@@ -14,8 +14,16 @@ import type { ModuleTab } from "@/components/admin/ModuleTabs";
  *
  * Notifications are the bundle console's own: they are raised by withdrawals,
  * applications and support requests, none of which the retail console has.
+ *
+ * Complaints are the retail console's own, for the same reason in reverse:
+ * buyers, affiliates and suppliers all raise them against an order, and only
+ * the retail side has orders.
  */
-export function ANNOUNCEMENT_MODULE_TABS(scope: "data" | "retail", unread = 0): ModuleTab[] {
+export function ANNOUNCEMENT_MODULE_TABS(
+  scope: "data" | "retail",
+  unread = 0,
+  open = 0,
+): ModuleTab[] {
   const base = scope === "retail" ? "/admin" : "/admin/data";
   return [
     { href: `${base}/announcements`, label: "Announcements", icon: "megaphone", exact: true },
@@ -26,6 +34,16 @@ export function ANNOUNCEMENT_MODULE_TABS(scope: "data" | "retail", unread = 0): 
             label: "Notifications",
             icon: "bell" as const,
             badge: unread,
+          },
+        ]
+      : []),
+    ...(scope === "retail"
+      ? [
+          {
+            href: "/admin/announcements/enquiries",
+            label: "Complaints & enquiries",
+            icon: "lifebuoy" as const,
+            badge: open,
           },
         ]
       : []),

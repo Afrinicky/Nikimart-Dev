@@ -24,7 +24,7 @@ export function PageForm() {
         <div className="w-40">
           <SubmitButton>Create page</SubmitButton>
         </div>
-        <Link href="/admin/pages" className="text-sm font-medium text-niki-ink/60 hover:text-niki-ink">
+        <Link href="/admin/settings/pages" className="text-sm font-medium text-niki-ink/60 hover:text-niki-ink">
           Cancel
         </Link>
       </div>

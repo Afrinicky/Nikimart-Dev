@@ -42,13 +42,13 @@ export default async function EditPageBuilder({ params }: { params: Params }) {
 
   return (
     <Container className="max-w-4xl py-8">
-      <Link href="/admin/pages" className="flex items-center gap-1 text-sm text-niki-ink/60 hover:text-niki-ink">
+      <Link href="/admin/settings/pages" className="flex items-center gap-1 text-sm text-niki-ink/60 hover:text-niki-ink">
         <ArrowLeft className="h-4 w-4" />
         Back to pages
       </Link>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-2xl font-bold text-niki-ink">{page.title}</h1>
+        <h2 className="font-display text-xl font-bold text-niki-ink sm:text-2xl">{page.title}</h2>
         <Link href={url} target="_blank" className="inline-flex items-center gap-1 text-sm font-semibold text-niki-orange hover:underline">
           View page
           <ExternalLink className="h-3.5 w-3.5" />
@@ -110,7 +110,7 @@ export default async function EditPageBuilder({ params }: { params: Params }) {
                   {s.isVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                 </button>
               </form>
-              <Link href={`/admin/pages/${id}/${s.id}`} className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-niki-ink/70 hover:bg-niki-black/5">
+              <Link href={`/admin/settings/pages/${id}/${s.id}`} className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-niki-ink/70 hover:bg-niki-black/5">
                 <Pencil className="h-3.5 w-3.5" />
                 Edit
               </Link>
