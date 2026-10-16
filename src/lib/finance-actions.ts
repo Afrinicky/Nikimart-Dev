@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 import { getSellerEarnings } from "@/lib/seller";
+import { claimLinesForPayout, markLinesPaid } from "@/lib/affiliate-ledger";
 import type { CrudState } from "@/lib/admin-actions";
 
 function str(fd: FormData, key: string): string {
@@ -166,11 +167,7 @@ export async function markAffiliatePayoutPaid(fd: FormData): Promise<void> {
     where: { id, status: { in: ["pending", "processing"] } },
     data: { status: "paid", paidAt: new Date() },
   });
-  if (flipped.count > 0) {
-    await prisma.affiliateCommission
-      .updateMany({ where: { payoutId: id }, data: { status: "paid" } })
-      .catch(() => {});
-  }
+  if (flipped.count > 0) await markLinesPaid(id);
   revalidateFinance();
   revalidatePath("/affiliate");
   revalidatePath("/admin/affiliates/payouts");
@@ -211,26 +208,8 @@ export async function createAffiliatePayout(_prev: CrudState, fd: FormData): Pro
    * anything cleared simply settles what there is and the rest is a credit the
    * next cleared line meets.
    */
-  const cleared = await prisma.affiliateCommission
-    .findMany({
-      where: { affiliateId, status: "cleared", payoutId: null },
-      orderBy: { clearedAt: "asc" },
-      select: { id: true, amount: true, reversedAmount: true },
-    })
-    .catch(() => [] as { id: string; amount: number; reversedAmount: number }[]);
-
-  const covered: string[] = [];
-  let running = 0;
-  for (const line of cleared) {
-    if (running >= paid - 0.005) break;
-    covered.push(line.id);
-    running += Math.max(0, line.amount - line.reversedAmount);
-  }
-  if (covered.length > 0) {
-    await prisma.affiliateCommission
-      .updateMany({ where: { id: { in: covered } }, data: { payoutId: payout.id, status: "paid" } })
-      .catch(() => {});
-  }
+  await claimLinesForPayout(affiliateId, payout.id, paid);
+  await markLinesPaid(payout.id);
 
   revalidateFinance();
   redirect(`/admin/affiliates/${affiliateId}`);

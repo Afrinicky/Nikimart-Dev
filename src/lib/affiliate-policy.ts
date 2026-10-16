@@ -22,6 +22,8 @@ import {
   type AffiliateRateInput,
   type ResolvedAffiliateRate,
 } from "./affiliate-commission.ts";
+import { programPaymentMode, type PaymentMode } from "./data-bundles/payment-mode.ts";
+import type { AffiliateTeamRules } from "./affiliate-team-rules.ts";
 
 // ---------------------------------------------------------------------------
 // The policy
@@ -57,6 +59,10 @@ export interface AffiliatePolicy {
   /** Programme default commission percent, and the advertised ceiling. */
   defaultRate: number;
   maxRate: number;
+  /** What it costs to join. Zero is a programme anybody may join for nothing. */
+  registrationFee: number;
+  /** How that fee may be settled. */
+  registrationPaymentMode: PaymentMode;
 }
 
 export const AFFILIATE_POLICY_FALLBACK: AffiliatePolicy = {
@@ -77,6 +83,8 @@ export const AFFILIATE_POLICY_FALLBACK: AffiliatePolicy = {
   supportWhatsapp: "",
   defaultRate: 5,
   maxRate: 10,
+  registrationFee: 0,
+  registrationPaymentMode: "BOTH",
 };
 
 /** A stored setting that means yes. Anything unreadable keeps the fallback. */
@@ -154,6 +162,70 @@ export function resolveAffiliatePolicy(
     supportWhatsapp: (raw.affiliateSupportWhatsapp ?? "").trim(),
     defaultRate: percent(raw.affiliateRate, f.defaultRate),
     maxRate: percent(raw.affiliateMaxRate, f.maxRate),
+    registrationFee: amount(raw.affiliateRegistrationFee, f.registrationFee),
+    registrationPaymentMode: programPaymentMode(raw.affiliateRegistrationPaymentMode),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Recruiting
+// ---------------------------------------------------------------------------
+
+/**
+ * The referral programme's own settings.
+ *
+ * Kept apart from the policy above because they answer a different question —
+ * that one is "what does a referred sale earn", this one is "what does
+ * recruiting earn" — and because an affiliate console that has never opened
+ * the referral screens should not have to resolve ten settings to price a
+ * commission.
+ */
+export interface AffiliateReferralConfig extends AffiliateTeamRules {
+  /** The waiver a recruited applicant gets when their recruiter has no own. */
+  waiverDefaultPercent: number;
+  /** Of what a recruit pays, the percentage credited to their recruiter. */
+  referrerSharePercent: number;
+  /** Whether a registration waived in full still pays the joining reward. */
+  fullWaiverPaysReward: boolean;
+  pitch: string;
+}
+
+export const AFFILIATE_REFERRAL_FALLBACK: AffiliateReferralConfig = {
+  enabled: true,
+  level1Reward: 0,
+  level2Reward: 0,
+  level2Enabled: false,
+  teamPercentLevel1: 10,
+  teamPercentLevel2: 0,
+  minCommission: 0,
+  waiverDefaultPercent: 0,
+  referrerSharePercent: 0,
+  fullWaiverPaysReward: false,
+  pitch: "Build a team. Earn from every sale they make, on top of your own.",
+};
+
+export function resolveAffiliateReferralConfig(
+  raw: Record<string, string | undefined> = {},
+): AffiliateReferralConfig {
+  const f = AFFILIATE_REFERRAL_FALLBACK;
+  const level2Enabled = flag(raw.affiliateReferralLevel2Enabled, f.level2Enabled);
+  return {
+    enabled: flag(raw.affiliateReferralEnabled, f.enabled),
+    level1Reward: amount(raw.affiliateReferralLevel1Reward, f.level1Reward),
+    level2Reward: level2Enabled ? amount(raw.affiliateReferralLevel2Reward, f.level2Reward) : 0,
+    level2Enabled,
+    teamPercentLevel1: percent(raw.affiliateTeamPercentLevel1, f.teamPercentLevel1),
+    teamPercentLevel2: level2Enabled
+      ? percent(raw.affiliateTeamPercentLevel2, f.teamPercentLevel2)
+      : 0,
+    minCommission: amount(raw.affiliateReferralMinCommission, f.minCommission),
+    waiverDefaultPercent: percent(raw.affiliateReferralWaiverPercent, f.waiverDefaultPercent),
+    referrerSharePercent: percent(raw.affiliateReferrerSharePercent, f.referrerSharePercent),
+    fullWaiverPaysReward: flag(
+      raw.affiliateReferralFullWaiverPaysReward,
+      f.fullWaiverPaysReward,
+    ),
+    pitch: (raw.affiliateReferralPitch ?? "").trim() || f.pitch,
   };
 }
 

@@ -7,7 +7,11 @@ import { requireUser } from "@/lib/session";
 import { getAffiliateForUser, generateAffiliateCode } from "@/lib/affiliate";
 import { getAffiliatePolicy } from "@/lib/affiliate-settings";
 import { admissionRoute } from "@/lib/affiliate-policy";
-import { getLedgerBalance } from "@/lib/affiliate-ledger";
+import {
+  claimLinesForPayout,
+  getLedgerBalance,
+  releaseLinesFromPayout,
+} from "@/lib/affiliate-ledger";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { formatMoney } from "@/lib/format";
 import { MAX_BULK_SHARE, resolveFlyerDesign } from "@/lib/affiliate-flyer";
@@ -489,23 +493,6 @@ export async function requestPayout(_prev: ActionState, fd: FormData): Promise<A
     });
     if (open) return { error: "You already have a payout request awaiting review." };
 
-    // The lines this request is against: oldest cleared first, up to the
-    // amount asked for. Attaching them is what makes a payout auditable —
-    // and what stops the same commission being claimed twice.
-    const cleared = await prisma.affiliateCommission.findMany({
-      where: { affiliateId: affiliate.id, status: "cleared", payoutId: null },
-      orderBy: { clearedAt: "asc" },
-      select: { id: true, amount: true, reversedAmount: true },
-    });
-
-    const claimed: string[] = [];
-    let running = 0;
-    for (const line of cleared) {
-      if (running >= amount - 0.005) break;
-      claimed.push(line.id);
-      running += Math.max(0, line.amount - line.reversedAmount);
-    }
-
     const payout = await prisma.affiliatePayout.create({
       data: {
         affiliateId: affiliate.id,
@@ -520,12 +507,10 @@ export async function requestPayout(_prev: ActionState, fd: FormData): Promise<A
       select: { id: true },
     });
 
-    if (claimed.length > 0) {
-      await prisma.affiliateCommission.updateMany({
-        where: { id: { in: claimed } },
-        data: { payoutId: payout.id },
-      });
-    }
+    // The lines this request is against: oldest cleared first, up to the
+    // amount asked for. Attaching them is what makes a payout auditable — and
+    // what stops the same commission being claimed twice.
+    await claimLinesForPayout(affiliate.id, payout.id, amount);
     await record(affiliate.id, user.id, "payout_requested", formatMoney(amount));
   } catch {
     return { error: "Couldn't submit your request. Please try again." };
@@ -549,12 +534,9 @@ export async function cancelPayoutRequest(fd: FormData): Promise<void> {
   });
   if (!payout) return;
 
+  // The lines go back to cleared so they can be claimed again.
+  await releaseLinesFromPayout(payout.id);
   await prisma.$transaction([
-    // The lines go back to cleared so they can be claimed again.
-    prisma.affiliateCommission.updateMany({
-      where: { payoutId: payout.id },
-      data: { payoutId: null },
-    }),
     prisma.affiliatePayout.update({
       where: { id: payout.id },
       data: { status: "rejected", rejectReason: "Withdrawn by the affiliate", decidedAt: new Date() },

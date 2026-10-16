@@ -5,7 +5,12 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 import { generateAffiliateCode } from "@/lib/affiliate";
 import { maxPlatformFundedRate, maxSellerFundedRate } from "@/lib/affiliate-commission";
-import { releaseCommission, reverseCommission } from "@/lib/affiliate-ledger";
+import {
+  markLinesPaid,
+  releaseCommission,
+  releaseLinesFromPayout,
+  reverseCommission,
+} from "@/lib/affiliate-ledger";
 import { resolveCommissionRate } from "@/lib/commission";
 import { getCommissionRate } from "@/lib/settings";
 import { formatMoney } from "@/lib/format";
@@ -353,11 +358,8 @@ export async function payAffiliatePayout(
         reference: reference || undefined,
       },
     }),
-    prisma.affiliateCommission.updateMany({
-      where: { payoutId: payout.id },
-      data: { status: "paid" },
-    }),
   ]);
+  await markLinesPaid(payout.id);
 
   await record(payout.affiliateId, admin, "payout_paid", `${formatMoney(payout.amount)}${reference ? ` · ${reference}` : ""}`);
   refreshAdmin();
@@ -382,12 +384,9 @@ export async function rejectAffiliatePayout(
   if (!payout) return { error: "That payout request no longer exists." };
   if (payout.status === "paid") return { error: "That one has already been paid." };
 
+  // The lines go back to cleared, so the affiliate can ask again.
+  await releaseLinesFromPayout(payout.id);
   await prisma.$transaction([
-    // The lines go back to cleared, so the affiliate can ask again.
-    prisma.affiliateCommission.updateMany({
-      where: { payoutId: payout.id },
-      data: { payoutId: null },
-    }),
     prisma.affiliatePayout.update({
       where: { id: payout.id },
       data: { status: "rejected", decidedAt: new Date(), decidedById: admin.id, rejectReason: reason },

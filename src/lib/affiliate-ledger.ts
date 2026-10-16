@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getAffiliatePolicy } from "@/lib/affiliate-settings";
+import { clearDueTeamEarnings, getTeamBalance, syncTeamEarnings } from "@/lib/affiliate-team";
+import { applyEarningsToRegistration } from "@/lib/affiliate-registration";
 import {
   commissionHoldUntil,
   commissionStatusFor,
@@ -93,6 +95,9 @@ export async function accrueAffiliateCommissions(input: AccrualInput): Promise<n
         status: "pending",
       })),
     });
+    // The upline's share of these lines. Derived from them, so it is written
+    // here rather than computed again by whoever reads a balance.
+    await syncTeamEarnings(input.orderId);
     return result.count;
   } catch {
     // Not migrated yet, or the order was removed underneath us. The order
@@ -225,6 +230,10 @@ export async function syncAffiliateCommissions(orderId: string): Promise<void> {
     // Pre-migration databases have no ledger. Nothing to reconcile, and a
     // checkout must never fail because of it.
   }
+
+  // Whatever happened to these commissions happened to the team's share of
+  // them: the same delivery, the same return window, the same reversal.
+  await syncTeamEarnings(orderId);
 }
 
 /**
@@ -387,6 +396,11 @@ export interface LedgerBalance {
   /** How many order lines have earned. */
   lines: number;
   orders: number;
+  /** Of everything above, what their team earned them rather than their own
+   * selling: a share of a recruit's commission, or a joining reward. */
+  team: number;
+  /** What is still owed on their registration fee, held back from `available`. */
+  registrationOwed: number;
 }
 
 export const EMPTY_BALANCE: LedgerBalance = {
@@ -400,6 +414,8 @@ export const EMPTY_BALANCE: LedgerBalance = {
   available: 0,
   lines: 0,
   orders: 0,
+  team: 0,
+  registrationOwed: 0,
 };
 
 /**
@@ -411,8 +427,12 @@ export const EMPTY_BALANCE: LedgerBalance = {
  */
 export async function getLedgerBalance(affiliateId: string): Promise<LedgerBalance> {
   await clearDueCommissions(affiliateId);
+  await clearDueTeamEarnings(affiliateId);
+  // "It clears itself out of your commission" has to be true the moment the
+  // commission clears, not when somebody remembers to run something.
+  await applyEarningsToRegistration(affiliateId);
   try {
-    const [rows, payouts] = await Promise.all([
+    const [rows, payouts, team, affiliate] = await Promise.all([
       prisma.affiliateCommission.findMany({
         where: { affiliateId },
         select: { status: true, amount: true, reversedAmount: true, orderId: true },
@@ -421,6 +441,13 @@ export async function getLedgerBalance(affiliateId: string): Promise<LedgerBalan
         where: { affiliateId },
         select: { amount: true, status: true },
       }),
+      getTeamBalance(affiliateId),
+      prisma.affiliate
+        .findUnique({
+          where: { id: affiliateId },
+          select: { registrationOwed: true, registrationPaidAt: true },
+        })
+        .catch(() => null),
     ]);
 
     const balance = { ...EMPTY_BALANCE };
@@ -440,16 +467,36 @@ export async function getLedgerBalance(affiliateId: string): Promise<LedgerBalan
       else if (row.status === "paid") balance.paid = money(balance.paid + live);
     }
 
+    // What their team earned them is theirs on the same terms as their own
+    // commission, so it is added into the same buckets rather than reported
+    // beside them — a payout pays one balance.
+    balance.team = team.earned;
+    balance.pending = money(balance.pending + team.pending);
+    balance.clearing = money(balance.clearing + team.clearing);
+    balance.cleared = money(balance.cleared + team.cleared);
+    balance.paid = money(balance.paid + team.paid);
+    balance.reversed = money(balance.reversed + team.reversed);
+    balance.earned = money(balance.earned + team.earned);
+    balance.lines += team.lines;
+
     balance.orders = orders.size;
     balance.requested = money(
       payouts
         .filter((p) => p.status === "pending" || p.status === "processing")
         .reduce((sum, p) => sum + p.amount, 0),
     );
+    balance.registrationOwed =
+      affiliate && !affiliate.registrationPaidAt
+        ? money(Math.max(0, affiliate.registrationOwed))
+        : 0;
     // A payout already made against a line that was later reversed leaves the
     // affiliate owing it back. Netting it off here means the next payout
-    // settles the debt rather than an admin chasing it.
-    balance.available = money(Math.max(0, balance.cleared - balance.requested));
+    // settles the debt rather than an admin chasing it. A registration fee
+    // still clearing itself out of commission is held back the same way: it
+    // was promised to the fee before it was promised to them.
+    balance.available = money(
+      Math.max(0, balance.cleared - balance.requested - balance.registrationOwed),
+    );
     return balance;
   } catch {
     return { ...EMPTY_BALANCE };
@@ -468,3 +515,97 @@ export const COMMISSION_STATUSES: { value: CommissionStatus; label: string }[] =
 export const COMMISSION_STATUS_LABELS: Record<string, string> = Object.fromEntries(
   COMMISSION_STATUSES.map((s) => [s.value, s.label]),
 );
+
+// ---------------------------------------------------------------------------
+// Payouts
+// ---------------------------------------------------------------------------
+
+/**
+ * Attach the lines one payout is against, oldest cleared first.
+ *
+ * A payout is the sum of named lines rather than a number typed against a
+ * balance, so what was paid for can always be shown — and so the same
+ * commission cannot be claimed twice. Team earnings are claimed on the same
+ * terms and in the same pass: they are the same money to the affiliate, and a
+ * payout that paid for some of them and left the rest attached to nothing
+ * would be a balance nobody could reconcile.
+ *
+ * Returns what the claimed lines actually add up to, which can be a little
+ * over the amount asked for — the last line is claimed whole rather than split.
+ */
+export async function claimLinesForPayout(
+  affiliateId: string,
+  payoutId: string,
+  amount: number,
+): Promise<number> {
+  let running = 0;
+  const commissions: string[] = [];
+  const team: string[] = [];
+
+  try {
+    const [cleared, teamRows] = await Promise.all([
+      prisma.affiliateCommission.findMany({
+        where: { affiliateId, status: "cleared", payoutId: null },
+        orderBy: { clearedAt: "asc" },
+        select: { id: true, amount: true, reversedAmount: true },
+      }),
+      prisma.affiliateTeamEarning.findMany({
+        where: { affiliateId, status: "cleared", payoutId: null },
+        orderBy: { clearedAt: "asc" },
+        select: { id: true, amount: true, reversedAmount: true },
+      }),
+    ]);
+
+    for (const line of cleared) {
+      if (running >= amount - 0.005) break;
+      commissions.push(line.id);
+      running = money(running + Math.max(0, line.amount - line.reversedAmount));
+    }
+    for (const line of teamRows) {
+      if (running >= amount - 0.005) break;
+      team.push(line.id);
+      running = money(running + Math.max(0, line.amount - line.reversedAmount));
+    }
+
+    if (commissions.length > 0) {
+      await prisma.affiliateCommission.updateMany({
+        where: { id: { in: commissions } },
+        data: { payoutId },
+      });
+    }
+    if (team.length > 0) {
+      await prisma.affiliateTeamEarning.updateMany({
+        where: { id: { in: team } },
+        data: { payoutId },
+      });
+    }
+  } catch {
+    // Pre-migration, or the payout went away underneath us. The payout row
+    // itself still carries the amount, which is what an admin settles.
+  }
+  return running;
+}
+
+/** Settle every line a payout claimed. */
+export async function markLinesPaid(payoutId: string): Promise<void> {
+  await Promise.all([
+    prisma.affiliateCommission
+      .updateMany({ where: { payoutId }, data: { status: "paid" } })
+      .catch(() => {}),
+    prisma.affiliateTeamEarning
+      .updateMany({ where: { payoutId }, data: { status: "paid" } })
+      .catch(() => {}),
+  ]);
+}
+
+/** Put every line a payout claimed back, so it can be claimed again. */
+export async function releaseLinesFromPayout(payoutId: string): Promise<void> {
+  await Promise.all([
+    prisma.affiliateCommission
+      .updateMany({ where: { payoutId }, data: { payoutId: null } })
+      .catch(() => {}),
+    prisma.affiliateTeamEarning
+      .updateMany({ where: { payoutId }, data: { payoutId: null } })
+      .catch(() => {}),
+  ]);
+}

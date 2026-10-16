@@ -75,6 +75,7 @@ model User {
   // (prisma/data/schema.prisma), which Postgres cannot reference from here.
   /**
    * /**
+   * /**
    * When this person accepted the terms at registration.
    */
   termsAcceptedAt     DateTime?
@@ -304,6 +305,7 @@ model Affiliate {
   // --- Affiliate console ----------------------------------------------------
   /**
    * /**
+   * /**
    * How this affiliate got here: "self" (applied), "seller" / "agent" (an
    * existing Nickimart trader who was admitted automatically), or "admin"
    * (created in the console). Kept because the three are reviewed differently.
@@ -338,16 +340,93 @@ model Affiliate {
   suspendReason String    @default("")
   lastSharedAt  DateTime?
 
-  payouts     AffiliatePayout[]
-  orders      Order[]
-  products    AffiliateProduct[]
-  referrals   AffiliateReferral[]
-  clicks      AffiliateClick[]
-  commissions AffiliateCommission[]
-  flags       AffiliateFraudFlag[]
-  events      AffiliateEvent[]
-  threads     AffiliateThread[]
-  followUps   AffiliateFollowUp[]
+  // --- Their team -----------------------------------------------------------
+  /**
+   * /**
+   * The affiliate who recruited this one — their direct (level 1) upline. Set
+   * once, from the referral code the application quoted, and never changed
+   * after that: `referralLockedAt` records when it became permanent. Level 2
+   * is this affiliate's recruiter's recruiter, walked at read time; the
+   * programme stops there.
+   */
+  referredById          String?
+  referredBy            Affiliate?  @relation("AffiliateReferral", fields: [referredById], references: [id], onDelete: SetNull)
+  recruits              Affiliate[] @relation("AffiliateReferral")
+  referralLockedAt      DateTime?
+  /**
+   * The registration waiver *this affiliate's own recruits* get, as a
+   * percentage of the fee. Null means "use the programme default", which is
+   * genuinely different from zero: an affiliate with no setting of their own
+   * follows the default as it changes, while one explicitly set to 0 grants no
+   * waiver whatever the default becomes.
+   */
+  referralWaiverPercent Float?
+  /**
+   * Of whatever their recruits do pay towards registration, the percentage
+   * credited back to this affiliate. Null follows the programme default; an
+   * explicit 0 credits them nothing however generous the default becomes.
+   */
+  referralSharePercent  Float?
+
+  // --- Registration fee -----------------------------------------------------
+  /**
+   * /**
+   * What this affiliate was actually charged to join, and how that number came
+   * about: the fee at full price, the waiver their recruiter or an admin link
+   * granted, what that waiver was worth, and the share of what they paid that
+   * went to their recruiter. Recorded on the row rather than recomputed, so a
+   * settings change tomorrow never rewrites what this registration was.
+   */
+  registrationFee           Float     @default(0)
+  registrationGross         Float     @default(0)
+  registrationWaiverPercent Float     @default(0)
+  registrationWaived        Float     @default(0)
+  registrationReferrerShare Float     @default(0)
+  /**
+   * How it is being settled: UPFRONT (paid before the account opened),
+   * COMMISSION (owed, and clearing itself out of what they earn) or WAIVED
+   * (there was nothing to pay). Only a fee that was actually paid releases
+   * their recruiter's joining reward — a waived one pays nobody.
+   */
+  registrationMethod        String    @default("WAIVED")
+  /**
+   * When it was settled in full. Null while outstanding, and null if waived.
+   */
+  registrationPaidAt        DateTime?
+  /**
+   * Paystack reference, so a payment can be verified and never credited twice.
+   */
+  registrationReference     String?
+  /**
+   * PAYMENT | COMMISSION | ADJUSTMENT | WAIVED — who actually settled it.
+   */
+  registrationSettledBy     String?
+  /**
+   * What is still owed on a fee that clears out of commission.
+   */
+  registrationOwed          Float     @default(0)
+  /**
+   * The admin registration link they arrived through, if any.
+   */
+  inviteId                  String?
+
+  payouts          AffiliatePayout[]
+  orders           Order[]
+  products         AffiliateProduct[]
+  referrals        AffiliateReferral[]
+  clicks           AffiliateClick[]
+  commissions      AffiliateCommission[]
+  flags            AffiliateFraudFlag[]
+  events           AffiliateEvent[]
+  threads          AffiliateThread[]
+  followUps        AffiliateFollowUp[]
+  // What their team earned them, and what their own selling earned somebody
+  // else. Two sides of the same table.
+  teamEarnings     AffiliateTeamEarning[] @relation("TeamEarner")
+  teamEarningsFrom AffiliateTeamEarning[] @relation("TeamEarningSource")
+
+  @@index([referredById])
+  @@index([registrationPaidAt])
 }
 
 model AffiliatePayout {
@@ -376,7 +455,8 @@ model AffiliatePayout {
   // The commission lines this payout settles. A payout is the sum of named
   // lines rather than a number typed against a balance, so what was paid for
   // can always be shown.
-  commissions AffiliateCommission[]
+  commissions  AffiliateCommission[]
+  teamEarnings AffiliateTeamEarning[]
 
   @@index([affiliateId])
   @@index([status])
@@ -1410,10 +1490,170 @@ model AffiliateApplication {
    */
   affiliateId  String?
 
+  // --- Who recruited them, and what they were quoted ------------------------
+  /**
+   * /**
+   * The referral code the application arrived with, exactly as typed, and the
+   * affiliate it resolved to. Kept separately because a code that resolved to
+   * nobody is still worth seeing: it is usually a recruiter spelling their own
+   * code wrong on a flyer.
+   */
+  referralCode String  @default("")
+  referredById String?
+  /**
+   * The admin registration link it came through, if any.
+   */
+  inviteId     String?
+
+  /**
+   * The registration fee as it was quoted to this applicant — the parts always
+   * add up to the gross. Quoted on the form and committed at approval, so what
+   * they were told is what they are charged.
+   */
+  feeGross         Float     @default(0)
+  feeWaiverPercent Float     @default(0)
+  feeWaived        Float     @default(0)
+  feeAmount        Float     @default(0)
+  feeReferrerShare Float     @default(0)
+  /**
+   * UPFRONT | COMMISSION | WAIVED.
+   */
+  feeMethod        String    @default("WAIVED")
+  /**
+   * none | pending | paid.
+   */
+  paymentStatus    String    @default("none")
+  feeReference     String?
+  feePaidAt        DateTime?
+
   createdAt DateTime @default(now())
 
   @@index([status, createdAt])
   @@index([userId])
+  @@index([referredById])
+}
+
+/**
+ * A registration link Nickimart issued itself.
+ * Not a referral: nobody recruited the person holding it, so nobody is owed a
+ * share of what they pay — Nickimart simply chose to charge them less, for a
+ * campus drive, a campaign, a partner's audience. The link is a price, so the
+ * rules that retire it (a cap, an expiry, a switch) matter as much as the
+ * discount it carries.
+ */
+model AffiliateInvite {
+  id    String @id @default(cuid())
+  /**
+   * The token in the URL: /become-an-affiliate?invite=<code>.
+   */
+  code  String @unique
+  /**
+   * What this link is for, in the admin's own words.
+   */
+  label String @default("")
+
+  /**
+   * How much of the registration fee it takes off, 0–100. 100 waives it.
+   */
+  waiverPercent Float @default(0)
+
+  /**
+   * How many registrations it may open. 0 is unlimited.
+   */
+  maxUses   Int @default(0)
+  usedCount Int @default(0)
+
+  expiresAt DateTime?
+  isActive  Boolean   @default(true)
+
+  /**
+   * The `User.id` of the admin who issued it, for the audit trail.
+   */
+  createdBy String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, createdAt])
+}
+
+/**
+ * What somebody's team earned them.
+ * Two things, because they are the same promise made twice: a share of what a
+ * recruit's own selling earned, and a one-off reward for bringing them in at
+ * all. Both are money owed to an affiliate for somebody else's activity, both
+ * are paid by the same payout, and both have to survive the sale behind them
+ * being refunded — so they are one table with a kind rather than two tables
+ * that would have to be summed together everywhere anyway.
+ * `dedupeKey` is what makes every caller safe to run twice. A delivery
+ * notification that arrives three times, a nightly sweep and an admin saving a
+ * status again all try to credit the same line, and all but the first fail on
+ * the unique index instead of paying an affiliate three times.
+ */
+model AffiliateTeamEarning {
+  id String @id @default(cuid())
+
+  /**
+   * Who earns it — the upline.
+   */
+  affiliateId       String
+  affiliate         Affiliate  @relation("TeamEarner", fields: [affiliateId], references: [id], onDelete: Cascade)
+  /**
+   * Whose activity earned it. Null only once that account is deleted.
+   */
+  sourceAffiliateId String?
+  sourceAffiliate   Affiliate? @relation("TeamEarningSource", fields: [sourceAffiliateId], references: [id], onDelete: SetNull)
+
+  /**
+   * team_sale | recruit_joined
+   */
+  kind  String @default("team_sale")
+  /**
+   * 1 for a direct recruit, 2 for their recruit.
+   */
+  level Int    @default(1)
+
+  /**
+   * The recruit's own commission this was a share of, on a team sale.
+   */
+  commissionId String?
+  commission   AffiliateCommission? @relation(fields: [commissionId], references: [id], onDelete: Cascade)
+  orderId      String?
+
+  /**
+   * What the percentage was applied to, the percentage, and the result.
+   */
+  baseAmount Float  @default(0)
+  rate       Float  @default(0)
+  amount     Float  @default(0)
+  narration  String @default("")
+
+  /**
+   * pending | clearing | cleared | paid | reversed
+   */
+  status         String    @default("pending")
+  holdUntil      DateTime?
+  clearedAt      DateTime?
+  reversedAt     DateTime?
+  reversedAmount Float     @default(0)
+  reversalReason String    @default("")
+
+  payoutId String?
+  payout   AffiliatePayout? @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+
+  /**
+   * One credit per thing credited. See the note above.
+   */
+  dedupeKey String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([affiliateId, status])
+  @@index([sourceAffiliateId])
+  @@index([commissionId])
+  @@index([payoutId])
+  @@index([createdAt])
 }
 
 /**
@@ -1591,7 +1831,9 @@ model AffiliateCommission {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  adjustments AffiliateAdjustment[]
+  adjustments  AffiliateAdjustment[]
+  // The upline's share of this line, when the seller has a recruiter.
+  teamEarnings AffiliateTeamEarning[]
 
   @@index([affiliateId, status])
   @@index([orderId])

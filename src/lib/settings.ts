@@ -132,6 +132,49 @@ export const SETTINGS_DEFAULTS = {
   // The photograph itself is never otherwise touched — no frame, no lettering —
   // so this mark is the only thing that travels with it.
   affiliateWatermark: "",
+  // --- Affiliate registration and referrals --------------------------------
+  // What it costs to join the affiliate programme (GH₵). "0" — the default —
+  // is a programme anybody may join for nothing, which is what it has always
+  // been; set it and the signup form starts quoting and collecting it.
+  affiliateRegistrationFee: "0",
+  // How that fee may be settled: "UPFRONT" (paid before the account opens),
+  // "COMMISSION" (owed, and cleared out of the first commissions they earn) or
+  // "BOTH" (the applicant chooses).
+  affiliateRegistrationPaymentMode: "BOTH",
+  // Master switch for affiliates recruiting each other. "0" hides the team
+  // screens and stops new team earnings; what was already earned stays earned.
+  affiliateReferralEnabled: "1",
+  // GH₵ paid to a recruiter once the person they brought in has actually paid
+  // their registration fee, and to that recruiter's own recruiter. A waived
+  // fee pays nobody unless affiliateReferralFullWaiverPaysReward says so.
+  affiliateReferralLevel1Reward: "0",
+  affiliateReferralLevel2Reward: "0",
+  affiliateReferralLevel2Enabled: "0",
+  // Percentage of a recruit's own commission credited to their upline, one
+  // level up and two. This is a share of the commission, never of the sale:
+  // the commission is already a percentage of the sale.
+  affiliateTeamPercentLevel1: "10",
+  affiliateTeamPercentLevel2: "0",
+  // A recruit's commission below this earns their upline nothing. "0" counts
+  // every sale.
+  affiliateReferralMinCommission: "0",
+  // The registration waiver a recruited applicant gets when their recruiter
+  // has no waiver of their own, and the percentage of what they do pay that is
+  // credited back to that recruiter.
+  affiliateReferralWaiverPercent: "0",
+  affiliateReferrerSharePercent: "0",
+  // Whether a registration waived in full still pays the joining reward. Off:
+  // a reward for a registration nobody paid for is how invented recruits
+  // become profitable.
+  affiliateReferralFullWaiverPaysReward: "0",
+  // The headline on the team screens and the recruitment pitch.
+  affiliateReferralPitch:
+    "Build a team. Earn from every sale they make, on top of your own.",
+  // --- Seller registration -------------------------------------------------
+  // What it costs to open a shop (GH₵). "0" — the default — is the free
+  // registration Nickimart has always offered; set it and the shop
+  // registration form quotes and collects it before the shop opens.
+  vendorRegistrationFee: "0",
   // How staff (sellers, freight, pickup, admins) are alerted about orders and
   // jobs: "sms" | "email" | "both". Buyers are always alerted on both channels.
   staffNotifyChannel: "both",
