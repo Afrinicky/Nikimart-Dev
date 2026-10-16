@@ -14,7 +14,7 @@ import type {
   Vendor,
   VerificationStatus,
 } from "@/lib/types";
-import { ABROAD_TYPES, isAbroadType } from "@/lib/abroad";
+import { ABROAD_TYPES, isAbroadType, publicAbroadInfo } from "@/lib/abroad";
 import type {
   Prisma,
   Product as PrismaProduct,
@@ -76,10 +76,29 @@ export function mapVendor(v: PrismaVendor): Vendor {
   };
 }
 
+/**
+ * A database row as a Product.
+ *
+ * Public by default, and that is the important part. Where a seller buys a
+ * listing, who from and how that supplier is reached are the seller's
+ * business: handing them to a shopper hands over the margin and invites the
+ * shop to be cut out of its own sale. They are stripped here, at the one place
+ * every storefront read passes through, so a screen written next year cannot
+ * print them by accident — it will not have them.
+ *
+ * The two screens that may see them — the admin's product form and a seller
+ * editing their own listing — ask for them explicitly. An opt-in is a line a
+ * reviewer can see; an opt-out is one nobody notices is missing.
+ */
 export function mapProduct(
   p: PrismaProduct & { images?: { url: string }[]; vendor?: { originCountry: string } | null },
+  options: { includeSourcing?: boolean } = {},
 ): Product {
   const gallery = (p.images ?? []).map((i) => i.url);
+  const sourcing = options.includeSourcing === true;
+  const terms = p.preorderInfo
+    ? parseJSON<AbroadInfo | undefined>(p.preorderInfo, undefined)
+    : undefined;
   return {
     id: p.id,
     slug: p.slug,
@@ -115,8 +134,9 @@ export function mapProduct(
     // dropshipping from Guangzhou has a GH vendor and a CN product; reading the
     // vendor alone showed every such listing as local.
     originCountry: p.originCountry || p.vendor?.originCountry || "GH",
-    sourceUrl: p.sourceUrl || undefined,
-    supplierName: p.supplierName || undefined,
+    sourceUrl: sourcing ? p.sourceUrl || undefined : undefined,
+    supplierName: sourcing ? p.supplierName || undefined : undefined,
+    supplierContact: sourcing ? p.supplierContact || undefined : undefined,
     freightMode: p.freightMode || undefined,
     arrivalPointId: p.arrivalPointId ?? null,
     freightIncluded: p.supplierDelivers,
@@ -129,7 +149,9 @@ export function mapProduct(
     affiliateEnrolledBy: p.affiliateEnrolledBy,
     affiliateCommissionRate: p.affiliateCommissionRate ?? null,
     isArchived: p.isArchived,
-    preorderInfo: p.preorderInfo ? parseJSON<AbroadInfo | undefined>(p.preorderInfo, undefined) : undefined,
+    // The terms carry the sourcing fields in their JSON too, so the blob is
+    // cleaned rather than only the columns beside it.
+    preorderInfo: terms ? (sourcing ? terms : publicAbroadInfo(terms)) : undefined,
     serviceInfo: p.serviceInfo ? parseJSON<ServiceInfo | undefined>(p.serviceInfo, undefined) : undefined,
   };
 }
@@ -352,7 +374,7 @@ export const getAffiliateProducts = cache(async (): Promise<Product[]> => {
       orderBy: { name: "asc" },
       include: { images: { orderBy: { order: "asc" } }, vendor: { select: { originCountry: true } } },
     });
-    return rows.map(mapProduct);
+    return rows.map((row) => mapProduct(row));
   } catch {
     return [];
   }

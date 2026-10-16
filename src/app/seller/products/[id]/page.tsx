@@ -40,7 +40,9 @@ export default async function EditSellerProductPage({ params }: { params: Params
   });
   if (!row || row.vendorId !== vendor.id) notFound();
 
-  const product = mapProduct(row);
+  // The seller owns this listing (checked above), so their own sourcing —
+  // where they buy it and from whom — comes back with it.
+  const product = mapProduct(row, { includeSourcing: true });
   const action = updateSellerProduct.bind(null, id);
 
   return (

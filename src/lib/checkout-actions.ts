@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { freightModeLabel, type AbroadTerms } from "@/lib/abroad";
+import { freightModeLabel, publicAbroadTerms, type AbroadTerms } from "@/lib/abroad";
 import { describePoint, describeTransit } from "@/lib/shipping";
 import { getConsolidationPointMap } from "@/lib/shipping-config";
 import { priceCartAtPoints } from "@/lib/cart-pricing";
@@ -137,7 +137,10 @@ export async function quoteCart(input: {
         productId: l.productId,
         name: l.name,
         quantity: l.quantity,
-        terms: l.terms!,
+        // Stripped of where the seller buys it and from whom: the buyer is
+        // owed the route, the wait and the refund policy, not the shop's
+        // supplier. This is the browser's copy, so it is the one that matters.
+        terms: publicAbroadTerms(l.terms!),
         pointName: l.point ? describePoint(l.point) : "",
         freightModeLabel: freightModeLabel(l.route?.mode),
         routeLabel: l.route?.name || "",

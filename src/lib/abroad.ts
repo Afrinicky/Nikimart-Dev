@@ -191,6 +191,41 @@ export function parseAbroadTerms(raw: string | null | undefined): AbroadTerms | 
   return hasAnyTerms(terms) ? terms : null;
 }
 
+/**
+ * The three things on a listing that are the seller's business and nobody
+ * else's: where they buy it, who from, and how that supplier is reached.
+ *
+ * Named once, here, because the leak this prevents is not any one screen
+ * printing them — it is a new screen being written later by somebody who did
+ * not know they were in the object they were handed.
+ */
+export const SOURCING_FIELDS = ["sourceUrl", "supplierName", "supplierContact"] as const;
+
+/**
+ * The terms as a buyer may see them.
+ *
+ * A shopper is owed everything about what they are buying and when it arrives:
+ * where it ships from, the route, the wait, the refund policy. They are not
+ * owed the seller's supplier — handing a buyer the Alibaba listing and the
+ * supplier's WhatsApp number hands them the seller's margin and invites them
+ * to cut the shop out of its own sale. It is also the supplier's contact
+ * detail, which was never the buyer's to have.
+ *
+ * Applied at the boundary rather than at each render site: a screen that
+ * forgets to leave a field out is a leak, and a field that never arrives
+ * cannot be printed by accident.
+ */
+export function publicAbroadTerms(terms: AbroadTerms): AbroadTerms {
+  return { ...terms, sourceUrl: "", supplierName: "", supplierContact: "" };
+}
+
+/** The same, for the loose JSON shape the storefront reads off the column. */
+export function publicAbroadInfo<T extends object>(info: T): T {
+  const clean = { ...(info as Record<string, unknown>) };
+  for (const field of SOURCING_FIELDS) delete clean[field];
+  return clean as T;
+}
+
 /** True when at least one term says something a buyer could act on. */
 export function hasAnyTerms(terms: AbroadTerms): boolean {
   return Boolean(

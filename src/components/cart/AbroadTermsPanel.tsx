@@ -4,12 +4,10 @@ import {
   Anchor,
   CalendarClock,
   Check,
-  ExternalLink,
   MapPin,
   Plane,
   RotateCcw,
   Route,
-  Store,
   Users,
 } from "lucide-react";
 import type { CartAbroadItem } from "@/lib/checkout-actions";
@@ -65,7 +63,6 @@ export function AbroadTermsPanel({
             </p>
             <dl className="mt-2 space-y-1.5 text-sm text-niki-ink/75">
               <Term icon={MapPin} label="Ships from" value={item.terms.sourceLocation} />
-              <Term icon={Store} label="Supplier" value={item.terms.supplierName} />
               <Term icon={Plane} label="Freight method" value={item.freightModeLabel} />
               <Term icon={Route} label="Route" value={item.routeLabel} />
               <Term icon={Anchor} label="Gathered at" value={item.pointName} />
@@ -95,20 +92,13 @@ export function AbroadTermsPanel({
                 />
               ) : null}
             </dl>
-            {item.terms.sourceUrl ? (
-              // The supplier listing, so a buyer can see the same item the
-              // seller is buying. rel=noopener because it is a URL a seller
-              // typed, and it opens in the buyer's browser.
-              <a
-                href={item.terms.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer nofollow"
-                className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-niki-orange hover:underline"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                View the supplier&apos;s listing
-              </a>
-            ) : null}
+            {/*
+              No supplier and no link to their listing. A buyer is owed where
+              it ships from, the route, the wait and the refund policy; who the
+              shop buys from is the shop's business, and a link to it is an
+              invitation to buy around them. The server does not send either
+              one here — see publicAbroadTerms.
+            */}
           </li>
         ))}
       </ul>

@@ -266,20 +266,78 @@ export const FLYER_ALIGNMENTS = [
 export type FlyerAlign = (typeof FLYER_ALIGNMENTS)[number]["key"];
 
 /**
+ * Where an added feature's words come from.
+ *
+ * "custom" is somebody's own wording. Everything else is one of the flyer's
+ * own facts — the price, the name, the link — which is what makes a feature
+ * something you can have twice. A second price tag is not a copy of the first
+ * one's text frozen at the moment it was added; it is the price, drawn again
+ * somewhere else, and it follows the product like the original does.
+ */
+export const FLYER_SOURCES = [
+  { key: "custom", label: "Your own words" },
+  ...FLYER_TEXT_KEYS.map((key) => ({ key, label: FLYER_TEXT_LABELS[key] })),
+] as const;
+
+export type FlyerSource = "custom" | FlyerTextKey;
+
+export function isFlyerSource(value: unknown): value is FlyerSource {
+  return typeof value === "string" && FLYER_SOURCES.some((s) => s.key === value);
+}
+
+/** What one source actually says for this product. */
+export function flyerContent(
+  source: FlyerSource,
+  data: ProductFlyerData,
+  design: FlyerDesign,
+): string {
+  switch (source) {
+    case "shop":
+      return data.shopName;
+    case "category":
+      return data.categoryName;
+    case "badge":
+      return design.badge.label;
+    case "discount":
+      return data.discount ?? "";
+    case "name":
+      return data.name;
+    case "price":
+      return data.price;
+    case "oldPrice":
+      return data.oldPrice ?? "";
+    case "message":
+      return data.message;
+    case "footerLabel":
+      return "Order on Nickimart";
+    case "link":
+      return data.link;
+    case "sharedBy":
+      return data.sharedBy ? `Shared by ${data.sharedBy}` : "Pay on delivery options available";
+    default:
+      return "";
+  }
+}
+
+/**
  * Something the designer added themselves.
  *
- * The eleven elements the flyer is made of can each be switched off, which
- * covers taking a feature away. This covers putting one on: a line of your
- * own — "FREE DELIVERY IN ACCRA", "CALL 024…", a shop's slogan — in one of
- * four slots, with or without a pill behind it.
+ * This is how a flyer gets a feature it does not already have, or a second one
+ * of a feature it does. Each of the eleven built-in elements can be deleted,
+ * and anything deleted — or anything wanted twice — comes back through here:
+ * a line in one of four slots, drawing either its own words or one of the
+ * flyer's facts, with or without a pill behind it.
  *
  * Slots rather than coordinates for the same reason the rest of the layout
  * flows: somebody should be able to make the flyer theirs without being able
- * to make one with the price underneath the footer.
+ * to make one with the price underneath the footer. A nudge moves it from
+ * there, bounded, which is what a drag writes.
  */
 export interface FlyerExtra {
   /** Stable across edits, so the editor can keep a row's focus. */
   id: string;
+  /** Where its words come from. "custom" uses `text`. */
+  source: FlyerSource;
   text: string;
   slot: FlyerSlot;
   align: FlyerAlign;
@@ -288,8 +346,23 @@ export interface FlyerExtra {
   style: FlyerTextStyle;
 }
 
-/** More than this and the flyer is a leaflet. */
-export const MAX_FLYER_EXTRAS = 4;
+/** The words one added feature draws. */
+export function extraWords(
+  extra: FlyerExtra,
+  data: ProductFlyerData,
+  design: FlyerDesign,
+): string {
+  return extra.source === "custom" ? extra.text : flyerContent(extra.source, data, design);
+}
+
+/**
+ * More than this and the flyer is a leaflet.
+ *
+ * Higher than it was, because added features are no longer only somebody's own
+ * slogans: deleting a built-in and putting it back, or wanting two prices, now
+ * spends one of these each.
+ */
+export const MAX_FLYER_EXTRAS = 12;
 
 export interface FlyerDesign {
   /** The colourway everything inherits from. */
@@ -315,6 +388,8 @@ export interface FlyerDesign {
   };
   /** The bar along the bottom that carries the link. */
   footer: {
+    /** The bar itself. Its lettering is switched off separately. */
+    visible: boolean;
     height: number;
     radius: number;
     /** Distance from the bottom of the flyer to the bottom of the bar. */
@@ -361,7 +436,7 @@ export const DEFAULT_FLYER_DESIGN: FlyerDesign = {
     discount: "#dc2626",
   },
   frame: { top: 140, side: 48, height: 700, radius: 32 },
-  footer: { height: 104, radius: 32, bottom: 92 },
+  footer: { visible: true, height: 104, radius: 32, bottom: 92 },
   badge: { label: "NICKIMART", radius: 26 },
   pricePill: true,
   text: {
@@ -381,14 +456,25 @@ export const DEFAULT_FLYER_DESIGN: FlyerDesign = {
 };
 
 /** A new added line, ready for the editor to hand to somebody. */
-export function newFlyerExtra(id: string): FlyerExtra {
+/**
+ * A feature to drop on the flyer.
+ *
+ * Its own words by default, because that is what somebody reaches for first.
+ * Given a source it draws one of the flyer's facts instead, which is how a
+ * deleted price tag comes back — and how a second one appears beside it.
+ */
+export function newFlyerExtra(id: string, source: FlyerSource = "custom"): FlyerExtra {
+  const builtIn = source !== "custom";
   return {
     id,
-    text: "Free delivery in Accra",
+    source,
+    text: builtIn ? "" : "Free delivery in Accra",
     slot: "underImage",
     align: "left",
     background: "",
-    style: style(28, 700),
+    // A fact borrowed from elsewhere on the flyer starts at that element's own
+    // size, so a second price tag looks like a price tag rather than a caption.
+    style: builtIn ? { ...DEFAULT_FLYER_DESIGN.text[source] } : style(28, 700),
   };
 }
 
@@ -491,6 +577,7 @@ export function resolveFlyerDesign(
       radius: clamp(frame.radius, 0, 160, fallback.frame.radius),
     },
     footer: {
+      visible: boolean(footer.visible, fallback.footer.visible),
       height: clamp(footer.height, 48, 220, fallback.footer.height),
       radius: clamp(footer.radius, 0, 110, fallback.footer.radius),
       bottom: clamp(footer.bottom, 16, 300, fallback.footer.bottom),
@@ -518,13 +605,16 @@ export function resolveFlyerDesign(
       .slice(0, MAX_FLYER_EXTRAS)
       .map((e, i) => ({
         id: typeof e.id === "string" && e.id ? e.id.slice(0, 24) : `extra-${i}`,
+        source: isFlyerSource(e.source) ? e.source : "custom",
         text: typeof e.text === "string" ? e.text.slice(0, 80) : "",
         slot: FLYER_SLOTS.some((sl) => sl.key === e.slot) ? (e.slot as FlyerSlot) : "underImage",
         align: FLYER_ALIGNMENTS.some((a) => a.key === e.align) ? (e.align as FlyerAlign) : "left",
         background: colour(e.background, ""),
         style: resolveStyle(e.style, style(28, 700)),
       }))
-      .filter((e) => e.text.trim() !== "");
+      // An empty line of somebody's own is a line they abandoned. One that
+      // draws a fact has nothing to type, so it is kept on its source alone.
+      .filter((e) => e.source !== "custom" || e.text.trim() !== "");
   } else {
     resolved.extras = fallback.extras;
   }
@@ -575,9 +665,9 @@ export type SourceRect = Rect;
  * itself from ever disagreeing.
  */
 export interface FlyerHit {
-  /** Unique within one draw. "text:price", "extra:x1", "frame". */
+  /** Unique within one draw. "text:price", "extra:x1", "frame", "bar". */
   id: string;
-  kind: "text" | "extra" | "frame";
+  kind: "text" | "extra" | "frame" | "bar";
   /** Set when kind is "text". */
   key?: FlyerTextKey;
   /** Set when kind is "extra". */
@@ -761,10 +851,11 @@ function drawExtra(
   extra: FlyerExtra,
   box: { left: number; width: number; y: number },
   theme: ProductFlyerTheme,
+  content: { data: ProductFlyerData; design: FlyerDesign },
   /** Called with where it landed, so the editor can let a finger find it. */
   report?: (rect: Rect) => void,
 ): number {
-  const text = cased(extra.text, extra.style);
+  const text = cased(extraWords(extra, content.data, content.design), extra.style);
   if (!extra.style.visible || !text.trim()) return 0;
 
   ctx.font = fontFor(extra.style);
@@ -895,8 +986,13 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
   // Anything the designer added under the header.
   let headerY = 128;
   for (const extra of design.extras.filter((e) => e.slot === "header")) {
-    headerY += drawExtra(ctx, extra, { left: margin, width: contentWidth, y: headerY }, theme, (rect) =>
-      record(extraHit(extra, rect)),
+    headerY += drawExtra(
+      ctx,
+      extra,
+      { left: margin, width: contentWidth, y: headerY },
+      theme,
+      { data, design },
+      (rect) => record(extraHit(extra, rect, data, design)),
     );
   }
 
@@ -987,8 +1083,13 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
     for (const extra of [...onImage].reverse()) {
       const height = extra.style.size + (extra.background ? 24 : 8) + 12;
       stickerY -= height;
-      drawExtra(ctx, extra, { left: cardX + 24, width: cardW - 48, y: stickerY }, theme, (rect) =>
-        record(extraHit(extra, rect)),
+      drawExtra(
+        ctx,
+        extra,
+        { left: cardX + 24, width: cardW - 48, y: stickerY },
+        theme,
+        { data, design },
+        (rect) => record(extraHit(extra, rect, data, design)),
       );
     }
   }
@@ -999,8 +1100,13 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
 
   // Added lines between the picture and the name.
   for (const extra of design.extras.filter((e) => e.slot === "underImage")) {
-    cursor += drawExtra(ctx, extra, { left: margin, width: contentWidth, y: cursor }, theme, (rect) =>
-      record(extraHit(extra, rect)),
+    cursor += drawExtra(
+      ctx,
+      extra,
+      { left: margin, width: contentWidth, y: cursor },
+      theme,
+      { data, design },
+      (rect) => record(extraHit(extra, rect, data, design)),
     );
   }
   ctx.textBaseline = "middle";
@@ -1130,8 +1236,13 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
     for (const extra of [...aboveFooter].reverse()) {
       const height = extra.style.size + (extra.background ? 24 : 8) + 12;
       footerExtraY -= height;
-      drawExtra(ctx, extra, { left: margin, width: contentWidth, y: footerExtraY }, theme, (rect) =>
-        record(extraHit(extra, rect)),
+      drawExtra(
+        ctx,
+        extra,
+        { left: margin, width: contentWidth, y: footerExtraY },
+        theme,
+        { data, design },
+        (rect) => record(extraHit(extra, rect, data, design)),
       );
     }
   }
@@ -1139,9 +1250,21 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
   // --- Footer: where to buy it ---------------------------------------------
   ctx.textBaseline = "middle";
   const barHeight = design.footer.height;
-  ctx.fillStyle = theme.accent;
-  roundRect(ctx, margin, footerTop, contentWidth, barHeight, design.footer.radius);
-  ctx.fill();
+  if (design.footer.visible) {
+    ctx.fillStyle = theme.accent;
+    roundRect(ctx, margin, footerTop, contentWidth, barHeight, design.footer.radius);
+    ctx.fill();
+    // Recorded before the lettering that sits on it, so a tap on a word gets
+    // the word and a tap on the bar gets the bar.
+    record({
+      id: "bar",
+      kind: "bar",
+      label: "The link bar",
+      rect: { x: margin, y: footerTop, width: contentWidth, height: barHeight },
+      movable: true,
+      resizable: true,
+    });
+  }
 
   ctx.textAlign = "center";
   const labelStyle = design.text.footerLabel;
@@ -1196,13 +1319,24 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
   }
 }
 
-/** One added line's box, named so the editor can show what it is. */
-function extraHit(extra: FlyerExtra, rect: Rect): FlyerHit {
+/** One added feature's box, named so the editor can show what it is. */
+function extraHit(
+  extra: FlyerExtra,
+  rect: Rect,
+  data: ProductFlyerData,
+  design: FlyerDesign,
+): FlyerHit {
+  const words = extraWords(extra, data, design).trim();
   return {
     id: `extra:${extra.id}`,
     kind: "extra",
     extraId: extra.id,
-    label: extra.text.trim() ? extra.text.trim().slice(0, 24) : "Your line",
+    // A borrowed fact is named for what it is, not for what it happens to say
+    // today: "Price" stays "Price" when the product changes.
+    label:
+      extra.source === "custom"
+        ? words.slice(0, 24) || "Your line"
+        : FLYER_TEXT_LABELS[extra.source],
     rect,
     movable: true,
     resizable: true,
@@ -1244,53 +1378,13 @@ export function productFlyerShareText(input: ShareTextInput): string {
 }
 
 /**
- * The most products one share can carry.
+ * The most products one batch can carry.
  *
- * Ten is what a share sheet will accept as files on the platforms that take
- * files at all, and roughly what a WhatsApp message can list before it is a
- * catalogue somebody scrolls past.
+ * Each one is posted separately, so the limit is no longer what a share sheet
+ * will take in one go — it is how many posts somebody will actually stand
+ * there and tap through before abandoning the rest half-shared.
  */
 export const MAX_BULK_SHARE = 10;
-
-export interface BulkShareItem {
-  name: string;
-  price: string;
-  link: string;
-}
-
-/**
- * The message that carries several products at once.
- *
- * A numbered list rather than a wall of links, because what arrives in WhatsApp
- * is read on a phone and the thing somebody taps has to be attached to a name
- * and a price. The caption leads, once, rather than repeating per product —
- * five copies of "genuine goods, nationwide delivery" is how a post gets
- * scrolled past.
- */
-export function bulkShareText(items: BulkShareItem[], caption: string): string {
-  const live = items.filter((i) => i.link);
-  if (live.length === 0) return caption.trim();
-  if (live.length === 1) {
-    return productFlyerShareText({
-      productName: live[0].name,
-      price: live[0].price,
-      shopName: "",
-      link: live[0].link,
-      template: caption,
-    });
-  }
-
-  const lines = [`*${live.length} picks from Nickimart* 🛍️`];
-  const intro = caption.trim();
-  if (intro) lines.push("", intro);
-  lines.push("");
-  live.forEach((item, i) => {
-    lines.push(`${i + 1}. *${item.name}* — ${item.price}`);
-    lines.push(item.link);
-    if (i < live.length - 1) lines.push("");
-  });
-  return lines.join("\n");
-}
 
 /** The filename a saved flyer gets. */
 export function flyerFileName(productName: string): string {

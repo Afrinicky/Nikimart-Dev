@@ -304,19 +304,12 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
                     ? "You can pay for the item now and settle the shipping when you collect. "
                     : ""}
                   You&apos;ll see the price and the shipping to your station at checkout.
-                  {abroadTerms.sourceUrl ? (
-                    <>
-                      {" "}
-                      <a
-                        href={abroadTerms.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer nofollow"
-                        className="font-semibold text-niki-orange hover:underline"
-                      >
-                        View the supplier&apos;s listing
-                      </a>
-                    </>
-                  ) : null}
+                  {/*
+                    No link to the seller's own supplier. It used to sit here,
+                    which handed every shopper the listing the shop buys from
+                    and the margin along with it. The terms the server sends to
+                    this page no longer carry it — see publicAbroadTerms.
+                  */}
                 </p>
               </div>
             ) : null}
