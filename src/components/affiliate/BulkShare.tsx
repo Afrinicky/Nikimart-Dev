@@ -20,9 +20,8 @@ import {
 } from "lucide-react";
 import {
   MAX_BULK_SHARE,
-  batchShareText,
+  bulkShareText,
   flyerFileName,
-  productFlyerShareText,
   type FlyerDesign,
   type ProductFlyerData,
 } from "@/lib/affiliate-flyer";
@@ -43,21 +42,12 @@ import { cn } from "@/lib/cn";
 /**
  * Sharing several products at once.
  *
- * An affiliate posting to a status rarely posts one thing, so this gathers a
- * selection as somebody browses, mints a link for anything not already on
- * their list, builds every image, and hands the lot to the share sheet in one
- * go. One tap, every product.
- *
- * What makes that safe is where each product's link lives. A share sheet takes
- * many files and exactly one message, so anything product-specific in that
- * message lands under every picture — which is how product A's status came to
- * carry product B's link. The message now names no product at all, and each
- * picture carries its own: the flyer prints the link and the caption on itself,
- * and a photograph, which is deliberately unlettered, gets its link stamped
- * under the watermark when it travels in a batch.
- *
- * A single product keeps the message it always had. There is no other picture
- * for it to be wrong about.
+ * An affiliate posting to a status rarely posts one thing. Doing it a product
+ * at a time means opening the share sheet five times and five separate
+ * messages arriving out of order — so this gathers a selection as somebody
+ * browses, mints a link for anything not already on their list, builds every
+ * image, and hands the lot to the device's share sheet with one message that
+ * numbers them.
  *
  * The selection lives in React rather than the query string on purpose: it is
  * a scratch pad, not an address, and a link that restores somebody else's
@@ -230,20 +220,6 @@ export function BulkShareBar({
     return { data, design, watermark, image, logo };
   }
 
-  /**
-   * Build every picture and hand the lot over in one share sheet.
-   *
-   * One tap, one sheet, every product — which is what posting a set of status
-   * updates should cost. What makes that safe is that nothing product-specific
-   * rides in the message: a share sheet carries one message for every file in
-   * it, so a name or a link in there would land under all of them, and product
-   * A's post would carry product B's link.
-   *
-   * So each picture carries its own. The flyer prints the link and the caption
-   * on itself already; a photograph gets its link stamped under the watermark
-   * for a batch, because the message cannot say it per picture. The message
-   * that goes with the batch names no product at all.
-   */
   async function shareAll() {
     setBusy(true);
     setNote(null);
@@ -257,70 +233,55 @@ export function BulkShareBar({
       ).catch(() => ({}));
       const logo = watermark.logo.enabled && logoUrl ? await loadShareImage(logoUrl) : null;
 
+      const items: { name: string; price: string; link: string }[] = [];
       const files: File[] = [];
-      const saved: { blob: Blob; name: string }[] = [];
-      const batch = products.length > 1;
+      const blobs: { blob: Blob; name: string }[] = [];
 
       for (const product of products) {
         const code = codes[product.id] ?? product.linkCode;
         const link = code ? `${linkBase}/${code}` : storeLink;
+        items.push({ name: product.name, price: product.price, link });
 
         const image = await loadShareImage(product.image);
-        const piece = { ...pieceFor(product, link, image, logo), stampLink: batch };
+        const piece = pieceFor(product, link, image, logo);
         const fileName =
           mode === "flyer" ? flyerFileName(product.name) : photoFileName(product.name);
 
         const file = await buildShareFile(mode, piece, fileName);
         if (file) {
           files.push(file);
-          saved.push({ blob: file, name: fileName });
+          blobs.push({ blob: file, name: fileName });
         }
       }
 
-      if (files.length === 0) {
-        setNote("Couldn't build the images. Try a few at a time.");
-        setBusy(false);
-        return;
-      }
+      const text = bulkShareText(items, caption);
 
-      // One product on its own keeps the message it has always had: there is
-      // no other picture for it to be wrong about.
-      const text = batch
-        ? batchShareText(caption)
-        : productFlyerShareText({
-            productName: products[0].name,
-            price: products[0].price,
-            shopName: products[0].shopName,
-            link: codes[products[0].id] ?? products[0].linkCode
-              ? `${linkBase}/${codes[products[0].id] ?? products[0].linkCode}`
-              : storeLink,
-            template: caption,
-          });
-
-      const payload = { files, text, title: batch ? `${files.length} picks from Nickimart` : products[0].name };
-      if (typeof navigator !== "undefined" && "canShare" in navigator && navigator.canShare?.(payload)) {
-        await navigator.share(payload);
-        void recordBulkShare(products.map((p) => p.id)).catch(() => {});
-        picks.clear();
-        setNote(null);
-        setBusy(false);
-        return;
+      if (files.length > 0 && typeof navigator !== "undefined" && "canShare" in navigator) {
+        const payload = { files, text, title: `${count} picks from Nickimart` };
+        if (navigator.canShare?.(payload)) {
+          await navigator.share(payload);
+          setBusy(false);
+          void recordBulkShare(products.map((p) => p.id)).catch(() => {});
+          picks.clear();
+          return;
+        }
       }
 
       // No file sharing here: save every image and open WhatsApp with the
-      // message, which is the two steps a desktop browser can manage. The
-      // links are on the pictures either way.
-      for (const item of saved) saveBlob(item.blob, item.name);
+      // message, which is the two steps a desktop browser can manage.
+      for (const item of blobs) saveBlob(item.blob, item.name);
       window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
       void recordBulkShare(products.map((p) => p.id)).catch(() => {});
       setNote(
-        `${saved.length} ${saved.length === 1 ? "image" : "images"} saved — attach them to the WhatsApp message that just opened.`,
+        `${blobs.length} ${blobs.length === 1 ? "image" : "images"} saved — attach them to the WhatsApp message that just opened.`,
       );
     } catch (err) {
-      // A cancelled share is not a failure.
-      if ((err as Error)?.name !== "AbortError") {
-        setNote("Couldn't build the images. Try a few at a time.");
+      if ((err as Error)?.name === "AbortError") {
+        // A cancelled share is not a failure.
+        setBusy(false);
+        return;
       }
+      setNote("Couldn't build the images. Try a few at a time.");
     }
     setBusy(false);
   }
@@ -400,7 +361,7 @@ export function BulkShareBar({
           ) : (
             <MessageCircle className="h-3.5 w-3.5" />
           )}
-          Share all {count}
+          Share {count}
         </button>
 
         <button
@@ -418,12 +379,6 @@ export function BulkShareBar({
         {note ? (
           <p className="w-full rounded-xl bg-white/10 px-3 py-2 text-[11px] leading-relaxed text-white/75">
             {note}
-          </p>
-        ) : count > 1 ? (
-          <p className="w-full px-1 text-[11px] leading-relaxed text-white/45">
-            All {count} go out together, and each picture carries its own link —
-            {mode === "flyer" ? " printed on the flyer" : " under the watermark"} — so no post
-            sends buyers to the wrong product.
           </p>
         ) : null}
       </div>

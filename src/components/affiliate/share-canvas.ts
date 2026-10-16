@@ -77,16 +77,6 @@ export interface SharePiece {
   watermark: WatermarkConfig;
   image: FlyerImage | null;
   logo: FlyerImage | null;
-  /**
-   * Print the link on the photograph as well as in the message.
-   *
-   * The flyer always carries its own link; a photograph normally does not,
-   * because an unedited picture is the point of that mode. A batch is the
-   * exception: one share sheet carries one message for every picture in it, so
-   * a link that lives only in the message would be the wrong link on all but
-   * one of them.
-   */
-  stampLink?: boolean;
 }
 
 /** The pixel size a mode's canvas needs for this picture. */
@@ -126,7 +116,6 @@ export function drawShare(
     image: piece.image,
     watermark: piece.watermark,
     logo: piece.logo,
-    link: piece.stampLink ? piece.data.link : "",
     placeholder: {
       gradientFrom: piece.data.gradientFrom,
       gradientTo: piece.data.gradientTo,

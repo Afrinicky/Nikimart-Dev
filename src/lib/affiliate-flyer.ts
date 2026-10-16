@@ -1387,43 +1387,53 @@ export function productFlyerShareText(input: ShareTextInput): string {
 }
 
 /**
- * The one message that goes with a batch of pictures.
+ * The most products one share can carry.
  *
- * A share sheet takes many files and exactly one message. That is the whole
- * constraint: anything product-specific in it — a name, a price, a link —
- * would appear under every picture in the batch, so product A's post would
- * carry product B's link and the sale would go to the wrong post.
- *
- * So the message says nothing about any one product, and each product's own
- * link rides on its own picture instead: printed on the flyer, or beneath the
- * watermark on a photograph. The affiliate's caption is kept, with the
- * placeholders dropped — they have no single value here — and a caption that
- * was nothing but placeholders falls back to a line that at least says what
- * the pictures are.
+ * Ten is what a share sheet will accept as files on the platforms that take
+ * files at all, and roughly what a WhatsApp message can list before it is a
+ * catalogue somebody scrolls past.
  */
-export function batchShareText(caption: string): string {
-  const stripped = (caption || "")
-    .replace(/\{(product|price|link|shop|message)\}/g, "")
-    // A link typed into the caption by hand is as wrong here as a filled one.
-    .replace(/https?:\/\/\S+/g, "")
-    .replace(/[ \t]{2,}/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .split("\n")
-    .map((line) => line.trim())
-    .join("\n")
-    .trim();
+export const MAX_BULK_SHARE = 10;
 
-  return stripped || "Fresh picks on Nickimart — each picture has its own link on it.";
+export interface BulkShareItem {
+  name: string;
+  price: string;
+  link: string;
 }
 
 /**
- * The most products one batch can carry.
+ * The message that carries several products at once.
  *
- * Each one is posted separately, so the limit is no longer what a share sheet
- * will take in one go — it is how many posts somebody will actually stand
- * there and tap through before abandoning the rest half-shared.
+ * A numbered list rather than a wall of links, because what arrives in WhatsApp
+ * is read on a phone and the thing somebody taps has to be attached to a name
+ * and a price. The caption leads, once, rather than repeating per product —
+ * five copies of "genuine goods, nationwide delivery" is how a post gets
+ * scrolled past.
  */
-export const MAX_BULK_SHARE = 10;
+export function bulkShareText(items: BulkShareItem[], caption: string): string {
+  const live = items.filter((i) => i.link);
+  if (live.length === 0) return caption.trim();
+  if (live.length === 1) {
+    return productFlyerShareText({
+      productName: live[0].name,
+      price: live[0].price,
+      shopName: "",
+      link: live[0].link,
+      template: caption,
+    });
+  }
+
+  const lines = [`*${live.length} picks from Nickimart* 🛍️`];
+  const intro = caption.trim();
+  if (intro) lines.push("", intro);
+  lines.push("");
+  live.forEach((item, i) => {
+    lines.push(`${i + 1}. *${item.name}* — ${item.price}`);
+    lines.push(item.link);
+    if (i < live.length - 1) lines.push("");
+  });
+  return lines.join("\n");
+}
 
 /** The filename a saved flyer gets. */
 export function flyerFileName(productName: string): string {

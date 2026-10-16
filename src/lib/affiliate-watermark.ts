@@ -326,16 +326,6 @@ export interface PhotoShareOptions {
   /** The photograph. Null draws the listing's placeholder instead. */
   image: FlyerImage | null;
   watermark: WatermarkConfig;
-  /**
-   * This product's own link, printed under the mark.
-   *
-   * A photograph carries no lettering by design — that is what separates it
-   * from the flyer — and its link normally travels in the message beside it.
-   * In a batch there is one message for every picture, so a link in it would
-   * be the wrong link on all but one. Passing it here puts each product's link
-   * on its own picture, which is what makes a batch shareable in one go.
-   */
-  link?: string;
   /** The brand mark, already loaded. Ignored when the watermark omits it. */
   logo?: FlyerImage | null;
   /** The placeholder, for a listing with no photograph. */
@@ -446,36 +436,6 @@ export function drawWatermarkedPhoto(
     label: "The watermark",
     rect: { x: at.x, y: at.y, width: measured.width, height: textHeight },
   });
-
-  // --- This picture's own link ----------------------------------------------
-  const link = (options.link ?? "").trim();
-  if (!link) return;
-
-  const linkSize = Math.max(fontSize * 0.62, width * 0.022);
-  ctx.save();
-  // Flat out rather than at the mark's opacity: a watermark may be a ghost,
-  // but a link nobody can read is a link nobody can type.
-  ctx.globalAlpha = Math.max(watermark.opacity / 100, 0.9);
-  ctx.font = `600 ${linkSize}px ${fontStack(watermark.font)}`;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "top";
-  if (watermark.shadow) {
-    ctx.shadowColor = "rgba(0,0,0,0.6)";
-    ctx.shadowBlur = linkSize * 0.3;
-    ctx.shadowOffsetY = linkSize * 0.05;
-  }
-  ctx.fillStyle = watermark.color;
-
-  // Under the mark, and nudged back inside if the mark sits on the bottom edge.
-  const linkWidth = ctx.measureText(link).width;
-  const gap = linkSize * 0.45;
-  let linkX = at.x;
-  let linkY = at.y + textHeight + gap;
-  if (linkY + linkSize * 1.2 > height - pad) linkY = at.y - gap - linkSize * 1.2;
-  if (linkX + linkWidth > width - pad) linkX = Math.max(pad, width - pad - linkWidth);
-
-  ctx.fillText(link, linkX, linkY);
-  ctx.restore();
 }
 
 /** The filename a saved photograph gets. */
