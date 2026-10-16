@@ -75,9 +75,17 @@ export function PlaceGroupForm({
           forwarder has the parcel when they report it in.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
+          {state.purchaseId ? (
+            <ActionLink
+              href={`/admin/orders/placement/purchase/${state.purchaseId}`}
+              className="niki-press niki-focus rounded-full bg-niki-black px-5 py-2 text-sm font-semibold text-white"
+            >
+              Record what was paid
+            </ActionLink>
+          ) : null}
           <ActionLink
             href="/admin/orders/placement"
-            className="niki-press niki-focus rounded-full bg-niki-black px-5 py-2 text-sm font-semibold text-white"
+            className="niki-press niki-focus rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/65 ring-1 ring-niki-edge hover:bg-niki-black/5"
           >
             Back to the queue
           </ActionLink>

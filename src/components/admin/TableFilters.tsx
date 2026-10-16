@@ -107,6 +107,8 @@ export function TableFilters({
   pageCount,
   noun,
   exportHref,
+  queryKey = "q",
+  startOpen = true,
 }: {
   query: string;
   filters: TableFilter[];
@@ -123,11 +125,19 @@ export function TableFilters({
    * — which is the difference between a report and a database dump.
    */
   exportHref?: string;
+  /**
+   * The query-string key the search box writes. A parameter because the
+   * order-placement tab stacks two filtered tables on one screen, and two
+   * search boxes both writing `q` would filter each other.
+   */
+  queryKey?: string;
+  /** Whether the panel starts open. The secondary table on a screen starts shut. */
+  startOpen?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(startOpen);
   const [pending, startTransition] = useTransition();
 
   function go(patch: Record<string, string>) {
@@ -192,7 +202,7 @@ export function TableFilters({
               initial={query}
               placeholder={searchPlaceholder}
               label={searchLabel}
-              onSearch={(q) => go({ q })}
+              onSearch={(q) => go({ [queryKey]: q })}
             />
             {filters.map((f) => (
               <Select

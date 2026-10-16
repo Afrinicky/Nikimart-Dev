@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ClipboardList, ListOrdered } from "lucide-react";
+import { ClipboardList, ListOrdered, Radar } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { cn } from "@/lib/cn";
 
@@ -31,6 +31,12 @@ const TABS = [
     icon: ClipboardList,
     hint: "What has to be bought from the suppliers",
   },
+  {
+    href: "/admin/orders/tracker",
+    label: "Tracker",
+    icon: Radar,
+    hint: "How long every order has been where it is, and what is late",
+  },
 ] as const;
 
 export function FulfilmentTabs({ counts }: { counts?: Partial<Record<string, number>> }) {
@@ -40,13 +46,14 @@ export function FulfilmentTabs({ counts }: { counts?: Partial<Record<string, num
     <div
       role="tablist"
       aria-label="Order fulfilment"
-      className="flex flex-wrap gap-2 rounded-2xl bg-white p-1.5 ring-1 ring-niki-edge"
+      className="flex gap-1.5 overflow-x-auto rounded-2xl bg-white p-1.5 ring-1 ring-niki-edge sm:flex-wrap sm:gap-2"
     >
       {TABS.map((tab) => {
         const active =
           tab.href === "/admin/orders"
-            ? pathname === "/admin/orders" || /^\/admin\/orders\/(?!placement)/.test(pathname)
-            : pathname.startsWith("/admin/orders/placement");
+            ? pathname === "/admin/orders" ||
+              /^\/admin\/orders\/(?!placement|tracker)/.test(pathname)
+            : pathname.startsWith(tab.href);
         const count = counts?.[tab.href];
         return (
           <ActionLink
@@ -56,7 +63,7 @@ export function FulfilmentTabs({ counts }: { counts?: Partial<Record<string, num
             aria-selected={active}
             title={tab.hint}
             className={cn(
-              "niki-focus group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors sm:flex-none sm:justify-start",
+              "niki-focus group flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-[13px] font-semibold transition-colors sm:flex-none sm:justify-start sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm",
               active
                 ? "bg-niki-black text-white"
                 : "text-niki-ink/60 hover:bg-niki-black/5 hover:text-niki-ink",

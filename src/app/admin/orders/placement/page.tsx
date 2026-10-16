@@ -4,7 +4,7 @@ import { CalendarClock, CheckCircle2, Layers, Package, Truck } from "lucide-reac
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { FulfilmentTabs } from "@/components/admin/retail/FulfilmentTabs";
-import { TableFilters } from "@/components/admin/retail/TableFilters";
+import { TableFilters } from "@/components/admin/TableFilters";
 import {
   PlacementQueueTable,
   type QueueRowView,
@@ -131,10 +131,10 @@ export default async function AdminOrderPlacementPage({
         crumbs={[{ label: "Admin", href: "/admin" }, { label: "Order fulfilment" }]}
       />
 
-      <Container className="space-y-5 py-8">
+      <Container className="space-y-4 py-6 sm:space-y-5 sm:py-8">
         <FulfilmentTabs counts={{ "/admin/orders/placement": queue.all.length }} />
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-5">
           <Stat
             label="Ready to order"
             value={String(ready.length)}
@@ -188,12 +188,13 @@ export default async function AdminOrderPlacementPage({
             <TableFilters
               query={query}
               searchPlaceholder="Search by supplier, shop, forwarder, product…"
+              searchLabel="Search the queue"
               noun="suppliers"
               shown={queue.groups.length}
               total={queue.total}
               page={page}
               pageCount={pageCount}
-              selects={[
+              filters={[
                 {
                   key: "status",
                   label: "Filter by readiness",
@@ -228,13 +229,14 @@ export default async function AdminOrderPlacementPage({
               query={placedQuery}
               queryKey="pq"
               searchPlaceholder="Search by reference, supplier, note…"
+              searchLabel="Search purchases"
               noun="purchases"
               shown={placed.purchases.length}
               total={placed.total}
               page={placedPage}
               pageCount={placedPageCount}
               startOpen={false}
-              selects={[
+              filters={[
                 {
                   key: "pstatus",
                   label: "Filter by status",
@@ -287,14 +289,18 @@ function Stat({
   return (
     <ActionLink
       href={href}
-      className="niki-focus group block rounded-2xl bg-white p-5 ring-1 ring-niki-edge transition-colors hover:ring-niki-orange/50"
+      className="niki-focus group block rounded-2xl bg-white p-3.5 ring-1 ring-niki-edge transition-colors hover:ring-niki-orange/50 sm:p-5"
     >
-      <div className="flex items-center gap-2 text-niki-ink/50">
-        <Icon className="h-4 w-4" />
-        <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
+      <div className="flex items-center gap-1.5 text-niki-ink/50 sm:gap-2">
+        <Icon className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+        <span className="truncate text-[10px] font-semibold uppercase tracking-wide sm:text-xs">
+          {label}
+        </span>
       </div>
-      <p className={`mt-2 font-figures text-2xl font-bold ${tones[tone]}`}>{value}</p>
-      {hint ? <p className="mt-0.5 text-xs text-niki-ink/50">{hint}</p> : null}
+      <p className={`mt-1.5 font-figures text-lg font-bold sm:mt-2 sm:text-2xl ${tones[tone]}`}>
+        {value}
+      </p>
+      {hint ? <p className="mt-0.5 text-[11px] text-niki-ink/50 sm:text-xs">{hint}</p> : null}
     </ActionLink>
   );
 }

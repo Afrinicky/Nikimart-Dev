@@ -380,7 +380,16 @@ export interface RetailOperations {
   outstanding: number;
   /** Shops waiting on verification, whenever they applied. */
   pendingShops: number;
-  /** Complaints and enquiries open against an order, whenever raised. */
+  /**
+   * Enquiries waiting on Nickimart, whenever raised.
+   *
+   * Exactly what the support queue counts, and deliberately not "every thread
+   * about an order that isn't resolved": most threads are an affiliate
+   * talking to their own buyer, which no admin can see, answer or close. The
+   * dashboard used to count those, so resolving the enquiry an admin *could*
+   * reach left the alert standing — the number never moved, whatever they
+   * did, which is how an alert becomes wallpaper.
+   */
   openThreads: number;
   /** Listings with no stock, so a buyer cannot have them. */
   outOfStock: number;
@@ -411,7 +420,7 @@ export async function getRetailOperations(w: OverviewWindow): Promise<RetailOper
       }),
       prisma.vendor.count({ where: { verificationStatus: "pending" } }),
       prisma.affiliateThread
-        .count({ where: { orderId: { not: null }, status: { not: "resolved" } } })
+        .count({ where: { kind: "support", status: { in: ["open", "waiting_support"] } } })
         .catch(() => 0),
       prisma.product.count({ where: { stockQuantity: { lte: 0 }, productType: "in_stock" } }),
     ]);

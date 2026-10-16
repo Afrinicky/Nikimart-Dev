@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   ArrowLeft,
   CalendarClock,
+  CheckCircle2,
   ExternalLink,
   Layers,
   MapPin,
@@ -17,7 +18,12 @@ import { PlaceGroupForm, type PlaceParcel } from "@/components/admin/retail/Plac
 import { ActionLink } from "@/components/ui/motion";
 import { formatPrice } from "@/lib/format";
 import { requireDashboard } from "@/lib/session";
-import { getQueueGroup, groupToken, type QueueGroup } from "@/lib/retail/placement";
+import {
+  getQueueGroup,
+  groupToken,
+  type PurchaseRecord,
+  type QueueGroup,
+} from "@/lib/retail/placement";
 
 export const metadata: Metadata = { title: "Place order — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -39,8 +45,16 @@ export default async function PlacementGroupPage({
 }) {
   await requireDashboard("/admin");
   const { group: token } = await params;
-  const { group, siblings } = await getQueueGroup(token);
-  if (!group) notFound();
+  const { group, siblings, placed } = await getQueueGroup(token);
+
+  // The row is gone. Usually because it was just bought — placing a purchase
+  // removes the very row this window describes, and Next re-renders this page
+  // as part of that same response. Answering a successful purchase with "Page
+  // not found" is the one thing this screen must not do.
+  if (!group) {
+    if (placed.length === 0) notFound();
+    return <AlreadyOrdered placed={placed} />;
+  }
 
   const share = group.minCbm > 0 ? Math.min(1, group.totalCbm / group.minCbm) : 1;
   const ready = group.thresholdMet || group.scheduleDue;
@@ -311,6 +325,90 @@ export default async function PlacementGroupPage({
             </Card>
           </aside>
         </div>
+      </Container>
+    </>
+  );
+}
+
+/** The window after its parcel has been bought. */
+function AlreadyOrdered({ placed }: { placed: PurchaseRecord[] }) {
+  const latest = placed[0];
+  return (
+    <>
+      <PageHeader
+        title={latest.supplierName || "Supplier"}
+        subtitle="Nothing from this supplier is waiting to be ordered — it has been bought."
+        crumbs={[
+          { label: "Admin", href: "/admin" },
+          { label: "Order fulfilment", href: "/admin/orders" },
+          { label: "Order placement", href: "/admin/orders/placement" },
+          { label: latest.reference },
+        ]}
+      >
+        <Link
+          href="/admin/orders/placement"
+          className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-white"
+        >
+          <ArrowLeft className="h-4 w-4" /> Queue
+        </Link>
+      </PageHeader>
+
+      <Container className="py-8">
+        <section className="animate-scale-in rounded-2xl bg-niki-success/10 p-6 ring-1 ring-niki-success/30">
+          <CheckCircle2 className="h-8 w-8 text-niki-success" />
+          <p className="mt-2 font-display text-lg font-bold text-niki-ink">
+            Recorded as {latest.reference}
+          </p>
+          <p className="mt-1 max-w-2xl text-sm text-niki-ink/70">
+            Every order it covers has moved to &ldquo;ordered from supplier&rdquo;, and their buyers
+            can see it. Record what was paid on the purchase, then confirm the forwarder has the
+            parcel when they report it in.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <ActionLink
+              href={`/admin/orders/placement/purchase/${latest.id}`}
+              className="niki-press niki-focus rounded-full bg-niki-black px-5 py-2 text-sm font-semibold text-white"
+            >
+              Open the purchase
+            </ActionLink>
+            <ActionLink
+              href="/admin/orders/placement"
+              className="niki-press niki-focus rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/65 ring-1 ring-niki-edge hover:bg-niki-black/5"
+            >
+              Back to the queue
+            </ActionLink>
+          </div>
+        </section>
+
+        {placed.length > 1 ? (
+          <section className="mt-5 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
+            <h2 className="font-display font-bold text-niki-ink">
+              Everything bought from this supplier
+            </h2>
+            <ul className="mt-3 space-y-2">
+              {placed.map((p) => (
+                <li key={p.id}>
+                  <ActionLink
+                    href={`/admin/orders/placement/purchase/${p.id}`}
+                    className="niki-focus flex flex-wrap items-center justify-between gap-2 rounded-xl bg-niki-surface/60 px-4 py-3 ring-1 ring-niki-edge transition-colors hover:bg-niki-surface"
+                  >
+                    <span className="font-mono text-xs font-bold text-niki-ink">{p.reference}</span>
+                    <span className="text-xs text-niki-ink/55">
+                      {formatPrice(p.totalCost)} ·{" "}
+                      {p.placedAt
+                        ? p.placedAt.toLocaleDateString("en-GB", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "not placed"}
+                    </span>
+                  </ActionLink>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
       </Container>
     </>
   );

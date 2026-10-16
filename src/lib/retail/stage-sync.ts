@@ -92,6 +92,83 @@ export async function confirmStageForOrders(
   }
 }
 
+/**
+ * Take a consignment back off the stages a purchase put it on.
+ *
+ * Cancelling a purchase says the goods were never bought, so an order it
+ * covered has to stop reading "ordered from the supplier" — otherwise the
+ * order sits in transit on the tracker while its line is back in the buy
+ * queue, which is the contradiction that made both screens untrustworthy.
+ *
+ * Only the two stages a purchase is responsible for are cleared, and only
+ * when nothing beyond them has been confirmed. Once freight has said the
+ * consignment left, somebody with eyes on it has contradicted the
+ * cancellation, and a bookkeeping correction is not the thing to resolve that
+ * — so the stamps stay and the caller is told, by a `false` return, that this
+ * one needs a person.
+ */
+export async function rollBackPlacement(orderIds: string[]): Promise<{ rolledBack: string[]; kept: string[] }> {
+  const ids = [...new Set(orderIds.filter(Boolean))];
+  const out = { rolledBack: [] as string[], kept: [] as string[] };
+  if (ids.length === 0) return out;
+
+  const shipments = await prisma.shipment
+    .findMany({
+      where: { orderId: { in: ids } },
+      select: {
+        id: true,
+        orderId: true,
+        processingAt: true,
+        forwarderReceivedAt: true,
+        transitAt: true,
+        arrivedGhanaAt: true,
+        outForDeliveryAt: true,
+        deliveredAt: true,
+        order: { select: { status: true, hasAbroadItems: true } },
+      },
+    })
+    .catch(() => []);
+
+  for (const shipment of shipments) {
+    if (shipment.order.status === "cancelled") continue;
+    // Somebody has confirmed it moving since. Not ours to undo.
+    if (
+      shipment.transitAt ||
+      shipment.arrivedGhanaAt ||
+      shipment.outForDeliveryAt ||
+      shipment.deliveredAt
+    ) {
+      out.kept.push(shipment.orderId);
+      continue;
+    }
+    if (!shipment.processingAt && !shipment.forwarderReceivedAt) continue;
+
+    const route: ShipmentRoute = shipment.order.hasAbroadItems ? "abroad" : "domestic";
+    const ts: ShipmentTimestamps = {
+      processingAt: null,
+      transitAt: null,
+      outForDeliveryAt: null,
+      deliveredAt: null,
+      forwarderReceivedAt: null,
+      arrivedGhanaAt: null,
+    };
+
+    await prisma.shipment
+      .update({
+        where: { id: shipment.id },
+        data: { processingAt: null, forwarderReceivedAt: null, status: deriveStatus(ts, route) },
+      })
+      .catch(() => undefined);
+    await prisma.order
+      .update({ where: { id: shipment.orderId }, data: { status: "paid" } })
+      .catch(() => undefined);
+    await syncAffiliateCommissions(shipment.orderId).catch(() => undefined);
+    out.rolledBack.push(shipment.orderId);
+  }
+
+  return out;
+}
+
 /** The orders a set of purchased lines belongs to. */
 export async function orderIdsForItems(itemIds: string[]): Promise<string[]> {
   if (itemIds.length === 0) return [];

@@ -48,6 +48,8 @@ import {
   getShopMix,
   getStageMix,
 } from "@/lib/retail/overview";
+import { getEconomicsTotals } from "@/lib/retail/economics";
+import { getAffiliateWindowOverview } from "@/lib/affiliate";
 import { prisma } from "@/lib/prisma";
 import { cn } from "@/lib/cn";
 
@@ -126,14 +128,16 @@ function Stat({
   return (
     <ActionLink
       href={href}
-      className="niki-focus group block rounded-2xl bg-white p-5 ring-1 ring-niki-edge transition-colors hover:ring-niki-orange/50"
+      className="niki-focus group block rounded-2xl bg-white p-3.5 ring-1 ring-niki-edge transition-colors hover:ring-niki-orange/50 sm:p-5"
     >
-      <div className="flex items-center gap-2 text-niki-ink/50">
-        <Icon className="h-4 w-4" />
-        <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
+      <div className="flex items-center gap-1.5 text-niki-ink/50 sm:gap-2">
+        <Icon className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+        <span className="truncate text-[10px] font-semibold uppercase tracking-wide sm:text-xs">
+          {label}
+        </span>
       </div>
-      <div className="mt-2 flex flex-wrap items-baseline gap-2">
-        <p className={`font-figures text-2xl font-bold ${tones[tone]}`}>{value}</p>
+      <div className="mt-1.5 flex flex-wrap items-baseline gap-1.5 sm:mt-2 sm:gap-2">
+        <p className={`font-figures text-lg font-bold sm:text-2xl ${tones[tone]}`}>{value}</p>
         {delta === null || delta === undefined ? null : (
           <span
             className={cn(
@@ -152,7 +156,7 @@ function Stat({
           </span>
         )}
       </div>
-      {hint ? <p className="mt-0.5 text-xs text-niki-ink/50">{hint}</p> : null}
+      {hint ? <p className="mt-0.5 text-[11px] text-niki-ink/50 sm:text-xs">{hint}</p> : null}
     </ActionLink>
   );
 }
@@ -171,7 +175,7 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
+    <section className="rounded-2xl bg-white p-4 ring-1 ring-niki-edge sm:p-5">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
         <div className="min-w-0">
           <h2 className="font-display font-bold text-niki-ink">{title}</h2>
@@ -200,8 +204,19 @@ export default async function AdminDashboardPage({
   // the month, and a rolling thirty days straddles two of them.
   const period = resolveWindow(await searchParams, new Date(), { fallback: "month" });
 
-  const [totals, series, stageMix, categories, shops, channels, operations, standing, recent] =
-    await Promise.all([
+  const [
+    totals,
+    series,
+    stageMix,
+    categories,
+    shops,
+    channels,
+    operations,
+    standing,
+    recent,
+    economics,
+    affiliates,
+  ] = await Promise.all([
       getRetailTotals(period),
       getRetailSeries(period),
       getStageMix(period),
@@ -223,6 +238,11 @@ export default async function AdminDashboardPage({
           user: { select: { name: true, email: true } },
         },
       }),
+      // What the orders actually made, which "revenue" never said: an
+      // imported line is bought and resold, a shop's line earns a commission,
+      // and until both were written down the two could not be added up.
+      getEconomicsTotals(period),
+      getAffiliateWindowOverview(period),
     ]);
 
   const windowLabel = period.label;
@@ -308,7 +328,7 @@ export default async function AdminDashboardPage({
           tone: "danger" as const,
           icon: LifeBuoy,
           live: true,
-          text: `${operations.openThreads} ${operations.openThreads === 1 ? "complaint or enquiry is" : "complaints and enquiries are"} open against an order.`,
+          text: `${operations.openThreads} affiliate ${operations.openThreads === 1 ? "enquiry is" : "enquiries are"} waiting on an answer from Nickimart.`,
         }
       : null,
     operations.ready > 0
@@ -363,7 +383,7 @@ export default async function AdminDashboardPage({
   ].filter(Boolean);
 
   return (
-    <Container className="py-8">
+    <Container className="py-6 sm:py-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-niki-ink">Retail Services</h1>
@@ -386,7 +406,7 @@ export default async function AdminDashboardPage({
 
       {/* What the mall is, right now. Standing counts, so they answer to
           nothing above them. */}
-      <div className="niki-gradient-card mt-6 grid gap-4 rounded-2xl p-6 text-white sm:grid-cols-2 lg:grid-cols-4">
+      <div className="niki-gradient-card mt-5 grid grid-cols-2 gap-x-3 gap-y-4 rounded-2xl p-4 text-white sm:mt-6 sm:gap-4 sm:p-6 lg:grid-cols-4">
         <Standing label="Customers" value={standing.customers} icon={Users} href="/admin/users" />
         <Standing label="Shops" value={standing.shops} icon={Store} href="/admin/vendors" />
         <Standing
@@ -423,7 +443,7 @@ export default async function AdminDashboardPage({
           the orders are worth in full is the tile beside it, because half the
           mall's orders settle the freight on collection and counting that as
           money in would overstate every month. */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-5">
         <Stat
           label="Revenue"
           value={formatPrice(totals.revenue)}
@@ -453,13 +473,41 @@ export default async function AdminDashboardPage({
           delta={changePercent(totals.orders, totals.previous?.orders)}
         />
         <Stat
-          label="Commission"
-          value={formatPrice(totals.commission)}
-          hint={`What Nickimart keeps on the lines sold · ${windowLabel}`}
-          href="/admin/finance"
+          label="Gross income"
+          value={formatPrice(economics.gross)}
+          hint={
+            economics.selling > 0
+              ? `${economics.margin}% of what was sold · before affiliates`
+              : `Before affiliates · ${windowLabel}`
+          }
+          href="/admin/transactions/orders"
           icon={PiggyBank}
           tone="success"
-          delta={changePercent(totals.commission, totals.previous?.commission)}
+        />
+        <Stat
+          label="Net income"
+          value={formatPrice(economics.net)}
+          hint={
+            economics.affiliateCost > 0
+              ? `After ${formatPrice(economics.affiliateCost)} of affiliate commission`
+              : `What Nickimart keeps · ${windowLabel}`
+          }
+          href="/admin/transactions/orders"
+          icon={Wallet}
+          tone="success"
+        />
+      </div>
+
+      {/* What the goods cost, and what the programme that sells them costs.
+          Five tiles rather than two, because "net income" is a subtraction and
+          an admin reading it wants to see what was taken off. */}
+      <div className="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-5">
+        <Stat
+          label="Cost of goods"
+          value={formatPrice(economics.cost)}
+          hint={`Paid to suppliers and shops · ${windowLabel}`}
+          href="/admin/transactions/orders"
+          icon={ShoppingBag}
         />
         <Stat
           label="New customers"
@@ -468,6 +516,37 @@ export default async function AdminDashboardPage({
           href="/admin/users"
           icon={Users}
           delta={changePercent(totals.newCustomers, totals.previous?.newCustomers)}
+        />
+        <Stat
+          label="Affiliate commission"
+          value={formatPrice(affiliates.commissionEarned)}
+          hint={`Earned on referred sales · ${windowLabel}`}
+          href="/admin/affiliates/commissions"
+          icon={Gift}
+          delta={changePercent(
+            affiliates.commissionEarned,
+            affiliates.previous?.commissionEarned,
+          )}
+        />
+        <Stat
+          label="Paid to affiliates"
+          value={formatPrice(affiliates.paidOut)}
+          hint={`${windowLabel} · on MoMo and bank`}
+          href="/admin/affiliates/payouts"
+          icon={Banknote}
+          tone="success"
+        />
+        <Stat
+          label="Owed to affiliates"
+          value={formatPrice(affiliates.owed)}
+          hint={
+            affiliates.pendingPayoutCount > 0
+              ? `${formatPrice(affiliates.pendingPayouts)} already requested`
+              : `Cleared and unpaid${asAtLabel}`
+          }
+          href="/admin/affiliates/payouts?status=pending"
+          icon={Wallet}
+          tone={affiliates.owed > 0 ? "orange" : "ink"}
         />
       </div>
 
@@ -491,14 +570,14 @@ export default async function AdminDashboardPage({
                   <ActionLink
                     href={a.href}
                     className={cn(
-                      "niki-focus group flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-colors",
+                      "niki-focus group flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-[13px] font-medium transition-colors sm:gap-3 sm:px-4 sm:py-3 sm:text-sm",
                       ALERT_TONES[a.tone].card,
                     )}
                   >
                     {/* The icon sits in a chip of its own so the row reads as a
                         thing rather than a sentence with a picture in front of
                         it — and so the live ones have somewhere to pulse. */}
-                    <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
+                    <span className="relative flex h-8 w-8 shrink-0 items-center justify-center sm:h-9 sm:w-9">
                       {"live" in a && a.live ? (
                         <span
                           aria-hidden
@@ -510,7 +589,7 @@ export default async function AdminDashboardPage({
                       ) : null}
                       <span
                         className={cn(
-                          "relative flex h-9 w-9 items-center justify-center rounded-xl",
+                          "relative flex h-8 w-8 items-center justify-center rounded-xl sm:h-9 sm:w-9",
                           ALERT_TONES[a.tone].chip,
                         )}
                       >
@@ -593,7 +672,7 @@ export default async function AdminDashboardPage({
 
       {/* Fulfilment, over the window. The figures that say whether the orders
           are being worked rather than simply taken. */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
         <Stat
           label="To be placed"
           value={String(operations.toPlace)}
@@ -743,7 +822,7 @@ export default async function AdminDashboardPage({
       </div>
 
       {/* Setup checklist */}
-      <section className="mt-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
+      <section className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-niki-edge sm:p-5">
         <h2 className="font-display font-bold text-niki-ink">Setup</h2>
         <p className="text-xs text-niki-ink/55">
           What the mall needs before it can take real orders.
@@ -784,12 +863,16 @@ function Standing({
 }) {
   return (
     <ActionLink href={href} className="niki-focus group block transition-opacity hover:opacity-90">
-      <div className="flex items-center gap-2 text-white/60">
-        <Icon className="h-4 w-4" />
-        <span className="text-xs font-semibold uppercase tracking-wide">{label}</span>
+      <div className="flex items-center gap-1.5 text-white/60 sm:gap-2">
+        <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+        <span className="text-[10px] font-semibold uppercase tracking-wide sm:text-xs">{label}</span>
       </div>
-      <p className="mt-1 font-figures text-3xl font-bold">{value.toLocaleString("en-GH")}</p>
-      {hint ? <p className="mt-0.5 text-xs text-white/50">{hint}</p> : null}
+      <p className="mt-0.5 font-figures text-xl font-bold sm:mt-1 sm:text-3xl">
+        {value.toLocaleString("en-GH")}
+      </p>
+      {hint ? (
+        <p className="mt-0.5 truncate text-[10px] text-white/50 sm:text-xs">{hint}</p>
+      ) : null}
     </ActionLink>
   );
 }
