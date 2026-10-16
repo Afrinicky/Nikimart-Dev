@@ -6,6 +6,7 @@ import {
   FLYER_SLOTS,
   MAX_FLYER_EXTRAS,
   NUDGE_LIMIT,
+  bulkShareText,
   clampNudge,
   clampSize,
   coverSource,
@@ -277,47 +278,39 @@ test("a new added line starts usable", () => {
 // Sharing several at once
 // ---------------------------------------------------------------------------
 
-test("each product in a batch gets a message carrying only its own link", () => {
-  const picks = [
-    { name: "Kente throw", price: "GH\u20b5240", shop: "Kumasi Weaves", link: "https://nickimart.com/r/AAA" },
-    { name: "Clay teapot", price: "GH\u20b595", shop: "Clay & Co", link: "https://nickimart.com/r/BBB" },
-  ];
+const picks = [
+  { name: "Kente throw", price: "GH₵240", link: "https://nickimart.com/r/AAA" },
+  { name: "Clay teapot", price: "GH₵95", link: "https://nickimart.com/r/BBB" },
+];
 
-  // What the batch share now builds: one message per product, the way it
-  // would read if that product had been shared on its own. A message that
-  // carried the other product's link is the bug this guards.
-  const messages = picks.map((pick) =>
-    productFlyerShareText({
-      productName: pick.name,
-      price: pick.price,
-      shopName: pick.shop,
-      link: pick.link,
-      template: "Lovely things today",
-    }),
-  );
-
-  messages.forEach((text, i) => {
-    const mine = picks[i];
-    const theirs = picks[1 - i];
-    assert.ok(text.includes(mine.name), `${mine.name} is missing from its own message`);
-    assert.ok(text.includes(mine.link), `${mine.name}'s link is missing`);
-    assert.ok(!text.includes(theirs.name), `${theirs.name} leaked into ${mine.name}'s message`);
-    assert.ok(!text.includes(theirs.link), `${theirs.name}'s link leaked into ${mine.name}'s`);
-  });
+test("a bulk message carries every product and every link", () => {
+  const text = bulkShareText(picks, "Lovely things today");
+  for (const pick of picks) {
+    assert.ok(text.includes(pick.name), `${pick.name} is missing`);
+    assert.ok(text.includes(pick.link), `${pick.name}'s link is missing`);
+    assert.ok(text.includes(pick.price), `${pick.name}'s price is missing`);
+  }
+  assert.ok(text.includes("Lovely things today"));
 });
 
-test("a batched message reads exactly like one shared on its own", () => {
-  const input = {
-    productName: "Kente throw",
-    price: "GH\u20b5240",
-    shopName: "Kumasi Weaves",
-    link: "https://nickimart.com/r/AAA",
-    template: "{product} for {price} \u2014 {link}",
-  };
-  assert.equal(
-    productFlyerShareText(input),
-    "Kente throw for GH\u20b5240 \u2014 https://nickimart.com/r/AAA",
-  );
+test("the caption leads once rather than per product", () => {
+  const text = bulkShareText(picks, "Order with my link");
+  assert.equal(text.split("Order with my link").length - 1, 1);
+});
+
+test("one product falls back to the ordinary single share", () => {
+  const text = bulkShareText([picks[0]], "{product} for {price} — {link}");
+  assert.equal(text, "Kente throw for GH₵240 — https://nickimart.com/r/AAA");
+});
+
+test("products with no link are left out rather than listed unbuyable", () => {
+  const text = bulkShareText([picks[0], { name: "Mystery", price: "GH₵1", link: "" }], "Hi");
+  assert.ok(!text.includes("Mystery"));
+  assert.ok(text.includes("Kente throw"));
+});
+
+test("nothing to share is just the caption", () => {
+  assert.equal(bulkShareText([], "  Nothing today  "), "Nothing today");
 });
 
 // ---------------------------------------------------------------------------
