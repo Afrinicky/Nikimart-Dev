@@ -1,15 +1,18 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
-import { Loader2, RotateCcw, Save } from "lucide-react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, Move, RotateCcw, Save } from "lucide-react";
 import { FLYER_FONTS, FLYER_WEIGHTS, type FlyerFontKey, type ProductFlyerData } from "@/lib/affiliate-flyer";
 import {
   DEFAULT_WATERMARK,
   WATERMARK_ANCHORS,
+  drawWatermarkedPhoto,
+  placementFor,
+  type PhotoHit,
   type WatermarkAnchor,
   type WatermarkConfig,
 } from "@/lib/affiliate-watermark";
-import { drawShare, useShareImage } from "@/components/affiliate/share-canvas";
+import { drawShare, shareCanvasSize, useShareImage } from "@/components/affiliate/share-canvas";
 import {
   ColourField,
   Picker,
@@ -33,7 +36,11 @@ import type { FlyerDesign } from "@/lib/affiliate-flyer";
  *
  * The preview is a real product photograph with the real drawing over it, so
  * "is that readable over a white product shot" is a question you answer by
- * looking rather than by sharing one and finding out.
+ * looking rather than by sharing one and finding out. And the mark is dragged
+ * on it: a drag re-chooses which corner it is anchored to from where it lands,
+ * so the placement still means "bottom right, eased in" on the next
+ * photograph of a different shape rather than becoming a pair of coordinates
+ * that only suited this one.
  */
 
 const FONT_OPTIONS = FLYER_FONTS.map((f) => ({ value: f.key, label: f.label }));
@@ -79,19 +86,187 @@ export function WatermarkDesigner({
     setWatermark((w) => ({ ...w, logo: { ...w.logo, ...next } }));
   }
 
+  // --- dragging the mark ----------------------------------------------------
+  //
+  // The boxes come from drawing the photograph off-screen, because where the
+  // lettering lands depends on how wide it measures. Both draws run the same
+  // function, so what you can grab and what you can see cannot drift apart.
+  const size = useMemo(() => shareCanvasSize("photo", image), [image]);
+  const hits = useMemo<PhotoHit[]>(() => {
+    if (typeof document === "undefined") return [];
+    const canvas = document.createElement("canvas");
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return [];
+    const collected: PhotoHit[] = [];
+    drawWatermarkedPhoto(ctx, size, {
+      image,
+      watermark,
+      logo,
+      hits: collected,
+      placeholder: {
+        gradientFrom: sample.gradientFrom,
+        gradientTo: sample.gradientTo,
+        emoji: sample.emoji,
+      },
+    });
+    return collected;
+  }, [image, logo, sample, size, watermark]);
+
+  const [selected, setSelected] = useState<"watermark" | "logo" | null>(null);
+  const drag = useRef<{
+    id: "watermark" | "logo";
+    mode: "move" | "resize";
+    x: number;
+    y: number;
+    rect: PhotoHit["rect"];
+    size: number;
+  } | null>(null);
+
+  const current = hits.find((h) => h.id === selected) ?? null;
+
+  function toPixels(event: React.PointerEvent) {
+    const box = event.currentTarget.getBoundingClientRect();
+    return {
+      x: ((event.clientX - box.left) / box.width) * size.width,
+      y: ((event.clientY - box.top) / box.height) * size.height,
+    };
+  }
+
+  function onPointerDown(event: React.PointerEvent) {
+    const point = toPixels(event);
+    // Last drawn wins, as it does visually.
+    const hit = [...hits].reverse().find(
+      (h) =>
+        point.x >= h.rect.x &&
+        point.x <= h.rect.x + h.rect.width &&
+        point.y >= h.rect.y &&
+        point.y <= h.rect.y + h.rect.height,
+    );
+    if (!hit) {
+      setSelected(null);
+      drag.current = null;
+      return;
+    }
+    setSelected(hit.id);
+    drag.current = {
+      id: hit.id,
+      mode: "move",
+      x: point.x,
+      y: point.y,
+      rect: hit.rect,
+      size: hit.id === "logo" ? watermark.logo.size : watermark.size,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function onPointerMove(event: React.PointerEvent) {
+    const d = drag.current;
+    if (!d) return;
+    const point = toPixels(event);
+
+    if (d.mode === "resize") {
+      // 40% of the picture's width doubles the mark, which is a comfortable
+      // pull on a phone and a short one on a trackpad.
+      const factor = 1 + (point.x - d.x) / (size.width * 0.4);
+      const next = Math.round(d.size * Math.max(0.1, factor) * 10) / 10;
+      if (d.id === "logo") patchLogo({ size: Math.min(60, Math.max(2, next)) });
+      else patch({ size: Math.min(20, Math.max(1, next)) });
+      return;
+    }
+
+    const padding = (watermark.padding / 100) * size.width;
+    const placed = placementFor(
+      { x: d.rect.x + (point.x - d.x), y: d.rect.y + (point.y - d.y) },
+      size,
+      { width: d.rect.width, height: d.rect.height },
+      padding,
+    );
+    if (d.id === "logo") patchLogo(placed);
+    else patch(placed);
+  }
+
+  function endDrag(event: React.PointerEvent) {
+    drag.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  }
+
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
       <div className="lg:sticky lg:top-24 lg:self-start">
-        <div className="overflow-hidden rounded-2xl ring-1 ring-niki-edge">
+        <div className="relative select-none overflow-hidden rounded-2xl ring-1 ring-niki-edge">
           <canvas
             ref={canvasRef}
             className="block h-auto w-full bg-white"
             role="img"
             aria-label="Watermark preview"
           />
+
+          {/* `touch-none` is what stops the page scrolling under a drag. */}
+          <div
+            role="presentation"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            className="absolute inset-0 touch-none"
+          >
+            {hits.map((hit) => (
+              <div
+                key={hit.id}
+                aria-hidden
+                className={cn(
+                  "pointer-events-none absolute rounded",
+                  hit.id === selected
+                    ? "ring-2 ring-niki-orange"
+                    : "ring-1 ring-transparent hover:ring-niki-orange/40",
+                )}
+                style={{
+                  left: `${(hit.rect.x / size.width) * 100}%`,
+                  top: `${(hit.rect.y / size.height) * 100}%`,
+                  width: `${(hit.rect.width / size.width) * 100}%`,
+                  height: `${(hit.rect.height / size.height) * 100}%`,
+                }}
+              />
+            ))}
+
+            {current ? (
+              <button
+                type="button"
+                aria-label={`Resize ${current.label}`}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  const point = toPixels(e);
+                  drag.current = {
+                    id: current.id,
+                    mode: "resize",
+                    x: point.x,
+                    y: point.y,
+                    rect: current.rect,
+                    size: current.id === "logo" ? watermark.logo.size : watermark.size,
+                  };
+                  e.currentTarget.setPointerCapture?.(e.pointerId);
+                }}
+                onPointerMove={onPointerMove}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+                className="absolute flex h-5 w-5 items-center justify-center rounded-full bg-niki-orange text-white shadow-md ring-2 ring-white"
+                style={{
+                  left: `${((current.rect.x + current.rect.width) / size.width) * 100}%`,
+                  top: `${((current.rect.y + current.rect.height) / size.height) * 100}%`,
+                  transform: "translate(-50%, -50%)",
+                  touchAction: "none",
+                }}
+              >
+                <Move className="h-3 w-3" />
+              </button>
+            ) : null}
+          </div>
         </div>
         <p className="mt-2 text-[11px] leading-relaxed text-niki-ink/45">
-          A real product photograph at its own shape, with nothing on it but the mark.
+          A real product photograph at its own shape, with nothing on it but the mark. Drag the mark
+          or the logo to place it, and pull the corner to resize.
         </p>
 
         <form action={submit} className="mt-3 space-y-2">

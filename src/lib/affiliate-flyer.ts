@@ -561,6 +561,60 @@ export interface Rect {
 export type SourceRect = Rect;
 
 /**
+ * Where something ended up on the flyer.
+ *
+ * The layout flows — the name sits under the picture, the price under the
+ * name — so nothing in the design says where anything actually is. That was
+ * fine while the only way to move a thing was a pair of nudge sliders, and
+ * useless the moment somebody should be able to put a finger on the price and
+ * drag it. So the renderer reports what it drew and where, in flyer
+ * coordinates, and the editor turns those boxes into things you can touch.
+ *
+ * Reported, not stored: the boxes are recomputed on every draw from the design
+ * and the product, which is what keeps a picture of the flyer and the flyer
+ * itself from ever disagreeing.
+ */
+export interface FlyerHit {
+  /** Unique within one draw. "text:price", "extra:x1", "frame". */
+  id: string;
+  kind: "text" | "extra" | "frame";
+  /** Set when kind is "text". */
+  key?: FlyerTextKey;
+  /** Set when kind is "extra". */
+  extraId?: string;
+  label: string;
+  rect: Rect;
+  /** Whether a drag may move it, and whether a handle may resize it. */
+  movable: boolean;
+  resizable: boolean;
+}
+
+/** The topmost thing under a point, or null. Later draws win, as they do visually. */
+export function hitAt(hits: readonly FlyerHit[], x: number, y: number): FlyerHit | null {
+  for (let i = hits.length - 1; i >= 0; i--) {
+    const { rect } = hits[i];
+    if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) {
+      return hits[i];
+    }
+  }
+  return null;
+}
+
+/** The nudge range a drag may write, matching what resolveFlyerDesign keeps. */
+export const NUDGE_LIMIT = 400;
+export const FLYER_SIZE_RANGE = { min: 10, max: 200 } as const;
+
+/** Keep a dragged nudge inside what the design can store. */
+export function clampNudge(value: number): number {
+  return Math.min(NUDGE_LIMIT, Math.max(-NUDGE_LIMIT, Math.round(value)));
+}
+
+/** Keep a pinched size inside what the design can store. */
+export function clampSize(value: number): number {
+  return Math.min(FLYER_SIZE_RANGE.max, Math.max(FLYER_SIZE_RANGE.min, Math.round(value)));
+}
+
+/**
  * The part of a photograph to draw so it fills a box without distorting.
  *
  * Product photographs arrive at every ratio a phone camera and a supplier's
@@ -707,6 +761,8 @@ function drawExtra(
   extra: FlyerExtra,
   box: { left: number; width: number; y: number },
   theme: ProductFlyerTheme,
+  /** Called with where it landed, so the editor can let a finger find it. */
+  report?: (rect: Rect) => void,
 ): number {
   const text = cased(extra.text, extra.style);
   if (!extra.style.visible || !text.trim()) return 0;
@@ -739,6 +795,7 @@ function drawExtra(
   ctx.font = fontFor(extra.style);
   ctx.fillText(text, left + padding, top + pillHeight / 2, box.width - 48);
 
+  report?.({ x: left, y: top, width: pillWidth, height: pillHeight });
   return pillHeight + 12;
 }
 
@@ -746,6 +803,12 @@ export interface DrawFlyerOptions {
   data: ProductFlyerData;
   design: FlyerDesign;
   image?: FlyerImage | null;
+  /**
+   * Hand in an array and it is filled with where everything landed, in flyer
+   * coordinates. The editor needs it; the share path does not pass it and
+   * pays nothing for it.
+   */
+  hits?: FlyerHit[];
 }
 
 /**
@@ -766,6 +829,26 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
   const H = FLYER_HEIGHT;
   const margin = design.frame.side;
   const contentWidth = W - margin * 2;
+  const hits = options.hits;
+
+  /** Note where an element landed, when anybody asked. */
+  const record = (hit: FlyerHit) => {
+    if (hits) hits.push(hit);
+  };
+  const textHit = (
+    key: FlyerTextKey,
+    rect: Rect,
+    opts: { resizable?: boolean } = {},
+  ) =>
+    record({
+      id: `text:${key}`,
+      kind: "text",
+      key,
+      label: FLYER_TEXT_LABELS[key],
+      rect,
+      movable: true,
+      resizable: opts.resizable ?? true,
+    });
 
   // --- Backdrop -------------------------------------------------------------
   const bg = ctx.createLinearGradient(0, 0, 0, H);
@@ -786,6 +869,12 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
     // this somebody did not choose.
     fitFont(ctx, shop, W * 0.52, shopStyle.size, Math.min(22, shopStyle.size), shopStyle);
     ctx.fillText(shop, margin + shopStyle.dx, 64 + shopStyle.dy);
+    textHit("shop", {
+      x: margin + shopStyle.dx,
+      y: 64 + shopStyle.dy - shopStyle.size * 0.7,
+      width: ctx.measureText(shop).width,
+      height: shopStyle.size * 1.4,
+    });
   }
 
   const categoryStyle = design.text.category;
@@ -793,13 +882,22 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
     ctx.textAlign = "left";
     ctx.font = fontFor(categoryStyle);
     ctx.fillStyle = categoryStyle.color || theme.inkSoft;
-    ctx.fillText(cased(data.categoryName, categoryStyle), margin + categoryStyle.dx, 104 + categoryStyle.dy);
+    const category = cased(data.categoryName, categoryStyle);
+    ctx.fillText(category, margin + categoryStyle.dx, 104 + categoryStyle.dy);
+    textHit("category", {
+      x: margin + categoryStyle.dx,
+      y: 104 + categoryStyle.dy - categoryStyle.size * 0.7,
+      width: ctx.measureText(category).width,
+      height: categoryStyle.size * 1.4,
+    });
   }
 
   // Anything the designer added under the header.
   let headerY = 128;
   for (const extra of design.extras.filter((e) => e.slot === "header")) {
-    headerY += drawExtra(ctx, extra, { left: margin, width: contentWidth, y: headerY }, theme);
+    headerY += drawExtra(ctx, extra, { left: margin, width: contentWidth, y: headerY }, theme, (rect) =>
+      record(extraHit(extra, rect)),
+    );
   }
 
   // The badge in the corner: this is a Nickimart listing, and a flyer that
@@ -819,6 +917,7 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
     ctx.textAlign = "center";
     ctx.font = fontFor(badgeStyle);
     ctx.fillText(label, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2);
+    textHit("badge", { x: badgeX, y: badgeY, width: badgeWidth, height: badgeHeight });
   }
 
   // --- The photograph -------------------------------------------------------
@@ -851,6 +950,17 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
   }
   ctx.restore();
 
+  // The picture itself is draggable and resizable, which is what somebody
+  // reaches for first: the frame is the flyer's one big decision.
+  record({
+    id: "frame",
+    kind: "frame",
+    label: "The picture",
+    rect: { x: cardX, y: cardY, width: cardW, height: cardH },
+    movable: true,
+    resizable: true,
+  });
+
   // The discount flash, over the corner of the photograph.
   const discountStyle = design.text.discount;
   if (discountStyle.visible && data.discount) {
@@ -867,6 +977,7 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
     ctx.textAlign = "center";
     ctx.font = fontFor(discountStyle);
     ctx.fillText(flash, flashX + flashWidth / 2, flashY + flashHeight / 2);
+    textHit("discount", { x: flashX, y: flashY, width: flashWidth, height: flashHeight });
   }
 
   // Added lines that sit on the picture itself, stacked up from its foot.
@@ -876,7 +987,9 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
     for (const extra of [...onImage].reverse()) {
       const height = extra.style.size + (extra.background ? 24 : 8) + 12;
       stickerY -= height;
-      drawExtra(ctx, extra, { left: cardX + 24, width: cardW - 48, y: stickerY }, theme);
+      drawExtra(ctx, extra, { left: cardX + 24, width: cardW - 48, y: stickerY }, theme, (rect) =>
+        record(extraHit(extra, rect)),
+      );
     }
   }
 
@@ -886,7 +999,9 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
 
   // Added lines between the picture and the name.
   for (const extra of design.extras.filter((e) => e.slot === "underImage")) {
-    cursor += drawExtra(ctx, extra, { left: margin, width: contentWidth, y: cursor }, theme);
+    cursor += drawExtra(ctx, extra, { left: margin, width: contentWidth, y: cursor }, theme, (rect) =>
+      record(extraHit(extra, rect)),
+    );
   }
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
@@ -902,9 +1017,17 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
       },
       2,
     );
+    let nameWidth = 0;
     nameLines.forEach((line, i) => {
       ctx.font = fontFor(nameStyle);
       ctx.fillText(line, margin + nameStyle.dx, cursor + nameStyle.dy + i * (nameStyle.size + 10));
+      nameWidth = Math.max(nameWidth, ctx.measureText(line).width);
+    });
+    textHit("name", {
+      x: margin + nameStyle.dx,
+      y: cursor + nameStyle.dy - nameStyle.size * 0.7,
+      width: nameWidth,
+      height: nameLines.length * (nameStyle.size + 10) + nameStyle.size * 0.4,
     });
     cursor += nameLines.length * (nameStyle.size + 10) + 18;
   }
@@ -935,6 +1058,13 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
     ctx.fillStyle = priceStyle.color || (design.pricePill ? "#111827" : theme.ink);
     ctx.font = fontFor(priceStyle);
     ctx.fillText(price, margin + 4 + priceStyle.dx, priceY);
+    const pillHeight = priceStyle.size + 26;
+    textHit("price", {
+      x: margin - (design.pricePill ? 18 : 0) + priceStyle.dx,
+      y: priceY - pillHeight / 2,
+      width: priceWidth + (design.pricePill ? 44 : 8),
+      height: pillHeight,
+    });
     priceEndX = margin + priceStyle.dx + priceWidth + 52;
 
     const oldStyle = design.text.oldPrice;
@@ -951,6 +1081,12 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
       ctx.moveTo(oldX - 2, oldY);
       ctx.lineTo(oldX + oldWidth + 2, oldY);
       ctx.stroke();
+      textHit("oldPrice", {
+        x: oldX,
+        y: oldY - oldStyle.size * 0.7,
+        width: oldWidth,
+        height: oldStyle.size * 1.4,
+      });
     }
     cursor = priceY + priceStyle.size * 0.65 + 34;
   }
@@ -972,9 +1108,17 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
       // However many lines are left between the price and the footer.
       Math.max(1, Math.floor((footerTop - messageTop - 20) / (messageStyle.size + 10))),
     );
+    let messageWidth = 0;
     messageLines.forEach((line, i) => {
       ctx.font = fontFor(messageStyle);
       ctx.fillText(line, margin + messageStyle.dx, messageTop + i * (messageStyle.size + 10));
+      messageWidth = Math.max(messageWidth, ctx.measureText(line).width);
+    });
+    textHit("message", {
+      x: margin + messageStyle.dx,
+      y: messageTop - messageStyle.size * 0.7,
+      width: messageWidth || contentWidth,
+      height: messageLines.length * (messageStyle.size + 10) + messageStyle.size * 0.4,
     });
   }
 
@@ -986,7 +1130,9 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
     for (const extra of [...aboveFooter].reverse()) {
       const height = extra.style.size + (extra.background ? 24 : 8) + 12;
       footerExtraY -= height;
-      drawExtra(ctx, extra, { left: margin, width: contentWidth, y: footerExtraY }, theme);
+      drawExtra(ctx, extra, { left: margin, width: contentWidth, y: footerExtraY }, theme, (rect) =>
+        record(extraHit(extra, rect)),
+      );
     }
   }
 
@@ -1008,32 +1154,59 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
   if (hasLabel) {
     ctx.fillStyle = labelStyle.color || theme.onAccent;
     ctx.font = fontFor(labelStyle);
-    ctx.fillText(
-      cased("Order on Nickimart", labelStyle),
-      W / 2 + labelStyle.dx,
-      barMid - labelStyle.size * 0.7 + labelStyle.dy,
-    );
+    const label = cased("Order on Nickimart", labelStyle);
+    const labelY = barMid - labelStyle.size * 0.7 + labelStyle.dy;
+    ctx.fillText(label, W / 2 + labelStyle.dx, labelY);
+    const labelWidth = ctx.measureText(label).width;
+    textHit("footerLabel", {
+      x: W / 2 + labelStyle.dx - labelWidth / 2,
+      y: labelY - labelStyle.size * 0.7,
+      width: labelWidth,
+      height: labelStyle.size * 1.4,
+    });
   }
   if (linkStyle.visible && data.link) {
     ctx.fillStyle = linkStyle.color || theme.onAccent;
     fitFont(ctx, data.link, contentWidth - 80, linkStyle.size, 18, linkStyle);
-    ctx.fillText(
-      data.link,
-      W / 2 + linkStyle.dx,
-      hasLabel ? barMid + linkStyle.size * 0.6 + linkStyle.dy : barMid + linkStyle.dy,
-    );
+    const linkY = hasLabel ? barMid + linkStyle.size * 0.6 + linkStyle.dy : barMid + linkStyle.dy;
+    ctx.fillText(data.link, W / 2 + linkStyle.dx, linkY);
+    const linkWidth = ctx.measureText(data.link).width;
+    textHit("link", {
+      x: W / 2 + linkStyle.dx - linkWidth / 2,
+      y: linkY - linkStyle.size * 0.7,
+      width: linkWidth,
+      height: linkStyle.size * 1.4,
+    });
   }
 
   const sharedStyle = design.text.sharedBy;
   if (sharedStyle.visible) {
     ctx.fillStyle = sharedStyle.color || theme.inkSoft;
     ctx.font = fontFor(sharedStyle);
-    ctx.fillText(
-      data.sharedBy ? `Shared by ${data.sharedBy}` : "Pay on delivery options available",
-      W / 2 + sharedStyle.dx,
-      footerTop + barHeight + 34 + sharedStyle.dy,
-    );
+    const shared = data.sharedBy ? `Shared by ${data.sharedBy}` : "Pay on delivery options available";
+    const sharedY = footerTop + barHeight + 34 + sharedStyle.dy;
+    ctx.fillText(shared, W / 2 + sharedStyle.dx, sharedY);
+    const sharedWidth = ctx.measureText(shared).width;
+    textHit("sharedBy", {
+      x: W / 2 + sharedStyle.dx - sharedWidth / 2,
+      y: sharedY - sharedStyle.size * 0.7,
+      width: sharedWidth,
+      height: sharedStyle.size * 1.4,
+    });
   }
+}
+
+/** One added line's box, named so the editor can show what it is. */
+function extraHit(extra: FlyerExtra, rect: Rect): FlyerHit {
+  return {
+    id: `extra:${extra.id}`,
+    kind: "extra",
+    extraId: extra.id,
+    label: extra.text.trim() ? extra.text.trim().slice(0, 24) : "Your line",
+    rect,
+    movable: true,
+    resizable: true,
+  };
 }
 
 // ---------------------------------------------------------------------------
