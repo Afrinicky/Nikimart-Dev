@@ -13,6 +13,12 @@ import { buildProductData, parseImages, validateProduct } from "@/lib/product-fo
 import { syncProductImages } from "@/lib/product-images";
 import { releaseStockForOrder } from "@/lib/stock";
 import { syncAffiliateCommissions } from "@/lib/affiliate-ledger";
+import {
+  DB_FOREIGN_KEY_VIOLATION,
+  DB_UNIQUE_VIOLATION,
+  describeDbError,
+  failedOn,
+} from "@/lib/db-errors";
 
 export type CrudState = { error?: string; fieldErrors?: Record<string, string> };
 
@@ -59,6 +65,43 @@ function zodErrors(error: z.ZodError): CrudState {
     if (typeof key === "string" && !fieldErrors[key]) fieldErrors[key] = issue.message;
   }
   return { error: "Please fix the highlighted fields.", fieldErrors };
+}
+
+/**
+ * A failed shop write, in words an admin can act on.
+ *
+ * Shops carry two constraints a form cannot check for the admin: one account
+ * owns at most one shop, and one slug belongs to one shop. Before this, picking
+ * an owner who already ran a shop threw the constraint straight at the browser
+ * — the shop was not created, the form was gone, and the only clue was
+ * "Something went wrong". Each one is now the field it belongs to.
+ */
+function vendorWriteError(thrown: unknown): CrudState {
+  const failure = describeDbError(thrown);
+
+  if (failure.code === DB_UNIQUE_VIOLATION) {
+    if (failedOn(failure, "ownerId")) {
+      return {
+        error: "That account already owns a shop. An account can only own one.",
+        fieldErrors: { ownerId: "Already owns a shop." },
+      };
+    }
+    if (failedOn(failure, "slug")) {
+      return { error: "Slug already in use.", fieldErrors: { slug: "Already exists." } };
+    }
+  }
+
+  if (failure.code === DB_FOREIGN_KEY_VIOLATION && failedOn(failure, "consolidationPointId")) {
+    return {
+      error: "That consolidation point no longer exists. Choose another.",
+      fieldErrors: { consolidationPointId: "No longer available." },
+    };
+  }
+
+  // Anything else is ours, not theirs: say so plainly and keep the form, with
+  // the detail in the server log where it can be read.
+  console.error("[admin] shop write failed", thrown);
+  return { error: "Couldn't save the shop. Please try again." };
 }
 
 function revalidateCatalog() {
@@ -201,7 +244,12 @@ export async function createVendor(_prev: CrudState, fd: FormData): Promise<Crud
   const existing = await prisma.vendor.findUnique({ where: { slug: data.slug } });
   if (existing) return { error: "Slug already in use.", fieldErrors: { slug: "Already exists." } };
 
-  await prisma.vendor.create({ data });
+  try {
+    await prisma.vendor.create({ data });
+  } catch (thrown) {
+    return vendorWriteError(thrown);
+  }
+
   revalidatePath("/admin/vendors");
   revalidateCatalog();
   redirect("/admin/vendors");
@@ -219,7 +267,12 @@ export async function updateVendor(id: string, _prev: CrudState, fd: FormData): 
   const clash = await prisma.vendor.findFirst({ where: { slug: data.slug, NOT: { id } } });
   if (clash) return { error: "Slug already in use.", fieldErrors: { slug: "Already exists." } };
 
-  await prisma.vendor.update({ where: { id }, data });
+  try {
+    await prisma.vendor.update({ where: { id }, data });
+  } catch (thrown) {
+    return vendorWriteError(thrown);
+  }
+
   revalidatePath("/admin/vendors");
   revalidateCatalog();
   redirect("/admin/vendors");

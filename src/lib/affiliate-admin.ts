@@ -24,6 +24,7 @@ export function AFFILIATE_MODULE_TABS(counts: {
   applications?: number;
   payouts?: number;
   flags?: number;
+  enquiries?: number;
 } = {}): ModuleTab[] {
   return [
     { href: "/admin/affiliates", label: "Affiliates", icon: "users", exact: true },
@@ -42,6 +43,12 @@ export function AFFILIATE_MODULE_TABS(counts: {
       icon: "banknote",
       badge: counts.payouts,
     },
+    {
+      href: "/admin/affiliates/support",
+      label: "Enquiries",
+      icon: "lifebuoy",
+      badge: counts.enquiries,
+    },
     { href: "/admin/affiliates/fraud", label: "Abuse", icon: "audit", badge: counts.flags },
     { href: "/admin/affiliates/settings", label: "Policy", icon: "rules" },
   ];
@@ -52,13 +59,17 @@ export async function getModuleCounts(): Promise<{
   applications: number;
   payouts: number;
   flags: number;
+  enquiries: number;
 }> {
-  const [applications, payouts, flags] = await Promise.all([
+  const [applications, payouts, flags, enquiries] = await Promise.all([
     prisma.affiliateApplication.count({ where: { status: "pending" } }).catch(() => 0),
     prisma.affiliatePayout.count({ where: { status: "pending" } }).catch(() => 0),
     prisma.affiliateFraudFlag.count({ where: { status: "open" } }).catch(() => 0),
+    prisma.affiliateThread
+      .count({ where: { kind: "support", status: { in: ["open", "waiting_support"] } } })
+      .catch(() => 0),
   ]);
-  return { applications, payouts, flags };
+  return { applications, payouts, flags, enquiries };
 }
 
 export interface AdminTableQuery {

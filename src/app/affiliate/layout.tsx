@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AffiliateShell } from "@/components/affiliate/AffiliateShell";
 import { getAffiliateWorkspace } from "@/lib/affiliate-console";
+import { getAssistSummary } from "@/lib/affiliate-assist";
 import { getWorkspaces } from "@/lib/workspaces";
 import { requireUser } from "@/lib/session";
 
@@ -31,6 +32,10 @@ export default async function AffiliateLayout({ children }: { children: React.Re
   const affiliate = workspace.affiliate;
   if (!affiliate) redirect("/become-an-affiliate");
 
+  // The counts the sidebar nags with. Cached per request, so the pages that
+  // ask for the same figures do not read them twice.
+  const summary = await getAssistSummary(affiliate.id);
+
   return (
     <AffiliateShell
       account={{
@@ -39,6 +44,11 @@ export default async function AffiliateLayout({ children }: { children: React.Re
         status: affiliate.status,
       }}
       workspaces={workspaces}
+      counts={{
+        unread: summary.unread,
+        followUps: summary.followUps,
+        escalations: summary.escalations,
+      }}
     >
       {affiliate.status === "suspended" ? (
         <p className="animate-fade-up mb-5 rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger ring-1 ring-niki-danger/30">

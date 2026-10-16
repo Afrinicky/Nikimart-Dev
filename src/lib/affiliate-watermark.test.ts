@@ -2,9 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_WATERMARK,
+  WATERMARK_ANCHORS,
+  WATERMARK_NUDGE_LIMIT,
+  anchorFor,
   anchorPoint,
   photoCanvasSize,
   photoFileName,
+  placementFor,
   resolveWatermark,
 } from "./affiliate-watermark.ts";
 
@@ -130,4 +134,61 @@ test("switching the watermark off is a setting, not a missing one", () => {
 test("the filename is a safe slug of the product", () => {
   assert.equal(photoFileName("Kente Throw — Royal Blue!"), "kente-throw-royal-blue.jpg");
   assert.equal(photoFileName("***"), "nickimart-product.jpg");
+});
+
+// ---------------------------------------------------------------------------
+// Placing a mark by dragging it
+// ---------------------------------------------------------------------------
+
+const BOX = { width: 1000, height: 800 };
+
+test("a point picks the anchor whose third of the picture it is in", () => {
+  assert.equal(anchorFor({ x: 10, y: 10 }, BOX), "top-left");
+  assert.equal(anchorFor({ x: 500, y: 10 }, BOX), "top-center");
+  assert.equal(anchorFor({ x: 990, y: 10 }, BOX), "top-right");
+  assert.equal(anchorFor({ x: 10, y: 400 }, BOX), "middle-left");
+  assert.equal(anchorFor({ x: 500, y: 400 }, BOX), "center");
+  assert.equal(anchorFor({ x: 990, y: 400 }, BOX), "middle-right");
+  assert.equal(anchorFor({ x: 10, y: 790 }, BOX), "bottom-left");
+  assert.equal(anchorFor({ x: 500, y: 790 }, BOX), "bottom-center");
+  assert.equal(anchorFor({ x: 990, y: 790 }, BOX), "bottom-right");
+});
+
+test("a drag that lands on an anchor needs no nudge", () => {
+  const item = { width: 200, height: 60 };
+  const padding = 30;
+  for (const anchor of WATERMARK_ANCHORS) {
+    const at = anchorPoint(anchor.key, BOX, item, padding);
+    const placed = placementFor(at, BOX, item, padding);
+    assert.equal(placed.anchor, anchor.key, anchor.key);
+    assert.equal(placed.dx, 0, `${anchor.key} dx`);
+    assert.equal(placed.dy, 0, `${anchor.key} dy`);
+  }
+});
+
+test("a drag off an anchor becomes that anchor plus a small offset", () => {
+  const item = { width: 200, height: 60 };
+  const padding = 30;
+  const at = anchorPoint("bottom-right", BOX, item, padding);
+  const placed = placementFor({ x: at.x - 50, y: at.y - 40 }, BOX, item, padding);
+  assert.equal(placed.anchor, "bottom-right");
+  assert.equal(placed.dx, -5); // 50px of 1000 wide
+  assert.equal(placed.dy, -5); // 40px of 800 tall
+  // And it round-trips back to the point that was dragged to.
+  const back = anchorPoint(placed.anchor, BOX, item, padding, {
+    x: (placed.dx / 100) * BOX.width,
+    y: (placed.dy / 100) * BOX.height,
+  });
+  assert.equal(Math.round(back.x), Math.round(at.x - 50));
+  assert.equal(Math.round(back.y), Math.round(at.y - 40));
+});
+
+test("a placement stays inside what the config can store", () => {
+  const item = { width: 10, height: 10 };
+  const placed = placementFor({ x: -100_000, y: 100_000 }, BOX, item, 0);
+  assert.equal(placed.dx, -WATERMARK_NUDGE_LIMIT);
+  assert.equal(placed.dy, WATERMARK_NUDGE_LIMIT);
+  const resolved = resolveWatermark({ dx: placed.dx, dy: placed.dy });
+  assert.equal(resolved.dx, -WATERMARK_NUDGE_LIMIT);
+  assert.equal(resolved.dy, WATERMARK_NUDGE_LIMIT);
 });

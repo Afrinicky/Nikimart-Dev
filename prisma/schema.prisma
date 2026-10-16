@@ -69,6 +69,9 @@ model User {
   passwordResets  PasswordResetToken[]
   twoFactorChallenges TwoFactorChallenge[]
   affiliate       Affiliate?
+  /// Conversations with an affiliate who referred them, and the messages in them.
+  affiliateThreads  AffiliateThread[]  @relation("AffiliateThreadCustomer")
+  affiliateMessages AffiliateMessage[] @relation("AffiliateMessageAuthor")
   // No `dataAgent` relation: agent accounts live in the data-bundle database
   // (prisma/data/schema.prisma), which Postgres cannot reference from here.
   /**
@@ -340,6 +343,8 @@ model Affiliate {
   commissions AffiliateCommission[]
   flags       AffiliateFraudFlag[]
   events      AffiliateEvent[]
+  threads     AffiliateThread[]
+  followUps   AffiliateFollowUp[]
 }
 
 model AffiliatePayout {
@@ -564,6 +569,11 @@ model Order {
   // above is the order-level snapshot; these are what actually gets paid, and
   // what gets reversed when an order is cancelled, returned or refunded.
   affiliateCommissions AffiliateCommission[]
+
+  // The affiliate's follow-up on this order: what was said to the buyer, and
+  // what is still outstanding.
+  affiliateThreads   AffiliateThread[]
+  affiliateFollowUps AffiliateFollowUp[]
 }
 
 model OrderItem {
@@ -1555,4 +1565,143 @@ model AffiliateEvent {
 
   @@index([affiliateId, createdAt])
   @@index([action, createdAt])
+}
+
+/**
+ * One conversation an affiliate is part of.
+ *
+ * Two jobs, one shape. `kind: "customer"` is the affiliate and the buyer they
+ * referred: product questions before the order, where-is-it after it, returns
+ * and repeat purchases. `kind: "support"` is the affiliate and Nickimart: the
+ * enquiry they raise when the answer is not theirs to give — is this in stock,
+ * why has this not moved in a week — and `escalatedFrom` points back at the
+ * customer thread that prompted it, so an answer can be traced to the question
+ * that caused it and relayed with Nickimart's name on it.
+ *
+ * Unread is not a column. Each party has a `readAt`, and whether there is
+ * something new is that timestamp against `lastMessageAt` and who sent it —
+ * derived on every read, so a counter cannot drift away from the messages.
+ *
+ * Nothing here touches money. An affiliate assisting a buyer needs the order's
+ * progress and its contents; they do not need what was paid, how, or what is
+ * still owed, and none of it is reachable from this table.
+ */
+model AffiliateThread {
+  id          String    @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  /// customer | support
+  kind String @default("customer")
+
+  /// The buyer or identified link-clicker. Null on an enquiry about a product.
+  customerId String?
+  customer   User?   @relation("AffiliateThreadCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  /// general | availability | delivery | complaint | return | repeat | comparison
+  topic    String @default("general")
+  subject  String @default("")
+  /// open | waiting_customer | waiting_affiliate | waiting_support | resolved
+  status   String @default("open")
+  /// normal | high | urgent — support threads only.
+  priority String @default("normal")
+  /// affiliate | customer | support
+  openedBy String @default("affiliate")
+
+  escalatedFromId String?
+  escalatedFrom   AffiliateThread?  @relation("AffiliateEscalation", fields: [escalatedFromId], references: [id], onDelete: SetNull)
+  escalations     AffiliateThread[] @relation("AffiliateEscalation")
+
+  affiliateReadAt DateTime?
+  customerReadAt  DateTime?
+  supportReadAt   DateTime?
+
+  lastMessageAt   DateTime?
+  lastMessageRole String    @default("")
+  lastMessageText String    @default("")
+
+  resolvedAt DateTime?
+  resolution String    @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages   AffiliateMessage[]
+  followUps  AffiliateFollowUp[]
+
+  @@index([affiliateId, lastMessageAt])
+  @@index([customerId])
+  @@index([orderId])
+  @@index([kind, status])
+}
+
+/**
+ * One message in a thread.
+ *
+ * `internal` is a note the other side never sees — the affiliate's own record
+ * of what they tried, or support's working note. It lives with the
+ * conversation because that is where it is useful and nowhere else.
+ *
+ * `relayedFrom` is what makes a relayed update verifiable: when an affiliate
+ * passes on what support told them, the customer's copy points at the message
+ * it came from, so the buyer is shown that the answer is Nickimart's and not
+ * their helper's best guess.
+ */
+model AffiliateMessage {
+  id       String          @id @default(cuid())
+  threadId String
+  thread   AffiliateThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  authorId String?
+  author   User?   @relation("AffiliateMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  /// affiliate | customer | support
+  authorRole String @default("affiliate")
+  /// Snapshotted, so a closed account still leaves a readable record.
+  authorName String @default("")
+
+  body     String
+  internal Boolean @default(false)
+
+  relayedFromId String?
+  relayedFrom   AffiliateMessage?  @relation("AffiliateRelay", fields: [relayedFromId], references: [id], onDelete: SetNull)
+  relays        AffiliateMessage[] @relation("AffiliateRelay")
+
+  createdAt DateTime @default(now())
+
+  @@index([threadId, createdAt])
+}
+
+/**
+ * An outstanding action that has been dealt with.
+ *
+ * The follow-up list itself is computed from the orders and the threads, so
+ * this table is only the acknowledgement. `key` encodes the state the item was
+ * handled in — the order and the stage it was sitting at, the message it was
+ * answering — so when that state moves on, the key no longer matches and the
+ * item reappears. A list that could be silenced permanently would stop being
+ * worth opening.
+ */
+model AffiliateFollowUp {
+  id          String    @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  key  String
+  kind String @default("")
+
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  threadId String?
+  thread   AffiliateThread? @relation(fields: [threadId], references: [id], onDelete: SetNull)
+
+  note      String   @default("")
+  handledAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@unique([affiliateId, key])
+  @@index([affiliateId, handledAt])
 }

@@ -2,17 +2,23 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_FLYER_DESIGN,
-  bulkShareText,
+  FLYER_SIZE_RANGE,
   FLYER_SLOTS,
   MAX_FLYER_EXTRAS,
+  NUDGE_LIMIT,
+  bulkShareText,
+  clampNudge,
+  clampSize,
   coverSource,
   designTheme,
   flyerFileName,
   flyerTheme,
+  hitAt,
   newFlyerExtra,
   productFlyerShareText,
   resolveFlyerDesign,
   wrapLines,
+  type FlyerHit,
 } from "./affiliate-flyer.ts";
 
 /**
@@ -302,4 +308,60 @@ test("products with no link are left out rather than listed unbuyable", () => {
 
 test("nothing to share is just the caption", () => {
   assert.equal(bulkShareText([], "  Nothing today  "), "Nothing today");
+});
+
+// ---------------------------------------------------------------------------
+// Hit testing — what a finger lands on
+// ---------------------------------------------------------------------------
+
+test("hitAt picks the topmost box under a point", () => {
+  const hits: FlyerHit[] = [
+    {
+      id: "frame",
+      kind: "frame",
+      label: "The picture",
+      rect: { x: 0, y: 0, width: 100, height: 100 },
+      movable: true,
+      resizable: true,
+    },
+    {
+      id: "text:price",
+      kind: "text",
+      key: "price",
+      label: "Price",
+      rect: { x: 10, y: 10, width: 30, height: 20 },
+      movable: true,
+      resizable: true,
+    },
+  ];
+
+  // Inside both: the one drawn last wins, as it does visually.
+  assert.equal(hitAt(hits, 20, 20)?.id, "text:price");
+  // Inside only the frame.
+  assert.equal(hitAt(hits, 80, 80)?.id, "frame");
+  // Outside everything.
+  assert.equal(hitAt(hits, 200, 200), null);
+  // Edges count: a box you can see is a box you can tap.
+  assert.equal(hitAt(hits, 10, 10)?.id, "text:price");
+  assert.equal(hitAt(hits, 40, 30)?.id, "text:price");
+});
+
+test("a dragged nudge cannot leave what the design can store", () => {
+  assert.equal(clampNudge(12.4), 12);
+  assert.equal(clampNudge(100_000), NUDGE_LIMIT);
+  assert.equal(clampNudge(-100_000), -NUDGE_LIMIT);
+  // Round-trips through the resolver unchanged, which is the point of the limit.
+  const design = resolveFlyerDesign({
+    text: { price: { dx: clampNudge(100_000), dy: clampNudge(-100_000) } },
+  });
+  assert.equal(design.text.price.dx, NUDGE_LIMIT);
+  assert.equal(design.text.price.dy, -NUDGE_LIMIT);
+});
+
+test("a pinched size cannot leave what the design can store", () => {
+  assert.equal(clampSize(44.6), 45);
+  assert.equal(clampSize(0), FLYER_SIZE_RANGE.min);
+  assert.equal(clampSize(9999), FLYER_SIZE_RANGE.max);
+  const design = resolveFlyerDesign({ text: { name: { size: clampSize(9999) } } });
+  assert.equal(design.text.name.size, FLYER_SIZE_RANGE.max);
 });

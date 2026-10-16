@@ -5,12 +5,15 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   ChevronLeft,
+  ClipboardCheck,
   ExternalLink,
   Gift,
+  Headset,
   LayoutDashboard,
   LifeBuoy,
   ListOrdered,
   Menu,
+  MessagesSquare,
   MoreHorizontal,
   MousePointerClick,
   Receipt,
@@ -18,6 +21,7 @@ import {
   ShoppingBag,
   Store,
   Tags,
+  Users,
   Wallet,
   X,
 } from "lucide-react";
@@ -52,21 +56,56 @@ interface NavItem {
   exact?: boolean;
   /** Shown in the phone's bottom bar. Four at most, plus More. */
   primary?: boolean;
+  /** Which count to show against it, when there is one. */
+  badge?: keyof AssistCounts;
+}
+
+/**
+ * What the sidebar needs to nag about.
+ *
+ * A console that does not say "two people are waiting on you" until you happen
+ * to open the right screen is a console where people wait.
+ */
+export interface AssistCounts {
+  unread: number;
+  followUps: number;
+  escalations: number;
 }
 
 const ITEMS: NavItem[] = [
   { href: "/affiliate", label: "Dashboard", icon: LayoutDashboard, exact: true, primary: true },
   { href: "/affiliate/shop", label: "Browse products", icon: ShoppingBag, primary: true },
-  { href: "/affiliate/products", label: "My products", icon: Tags, primary: true },
+  { href: "/affiliate/messages", label: "Messages", icon: MessagesSquare, primary: true, badge: "unread" },
   { href: "/affiliate/earnings", label: "Earnings", icon: Wallet, primary: true },
+  { href: "/affiliate/follow-ups", label: "Follow-ups", icon: ClipboardCheck, badge: "followUps" },
+  { href: "/affiliate/customers", label: "My customers", icon: Users },
+  { href: "/affiliate/orders", label: "Referred orders", icon: ListOrdered },
+  { href: "/affiliate/products", label: "My products", icon: Tags },
   { href: "/affiliate/catalogue", label: "Catalogue", icon: Gift },
   { href: "/affiliate/links", label: "Links & clicks", icon: MousePointerClick },
-  { href: "/affiliate/orders", label: "Referred orders", icon: ListOrdered },
   { href: "/affiliate/commissions", label: "Commissions", icon: Receipt },
+  { href: "/affiliate/escalations", label: "Nickimart enquiries", icon: Headset, badge: "escalations" },
   { href: "/affiliate/performance", label: "Performance", icon: BarChart3 },
   { href: "/affiliate/settings", label: "Settings", icon: Settings },
   { href: "/affiliate/support", label: "Help", icon: LifeBuoy },
 ];
+
+const NO_COUNTS: AssistCounts = { unread: 0, followUps: 0, escalations: 0 };
+
+/** A count beside a nav entry. Nothing is drawn for nothing. */
+function Badge({ n, tone = "orange" }: { n: number; tone?: "orange" | "quiet" }) {
+  if (n <= 0) return null;
+  return (
+    <span
+      className={cn(
+        "ml-auto min-w-5 rounded-full px-1.5 py-0.5 text-center text-[10px] font-bold leading-4",
+        tone === "orange" ? "bg-niki-orange text-white" : "bg-white/15 text-white",
+      )}
+    >
+      {n > 99 ? "99+" : n}
+    </span>
+  );
+}
 
 function isActive(pathname: string, item: NavItem): boolean {
   if (item.exact) return pathname === item.href;
@@ -117,10 +156,13 @@ function readCollapsed(): boolean {
 export function AffiliateShell({
   account,
   workspaces,
+  counts = NO_COUNTS,
   children,
 }: {
   account: { name: string; code: string; status: string };
   workspaces: Workspace[];
+  /** Unread messages, outstanding follow-ups and open enquiries. */
+  counts?: AssistCounts;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -211,7 +253,7 @@ export function AffiliateShell({
                     aria-current={active ? "page" : undefined}
                     title={collapsed ? item.label : undefined}
                     className={cn(
-                      "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors",
+                      "relative flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors",
                       active
                         ? "bg-niki-orange text-white"
                         : "text-white/60 hover:bg-white/10 hover:text-white",
@@ -219,7 +261,19 @@ export function AffiliateShell({
                     )}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
-                    {!collapsed ? <span className="truncate">{item.label}</span> : null}
+                    {!collapsed ? (
+                      <>
+                        <span className="truncate">{item.label}</span>
+                        {item.badge ? (
+                          <Badge n={counts[item.badge]} tone={active ? "quiet" : "orange"} />
+                        ) : null}
+                      </>
+                    ) : item.badge && counts[item.badge] > 0 ? (
+                      <span
+                        aria-hidden
+                        className="absolute right-2 top-2 h-2 w-2 rounded-full bg-niki-orange ring-2 ring-niki-black"
+                      />
+                    ) : null}
                   </ActionLink>
                 </li>
               );
@@ -310,11 +364,16 @@ export function AffiliateShell({
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex flex-col items-center gap-1 px-1 py-2.5 text-[10px] font-semibold transition-colors",
+                  "relative flex flex-col items-center gap-1 px-1 py-2.5 text-[10px] font-semibold transition-colors",
                   active ? "text-niki-orange" : "text-niki-ink/50",
                 )}
               >
                 <Icon className="h-5 w-5" />
+                {item.badge && counts[item.badge] > 0 ? (
+                  <span className="absolute right-[18%] top-1.5 min-w-4 rounded-full bg-niki-orange px-1 text-center text-[9px] font-bold leading-4 text-white">
+                    {counts[item.badge] > 9 ? "9+" : counts[item.badge]}
+                  </span>
+                ) : null}
                 {item.label.split(" ")[0]}
               </ActionLink>
             );
@@ -322,9 +381,16 @@ export function AffiliateShell({
           <button
             type="button"
             onClick={() => setOpenFor(pathname)}
-            className="flex flex-col items-center gap-1 px-1 py-2.5 text-[10px] font-semibold text-niki-ink/50"
+            className="relative flex flex-col items-center gap-1 px-1 py-2.5 text-[10px] font-semibold text-niki-ink/50"
           >
             <MoreHorizontal className="h-5 w-5" />
+            {/* Whatever is behind More still has to be able to ask for you. */}
+            {counts.followUps + counts.escalations > 0 ? (
+              <span
+                aria-hidden
+                className="absolute right-[26%] top-2 h-2 w-2 rounded-full bg-niki-orange"
+              />
+            ) : null}
             More
           </button>
         </div>

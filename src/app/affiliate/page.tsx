@@ -31,6 +31,8 @@ import {
   requireAffiliateConsole,
 } from "@/lib/affiliate-console";
 import { resolveWindow } from "@/lib/data-bundles/overview-window";
+import { getFollowUps } from "@/lib/affiliate-assist";
+import { FollowUpList } from "@/components/affiliate/FollowUpList";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Affiliate — Nickimart" };
@@ -79,16 +81,18 @@ async function Dashboard({
 }) {
   const w = resolveWindow(searchParams);
 
-  const [totals, previous, series, balance, top, channels, statusMix, promoted] = await Promise.all([
-    getAffiliateWindowTotals(affiliate.id, w),
-    getAffiliatePreviousTotals(affiliate.id, w),
-    getAffiliateSeries(affiliate.id, w),
-    getAffiliateBalance(affiliate.id),
-    getTopProducts(affiliate.id, w),
-    getChannelMix(affiliate.id, w),
-    getReferredStatusMix(affiliate.id, w),
-    getPromotedProducts(affiliate.id, { perPage: 1 }),
-  ]);
+  const [totals, previous, series, balance, top, channels, statusMix, promoted, board] =
+    await Promise.all([
+      getAffiliateWindowTotals(affiliate.id, w),
+      getAffiliatePreviousTotals(affiliate.id, w),
+      getAffiliateSeries(affiliate.id, w),
+      getAffiliateBalance(affiliate.id),
+      getTopProducts(affiliate.id, w),
+      getChannelMix(affiliate.id, w),
+      getReferredStatusMix(affiliate.id, w),
+      getPromotedProducts(affiliate.id, { perPage: 1 }),
+      getFollowUps(affiliate.id),
+    ]);
 
   const range = `?${new URLSearchParams(
     Object.entries(searchParams).filter(([, v]) => Boolean(v)) as [string, string][],
@@ -215,6 +219,30 @@ async function Dashboard({
           href="/affiliate/earnings"
         />
       </div>
+
+      {board.items.length > 0 ? (
+        <section>
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="font-display font-bold text-niki-ink">Waiting on you</h2>
+              <p className="text-xs text-niki-ink/55">
+                {board.items.length} outstanding
+                {board.overdue > 0 ? (
+                  <span className="font-semibold text-niki-danger"> · {board.overdue} overdue</span>
+                ) : null}
+                . Worked out from your orders and conversations.
+              </p>
+            </div>
+            <ActionLink
+              href="/affiliate/follow-ups"
+              className="text-sm font-semibold text-niki-orange hover:underline"
+            >
+              See all
+            </ActionLink>
+          </div>
+          <FollowUpList items={board.items} limit={4} />
+        </section>
+      ) : null}
 
       <section className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">

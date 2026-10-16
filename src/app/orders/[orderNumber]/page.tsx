@@ -5,9 +5,12 @@ import { ArrowLeft, MapPin, Package, Receipt, Truck } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { TrackingTimeline } from "@/components/order/TrackingTimeline";
+import { AffiliateHelperPanel } from "@/components/order/AffiliateHelperPanel";
 import { OrderBill } from "@/components/order/OrderBill";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { getOrderHelper } from "@/lib/affiliate-assist";
+import { markThreadRead } from "@/lib/affiliate-assist-actions";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
 import type { ShipmentRoute, ShipmentTimestamps } from "@/lib/tracking";
@@ -25,6 +28,11 @@ export default async function OrderTrackingPage({ params }: { params: Params }) 
     include: { items: { include: { product: true } }, shipment: true, pickupPoint: true },
   });
   if (!order) notFound();
+
+  // Whoever recommended this, if anybody did. Reading the conversation marks it
+  // seen, so the affiliate's "waiting on the customer" is honest.
+  const helper = await getOrderHelper(user.id, order.orderNumber);
+  if (helper?.threadId) await markThreadRead(helper.threadId);
 
   const method = order.deliveryMethod === "pickup" ? "pickup" : "delivery";
   const timestamps: ShipmentTimestamps = {
@@ -57,25 +65,39 @@ export default async function OrderTrackingPage({ params }: { params: Params }) 
         </div>
 
         <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_20rem]">
-          <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-display text-lg font-bold text-niki-ink">Tracking</h2>
-              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone(order.status)}`}>
-                {ORDER_STATUS_LABELS[order.status] ?? order.status}
-              </span>
+          <div className="space-y-6">
+            <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-display text-lg font-bold text-niki-ink">Tracking</h2>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone(order.status)}`}>
+                  {ORDER_STATUS_LABELS[order.status] ?? order.status}
+                </span>
+              </div>
+
+              <div className="mt-3 flex items-center gap-2 text-sm text-niki-ink/60">
+                {method === "pickup" ? <MapPin className="h-4 w-4 text-niki-orange" /> : <Truck className="h-4 w-4 text-niki-orange" />}
+                {method === "pickup"
+                  ? `Pickup at ${order.pickupPoint?.name ?? "pickup point"}`
+                  : `Delivery to ${order.address ?? "your address"}`}
+                {order.shipment ? <span className="text-niki-ink/40">· {order.shipment.trackingNumber}</span> : null}
+              </div>
+
+              <div className="mt-6">
+                <TrackingTimeline timestamps={timestamps} method={method} route={route} />
+              </div>
             </div>
 
-            <div className="mt-3 flex items-center gap-2 text-sm text-niki-ink/60">
-              {method === "pickup" ? <MapPin className="h-4 w-4 text-niki-orange" /> : <Truck className="h-4 w-4 text-niki-orange" />}
-              {method === "pickup"
-                ? `Pickup at ${order.pickupPoint?.name ?? "pickup point"}`
-                : `Delivery to ${order.address ?? "your address"}`}
-              {order.shipment ? <span className="text-niki-ink/40">· {order.shipment.trackingNumber}</span> : null}
-            </div>
-
-            <div className="mt-6">
-              <TrackingTimeline timestamps={timestamps} method={method} route={route} />
-            </div>
+            {helper ? (
+              <AffiliateHelperPanel
+                orderNumber={order.orderNumber}
+                helperName={helper.name}
+                threadId={helper.threadId}
+                messages={helper.messages.map((m) => ({
+                  ...m,
+                  createdAt: m.createdAt.toISOString(),
+                }))}
+              />
+            ) : null}
           </div>
 
           <aside className="h-fit rounded-2xl bg-white p-6 ring-1 ring-niki-edge">

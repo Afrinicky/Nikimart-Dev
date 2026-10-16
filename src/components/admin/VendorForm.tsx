@@ -23,7 +23,13 @@ export function VendorForm({
 }: {
   action: Action;
   vendor?: Vendor;
-  owners: { id: string; name: string | null; email: string | null }[];
+  owners: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    /** The shop this account already owns, if any — one account, one shop. */
+    vendor?: { id: string } | null;
+  }[];
   currentOwnerId?: string | null;
   hubs?: { id: string; label: string }[];
   currentConsolidationPointId?: string | null;
@@ -76,7 +82,10 @@ export function VendorForm({
         <Field
           label="Consolidation point"
           htmlFor="consolidationPointId"
-          hint="Where this shop's goods gather before a courier takes them to a buyer. Sets the shipping on its listings; a listing may override it."
+          hint={
+            state.fieldErrors?.consolidationPointId ??
+            "Where this shop's goods gather before a courier takes them to a buyer. Sets the shipping on its listings; a listing may override it."
+          }
         >
           <select
             id="consolidationPointId"
@@ -101,14 +110,24 @@ export function VendorForm({
         <Field label="Accent to" htmlFor="accentTo">
           <input id="accentTo" name="accentTo" type="color" defaultValue={v?.accentTo ?? "#FFB020"} className={`${inputClass} h-11 p-1`} />
         </Field>
-        <Field label="Owner (seller account)" htmlFor="ownerId">
+        {/*
+          An account owns at most one shop, so the accounts that already own
+          another one are shown and disabled rather than hidden: the admin
+          looking for "Kojo" needs to find him and see why he cannot be picked,
+          not wonder where he went.
+        */}
+        <Field label="Owner (seller account)" htmlFor="ownerId" hint={state.fieldErrors?.ownerId}>
           <select id="ownerId" name="ownerId" defaultValue={currentOwnerId ?? ""} className={inputClass}>
             <option value="">— none —</option>
-            {owners.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name ?? o.email}
-              </option>
-            ))}
+            {owners.map((o) => {
+              const taken = o.vendor ? o.vendor.id !== v?.id : false;
+              return (
+                <option key={o.id} value={o.id} disabled={taken}>
+                  {o.name ?? o.email}
+                  {taken ? " — already owns a shop" : ""}
+                </option>
+              );
+            })}
           </select>
         </Field>
       </div>

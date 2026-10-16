@@ -85,6 +85,65 @@ export function anchorPoint(
 }
 
 /**
+ * Which anchor's cell a point falls in.
+ *
+ * A drag can finish anywhere, and the mark is stored as an anchor plus a small
+ * nudge — "bottom right, eased in a little" — because that is what has to keep
+ * meaning the same thing on a portrait photograph and a landscape one. So a
+ * drag re-chooses the anchor from the thirds of the picture it landed in, and
+ * the leftover becomes the nudge. Dragging to the middle of the bottom edge
+ * gives you bottom-centre with almost no offset, rather than bottom-right with
+ * a large negative one.
+ */
+export function anchorFor(
+  point: Point,
+  box: { width: number; height: number },
+): WatermarkAnchor {
+  const col = point.x < box.width / 3 ? "left" : point.x < (box.width * 2) / 3 ? "center" : "right";
+  const row =
+    point.y < box.height / 3 ? "top" : point.y < (box.height * 2) / 3 ? "middle" : "bottom";
+  if (row === "middle" && col === "center") return "center";
+  const horizontal = row === "middle" && col === "center" ? "center" : col;
+  const key = `${row}-${horizontal}`;
+  return WATERMARK_ANCHORS.some((a) => a.key === key) ? (key as WatermarkAnchor) : "center";
+}
+
+/** The nudge range the config can store, as a percentage of the picture. */
+export const WATERMARK_NUDGE_LIMIT = 50;
+
+/**
+ * The anchor and nudge that would put an item's top-left corner at a point.
+ *
+ * The inverse of `anchorPoint`, in the units the config stores — percentages
+ * of the picture, so the same design works on any photograph.
+ */
+export function placementFor(
+  point: Point,
+  box: { width: number; height: number },
+  item: { width: number; height: number },
+  padding: number,
+): { anchor: WatermarkAnchor; dx: number; dy: number } {
+  const centre = { x: point.x + item.width / 2, y: point.y + item.height / 2 };
+  const anchorKey = anchorFor(centre, box);
+  const base = anchorPoint(anchorKey, box, item, padding);
+  const limit = WATERMARK_NUDGE_LIMIT;
+  const pct = (value: number, span: number) =>
+    Math.max(-limit, Math.min(limit, Math.round(((value / span) * 100 + Number.EPSILON) * 10) / 10));
+  return {
+    anchor: anchorKey,
+    dx: pct(point.x - base.x, box.width),
+    dy: pct(point.y - base.y, box.height),
+  };
+}
+
+/** Where the mark and the logo ended up, so a finger can find them. */
+export interface PhotoHit {
+  id: "watermark" | "logo";
+  label: string;
+  rect: { x: number; y: number; width: number; height: number };
+}
+
+/**
  * How big the shared picture should be.
  *
  * The photograph's own shape is kept — that is the whole point of this mode —
@@ -258,6 +317,12 @@ export function resolveWatermark(
 // ---------------------------------------------------------------------------
 
 export interface PhotoShareOptions {
+  /**
+   * Hand in an array and it is filled with where the mark and the logo landed,
+   * in the pixels of the size given. The editor needs it; the share path does
+   * not pass it and pays nothing for it.
+   */
+  hits?: PhotoHit[];
   /** The photograph. Null draws the listing's placeholder instead. */
   image: FlyerImage | null;
   watermark: WatermarkConfig;
@@ -324,6 +389,11 @@ export function drawWatermarkedPhoto(
     }
     ctx.drawImage(logo.source, at.x, at.y, logoWidth, logoHeight);
     ctx.restore();
+    options.hits?.push({
+      id: "logo",
+      label: "The logo",
+      rect: { x: at.x, y: at.y, width: logoWidth, height: logoHeight },
+    });
   }
 
   // --- The wording ----------------------------------------------------------
@@ -360,6 +430,12 @@ export function drawWatermarkedPhoto(
   ctx.fillStyle = watermark.color;
   ctx.fillText(text, at.x, at.y);
   ctx.restore();
+
+  options.hits?.push({
+    id: "watermark",
+    label: "The watermark",
+    rect: { x: at.x, y: at.y, width: measured.width, height: textHeight },
+  });
 }
 
 /** The filename a saved photograph gets. */

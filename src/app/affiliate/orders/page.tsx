@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import Link from "next/link";
 import { ListOrdered } from "lucide-react";
 import { ModuleHeader } from "@/components/admin/ModuleHeader";
 import { ConsoleFilters } from "@/components/affiliate/ConsoleFilters";
@@ -66,7 +67,7 @@ export default async function AffiliateOrdersPage({
     <div>
       <ModuleHeader
         title="Referred orders"
-        subtitle="Orders placed by customers who arrived through your links."
+        subtitle="Orders placed by customers who arrived through your links — open one to follow it and help the buyer."
         icon={ListOrdered}
       />
 
@@ -100,8 +101,8 @@ export default async function AffiliateOrdersPage({
       </div>
 
       <ConsoleTable
-        columns={["Order", "Date", "Buyer", "Products", "Order value", "Order status", "Your commission", "Commission status"]}
-        minWidth={1180}
+        columns={["Order", "Date", "Buyer", "Products", "Order value", "Order status", "Your commission", "Commission status", ""]}
+        minWidth={1280}
         page={page}
         pageCount={pageCount}
         perPage={perPage}
@@ -109,7 +110,11 @@ export default async function AffiliateOrdersPage({
       >
         {rows.map((o) => (
           <ConsoleRow key={o.id}>
-            <td className={`${td} font-mono text-xs font-semibold text-niki-ink`}>{o.orderNumber}</td>
+            <td className={`${td} font-mono text-xs font-semibold`}>
+              <Link href={`/affiliate/orders/${o.id}`} className="text-niki-ink hover:text-niki-orange">
+                {o.orderNumber}
+              </Link>
+            </td>
             <td className={`${td} whitespace-nowrap text-xs text-niki-ink/55`}>
               {formatWhen(o.createdAt)}
             </td>
@@ -132,6 +137,14 @@ export default async function AffiliateOrdersPage({
                     : undefined
                 }
               />
+            </td>
+            <td className={td}>
+              <Link
+                href={`/affiliate/orders/${o.id}`}
+                className="niki-press whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong hover:bg-niki-surface"
+              >
+                Track &amp; help
+              </Link>
             </td>
           </ConsoleRow>
         ))}

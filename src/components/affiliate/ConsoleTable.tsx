@@ -122,6 +122,15 @@ const TONES: Record<string, string> = {
   live: "bg-niki-success/10 text-niki-success",
   paused: "bg-niki-ink/10 text-niki-ink/70",
   ineligible: "bg-niki-danger/10 text-niki-danger",
+  // Conversations. "Needs your reply" is the only one that nags.
+  open: "bg-niki-orange/10 text-niki-orange",
+  waiting_affiliate: "bg-niki-orange/10 text-niki-orange",
+  waiting_customer: "bg-niki-ink/10 text-niki-ink/70",
+  waiting_support: "bg-niki-trust/10 text-niki-trust",
+  resolved: "bg-niki-success/10 text-niki-success",
+  urgent: "bg-niki-danger/10 text-niki-danger",
+  high: "bg-niki-gold/20 text-amber-800",
+  normal: "bg-niki-ink/10 text-niki-ink/70",
 };
 
 export function ConsolePill({

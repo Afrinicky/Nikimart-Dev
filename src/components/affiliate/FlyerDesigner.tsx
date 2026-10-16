@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
-import { Loader2, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import { useActionState, useState } from "react";
+import { Loader2, RotateCcw, Save, Trash2 } from "lucide-react";
 import {
   FLYER_ALIGNMENTS,
   FLYER_FONTS,
@@ -12,7 +12,6 @@ import {
   MAX_FLYER_EXTRAS,
   PRODUCT_FLYER_THEMES,
   designTheme,
-  newFlyerExtra,
   type FlyerAlign,
   type FlyerDesign,
   type FlyerExtra,
@@ -22,7 +21,8 @@ import {
   type FlyerTextStyle,
   type ProductFlyerData,
 } from "@/lib/affiliate-flyer";
-import { drawShare, useShareImage } from "@/components/affiliate/share-canvas";
+import { useShareImage } from "@/components/affiliate/share-canvas";
+import { FlyerCanvasEditor } from "@/components/affiliate/FlyerCanvasEditor";
 import {
   ColourField,
   Picker,
@@ -32,7 +32,6 @@ import {
   Switch,
   TextField,
 } from "@/components/affiliate/DesignControls";
-import { DEFAULT_WATERMARK } from "@/lib/affiliate-watermark";
 import { cn } from "@/lib/cn";
 
 /**
@@ -44,10 +43,15 @@ import { cn } from "@/lib/cn";
  * two were separate editors they would drift, and an affiliate would end up
  * able to change something an admin could not.
  *
- * Preview on the left, controls on the right, and the preview is the real
- * thing — the same canvas drawing the share studio uses, at full resolution,
- * scaled down by CSS. Nothing here is a mock-up of the flyer; it *is* the
- * flyer, so there is no way for the editor and the output to disagree.
+ * The flyer itself is the editor: tap a part of it to select it, drag to move
+ * it, pull a corner or pinch to resize. That is the surface people reach for,
+ * and it is a real flyer rather than a mock-up — the same canvas the share
+ * sheet draws, at full resolution, scaled by CSS — so the editor and the
+ * output cannot disagree.
+ *
+ * The panels beside it are the precision pass: exact sizes, faces, slots and
+ * the frame's own geometry, for the person who knows they want 34px. They are
+ * not the way in, which is what the first version of this got wrong.
  */
 
 const FONT_OPTIONS = FLYER_FONTS.map((f) => ({ value: f.key, label: f.label }));
@@ -86,21 +90,8 @@ export function FlyerDesigner({
 }) {
   const [design, setDesign] = useState<FlyerDesign>(initial);
   const [state, submit, saving] = useActionState(action, {});
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const image = useShareImage(sampleImageUrl);
   const theme = designTheme(design);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    drawShare(canvas, "flyer", {
-      data: sample,
-      design,
-      watermark: DEFAULT_WATERMARK,
-      image,
-      logo: null,
-    });
-  }, [design, image, sample]);
 
   function patch(next: Partial<FlyerDesign>) {
     setDesign((d) => ({ ...d, ...next }));
@@ -117,14 +108,6 @@ export function FlyerDesigner({
     }));
   }
 
-  function addExtra() {
-    setDesign((d) =>
-      d.extras.length >= MAX_FLYER_EXTRAS
-        ? d
-        : { ...d, extras: [...d.extras, newFlyerExtra(`x${Date.now().toString(36)}`)] },
-    );
-  }
-
   function removeExtra(id: string) {
     setDesign((d) => ({ ...d, extras: d.extras.filter((e) => e.id !== id) }));
   }
@@ -133,17 +116,12 @@ export function FlyerDesigner({
 
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
-      {/* The preview. Sticky, because the controls are longer than it is and
-          a design editor you cannot see the result of is a guessing game. */}
+      {/* The flyer, and the only tools most people will need. Sticky, because
+          the precision panels are longer than it is and an editor you cannot
+          see the result of is a guessing game. */}
       <div className="lg:sticky lg:top-24 lg:self-start">
-        <div className="overflow-hidden rounded-2xl ring-1 ring-niki-edge">
-          <canvas
-            ref={canvasRef}
-            className="block h-auto w-full bg-white"
-            role="img"
-            aria-label="Flyer preview"
-          />
-        </div>
+        <FlyerCanvasEditor design={design} onChange={setDesign} data={sample} image={image} />
+
         <p className="mt-2 text-[11px] leading-relaxed text-niki-ink/45">
           A real flyer, drawn exactly as it will be shared — only the product is a sample.
         </p>
@@ -186,8 +164,16 @@ export function FlyerDesigner({
         </form>
       </div>
 
-      {/* The controls. */}
+      {/* The precision pass. Everything here can be done on the flyer itself;
+          this is for the person who knows they want 34px and a particular
+          slot, and for the few things that have no box to tap — the colourway,
+          the frame's corner radius, the badge's words. */}
       <div className="space-y-3">
+        <p className="rounded-xl bg-niki-surface px-3.5 py-2.5 text-xs leading-relaxed text-niki-ink/55">
+          Most edits are quicker on the flyer above — tap a part, drag it, pull its corner. These
+          panels are for exact numbers and the few things that have nothing to tap.
+        </p>
+
         <Section title="Colours" hint="The colourway, and anything you want to override." defaultOpen>
           <div>
             <span className="mb-1.5 block text-xs font-semibold text-niki-ink/70">Colourway</span>
@@ -399,8 +385,9 @@ export function FlyerDesigner({
         >
           {design.extras.length === 0 ? (
             <p className="rounded-xl bg-niki-surface px-3 py-3 text-[11px] text-niki-ink/55">
-              Nothing added yet. A line of your own is the quickest way to make the flyer look like
-              yours rather than everybody&apos;s.
+              Nothing added yet. Use <strong className="font-semibold text-niki-ink/70">Add a
+              line</strong> under the flyer — a line of your own is the quickest way to make it look
+              like yours rather than everybody&apos;s.
             </p>
           ) : null}
 
@@ -464,17 +451,11 @@ export function FlyerDesigner({
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={addExtra}
-            disabled={design.extras.length >= MAX_FLYER_EXTRAS}
-            className="niki-press niki-focus mt-1 flex w-full items-center justify-center gap-1.5 rounded-xl bg-niki-black px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {design.extras.length >= MAX_FLYER_EXTRAS
-              ? `That's the most (${MAX_FLYER_EXTRAS})`
-              : "Add a line"}
-          </button>
+          {design.extras.length > 0 ? (
+            <p className="mt-1 text-[11px] text-niki-ink/45">
+              Add and delete lines on the flyer itself — {MAX_FLYER_EXTRAS} is the most it carries.
+            </p>
+          ) : null}
         </Section>
       </div>
     </div>
