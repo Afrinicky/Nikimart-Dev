@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { setOrderStatus } from "@/lib/admin-actions";
 import { inputClass } from "@/components/ui/Field";
+import { ORDER_STATUS_LABELS } from "@/lib/order-status";
 
 const STATUSES = ["pending", "paid", "shipped", "delivered", "cancelled"];
 
@@ -20,7 +21,7 @@ export function OrderStatusSelect({ id, status }: { id: string; status: string }
       >
         {STATUSES.map((s) => (
           <option key={s} value={s}>
-            {s}
+            {ORDER_STATUS_LABELS[s] ?? s}
           </option>
         ))}
       </select>

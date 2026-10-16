@@ -6,10 +6,11 @@
  * the browser that offers it. A picker that says "1–14 March" over figures
  * counted from the 2nd is the failure this exists to prevent.
  *
- * Three shapes, one type. A preset is a number of days back from today; all
- * time is a window with no start; a custom range is a pair of dates. Every
- * read takes the resulting value rather than a number of days, so none of them
- * had to learn a second way of being filtered.
+ * Four shapes, one type. A preset is a number of days back from today; this
+ * month runs from the 1st to today; all time is a window with no start; a
+ * custom range is a pair of dates. Every read takes the resulting value rather
+ * than a number of days, so none of them had to learn a second way of being
+ * filtered.
  */
 
 /** The preset lengths. Short enough to read, long enough to trend. */
@@ -25,7 +26,7 @@ export interface OverviewWindow {
   days: number | null;
   /** What it is called on screen: "last 30 days", "all time", "1–14 Mar 2026". */
   label: string;
-  /** Which preset pill is lit: a range, "all", or "custom". */
+  /** Which preset pill is lit: a range, "month", "all", or "custom". */
   key: string;
   /** YYYY-MM-DD for the date inputs. Empty at the open end of all time. */
   from: string;
@@ -63,6 +64,13 @@ export function dayKey(d: Date): string {
 export function resolveWindow(
   params: { days?: string; from?: string; to?: string } = {},
   now: Date = new Date(),
+  /**
+   * The window to fall back on when the query string asks for nothing
+   * readable. The consoles that open on the month name it; everything else
+   * keeps the thirty days it has always defaulted to, so adding the month
+   * window changed no screen that did not ask for it.
+   */
+  opts: { fallback?: "month" | OverviewRange } = {},
 ): OverviewWindow {
   const today = midnight(now);
   // Exclusive, so everything that happened today is inside the window.
@@ -88,7 +96,26 @@ export function resolveWindow(
     };
   }
 
-  if ((params.days ?? "").trim() === "all") {
+  const asked = (params.days ?? "").trim();
+
+  // This month: the 1st through today. The window a shop actually trades
+  // against — a rolling thirty days straddles two months, so it can neither
+  // answer "how are we doing this month" nor be reconciled against anything.
+  if (asked === "month" || (!asked && opts.fallback === "month")) {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    start.setHours(0, 0, 0, 0);
+    return {
+      start,
+      end: tomorrow,
+      days: Math.max(1, Math.round((tomorrow.getTime() - start.getTime()) / DAY)),
+      label: "this month",
+      key: "month",
+      from: dayKey(start),
+      to: dayKey(today),
+    };
+  }
+
+  if (asked === "all") {
     return {
       start: null,
       end: tomorrow,
@@ -101,7 +128,11 @@ export function resolveWindow(
   }
 
   const n = Number(params.days);
-  const days = (OVERVIEW_RANGES as readonly number[]).includes(n) ? (n as OverviewRange) : 30;
+  const fallback =
+    typeof opts.fallback === "number" && (OVERVIEW_RANGES as readonly number[]).includes(opts.fallback)
+      ? opts.fallback
+      : 30;
+  const days = (OVERVIEW_RANGES as readonly number[]).includes(n) ? (n as OverviewRange) : fallback;
   const start = addDays(today, -(days - 1));
   return {
     start,

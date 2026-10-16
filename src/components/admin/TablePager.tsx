@@ -19,10 +19,19 @@ export function TablePager({
   page,
   pageCount,
   perPage,
+  pageKey = "page",
+  perKey = "per",
 }: {
   page: number;
   pageCount: number;
   perPage: number;
+  /**
+   * The query-string keys this strip drives. They are parameters because the
+   * order-placement tab stacks two tables on one screen, and two pagers both
+   * writing `page` would move each other.
+   */
+  pageKey?: string;
+  perKey?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -54,7 +63,7 @@ export function TablePager({
         <span className="relative">
           <select
             value={perPage}
-            onChange={(e) => go({ per: e.target.value, page: null })}
+            onChange={(e) => go({ [perKey]: e.target.value, [pageKey]: null })}
             className="h-9 appearance-none rounded-xl border border-niki-edge-strong bg-white pl-3 pr-8 text-xs font-semibold text-niki-ink outline-none focus:border-niki-orange"
           >
             {PER_PAGE_OPTIONS.map((n) => (
@@ -75,7 +84,7 @@ export function TablePager({
           type="button"
           aria-label="First page"
           disabled={page <= 1}
-          onClick={() => go({ page: null })}
+          onClick={() => go({ [pageKey]: null })}
           className={cn(btn, "px-2")}
         >
           <ChevronsLeft className="h-4 w-4" />
@@ -83,7 +92,7 @@ export function TablePager({
         <button
           type="button"
           disabled={page <= 1}
-          onClick={() => go({ page: String(page - 1) })}
+          onClick={() => go({ [pageKey]: String(page - 1) })}
           className={btn}
         >
           <ChevronLeft className="h-4 w-4" />
@@ -92,7 +101,7 @@ export function TablePager({
         <button
           type="button"
           disabled={page >= pageCount}
-          onClick={() => go({ page: String(page + 1) })}
+          onClick={() => go({ [pageKey]: String(page + 1) })}
           className={btn}
         >
           Next
@@ -102,7 +111,7 @@ export function TablePager({
           type="button"
           aria-label="Last page"
           disabled={page >= pageCount}
-          onClick={() => go({ page: String(pageCount) })}
+          onClick={() => go({ [pageKey]: String(pageCount) })}
           className={cn(btn, "px-2")}
         >
           <ChevronsRight className="h-4 w-4" />

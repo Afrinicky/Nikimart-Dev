@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 import { PURCHASE_STATUSES } from "@/lib/purchasing";
+import {
+  confirmStageForOrders,
+  orderIdsForItems,
+  orderIdsForPurchase,
+} from "@/lib/retail/stage-sync";
 
 /**
  * Placing the international orders.
@@ -16,9 +21,24 @@ import { PURCHASE_STATUSES } from "@/lib/purchasing";
  * them out of the queue. The attachment is scoped in the same query that writes
  * it — a line already on another purchase is skipped rather than moved, so two
  * admins working the queue at once cannot buy the same goods twice.
+ *
+ * The lines may come from more than one queue row. A supplier who sells shoes
+ * also sells bags, and the two lanes they travel on are the forwarder's
+ * business rather than the supplier's — so an admin buying from one supplier
+ * in one sitting records one purchase, and quotes one reference back.
+ *
+ * And placement is the moment the order itself moves: it is bought now, which
+ * is a thing the buyer has been waiting to be told. Nobody presses a button
+ * for that transition, so this stamps it.
  */
 
-export type PurchaseState = { ok?: boolean; error?: string; reference?: string };
+export type PurchaseState = {
+  ok?: boolean;
+  error?: string;
+  reference?: string;
+  /** How many customer orders the purchase just covered. */
+  orders?: number;
+};
 
 function str(fd: FormData, key: string): string {
   return String(fd.get(key) ?? "").trim();
@@ -28,6 +48,9 @@ function revalidatePurchasing() {
   revalidatePath("/admin/purchasing");
   revalidatePath("/seller/purchasing");
   revalidatePath("/admin/orders");
+  revalidatePath("/admin/orders/placement");
+  revalidatePath("/orders");
+  revalidatePath("/account");
 }
 
 /** NM-PO-… — short enough to read down a phone to a supplier. */
@@ -56,6 +79,7 @@ export async function placePurchaseOrder(
     where: { id: { in: itemIds }, purchaseOrderId: null },
     select: {
       id: true,
+      orderId: true,
       quantity: true,
       unitPrice: true,
       product: { select: { vendorId: true, forwarderId: true, forwarderRouteId: true } },
@@ -66,6 +90,7 @@ export async function placePurchaseOrder(
   }
 
   const first = items[0].product;
+  const covered = new Set(items.map((i) => i.orderId)).size;
   const totalCost = Math.round(
     items.reduce((s, i) => s + i.unitPrice * i.quantity, 0) * 100,
   ) / 100;
@@ -102,8 +127,12 @@ export async function placePurchaseOrder(
       return purchase;
     });
 
+    // The order is now "ordered from the supplier" — the stage nobody
+    // confirms by hand, because placing the purchase *is* the confirmation.
+    await confirmStageForOrders(await orderIdsForItems(items.map((i) => i.id)), "processing");
+
     revalidatePurchasing();
-    return { ok: true, reference: created.reference };
+    return { ok: true, reference: created.reference, orders: covered };
   } catch {
     return { error: "Couldn't record that purchase." };
   }
@@ -121,6 +150,9 @@ export async function updatePurchaseStatus(fd: FormData): Promise<void> {
   const status = str(fd, "status");
   if (!id || !(PURCHASE_STATUSES as readonly string[]).includes(status)) return;
 
+  // Read the orders before cancelling detaches the lines that name them.
+  const covered = await orderIdsForPurchase(id);
+
   await prisma.$transaction(async (tx) => {
     await tx.purchaseOrder.update({ where: { id }, data: { status } });
     if (status === "cancelled") {
@@ -130,6 +162,10 @@ export async function updatePurchaseStatus(fd: FormData): Promise<void> {
       });
     }
   }).catch(() => {});
+
+  // The forwarder has the parcel: the next milestone on the buyer's timeline,
+  // and the admin confirming it here is the only person who knows.
+  if (status === "received") await confirmStageForOrders(covered, "at_forwarder");
 
   revalidatePurchasing();
 }

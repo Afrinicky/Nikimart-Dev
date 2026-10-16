@@ -27,7 +27,7 @@ export function OverviewRange({
   to,
   basePath = "/admin/data",
 }: {
-  /** Which pill is lit: "7" | "30" | "90" | "all" | "custom". */
+  /** Which pill is lit: "7" | "30" | "90" | "month" | "all" | "custom". */
   active: string;
   /** The window as a sentence, shown on the custom pill once one is chosen. */
   label: string;
@@ -109,6 +109,14 @@ export function OverviewRange({
           {r} days
         </ActionLink>
       ))}
+
+      <ActionLink
+        href={href({ days: "month", from: null, to: null })}
+        aria-current={active === "month" ? "page" : undefined}
+        className={cn(pill, active === "month" ? on : off)}
+      >
+        This month
+      </ActionLink>
 
       <ActionLink
         href={href({ days: "all", from: null, to: null })}
