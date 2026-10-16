@@ -275,7 +275,9 @@ export default async function AdminAgentDetailPage({
   // The stretch of time the dashboard above the tabs is describing. Read with
   // the same function the business overview uses, so "last 30 days" means the
   // same days on both screens.
-  const period = resolveWindow(sp);
+  // The month is the window these screens open on: commission is reconciled by
+  // the month, and a rolling thirty days straddles two of them.
+  const period = resolveWindow(sp, new Date(), { fallback: "month" });
 
   const row = await dataDb.dataAgent.findUnique({ where: { id } }).catch(() => null);
   if (!row) notFound();

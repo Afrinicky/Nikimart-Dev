@@ -1,12 +1,20 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { UserPlus } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { PanelHeading } from "@/components/admin/ModuleHeader";
 import { AgentRoster } from "@/components/admin/AgentRoster";
+import { OverviewRange } from "@/components/admin/OverviewRange";
 import { formatMoney } from "@/lib/format";
 import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import { listAgents } from "@/lib/data-bundles/agents";
 import { paymentModeLabel } from "@/lib/data-bundles/payment-mode";
+import {
+  getAgentNetwork,
+  getAgentTradingTotals,
+  getPayoutTotals,
+} from "@/lib/data-bundles/overview";
+import { resolveWindow } from "@/lib/data-bundles/overview-window";
 
 export const metadata: Metadata = { title: "Agents — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -19,25 +27,39 @@ export const dynamic = "force-dynamic";
  * reads, with an Edit link at the end of a horizontal scroll. The numbers that
  * matter for the network sit at the top; everything that matters about one
  * agent is in that agent's own window, one click away.
+ *
+ * Those top numbers used to be lifetime totals, which only go up — so nothing
+ * on the screen could say whether the network had a good month. They answer to
+ * a date range now, opening on the current month, because that is the stretch
+ * commission is reconciled over. Two of them deliberately do not: how many
+ * agents are on the books, and what is owed to them, are standing figures, and
+ * hiding a balance because the picker says seven days would be the one place
+ * here where a filter does harm.
  */
 export default async function AdminAgentsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ removed?: string }>;
+  searchParams?: Promise<{ removed?: string; days?: string; from?: string; to?: string }>;
 }) {
-  const { removed } = (await searchParams) ?? {};
-  const [agents, program] = await Promise.all([listAgents(), getAgentProgramConfig()]);
+  const params = (await searchParams) ?? {};
+  const { removed } = params;
+  const period = resolveWindow(params, new Date(), { fallback: "month" });
+
+  const [agents, program, network, traded, payouts] = await Promise.all([
+    listAgents(),
+    getAgentProgramConfig(),
+    getAgentNetwork(period),
+    getAgentTradingTotals(period),
+    getPayoutTotals(period),
+  ]);
 
   const totals = agents.reduce(
     (acc, a) => ({
       active: acc.active + (a.status === "active" ? 1 : 0),
-      sales: acc.sales + a.totalSales,
-      commission: acc.commission + a.totalCommission,
-      owed: acc.owed + Math.max(0, a.balance),
       outstanding: acc.outstanding + Math.max(0, -a.balance),
       pending: acc.pending + (a.canSignIn ? 0 : 1),
     }),
-    { active: 0, sales: 0, commission: 0, owed: 0, outstanding: 0, pending: 0 },
+    { active: 0, outstanding: 0, pending: 0 },
   );
 
   return (
@@ -55,25 +77,57 @@ export default async function AdminAgentsPage({
         </p>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="font-display text-xl font-bold text-niki-ink">The network</h2>
+          <p className="mt-0.5 text-sm text-niki-ink/60">
+            What the agents sold and earned over the {period.label}.
+          </p>
+        </div>
+        {/* Suspense because the pills build their links off the query string. */}
+        <Suspense fallback={<div className="h-9" />}>
+          <OverviewRange
+            active={period.key}
+            label={period.label}
+            from={period.from}
+            to={period.to}
+            basePath="/admin/data/agents"
+          />
+        </Suspense>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
         <Tile
           label="Agents"
           value={String(agents.length)}
-          note={`${totals.active} active`}
+          note={`${totals.active} active · ${network.joined} joined ${period.label}`}
         />
-        <Tile label="Agent sales" value={formatMoney(totals.sales)} note={`${agents.length ? "across the network" : "nothing yet"}`} />
+        <Tile
+          label="Agent sales"
+          value={formatMoney(traded.sales)}
+          note={
+            traded.orders > 0
+              ? `${traded.orders} paid ${traded.orders === 1 ? "order" : "orders"} · ${period.label}`
+              : `nothing sold ${period.label}`
+          }
+        />
         <Tile
           label="Commission earned"
-          value={formatMoney(totals.commission)}
-          note="by agents, on delivered orders"
+          value={formatMoney(traded.commission)}
+          note={`by ${traded.sellingAgents} ${traded.sellingAgents === 1 ? "agent" : "agents"} · ${period.label}`}
+        />
+        <Tile
+          label="Paid out"
+          value={formatMoney(payouts.paid)}
+          note={`${payouts.paidCount} ${payouts.paidCount === 1 ? "payout" : "payouts"} on MoMo · ${period.label}`}
         />
         <Tile
           label="Balances owed"
-          value={formatMoney(totals.owed)}
+          value={formatMoney(network.owed)}
           note={
             totals.outstanding > 0
               ? `${formatMoney(totals.outstanding)} of fees still clearing`
-              : "nothing outstanding"
+              : "as it stands"
           }
         />
       </div>

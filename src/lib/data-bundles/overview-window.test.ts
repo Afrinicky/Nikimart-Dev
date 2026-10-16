@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dayKey, describeRange, bucketSize, parseDay, resolveWindow } from "./overview-window.ts";
+import {
+  bucketSize,
+  dayKey,
+  describeRange,
+  parseDay,
+  previousRange,
+  resolveWindow,
+} from "./overview-window.ts";
 
 /** A fixed "today" so the presets are testable at all. */
 const NOW = new Date(2026, 2, 14, 15, 30); // 14 March 2026, afternoon
@@ -82,5 +89,67 @@ test("a long window is drawn in weeks or months, never in pixels", () => {
   // Whatever the span, the chart never gets more points than it can draw.
   for (const span of [1, 90, 365, 900, 3650]) {
     assert.ok(Math.ceil(span / bucketSize(span)) <= 122, `span=${span}`);
+  }
+});
+
+test("this month runs from the 1st through today", () => {
+  const w = resolveWindow({ days: "month" }, NOW);
+  assert.equal(w.key, "month");
+  assert.equal(w.from, "2026-03-01");
+  assert.equal(w.to, "2026-03-14");
+  assert.equal(w.days, 14);
+  assert.equal(w.label, "this month");
+  assert.equal(dayKey(w.end), "2026-03-15");
+});
+
+test("the month is the default only where a screen asks for it", () => {
+  assert.equal(resolveWindow({}, NOW, { fallback: "month" }).key, "month");
+  assert.equal(resolveWindow({}, NOW).key, "30");
+  // An explicit preset still wins over the fallback.
+  assert.equal(resolveWindow({ days: "7" }, NOW, { fallback: "month" }).key, "7");
+});
+
+test("the month compares against the same span before it", () => {
+  const w = resolveWindow({ days: "month" }, NOW);
+  const before = previousRange(w);
+  assert.ok(before);
+  assert.equal(dayKey(before.gte), "2026-02-15");
+  assert.equal(dayKey(before.lt), "2026-03-01");
+});
+
+test("the month is a window like any other, in every shape a caller asks for", () => {
+  // January: the window is one day old on the 1st, which is still a window.
+  const newYear = resolveWindow({ days: "month" }, new Date(2026, 0, 1, 9));
+  assert.equal(newYear.from, "2026-01-01");
+  assert.equal(newYear.to, "2026-01-01");
+  assert.equal(newYear.days, 1);
+  // And its baseline is the one day before it, not a whole December.
+  const before = previousRange(newYear);
+  assert.equal(dayKey(before!.gte), "2025-12-31");
+  assert.equal(dayKey(before!.lt), "2026-01-01");
+
+  // The last day of a long month, counted inclusively.
+  const monthEnd = resolveWindow({ days: "month" }, new Date(2026, 6, 31, 23, 59));
+  assert.equal(monthEnd.days, 31);
+  assert.equal(monthEnd.from, "2026-07-01");
+  assert.equal(monthEnd.to, "2026-07-31");
+
+  // February in a leap year, mid-month.
+  const feb = resolveWindow({ days: "month" }, new Date(2028, 1, 29, 12));
+  assert.equal(feb.from, "2028-02-01");
+  assert.equal(feb.to, "2028-02-29");
+  assert.equal(feb.days, 29);
+});
+
+test("a pair of dates still beats the month, however the month was asked for", () => {
+  // Someone who typed a range should not have it overridden by a screen's
+  // default or by a stale preset left on the URL.
+  for (const params of [
+    { days: "month", from: "2026-03-01", to: "2026-03-10" },
+    { from: "2026-03-01", to: "2026-03-10" },
+  ]) {
+    const w = resolveWindow(params, NOW, { fallback: "month" });
+    assert.equal(w.key, "custom");
+    assert.equal(w.to, "2026-03-10");
   }
 });

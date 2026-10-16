@@ -79,7 +79,9 @@ async function Dashboard({
   pitch: string;
   searchParams: { days?: string; from?: string; to?: string };
 }) {
-  const w = resolveWindow(searchParams);
+  // The month is the window these screens open on: commission is reconciled by
+  // the month, and a rolling thirty days straddles two of them.
+  const w = resolveWindow(searchParams, new Date(), { fallback: "month" });
 
   const [totals, previous, series, balance, top, channels, statusMix, promoted, board] =
     await Promise.all([

@@ -28,7 +28,9 @@ export async function teamPageContext(
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 
-  const period = resolveWindow(await searchParams);
+  // A team is judged by the month: that is the stretch a leader is paid on,
+  // and the one a rolling thirty days cannot be reconciled against.
+  const period = resolveWindow(await searchParams, new Date(), { fallback: "month" });
   const today = dayKey(new Date());
   const active =
     period.key === "custom" && period.from === today && period.to === today ? "today" : period.key;

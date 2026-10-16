@@ -44,7 +44,9 @@ export default async function AffiliateLinksPage({
 }) {
   const { affiliate } = await requireAffiliateConsole();
   const params = await searchParams;
-  const w = resolveWindow(params);
+  // The month is the window these screens open on: commission is reconciled by
+  // the month, and a rolling thirty days straddles two of them.
+  const w = resolveWindow(params, new Date(), { fallback: "month" });
 
   const channel = CLICK_CHANNEL_OPTIONS.some((o) => o.value === params.status)
     ? params.status!

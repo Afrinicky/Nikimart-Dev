@@ -216,7 +216,9 @@ export default async function AdminDataOverviewPage({
 }: {
   searchParams?: Promise<{ days?: string; from?: string; to?: string }>;
 }) {
-  const period = resolveWindow(await searchParams);
+  // The month is the window this console opens on: a shop's books are kept by
+  // the month, and a rolling thirty days straddles two of them.
+  const period = resolveWindow(await searchParams, new Date(), { fallback: "month" });
   const providerReady = isDataProviderConfigured();
 
   const [

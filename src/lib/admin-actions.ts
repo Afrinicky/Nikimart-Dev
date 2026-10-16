@@ -587,6 +587,9 @@ export async function deleteOrder(fd: FormData): Promise<void> {
   if (!order || order.status !== "cancelled") return;
   await prisma.order.delete({ where: { id } });
   revalidatePath("/admin/orders");
+  // The only place this is pressed is the order's own window, which no longer
+  // has an order to describe.
+  redirect("/admin/orders");
 }
 
 /**
