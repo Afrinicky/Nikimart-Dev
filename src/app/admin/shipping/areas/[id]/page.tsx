@@ -20,7 +20,7 @@ export default async function EditLocationPage({ params }: { params: Params }) {
 
   return (
     <Container className="max-w-2xl py-8">
-      <Link href="/admin/locations" className="flex items-center gap-1 text-sm text-niki-ink/60 hover:text-niki-ink">
+      <Link href="/admin/shipping/areas" className="flex items-center gap-1 text-sm text-niki-ink/60 hover:text-niki-ink">
         <ArrowLeft className="h-4 w-4" />
         Back to locations
       </Link>

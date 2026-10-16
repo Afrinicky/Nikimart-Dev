@@ -51,7 +51,31 @@ export async function createSellerPayout(_prev: CrudState, fd: FormData): Promis
     },
   });
   revalidateFinance();
-  redirect("/admin/finance");
+  revalidatePath(`/admin/finance/settlements/${vendorId}`);
+  revalidatePath("/admin/finance/settlements");
+  redirect(`/admin/finance/settlements/${vendorId}?paid=1`);
+}
+
+/**
+ * Reject a payout request a seller raised.
+ *
+ * Deleting it rather than flagging it: a request is an ask, not a ledger
+ * entry, and the money it asked for goes straight back to payable. What
+ * happened is a conversation, which belongs on WhatsApp rather than in a
+ * status nobody reads.
+ */
+export async function rejectPayoutRequest(fd: FormData): Promise<void> {
+  await requireAdmin();
+  const id = str(fd, "id");
+  if (!id) return;
+  const row = await prisma.payout
+    .findUnique({ where: { id }, select: { vendorId: true, status: true } })
+    .catch(() => null);
+  if (!row || row.status !== "pending") return;
+  await prisma.payout.deleteMany({ where: { id, status: "pending" } });
+  revalidateFinance();
+  revalidatePath(`/admin/finance/settlements/${row.vendorId}`);
+  revalidatePath("/admin/finance/settlements");
 }
 
 /** Mark a pending seller payout (e.g. a seller request) as paid. */
@@ -61,6 +85,7 @@ export async function markPayoutPaid(fd: FormData): Promise<void> {
   if (!id) return;
   await prisma.payout.updateMany({ where: { id, status: "pending" }, data: { status: "paid", paidAt: new Date() } });
   revalidateFinance();
+  revalidatePath("/admin/finance/settlements");
 }
 
 // --- Affiliates -----------------------------------------------------------

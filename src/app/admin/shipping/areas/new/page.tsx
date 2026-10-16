@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "New location — Admin — Nickimart
 export default function NewLocationPage() {
   return (
     <Container className="max-w-2xl py-8">
-      <Link href="/admin/locations" className="flex items-center gap-1 text-sm text-niki-ink/60 hover:text-niki-ink">
+      <Link href="/admin/shipping/areas" className="flex items-center gap-1 text-sm text-niki-ink/60 hover:text-niki-ink">
         <ArrowLeft className="h-4 w-4" />
         Back to locations
       </Link>

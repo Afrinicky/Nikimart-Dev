@@ -422,7 +422,7 @@ export default async function AdminOrderDetailPage({
                     </>
                   )}
                   <Link
-                    href={`/admin/transactions?q=${encodeURIComponent(order.orderNumber)}`}
+                    href={`/admin/finance/transactions?q=${encodeURIComponent(order.orderNumber)}`}
                     className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-niki-trust hover:underline"
                   >
                     <Receipt className="h-3.5 w-3.5" />
