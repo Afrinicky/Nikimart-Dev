@@ -8,9 +8,10 @@ import { ExportButton } from "@/components/admin/ExportButton";
 import { AffiliateModuleHeader } from "@/components/admin/AffiliateModuleHeader";
 import { AffiliateStatusButton } from "@/components/admin/AffiliateAdminTools";
 import { ConsoleFilters } from "@/components/affiliate/ConsoleFilters";
+import { OverviewRange } from "@/components/admin/OverviewRange";
 import { ConsolePill, ConsoleRow, ConsoleTable, formatWhen, td } from "@/components/affiliate/ConsoleTable";
 import { requireDashboard } from "@/lib/session";
-import { getAffiliateOverview } from "@/lib/affiliate";
+import { getAffiliateWindowOverview } from "@/lib/affiliate";
 import {
   AFFILIATE_SOURCE_OPTIONS,
   AFFILIATE_STATUS_OPTIONS,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/affiliate-admin";
 import { getAffiliatePolicy } from "@/lib/affiliate-settings";
 import { perPageFrom } from "@/lib/data-bundles/order-filters";
+import { resolveWindow } from "@/lib/data-bundles/overview-window";
 import { formatMoney, formatPrice } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Affiliates — Admin — Nickimart" };
@@ -44,6 +46,11 @@ const SOURCE_LABELS: Record<string, string> = {
  * at twenty affiliates, a timeout at two thousand. Filtered, paged and
  * counted in grouped queries now, and showing the figures an admin actually
  * reconciles against: clicks, orders, commission, what is payable.
+ *
+ * The tiles above it answer to a date range, opening on the current month —
+ * the stretch commission is reconciled over. Two of them deliberately do not,
+ * and say so: how many affiliates are on the books, and what is owed to them,
+ * are standing figures rather than flows.
  */
 export default async function AdminAffiliatesPage({
   searchParams,
@@ -54,6 +61,9 @@ export default async function AdminAffiliatesPage({
     q?: string;
     page?: string;
     per?: string;
+    days?: string;
+    from?: string;
+    to?: string;
   }>;
 }) {
   await requireDashboard("/admin");
@@ -68,9 +78,10 @@ export default async function AdminAffiliatesPage({
   const query = (params.q ?? "").trim();
   const perPage = perPageFrom(params.per, 25);
   const page = Math.max(1, Number(params.page) || 1);
+  const period = resolveWindow(params, new Date(), { fallback: "month" });
 
   const [overview, policy, { rows, total }] = await Promise.all([
-    getAffiliateOverview(),
+    getAffiliateWindowOverview(period),
     getAffiliatePolicy(),
     getAffiliateRoster({ status, source, q: query, page, perPage }),
   ]);
@@ -107,29 +118,67 @@ export default async function AdminAffiliatesPage({
         </div>
       </div>
 
+      <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="font-display text-xl font-bold text-niki-ink">The programme</h2>
+          <p className="mt-0.5 text-sm text-niki-ink/60">
+            What the affiliates referred and earned over the {period.label}.
+          </p>
+        </div>
+        {/* Suspense because the pills build their links off the query string. */}
+        <Suspense fallback={<div className="h-9" />}>
+          <OverviewRange
+            active={period.key}
+            label={period.label}
+            from={period.from}
+            to={period.to}
+            basePath="/admin/affiliates"
+          />
+        </Suspense>
+      </div>
+
       <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatCard label="Affiliates" value={`${overview.active}/${overview.total} active`} />
         <StatCard
-          label="Referred sales"
+          label={`Affiliates · ${overview.joined} joined`}
+          value={`${overview.active}/${overview.total} active`}
+        />
+        <StatCard
+          label={`Referred sales · ${period.label}`}
           value={formatPrice(overview.referredSales)}
           href="/admin/finance/breakdown/gmv"
         />
         <StatCard
-          label="Commission earned"
+          label={`Commission earned · ${period.label}`}
           value={formatMoney(overview.commissionEarned)}
           href="/admin/affiliates/commissions"
         />
         <StatCard
-          label="Paid to affiliates"
+          label={`Paid to affiliates · ${period.label}`}
           value={formatMoney(overview.paidOut)}
           href="/admin/affiliates/payouts"
         />
         <StatCard
-          label="Owed"
+          label="Owed · as it stands"
           value={formatMoney(overview.owed)}
           href="/admin/affiliates/payouts?status=pending"
         />
       </div>
+
+      {/* Deliberately outside the date range: a request made in February is
+          still somebody waiting today. */}
+      {overview.pendingPayoutCount > 0 ? (
+        <Link
+          href="/admin/affiliates/payouts?status=pending"
+          className="niki-focus group mt-3 flex items-center gap-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 ring-1 ring-amber-200 transition-colors hover:bg-amber-100"
+        >
+          <span className="min-w-0 flex-1">
+            {overview.pendingPayoutCount}{" "}
+            {overview.pendingPayoutCount === 1 ? "affiliate is" : "affiliates are"} waiting on{" "}
+            {formatMoney(overview.pendingPayouts)} in payouts.
+          </span>
+          <ArrowUpRight className="h-4 w-4 shrink-0 opacity-50 transition-transform group-hover:translate-x-0.5 group-hover:opacity-80" />
+        </Link>
+      ) : null}
 
       <div className="mt-4">
         <Suspense fallback={<div className="h-40" />}>

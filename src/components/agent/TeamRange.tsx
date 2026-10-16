@@ -10,10 +10,14 @@ import { cn } from "@/lib/cn";
 /**
  * The stretch of time the team is measured over.
  *
- * Today, a week, a month and all time as presets, because those are the four
- * questions a leader actually asks — who sold today, who is having a good
- * week, who is carrying the month, and who has ever done anything. A pair of
- * dates covers the rest.
+ * Today, a week, this month, thirty days and all time as presets, because
+ * those are the questions a leader actually asks — who sold today, who is
+ * having a good week, who is carrying the month we are being paid on, and who
+ * has ever done anything. A pair of dates covers the rest.
+ *
+ * "This month" and "30 days" are not the same window and the row keeps both:
+ * one runs from the 1st, which is what a commission statement is reconciled
+ * against, and the other is a rolling month that straddles two of them.
  *
  * The presets stay plain links so a leader can keep "this week" open on a
  * second screen; the date range opens rather than navigates, because picking
@@ -23,6 +27,7 @@ import { cn } from "@/lib/cn";
 const PRESETS = [
   { key: "today", label: "Today" },
   { key: "7", label: "7 days" },
+  { key: "month", label: "This month" },
   { key: "30", label: "30 days" },
   { key: "all", label: "All time" },
 ] as const;
@@ -33,14 +38,23 @@ export function TeamRange({
   from,
   to,
   today,
+  basePath = "/agent/team",
 }: {
-  /** Which pill is lit: "today" | "7" | "30" | "all" | "custom". */
+  /** Which pill is lit: "today" | "7" | "month" | "30" | "all" | "custom". */
   active: string;
   label: string;
   from: string;
   to: string;
   /** Today's date, worked out on the server so both halves agree. */
   today: string;
+  /**
+   * The tab these pills belong to.
+   *
+   * They used to be hardcoded to the team overview, so on the performance and
+   * structure tabs picking a range moved you to a different screen instead of
+   * filtering the one you were reading.
+   */
+  basePath?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -68,11 +82,11 @@ export function TeamRange({
     e.preventDefault();
     if (!start || !end) return;
     setOpen(false);
-    router.push(`/agent/team?from=${start}&to=${end}`);
+    router.push(`${basePath}?from=${start}&to=${end}`);
   }
 
   const href = (key: string) =>
-    key === "today" ? `/agent/team?from=${today}&to=${today}` : `/agent/team?days=${key}`;
+    key === "today" ? `${basePath}?from=${today}&to=${today}` : `${basePath}?days=${key}`;
 
   const pill =
     "niki-focus rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap";

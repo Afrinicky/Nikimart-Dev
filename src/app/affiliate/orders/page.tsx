@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ListOrdered } from "lucide-react";
 import { ModuleHeader } from "@/components/admin/ModuleHeader";
 import { ConsoleFilters } from "@/components/affiliate/ConsoleFilters";
+import { OverviewRange } from "@/components/admin/OverviewRange";
 import { ConsolePill, ConsoleRow, ConsoleTable, formatDay, formatWhen, td } from "@/components/affiliate/ConsoleTable";
 import { StatCard } from "@/components/dashboard/StatCard";
 import {
@@ -48,7 +49,9 @@ export default async function AffiliateOrdersPage({
 }) {
   const { affiliate } = await requireAffiliateConsole();
   const params = await searchParams;
-  const w = resolveWindow(params);
+  // The month is the window these screens open on: commission is reconciled by
+  // the month, and a rolling thirty days straddles two of them.
+  const w = resolveWindow(params, new Date(), { fallback: "month" });
 
   const status = REFERRED_ORDER_STATUS_OPTIONS.some((o) => o.value === params.status)
     ? params.status!
@@ -65,11 +68,25 @@ export default async function AffiliateOrdersPage({
 
   return (
     <div>
-      <ModuleHeader
-        title="Referred orders"
-        subtitle="Orders placed by customers who arrived through your links — open one to follow it and help the buyer."
-        icon={ListOrdered}
-      />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <ModuleHeader
+          title="Referred orders"
+          subtitle="Orders placed by customers who arrived through your links — open one to follow it and help the buyer."
+          icon={ListOrdered}
+        />
+        {/* Three of the four tiles below answer to this, so it has to be here:
+            a figure labelled "this month" that nothing can change is a figure
+            nobody can check. */}
+        <Suspense fallback={<div className="h-9" />}>
+          <OverviewRange
+            active={w.key}
+            label={w.label}
+            from={w.from}
+            to={w.to}
+            basePath="/affiliate/orders"
+          />
+        </Suspense>
+      </div>
 
       <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Orders all time" value={total.toLocaleString("en-GB")} />

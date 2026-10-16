@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import {
   AlertTriangle,
   ArrowUpRight,
+  Banknote,
   Coins,
   ListOrdered,
   TrendingUp,
@@ -10,6 +12,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
+import { OverviewRange } from "@/components/admin/OverviewRange";
 import { AgentTopup, type TopupBundle } from "@/components/agent/AgentTopup";
 import { QuickActions } from "@/components/agent/QuickActions";
 import { AgentTour } from "@/components/agent/AgentTour";
@@ -28,6 +31,8 @@ import {
 import { getLeaderboardView } from "@/lib/data-bundles/leaderboard";
 import { referralLink } from "@/lib/data-bundles/referral-rules";
 import { getPostsForMember } from "@/lib/data-bundles/team/communication";
+import { getAgentWindowTotals, getAgentWindowWallet } from "@/lib/data-bundles/overview";
+import { resolveWindow } from "@/lib/data-bundles/overview-window";
 
 export const metadata: Metadata = { title: "Agent Dashboard — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -79,15 +84,33 @@ function Tile({
   );
 }
 
-export default async function AgentDashboardPage() {
+export default async function AgentDashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ days?: string; from?: string; to?: string }>;
+}) {
   const user = await requireUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
+
+  // The month is the window this dashboard opens on. An agent is paid by the
+  // month and asks "how am I doing *this* month"; a lifetime total only ever
+  // goes up, so it cannot answer that, and a rolling thirty days straddles two
+  // months and answers it wrongly.
+  const period = resolveWindow(await searchParams, new Date(), { fallback: "month" });
 
   const [wallet, rows, leaderboard] = await Promise.all([
     getAgentWallet(agent),
     getAgentBundleRows(agent.id),
     getLeaderboardView(agent.id),
+  ]);
+
+  // What they traded in the window, and what they took out of it. The balance
+  // stays a standing figure: there is no such thing as "the balance during
+  // March", and showing one would be a number nobody could reconcile.
+  const [traded, moved] = await Promise.all([
+    getAgentWindowTotals(agent.id, period),
+    getAgentWindowWallet(agent.id, period, wallet.balance),
   ]);
 
   const bundles: TopupBundle[] = rows.map((r) => ({
@@ -157,51 +180,79 @@ export default async function AgentDashboardPage() {
         />
       </div>
 
-      {/* Balance and the numbers behind it. */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <Tile
-          label="Balance"
-          value={formatMoney(wallet.balance)}
-          hint={
-            wallet.balance < 0
-              ? `${formatMoney(-wallet.balance)} still to clear from commissions`
-              : "Available to withdraw"
-          }
-          icon={Wallet}
-          tone={wallet.balance < 0 ? "danger" : "success"}
-          href="/agent/wallet"
-        />
-        <Tile
-          label="Commission earned"
-          value={formatMoney(wallet.commissionEarned)}
-          hint={
-            wallet.commissionPending > 0
-              ? `${formatMoney(wallet.commissionPending)} pending delivery`
-              : "Credited on delivery"
-          }
-          icon={TrendingUp}
-          tone="orange"
-          href="/agent/wallet"
-        />
-        <Tile
-          label="Store sales"
-          value={formatMoney(wallet.totalSales)}
-          hint={`${wallet.orderCount} paid ${wallet.orderCount === 1 ? "order" : "orders"}`}
-          icon={ListOrdered}
-          href="/agent/orders"
-        />
-        <Tile
-          label="Withdrawn"
-          value={formatMoney(wallet.totalWithdrawn)}
-          hint={
-            wallet.pendingWithdrawals > 0
-              ? `${formatMoney(wallet.pendingWithdrawals)} awaiting payout`
-              : "Paid to your MoMo"
-          }
-          icon={Wallet}
-          href="/agent/wallet"
-        />
-      </div>
+      {/* Balance and the numbers behind it. The window the figures answer to
+          is picked here, and the balance is marked as the one that does not. */}
+      <section>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-display text-xl font-bold text-niki-ink">Your trading</h2>
+            <p className="mt-0.5 text-sm text-niki-ink/60">
+              What you sold and earned over the {period.label}.
+            </p>
+          </div>
+          <Suspense fallback={<div className="h-9" />}>
+            <OverviewRange
+              active={period.key}
+              label={period.label}
+              from={period.from}
+              to={period.to}
+              basePath="/agent"
+            />
+          </Suspense>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+          <Tile
+            label="Balance"
+            value={formatMoney(wallet.balance)}
+            hint={
+              wallet.balance < 0
+                ? `${formatMoney(-wallet.balance)} still to clear from commissions`
+                : "Available to withdraw · as it stands"
+            }
+            icon={Wallet}
+            tone={wallet.balance < 0 ? "danger" : "success"}
+            href="/agent/wallet"
+          />
+          <Tile
+            label="Store sales"
+            value={formatMoney(traded.sales)}
+            hint={`${traded.orders} paid ${traded.orders === 1 ? "order" : "orders"} · ${period.label}`}
+            icon={ListOrdered}
+            href="/agent/orders"
+          />
+          <Tile
+            label="Commission earned"
+            value={formatMoney(traded.agentCommission)}
+            hint={
+              wallet.commissionPending > 0
+                ? `${formatMoney(wallet.commissionPending)} pending delivery`
+                : `Credited on delivery · ${period.label}`
+            }
+            icon={TrendingUp}
+            tone="orange"
+            href="/agent/wallet"
+          />
+          <Tile
+            label="Team commission"
+            value={formatMoney(traded.teamCommission)}
+            hint={`Earned by your recruiter on your sales · ${period.label}`}
+            icon={Coins}
+            href="/agent/team"
+          />
+          <Tile
+            label="Withdrawn"
+            value={formatMoney(moved.withdrawn)}
+            hint={
+              wallet.pendingWithdrawals > 0
+                ? `${formatMoney(wallet.pendingWithdrawals)} awaiting payout`
+                : `Paid to your MoMo · ${period.label}`
+            }
+            icon={Banknote}
+            href="/agent/wallet"
+          />
+        </div>
+      </section>
 
       {/* While the setup fee is outstanding, say plainly what is happening —
           a negative balance with no explanation reads as a bug. */}

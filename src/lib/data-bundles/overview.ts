@@ -654,6 +654,110 @@ export async function getOperationsTotals(w: OverviewWindow): Promise<Operations
  * `active` is counted on today's status, because nothing records when an
  * account was suspended; the label says "active" rather than "active then".
  */
+/**
+ * What the whole agent network traded in the window.
+ *
+ * The sums the performance list would give if you added every row of it up —
+ * but read as one grouped query, with no per-agent lookups. The list exists to
+ * rank people and so resolves each one's name; a tile only needs the total,
+ * and resolving four hundred names to print one number is four hundred queries
+ * nobody asked for.
+ */
+export interface AgentTradingTotals {
+  orders: number;
+  sales: number;
+  /** What the agents themselves earned. */
+  commission: number;
+  /** What their recruiters earned on the same sales. */
+  teamCommission: number;
+  /** What Nickimart kept: sales, less cost and both commissions. */
+  income: number;
+  /** How many agents sold anything at all. */
+  sellingAgents: number;
+  previous: { orders: number; sales: number; commission: number } | null;
+}
+
+const EMPTY_TRADING: AgentTradingTotals = {
+  orders: 0,
+  sales: 0,
+  commission: 0,
+  teamCommission: 0,
+  income: 0,
+  sellingAgents: 0,
+  previous: null,
+};
+
+export async function getAgentTradingTotals(w: OverviewWindow): Promise<AgentTradingTotals> {
+  const traded = {
+    paymentStatus: "paid" as const,
+    status: { not: "refunded" },
+    agentId: { not: null },
+  };
+  const previousRange = before(w);
+
+  const sum = (
+    rows: {
+      agentId: string | null;
+      _count: { _all: number };
+      _sum: {
+        price: number | null;
+        costPrice: number | null;
+        agentCommission: number | null;
+        teamCommission: number | null;
+      };
+    }[],
+  ) => {
+    const acc = { orders: 0, sales: 0, cost: 0, commission: 0, teamCommission: 0 };
+    for (const r of rows) {
+      acc.orders += r._count._all;
+      acc.sales += r._sum.price ?? 0;
+      acc.cost += r._sum.costPrice ?? 0;
+      acc.commission += r._sum.agentCommission ?? 0;
+      acc.teamCommission += r._sum.teamCommission ?? 0;
+    }
+    return {
+      orders: acc.orders,
+      sales: round2(acc.sales),
+      commission: round2(acc.commission),
+      teamCommission: round2(acc.teamCommission),
+      income: round2(acc.sales - acc.cost - acc.commission - acc.teamCommission),
+      sellingAgents: rows.length,
+    };
+  };
+
+  try {
+    // Spelled out twice rather than spread from one object: Prisma's groupBy
+    // types are literal, and a spread widens `by` enough to be rejected.
+    const [now, earlier] = await Promise.all([
+      dataDb.dataOrder.groupBy({
+        by: ["agentId"],
+        where: { ...traded, ...within(w) },
+        _count: { _all: true },
+        _sum: { price: true, costPrice: true, agentCommission: true, teamCommission: true },
+      }),
+      previousRange
+        ? dataDb.dataOrder.groupBy({
+            by: ["agentId"],
+            where: { ...traded, createdAt: previousRange },
+            _count: { _all: true },
+            _sum: { price: true, costPrice: true, agentCommission: true, teamCommission: true },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    const totals = sum(now);
+    const past = earlier ? sum(earlier) : null;
+    return {
+      ...totals,
+      previous: past
+        ? { orders: past.orders, sales: past.sales, commission: past.commission }
+        : null,
+    };
+  } catch {
+    return EMPTY_TRADING;
+  }
+}
+
 export interface AgentNetworkTotals {
   /** On the books when the window closed. */
   total: number;

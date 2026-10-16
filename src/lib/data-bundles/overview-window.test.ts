@@ -116,3 +116,40 @@ test("the month compares against the same span before it", () => {
   assert.equal(dayKey(before.gte), "2026-02-15");
   assert.equal(dayKey(before.lt), "2026-03-01");
 });
+
+test("the month is a window like any other, in every shape a caller asks for", () => {
+  // January: the window is one day old on the 1st, which is still a window.
+  const newYear = resolveWindow({ days: "month" }, new Date(2026, 0, 1, 9));
+  assert.equal(newYear.from, "2026-01-01");
+  assert.equal(newYear.to, "2026-01-01");
+  assert.equal(newYear.days, 1);
+  // And its baseline is the one day before it, not a whole December.
+  const before = previousRange(newYear);
+  assert.equal(dayKey(before!.gte), "2025-12-31");
+  assert.equal(dayKey(before!.lt), "2026-01-01");
+
+  // The last day of a long month, counted inclusively.
+  const monthEnd = resolveWindow({ days: "month" }, new Date(2026, 6, 31, 23, 59));
+  assert.equal(monthEnd.days, 31);
+  assert.equal(monthEnd.from, "2026-07-01");
+  assert.equal(monthEnd.to, "2026-07-31");
+
+  // February in a leap year, mid-month.
+  const feb = resolveWindow({ days: "month" }, new Date(2028, 1, 29, 12));
+  assert.equal(feb.from, "2028-02-01");
+  assert.equal(feb.to, "2028-02-29");
+  assert.equal(feb.days, 29);
+});
+
+test("a pair of dates still beats the month, however the month was asked for", () => {
+  // Someone who typed a range should not have it overridden by a screen's
+  // default or by a stale preset left on the URL.
+  for (const params of [
+    { days: "month", from: "2026-03-01", to: "2026-03-10" },
+    { from: "2026-03-01", to: "2026-03-10" },
+  ]) {
+    const w = resolveWindow(params, NOW, { fallback: "month" });
+    assert.equal(w.key, "custom");
+    assert.equal(w.to, "2026-03-10");
+  }
+});

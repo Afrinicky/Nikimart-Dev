@@ -52,7 +52,9 @@ export default async function AffiliatePerformancePage({
 }) {
   const { affiliate } = await requireAffiliateConsole();
   const params = await searchParams;
-  const w = resolveWindow(params);
+  // The month is the window these screens open on: commission is reconciled by
+  // the month, and a rolling thirty days straddles two of them.
+  const w = resolveWindow(params, new Date(), { fallback: "month" });
 
   const [totals, previous, series, top, channels, statusMix] = await Promise.all([
     getAffiliateWindowTotals(affiliate.id, w),

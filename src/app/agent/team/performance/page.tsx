@@ -33,6 +33,7 @@ export default async function TeamPerformancePage({
         from={period.from || today}
         to={period.to}
         today={today}
+        basePath="/agent/team/performance"
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

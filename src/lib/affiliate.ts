@@ -41,48 +41,153 @@ export interface AffiliateEarnings {
   available: number;
 }
 
-export interface AffiliateOverview {
+/**
+ * The programme over a window, for the admin's roster screen.
+ *
+ * The tiles above that roster were all-time: total referred sales since the
+ * programme opened, commission earned ever. Both only go up, so neither could
+ * answer the question an admin actually brings to the screen — is this costing
+ * us more than it is bringing in, this month.
+ *
+ * Three of the figures deliberately do not answer to the window, and the
+ * screen says so. How many affiliates are on the books is a standing count;
+ * what is owed is a standing balance; and what is waiting on a payout decision
+ * is somebody waiting today, whenever they asked. Hiding any of those because
+ * the picker says seven days would be the one place here where the filter does
+ * harm.
+ */
+export interface AffiliateWindowOverview {
+  /** On the books now. */
   total: number;
   active: number;
+  /** Joined inside the window. */
+  joined: number;
+  /** Clicks on their links inside the window. */
+  clicks: number;
+  /** Orders attributed inside the window, and what they were worth. */
+  referredOrders: number;
   referredSales: number;
+  /** Commission accrued inside the window, net of what was taken back. */
   commissionEarned: number;
+  /** Payouts that actually left inside the window. */
   paidOut: number;
+  /** Standing: commission cleared and not yet settled or requested. */
   owed: number;
+  /** Standing: requests waiting on a decision. */
+  pendingPayouts: number;
+  pendingPayoutCount: number;
+  previous: { referredOrders: number; referredSales: number; commissionEarned: number } | null;
 }
 
-/**
- * Program-wide affiliate KPIs.
- *
- * Commission comes off the ledger, which nets out reversals and refunds, and
- * falls back to the order-level snapshots for a platform whose referrals all
- * predate the ledger. Referred sales stay on the orders: that is the GMV the
- * programme produced, and it does not shrink because a commission was clawed
- * back on one line of one order.
- */
-export async function getAffiliateOverview(): Promise<AffiliateOverview> {
-  const [affiliates, orders, payouts, commissions] = await Promise.all([
-    prisma.affiliate.findMany({ select: { status: true } }),
-    prisma.order.findMany({ where: { affiliateId: { not: null }, status: { notIn: ["cancelled", "pending"] } }, select: { subtotal: true, affiliateCommission: true } }),
-    prisma.affiliatePayout.findMany({ select: { amount: true, status: true } }),
-    prisma.affiliateCommission
-      .findMany({ select: { amount: true, reversedAmount: true } })
-      .catch(() => [] as { amount: number; reversedAmount: number }[]),
-  ]);
+export async function getAffiliateWindowOverview(w: {
+  start: Date | null;
+  end: Date;
+  days: number | null;
+}): Promise<AffiliateWindowOverview> {
+  const within = { createdAt: { ...(w.start ? { gte: w.start } : {}), lt: w.end } };
+  // The window immediately before this one. All time has no "before", and
+  // inventing one would compare a real figure against a stretch of time the
+  // programme did not exist for.
+  const previousRange =
+    w.start && w.days !== null
+      ? {
+          gte: new Date(w.start.getTime() - w.days * 86_400_000),
+          lt: w.start,
+        }
+      : null;
+
+  const soldWhere = (range: { gte?: Date; lt: Date }) => ({
+    affiliateId: { not: null },
+    status: { notIn: ["cancelled", "pending"] },
+    createdAt: range,
+  });
+
+  const [affiliates, joined, clicks, sold, ledger, payouts, earlierSold, earlierLedger] =
+    await Promise.all([
+      prisma.affiliate.findMany({ select: { status: true } }),
+      prisma.affiliate.count({ where: within }),
+      prisma.affiliateClick.count({ where: within }).catch(() => 0),
+      prisma.order.aggregate({
+        where: soldWhere(within.createdAt),
+        _count: { _all: true },
+        _sum: { subtotal: true, affiliateCommission: true },
+      }),
+      prisma.affiliateCommission
+        .findMany({ where: within, select: { amount: true, reversedAmount: true } })
+        .catch(() => [] as { amount: number; reversedAmount: number }[]),
+      prisma.affiliatePayout.findMany({
+        select: { amount: true, status: true, paidAt: true },
+      }),
+      previousRange
+        ? prisma.order.aggregate({
+            where: soldWhere(previousRange),
+            _count: { _all: true },
+            _sum: { subtotal: true, affiliateCommission: true },
+          })
+        : Promise.resolve(null),
+      previousRange
+        ? prisma.affiliateCommission
+            .findMany({
+              where: { createdAt: previousRange },
+              select: { amount: true, reversedAmount: true },
+            })
+            .catch(() => [] as { amount: number; reversedAmount: number }[])
+        : Promise.resolve(null),
+    ]);
+
+  // Commission comes off the ledger, which nets out reversals and refunds, and
+  // falls back to the order-level snapshots for referrals that predate it.
+  // Without the fallback every historical referral reads as zero.
+  const netLedger = (rows: { amount: number; reversedAmount: number }[]) =>
+    rows.reduce((s, c) => s + Math.max(0, c.amount - c.reversedAmount), 0);
   const commissionEarned =
-    commissions.length > 0
-      ? commissions.reduce((s, c) => s + Math.max(0, c.amount - c.reversedAmount), 0)
-      : orders.reduce((s, o) => s + o.affiliateCommission, 0);
-  const paidOut = payouts.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
-  const pending = payouts
-    .filter((p) => p.status === "pending" || p.status === "processing")
+    ledger.length > 0 ? netLedger(ledger) : (sold._sum.affiliateCommission ?? 0);
+
+  // A payout belongs to the window the money actually left in, so it is dated
+  // by `paidAt`. One with no date is older than the column and is left out of
+  // every window but all time, where there is no start to exclude it.
+  const paidOut = payouts
+    .filter(
+      (p) =>
+        p.status === "paid" &&
+        (p.paidAt
+          ? (!w.start || p.paidAt >= w.start) && p.paidAt < w.end
+          : w.start === null),
+    )
     .reduce((s, p) => s + p.amount, 0);
+
+  const waiting = payouts.filter((p) => p.status === "pending" || p.status === "processing");
+  const allPaid = payouts.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
+  const allPending = waiting.reduce((s, p) => s + p.amount, 0);
+  const allEarned = await prisma.affiliateCommission
+    .findMany({ select: { amount: true, reversedAmount: true } })
+    .then(netLedger)
+    .catch(() => 0);
+
   return {
     total: affiliates.length,
     active: affiliates.filter((a) => a.status === "active").length,
-    referredSales: money(orders.reduce((s, o) => s + o.subtotal, 0)),
+    joined,
+    clicks,
+    referredOrders: sold._count._all,
+    referredSales: money(sold._sum.subtotal ?? 0),
     commissionEarned: money(commissionEarned),
     paidOut: money(paidOut),
-    owed: money(Math.max(0, commissionEarned - paidOut - pending)),
+    owed: money(Math.max(0, allEarned - allPaid - allPending)),
+    pendingPayouts: money(allPending),
+    pendingPayoutCount: waiting.length,
+    previous:
+      earlierSold && earlierLedger
+        ? {
+            referredOrders: earlierSold._count._all,
+            referredSales: money(earlierSold._sum.subtotal ?? 0),
+            commissionEarned: money(
+              earlierLedger.length > 0
+                ? netLedger(earlierLedger)
+                : (earlierSold._sum.affiliateCommission ?? 0),
+            ),
+          }
+        : null,
   };
 }
 
