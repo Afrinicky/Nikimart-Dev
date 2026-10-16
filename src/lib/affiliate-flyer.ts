@@ -379,6 +379,8 @@ export interface FlyerDesign {
   };
   /** The photograph's frame — the part of the flyer that is the product. */
   frame: {
+    /** The photograph itself. Off closes the gap rather than leaving a hole. */
+    visible: boolean;
     /** Distance from the top of the flyer. */
     top: number;
     /** Margin left and right. Also the page's own margin. */
@@ -435,7 +437,7 @@ export const DEFAULT_FLYER_DESIGN: FlyerDesign = {
     ink: "",
     discount: "#dc2626",
   },
-  frame: { top: 140, side: 48, height: 700, radius: 32 },
+  frame: { visible: true, top: 140, side: 48, height: 700, radius: 32 },
   footer: { visible: true, height: 104, radius: 32, bottom: 92 },
   badge: { label: "NICKIMART", radius: 26 },
   pricePill: true,
@@ -569,6 +571,7 @@ export function resolveFlyerDesign(
       discount: colour(colours.discount, fallback.colours.discount),
     },
     frame: {
+      visible: boolean(frame.visible, fallback.frame.visible),
       top: clamp(frame.top, 0, 600, fallback.frame.top),
       side: clamp(frame.side, 0, 240, fallback.frame.side),
       // The floor is a frame you can still see; the ceiling leaves room for
@@ -1020,8 +1023,13 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
   const cardX = margin;
   const cardY = design.frame.top;
   const cardW = contentWidth;
-  const cardH = design.frame.height;
+  // A flyer with no photograph is a text poster, which is a legitimate thing
+  // to want. The height collapses rather than the picture simply not being
+  // drawn, so the name and the price close the gap instead of sitting under a
+  // hole where it used to be.
+  const cardH = design.frame.visible ? design.frame.height : 0;
 
+  if (design.frame.visible) {
   ctx.save();
   roundRect(ctx, cardX, cardY, cardW, cardH, design.frame.radius);
   ctx.fillStyle = theme.card;
@@ -1056,6 +1064,7 @@ export function drawProductFlyer(ctx: CanvasRenderingContext2D, options: DrawFly
     movable: true,
     resizable: true,
   });
+  }
 
   // The discount flash, over the corner of the photograph.
   const discountStyle = design.text.discount;
