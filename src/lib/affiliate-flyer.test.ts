@@ -8,6 +8,7 @@ import {
   NUDGE_LIMIT,
   clampNudge,
   clampSize,
+  batchShareText,
   coverSource,
   designTheme,
   extraWords,
@@ -304,6 +305,31 @@ test("each product in a batch gets a message carrying only its own link", () => 
     assert.ok(!text.includes(theirs.name), `${theirs.name} leaked into ${mine.name}'s message`);
     assert.ok(!text.includes(theirs.link), `${theirs.name}'s link leaked into ${mine.name}'s`);
   });
+});
+
+test("the one message for a batch names no product and carries no link", () => {
+  const text = batchShareText("Get {product} for {price} from {shop} — {link}");
+  for (const token of ["{product}", "{price}", "{shop}", "{link}"]) {
+    assert.ok(!text.includes(token), `${token} survived`);
+  }
+  assert.ok(!text.includes("http"));
+  // Whatever the affiliate wrote around the placeholders is kept.
+  assert.ok(text.includes("Get"));
+  assert.ok(text.includes("from"));
+});
+
+test("a hand-typed link is dropped from a batch message too", () => {
+  const text = batchShareText("Shop here https://nickimart.com/r/AAA today");
+  assert.ok(!text.includes("nickimart.com"));
+  assert.ok(text.includes("Shop here"));
+  assert.ok(text.includes("today"));
+});
+
+test("a caption that was only placeholders still says something", () => {
+  const text = batchShareText("{product} {price} {link}");
+  assert.ok(text.length > 10);
+  assert.ok(!text.includes("{"));
+  assert.equal(batchShareText("   "), batchShareText(""));
 });
 
 test("a batched message reads exactly like one shared on its own", () => {

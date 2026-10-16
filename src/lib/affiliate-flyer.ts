@@ -1387,6 +1387,36 @@ export function productFlyerShareText(input: ShareTextInput): string {
 }
 
 /**
+ * The one message that goes with a batch of pictures.
+ *
+ * A share sheet takes many files and exactly one message. That is the whole
+ * constraint: anything product-specific in it — a name, a price, a link —
+ * would appear under every picture in the batch, so product A's post would
+ * carry product B's link and the sale would go to the wrong post.
+ *
+ * So the message says nothing about any one product, and each product's own
+ * link rides on its own picture instead: printed on the flyer, or beneath the
+ * watermark on a photograph. The affiliate's caption is kept, with the
+ * placeholders dropped — they have no single value here — and a caption that
+ * was nothing but placeholders falls back to a line that at least says what
+ * the pictures are.
+ */
+export function batchShareText(caption: string): string {
+  const stripped = (caption || "")
+    .replace(/\{(product|price|link|shop|message)\}/g, "")
+    // A link typed into the caption by hand is as wrong here as a filled one.
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .join("\n")
+    .trim();
+
+  return stripped || "Fresh picks on Nickimart — each picture has its own link on it.";
+}
+
+/**
  * The most products one batch can carry.
  *
  * Each one is posted separately, so the limit is no longer what a share sheet

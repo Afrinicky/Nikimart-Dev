@@ -16,11 +16,11 @@ import {
   Loader2,
   MessageCircle,
   Plus,
-  Send,
   X,
 } from "lucide-react";
 import {
   MAX_BULK_SHARE,
+  batchShareText,
   flyerFileName,
   productFlyerShareText,
   type FlyerDesign,
@@ -45,15 +45,19 @@ import { cn } from "@/lib/cn";
  *
  * An affiliate posting to a status rarely posts one thing, so this gathers a
  * selection as somebody browses, mints a link for anything not already on
- * their list, and builds every image in one go.
+ * their list, builds every image, and hands the lot to the share sheet in one
+ * go. One tap, every product.
  *
- * It then posts them one at a time, and that is the whole point. A share sheet
- * takes many files but only one message, so handing it the lot put every
- * product's name, price and link under every picture — product A's status
- * carried product B's link, and the sale it won went to the wrong post.
- * Each picture now goes out with only its own words and its own link, which
- * also matches what posting a status actually is: one picture, one caption, one
- * tap. The queue keeps the batch, not the message.
+ * What makes that safe is where each product's link lives. A share sheet takes
+ * many files and exactly one message, so anything product-specific in that
+ * message lands under every picture — which is how product A's status came to
+ * carry product B's link. The message now names no product at all, and each
+ * picture carries its own: the flyer prints the link and the caption on itself,
+ * and a photograph, which is deliberately unlettered, gets its link stamped
+ * under the watermark when it travels in a batch.
+ *
+ * A single product keeps the message it always had. There is no other picture
+ * for it to be wrong about.
  *
  * The selection lives in React rather than the query string on purpose: it is
  * a scratch pad, not an address, and a link that restores somebody else's
@@ -75,29 +79,6 @@ export interface SelectableProduct {
   /** Their link for it, when it is already on their list. */
   linkCode: string | null;
   eligible: boolean;
-}
-
-/**
- * One picture waiting to be posted, with the words that belong to it.
- *
- * The text is built per product and never shared between them: that
- * one-to-one is the fix for a batch whose every picture carried every
- * product's link.
- */
-interface ShareQueueItem {
-  id: string;
-  name: string;
-  fileName: string;
-  file: File | null;
-  text: string;
-}
-
-interface ShareQueue {
-  items: ShareQueueItem[];
-  /** Which one is up next. */
-  at: number;
-  /** How many actually went out, for the line at the end. */
-  posted: number;
 }
 
 interface SelectionValue {
@@ -216,7 +197,6 @@ export function BulkShareBar({
   const [mode, setMode] = useState<ShareMode>("flyer");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const [queue, setQueue] = useState<ShareQueue | null>(null);
   const [adding, startAdding] = useTransition();
 
   if (!selection || selection.selected.size === 0) return null;
@@ -251,15 +231,20 @@ export function BulkShareBar({
   }
 
   /**
-   * Build every picture, then hand them over one at a time.
+   * Build every picture and hand the lot over in one share sheet.
    *
-   * Building happens here, in one pass, because that is the slow part and
-   * doing it per post would put a wait in front of every tap. Posting happens
-   * one tap at a time because a share sheet carries one message: a batch share
-   * would put all three products' links under each of the three pictures,
-   * which is the bug this replaced.
+   * One tap, one sheet, every product — which is what posting a set of status
+   * updates should cost. What makes that safe is that nothing product-specific
+   * rides in the message: a share sheet carries one message for every file in
+   * it, so a name or a link in there would land under all of them, and product
+   * A's post would carry product B's link.
+   *
+   * So each picture carries its own. The flyer prints the link and the caption
+   * on itself already; a photograph gets its link stamped under the watermark
+   * for a batch, because the message cannot say it per picture. The message
+   * that goes with the batch names no product at all.
    */
-  async function prepareShare() {
+  async function shareAll() {
     setBusy(true);
     setNote(null);
 
@@ -272,104 +257,72 @@ export function BulkShareBar({
       ).catch(() => ({}));
       const logo = watermark.logo.enabled && logoUrl ? await loadShareImage(logoUrl) : null;
 
-      const items: ShareQueueItem[] = [];
+      const files: File[] = [];
+      const saved: { blob: Blob; name: string }[] = [];
+      const batch = products.length > 1;
 
       for (const product of products) {
         const code = codes[product.id] ?? product.linkCode;
         const link = code ? `${linkBase}/${code}` : storeLink;
 
         const image = await loadShareImage(product.image);
-        const piece = pieceFor(product, link, image, logo);
+        const piece = { ...pieceFor(product, link, image, logo), stampLink: batch };
         const fileName =
           mode === "flyer" ? flyerFileName(product.name) : photoFileName(product.name);
 
-        items.push({
-          id: product.id,
-          name: product.name,
-          fileName,
-          file: await buildShareFile(mode, piece, fileName),
-          // This product's words and this product's link. Nothing from the
-          // others goes anywhere near it.
-          text: productFlyerShareText({
-            productName: product.name,
-            price: product.price,
-            shopName: product.shopName,
-            link,
-            template: caption,
-          }),
-        });
+        const file = await buildShareFile(mode, piece, fileName);
+        if (file) {
+          files.push(file);
+          saved.push({ blob: file, name: fileName });
+        }
       }
 
-      if (items.length === 0) {
+      if (files.length === 0) {
         setNote("Couldn't build the images. Try a few at a time.");
         setBusy(false);
         return;
       }
-      setQueue({ items, at: 0, posted: 0 });
-    } catch {
-      setNote("Couldn't build the images. Try a few at a time.");
-    }
-    setBusy(false);
-  }
 
-  /** Post the one at the front of the queue, then move on. */
-  async function shareCurrent() {
-    const current = queue?.items[queue.at];
-    if (!queue || !current) return;
-    setBusy(true);
-    setNote(null);
+      // One product on its own keeps the message it has always had: there is
+      // no other picture for it to be wrong about.
+      const text = batch
+        ? batchShareText(caption)
+        : productFlyerShareText({
+            productName: products[0].name,
+            price: products[0].price,
+            shopName: products[0].shopName,
+            link: codes[products[0].id] ?? products[0].linkCode
+              ? `${linkBase}/${codes[products[0].id] ?? products[0].linkCode}`
+              : storeLink,
+            template: caption,
+          });
 
-    try {
-      const payload = current.file
-        ? { files: [current.file], text: current.text, title: current.name }
-        : null;
-
-      if (
-        payload &&
-        typeof navigator !== "undefined" &&
-        "canShare" in navigator &&
-        navigator.canShare?.(payload)
-      ) {
+      const payload = { files, text, title: batch ? `${files.length} picks from Nickimart` : products[0].name };
+      if (typeof navigator !== "undefined" && "canShare" in navigator && navigator.canShare?.(payload)) {
         await navigator.share(payload);
-      } else {
-        // No file sharing here: save this one image and open WhatsApp with
-        // this one message, which is the two steps a desktop browser can
-        // manage — still one product per post.
-        if (current.file) saveBlob(current.file, current.fileName);
-        window.open(
-          `https://wa.me/?text=${encodeURIComponent(current.text)}`,
-          "_blank",
-          "noopener",
-        );
-        setNote(`${current.fileName} saved — attach it to the message that just opened.`);
+        void recordBulkShare(products.map((p) => p.id)).catch(() => {});
+        picks.clear();
+        setNote(null);
+        setBusy(false);
+        return;
       }
 
-      void recordBulkShare([current.id]).catch(() => {});
-      advance(true);
+      // No file sharing here: save every image and open WhatsApp with the
+      // message, which is the two steps a desktop browser can manage. The
+      // links are on the pictures either way.
+      for (const item of saved) saveBlob(item.blob, item.name);
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+      void recordBulkShare(products.map((p) => p.id)).catch(() => {});
+      setNote(
+        `${saved.length} ${saved.length === 1 ? "image" : "images"} saved — attach them to the WhatsApp message that just opened.`,
+      );
     } catch (err) {
-      // A cancelled share is not a failure, and it must not skip the product.
+      // A cancelled share is not a failure.
       if ((err as Error)?.name !== "AbortError") {
-        setNote("That one wouldn't share. Skip it, or try again.");
+        setNote("Couldn't build the images. Try a few at a time.");
       }
     }
     setBusy(false);
-  }
-
-  function advance(posted: boolean) {
-    setQueue((q) => {
-      if (!q) return q;
-      const at = q.at + 1;
-      const next = { ...q, at, posted: q.posted + (posted ? 1 : 0) };
-      if (at < q.items.length) return next;
-      // The batch is done: clear the selection, and say what went out.
-      picks.clear();
-      setNote(
-        next.posted === 0
-          ? null
-          : `${next.posted} ${next.posted === 1 ? "post" : "posts"} sent, each with its own link.`,
-      );
-      return null;
-    });
   }
 
   function addAll() {
@@ -437,24 +390,23 @@ export function BulkShareBar({
 
         <button
           type="button"
-          onClick={prepareShare}
-          disabled={busy || suspended || Boolean(queue)}
+          onClick={shareAll}
+          disabled={busy || suspended}
           title={suspended ? "Your account is on hold" : undefined}
           className="niki-press niki-focus inline-flex items-center gap-1.5 rounded-xl bg-niki-success px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
         >
-          {busy && !queue ? (
+          {busy ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <MessageCircle className="h-3.5 w-3.5" />
           )}
-          Share {count}
+          Share all {count}
         </button>
 
         <button
           type="button"
           onClick={() => {
             picks.clear();
-            setQueue(null);
             setNote(null);
           }}
           aria-label="Clear the selection"
@@ -463,47 +415,15 @@ export function BulkShareBar({
           <X className="h-3.5 w-3.5" />
         </button>
 
-        {queue ? (
-          <div className="w-full rounded-xl bg-white/10 p-2.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-lg bg-white/15 px-2 py-1 text-[11px] font-bold">
-                {queue.at + 1} of {queue.items.length}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-xs font-semibold text-white">
-                {queue.items[queue.at]?.name}
-              </span>
-              <button
-                type="button"
-                onClick={() => advance(false)}
-                disabled={busy}
-                className="niki-press niki-focus rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white/60 ring-1 ring-white/20 hover:bg-white/10 disabled:opacity-50"
-              >
-                Skip
-              </button>
-              <button
-                type="button"
-                onClick={shareCurrent}
-                disabled={busy}
-                className="niki-press niki-focus inline-flex items-center gap-1.5 rounded-lg bg-niki-success px-3.5 py-1.5 text-[11px] font-bold text-white disabled:opacity-50"
-              >
-                {busy ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Send className="h-3 w-3" />
-                )}
-                Post this one
-              </button>
-            </div>
-            <p className="mt-1.5 px-0.5 text-[11px] leading-relaxed text-white/55">
-              One post each, so every picture carries only its own link. Post this one, then the
-              next appears here.
-            </p>
-          </div>
-        ) : null}
-
         {note ? (
           <p className="w-full rounded-xl bg-white/10 px-3 py-2 text-[11px] leading-relaxed text-white/75">
             {note}
+          </p>
+        ) : count > 1 ? (
+          <p className="w-full px-1 text-[11px] leading-relaxed text-white/45">
+            All {count} go out together, and each picture carries its own link —
+            {mode === "flyer" ? " printed on the flyer" : " under the watermark"} — so no post
+            sends buyers to the wrong product.
           </p>
         ) : null}
       </div>
