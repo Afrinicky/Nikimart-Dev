@@ -28,6 +28,16 @@ export interface MessageVariable {
   note: string;
   /** A realistic value, for the preview. */
   example: string;
+  /**
+   * True where the sender legitimately has nothing to put here.
+   *
+   * A balance note on an order with no balance, a reason an admin didn't give:
+   * the value is supplied, it is simply empty, and the placeholder has to
+   * disappear rather than arrive in the message with its braces on. Declaring
+   * it says so in the editor too, so an admin writing around it knows the
+   * sentence has to read without it.
+   */
+  optional?: boolean;
 }
 
 export interface MessageTemplate {
@@ -171,8 +181,9 @@ export const MESSAGE_TEMPLATES: MessageTemplate[] = [
       { name: "link", note: "The sign-in link", example: "https://nickimart.com/login" },
       {
         name: "feeNote",
-        note: "What we say about their registration fee — written for us from what they were charged",
+        note: "What we say about their registration fee — written for us from what they were charged. Empty when there was no fee.",
         example: "Opening the store cost GH₵30, charged to your balance rather than to you.",
+        optional: true,
       },
       {
         name: "howToGetIn",
@@ -196,7 +207,12 @@ export const MESSAGE_TEMPLATES: MessageTemplate[] = [
     description: "To an applicant when an admin turns the application down.",
     variables: [
       { name: "name", note: "Their first name", example: "Ama" },
-      { name: "reason", note: "What the admin wrote, if anything", example: "the store name is taken" },
+      {
+        name: "reason",
+        note: "What the admin wrote, if anything. Empty when they gave no reason.",
+        example: "the store name is taken",
+        optional: true,
+      },
     ],
     sms: "Nickimart: we couldn't approve your agent application. {{reason}} Reply to this message if you'd like to talk it through.",
     emailSubject: "About your Nickimart agent application",
@@ -221,6 +237,46 @@ export const MESSAGE_TEMPLATES: MessageTemplate[] = [
       "Hi {{name}},\n\nSet your Nickimart agent password here: {{link}}\n\n" +
       "The link works once and lasts seven days.",
     hasEmail: true,
+  },
+  {
+    key: "afa.submitted",
+    scope: "data",
+    group: "Bundle orders",
+    name: "AFA registration submitted",
+    description: "To the applicant, once their AFA registration reaches the provider.",
+    variables: [REFERENCE],
+    sms: "Nickimart Data: your AFA registration (ref {{reference}}) has been submitted. We'll text you once it's approved.",
+    hasEmail: false,
+  },
+  {
+    key: "agent.reactivated",
+    scope: "data",
+    group: "Agents",
+    name: "Agent account reactivated",
+    description: "To an agent when an admin lifts a suspension.",
+    variables: [{ name: "store", note: "Their store name", example: "Ama Telecom" }],
+    sms: "Nickimart: your agent account ({{store}}) is active again. Your store is back online.",
+    hasEmail: false,
+  },
+  {
+    key: "agent.suspended",
+    scope: "data",
+    group: "Agents",
+    name: "Agent account suspended",
+    description: "To an agent when an admin suspends their storefront.",
+    variables: [{ name: "store", note: "Their store name", example: "Ama Telecom" }],
+    sms: "Nickimart: your agent account ({{store}}) has been suspended. Please contact support.",
+    hasEmail: false,
+  },
+  {
+    key: "withdrawal.rejected",
+    scope: "data",
+    group: "Agents",
+    name: "Payout rejected",
+    description: "To an agent when an admin turns a withdrawal down and returns the money.",
+    variables: [{ name: "amount", note: "What they asked for", example: "GH\u20b5120.00" }],
+    sms: "Nickimart: your withdrawal of {{amount}} could not be processed. The amount is back on your balance.",
+    hasEmail: false,
   },
   {
     key: "bundle.payment-claim",
@@ -323,6 +379,7 @@ export const MESSAGE_TEMPLATES: MessageTemplate[] = [
         name: "balanceNote",
         note: "What is still owed on collection, when shipping was left until then. Empty otherwise.",
         example: "Shipping of GH₵120.00 is due when you collect.",
+        optional: true,
       },
     ],
     sms: "Nickimart: good news {{name}} — order {{orderNumber}} has arrived in Ghana at {{landedAt}}. {{balanceNote}} We'll tell you the moment it reaches {{point}}.",
@@ -331,6 +388,69 @@ export const MESSAGE_TEMPLATES: MessageTemplate[] = [
       "Hi {{name}}, your order {{orderNumber}} has landed in Ghana at " +
       "{{landedAt}}.\n\n{{balanceNote}}\n\nIt now travels to {{point}}. We'll let " +
       "you know as soon as it's ready to collect.",
+    hasEmail: true,
+  },
+  {
+    key: "order.status",
+    scope: "retail",
+    group: "Orders",
+    name: "Order status changed",
+    description:
+      "To the customer on every other step of the journey — the ones that aren't arrival or hand-over.",
+    variables: [
+      { name: "orderNumber", note: "The order number", example: "NM-00042" },
+      { name: "status", note: "The step it has reached", example: "In transit" },
+    ],
+    sms: "Nickimart: your order {{orderNumber}} is now \"{{status}}\". Track it in your account.",
+    emailSubject: "Order {{orderNumber}}: {{status}}",
+    emailBody: "Your order {{orderNumber}} status is now {{status}}.",
+    hasEmail: true,
+  },
+  {
+    key: "order.pickupCode",
+    scope: "retail",
+    group: "Orders",
+    name: "Collection code",
+    description:
+      "To the customer when their order is ready to collect. Carries the code the counter asks for.",
+    variables: [
+      { name: "name", note: "Their first name", example: "Kofi" },
+      { name: "orderNumber", note: "The order number", example: "NM-00042" },
+      { name: "point", note: "Where to collect it", example: "Adum Pickup — Kumasi" },
+      { name: "code", note: "The one-time collection code", example: "418 263" },
+      {
+        name: "hours",
+        note: "The point's collection hours. Empty when it hasn't set any.",
+        example: "Mon-Sat, 8am-6pm",
+        optional: true,
+      },
+    ],
+    sms: "Nickimart: {{name}}, order {{orderNumber}} is ready to collect at {{point}}. {{hours}} Your collection code is {{code}} — show it at the counter. Don't share it with anyone you aren't sending.",
+    emailSubject: "Order {{orderNumber}} is ready to collect",
+    emailBody:
+      "Hi {{name}},\n\nOrder {{orderNumber}} is ready to collect at {{point}}. {{hours}}\n\n" +
+      "Your collection code is {{code}}.\n\nShow it at the counter. The code is what proves the " +
+      "parcel is yours, so only give it to somebody you are sending to collect on your behalf — " +
+      "they will be asked for their name and ID as well.",
+    hasEmail: true,
+  },
+  {
+    key: "order.collected",
+    scope: "retail",
+    group: "Orders",
+    name: "Collected by someone else",
+    description:
+      "To the customer the moment their parcel is released to somebody collecting on their behalf.",
+    variables: [
+      { name: "orderNumber", note: "The order number", example: "NM-00042" },
+      { name: "point", note: "Where it was handed over", example: "Adum Pickup" },
+      { name: "collector", note: "Who collected it", example: "Yaw Mensah" },
+    ],
+    sms: "Nickimart: order {{orderNumber}} was collected at {{point}} by {{collector}}. If that wasn't arranged by you, call us straight away.",
+    emailSubject: "Order {{orderNumber}} was collected",
+    emailBody:
+      "Order {{orderNumber}} was collected at {{point}} by {{collector}}.\n\n" +
+      "If that was not arranged by you, call us straight away.",
     hasEmail: true,
   },
   {
@@ -368,16 +488,60 @@ export function findTemplate(key: string): MessageTemplate | undefined {
 /**
  * Fill the placeholders in one piece of text.
  *
- * A placeholder with no value is left exactly as written rather than blanked.
- * A message reading "sent to 0241234567" is the goal; "sent to {{phone}}" is a
- * visible mistake somebody will report; "sent to " is a mistake nobody
- * notices, which is the worst of the three.
+ * Two different things look alike here and must not be treated alike:
+ *
+ *   • A placeholder the sender said nothing about — a typo, a value the code
+ *     forgot to pass. That is left exactly as written. "sent to 0241234567" is
+ *     the goal; "sent to {{phone}}" is a visible mistake somebody reports;
+ *     "sent to " is a mistake nobody notices, which is the worst of the three.
+ *
+ *   • A placeholder the sender supplied *as empty*, because there is honestly
+ *     nothing to say: no balance outstanding, no reason given for a rejection.
+ *     That one is removed. It used to be left alone, which is how a customer
+ *     was told their order had landed "in Ghana at Sunyani CSL Consolidation.
+ *     {{balanceNote}} We'll tell you the moment…".
+ *
+ * The difference is whether the key is present in `vars` at all, so a sender
+ * with nothing to say has to say so — `balanceNote: ""` rather than leaving it
+ * out — and a forgotten value still shows up loudly.
+ *
+ * Removing a placeholder leaves the hole it was sitting in: a doubled space
+ * mid-sentence, or a paragraph of its own that is now blank. `tidyMessage`
+ * closes those, so the sentence reads as though the clause was never there.
  */
 export function renderMessage(text: string, vars: Record<string, string | number>): string {
-  return text.replace(/\{\{\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\}\}/g, (whole, name: string) => {
+  let blanked = false;
+  const out = text.replace(/\{\{\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\}\}/g, (whole, name: string) => {
+    if (!Object.prototype.hasOwnProperty.call(vars, name)) return whole;
     const value = vars[name];
-    return value === undefined || value === null || value === "" ? whole : String(value);
+    if (value === undefined || value === null) return whole;
+    const filled = String(value);
+    if (filled === "") blanked = true;
+    return filled;
   });
+  return blanked ? tidyMessage(out) : out;
+}
+
+/**
+ * Close the gap a removed placeholder leaves behind.
+ *
+ * Only ever run over text that actually lost something, because it is a blunt
+ * instrument: it collapses runs of spaces and runs of blank lines, which is
+ * right for repairing a hole and wrong as a general tidy-up of what an admin
+ * deliberately typed.
+ */
+export function tidyMessage(text: string): string {
+  return text
+    // " . " and " ," — the space that belonged to the clause that went.
+    .replace(/[ \t]+([.,;:!?])/g, "$1")
+    // Two spaces where a word used to be.
+    .replace(/[ \t]{2,}/g, " ")
+    // A line that is now only whitespace is no line at all.
+    .replace(/[ \t]+$/gm, "")
+    .replace(/^[ \t]+$/gm, "")
+    // A paragraph that emptied leaves three newlines where two belong.
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /** The placeholders a piece of text actually uses. */

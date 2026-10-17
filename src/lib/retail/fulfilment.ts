@@ -231,14 +231,22 @@ export function nextAction(
         stage: "out_for_delivery",
       };
     case "ready":
-      return {
-        label: method === "pickup" ? "Mark collected" : "Mark delivered",
-        detail:
-          method === "pickup"
-            ? "Waiting on the buyer. Mark it once they have collected and confirmed receipt."
-            : "With the courier. Mark it once the buyer has it.",
-        stage: "delivered",
-      };
+      // A pickup is not marked collected from here. The parcel is released at
+      // the counter against the code texted to the buyer, with a record of
+      // who took it — so this points at that rather than offering a button
+      // that the collection guard would refuse.
+      return method === "pickup"
+        ? {
+            label: "Open the pickup board",
+            detail:
+              "Waiting on the buyer. It is released at the counter against their collection code — send one again from Collection below if they have lost it.",
+            href: "/admin/orders/pickups",
+          }
+        : {
+            label: "Mark delivered",
+            detail: "With the courier. Mark it once the buyer has it.",
+            stage: "delivered",
+          };
     default:
       return null;
   }

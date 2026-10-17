@@ -31,11 +31,50 @@ test("placeholders are filled from the values given", () => {
   );
 });
 
-test("a placeholder with no value is left alone, never blanked", () => {
+test("a placeholder nobody supplied is left alone, never blanked", () => {
   // "sent to {{phone}}" is a visible mistake somebody reports. "sent to " is
   // one nobody notices, which is worse.
   assert.equal(renderMessage("sent to {{phone}}", {}), "sent to {{phone}}");
-  assert.equal(renderMessage("sent to {{phone}}", { phone: "" }), "sent to {{phone}}");
+  assert.equal(renderMessage("sent to {{phone}}", { phone: undefined as never }), "sent to {{phone}}");
+});
+
+test("a placeholder supplied as empty disappears, braces and all", () => {
+  // The bug this exists to stop: a buyer with nothing outstanding was told
+  // "...arrived in Ghana at Tema Port. {{balanceNote}} We'll tell you...".
+  assert.equal(
+    renderMessage("arrived at {{where}}. {{balanceNote}} We'll be in touch.", {
+      where: "Tema Port",
+      balanceNote: "",
+    }),
+    "arrived at Tema Port. We'll be in touch.",
+  );
+  // And it still reads correctly when there *is* something to say.
+  assert.equal(
+    renderMessage("arrived at {{where}}. {{balanceNote}} We'll be in touch.", {
+      where: "Tema Port",
+      balanceNote: "GH₵120.00 is due on collection.",
+    }),
+    "arrived at Tema Port. GH₵120.00 is due on collection. We'll be in touch.",
+  );
+});
+
+test("emptying a placeholder closes the hole rather than leaving one", () => {
+  // A clause that went takes its space with it...
+  assert.equal(renderMessage("Declined. {{reason}} Call us.", { reason: "" }), "Declined. Call us.");
+  // ...and a paragraph that emptied does not leave a blank one behind.
+  assert.equal(
+    renderMessage("Hi there.\n\n{{note}}\n\nThanks.", { note: "" }),
+    "Hi there.\n\nThanks.",
+  );
+  // The space before punctuation goes too, so no "landed in Ghana ." .
+  assert.equal(renderMessage("landed in Ghana {{note}}.", { note: "" }), "landed in Ghana.");
+});
+
+test("text with nothing emptied is passed through exactly as written", () => {
+  // tidyMessage is a repair, not a formatter: an admin's own double spacing
+  // and blank lines survive untouched when no placeholder was removed.
+  const written = "Hi  {{name}},\n\n\nYour order is ready.   ";
+  assert.equal(renderMessage(written, { name: "Ama" }), "Hi  Ama,\n\n\nYour order is ready.   ");
 });
 
 test("whitespace inside the braces is tolerated", () => {

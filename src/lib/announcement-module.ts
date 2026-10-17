@@ -4,13 +4,17 @@ import type { ModuleTab } from "@/components/admin/ModuleTabs";
 /**
  * The Announcements module's tabs.
  *
- * Four things that all mean "something was said", and they are genuinely
- * different: an announcement sits on a screen until somebody opens it, an
- * automatic message goes out when the platform does something, a broadcast
- * leaves the building the moment you press send — and a notification is the
- * platform saying something back, to the admins rather than to a customer.
- * Putting them under one module is right; putting them on one screen would not
- * be.
+ * Things that all mean "something was said", and they are genuinely different:
+ * an announcement sits on a screen until somebody opens it, the Messenger is
+ * somebody at this end deciding to write, and a notification is the platform
+ * saying something back, to the admins rather than to a customer. Putting them
+ * under one module is right; putting them on one screen would not be.
+ *
+ * Messages and Broadcasts used to be two tabs here. They are two parts of one
+ * thing — writing to people — so they are now two parts of the Messenger,
+ * which owns its own tab row (components/admin/messenger/MessengerTabs). Both
+ * addresses still work and still land where they always did; they are simply
+ * reached from inside the Messenger now rather than from beside it.
  *
  * Notifications are the bundle console's own: they are raised by withdrawals,
  * applications and support requests, none of which the retail console has.
@@ -47,7 +51,6 @@ export function ANNOUNCEMENT_MODULE_TABS(
           },
         ]
       : []),
-    { href: `${base}/messages`, label: "Messages", icon: "mail" },
-    { href: `${base}/broadcasts`, label: "Broadcasts", icon: "send" },
+    { href: `${base}/messenger`, label: "Messenger", icon: "mail" },
   ];
 }

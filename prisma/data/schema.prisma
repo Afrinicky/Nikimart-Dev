@@ -44,20 +44,20 @@ datasource db {
 // `costPrice` is what the upstream agent account is billed, so the admin can
 // see the margin on every row. Prices are GH₵ (the provider quotes pesewas).
 model DataBundle {
-  id         String   @id @default(cuid())
+  id             String   @id @default(cuid())
   // MTN | TELECEL | AIRTELTIGO_ISHARE | AIRTELTIGO_BIGTIME (see lib/data-bundles/networks.ts).
-  network    String
+  network        String
   // Volume in GB, as sent to the provider's `size` field.
-  sizeGb     Float
+  sizeGb         Float
   // Selling price shown on the storefront (GH₵).
-  price      Float
+  price          Float
   // Upstream cost (GH₵). 0 when unknown — margin is then just not shown.
-  costPrice  Float    @default(0)
+  costPrice      Float    @default(0)
   // What NikiMart charges its own sub-agents for this bundle (GH₵). It is the
   // agent's cost basis: their commission on a storefront sale is whatever they
   // charge above this. 0 means "not resold to agents", and the bundle is then
   // hidden from agent storefronts. Set it in Admin → Data → Bundle prices.
-  agentPrice Float    @default(0)
+  agentPrice     Float    @default(0)
   // What the *recruiter* of the selling agent earns when this bundle is sold
   // by one of their direct recruits (GH₵ per sale). It comes out of Nickimart's
   // margin, not out of the selling agent's commission, so it is set per bundle
@@ -65,13 +65,13 @@ model DataBundle {
   // percentage somewhere else. 0 means "use the programme default" (see the
   // referralTeamCommission settings); set the default to 0 as well to pay
   // nothing on this bundle.
-  teamCommission Float @default(0)
+  teamCommission Float    @default(0)
   // Optional marketing line, e.g. "No expiry · instant delivery".
-  validity   String   @default("No expiry")
-  isActive   Boolean  @default(true)
-  order      Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  validity       String   @default("No expiry")
+  isActive       Boolean  @default(true)
+  order          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([network, sizeGb])
   @@index([network, isActive])
@@ -185,7 +185,6 @@ model DataOrder {
 
 /**
  * "I was debited and it still says awaiting payment."
- *
  * Every automatic path can come back empty — the redirect was interrupted, the
  * webhook never arrived, and a re-check against the gateway found nothing. The
  * buyer is then the only person who can see their own MoMo prompt, and a claim
@@ -335,10 +334,10 @@ model DataAgent {
   //   WAIVED  — an admin set the fee to zero for this agent.
   // This drives one thing beyond narration: referral rewards are released only
   // once the fee has actually been *paid*, and a waived fee never pays anyone.
-  setupFeeMethod String    @default("BALANCE")
+  setupFeeMethod    String    @default("BALANCE")
   // When the fee was settled in full — the moment referral rewards become
   // payable. Null while it is still outstanding, and null forever if waived.
-  setupFeePaidAt DateTime?
+  setupFeePaidAt    DateTime?
   // Paystack reference for an upfront payment, so it can be verified and never
   // credited twice.
   setupFeeReference String?
@@ -367,17 +366,18 @@ model DataAgent {
 
   // --- Referral -------------------------------------------------------------
   /**
+   * /**
    * The registration waiver *this agent's own recruits* receive, as a
    * percentage of the fee. Null means "use the programme default"; 100 is a
    * full waiver, and whether that still pays a joining reward is the admin's
    * call (see the referralFullWaiverPaysReward setting). Set per agent, so a
    * recruiter who has earned it can bring people in cheaper than the rest.
    */
-  teamPosts      DataTeamPost[] @relation("TeamPostAuthor")
-  teamSessions   DataTeamSession[] @relation("TeamSessionHost")
+  teamPosts        DataTeamPost[]            @relation("TeamPostAuthor")
+  teamSessions     DataTeamSession[]         @relation("TeamSessionHost")
   sessionsAttended DataTeamSessionAttendee[] @relation("TeamSessionAttendee")
-  teamNotesWritten DataTeamNote[] @relation("TeamNoteAuthor")
-  teamNotesAbout   DataTeamNote[] @relation("TeamNoteSubject")
+  teamNotesWritten DataTeamNote[]            @relation("TeamNoteAuthor")
+  teamNotesAbout   DataTeamNote[]            @relation("TeamNoteSubject")
 
   referralWaiverPercent Float?
   /**
@@ -387,7 +387,7 @@ model DataAgent {
    * whatever the default becomes. The waiver above decides what a recruit is
    * charged; this decides who keeps it.
    */
-  referralSharePercent Float?
+  referralSharePercent  Float?
   /**
    * How the people *this* agent recruits may settle their own registration
    * fee: UPFRONT, COMMISSION or BOTH. Null means "follow the programme", which
@@ -396,7 +396,7 @@ model DataAgent {
    * This is the exception mechanism behind "everyone pays up front, except
    * the people these three bring in".
    */
-  recruitPaymentMode String?
+  recruitPaymentMode    String?
   /**
    * The agent who recruited this one — their direct (level 1) upline. Set once,
    * when the account is created from an application that quoted a referral
@@ -404,17 +404,18 @@ model DataAgent {
    * it became permanent. Level 2 is this agent's referrer's referrer, walked at
    * read time; the programme stops there.
    */
-  referredById    String?
-  referredBy      DataAgent?  @relation("AgentReferral", fields: [referredById], references: [id], onDelete: SetNull)
-  recruits        DataAgent[] @relation("AgentReferral")
+  referredById          String?
+  referredBy            DataAgent?  @relation("AgentReferral", fields: [referredById], references: [id], onDelete: SetNull)
+  recruits              DataAgent[] @relation("AgentReferral")
   /**
    * When the referral relationship became permanent. Once set, nothing — not
    * even an admin — may point this agent at a different referrer.
    */
-  referralLockedAt DateTime?
+  referralLockedAt      DateTime?
 
   // --- Leaderboard points ---------------------------------------------------
   /**
+   * /**
    * Points in hand, moved only by writing a DataAgentPoint row — the same rule
    * the cedi balance follows, so the two can always be reconciled against each
    * other. Points are not money: they are earned from leaderboard places and
@@ -435,9 +436,9 @@ model DataAgent {
   topups      DataWalletTopup[]
   // Ledger rows this agent's own activity *paid someone else* — their upline's
   // referral and team-sales commissions.
-  earnedFor   DataAgentLedger[]     @relation("LedgerSourceAgent")
-  teamOrders  DataOrder[]           @relation("TeamUpline")
-  teamAfa     AfaRegistration[]     @relation("AfaTeamUpline")
+  earnedFor   DataAgentLedger[]      @relation("LedgerSourceAgent")
+  teamOrders  DataOrder[]            @relation("TeamUpline")
+  teamAfa     AfaRegistration[]      @relation("AfaTeamUpline")
 
   @@index([status])
   @@index([referredById])
@@ -487,6 +488,7 @@ model DataAgentLedger {
 
   // --- Referral and team earnings ------------------------------------------
   /**
+   * /**
    * The agent whose activity produced this entry: the recruit whose
    * registration fee was paid, or the downline agent who made the sale. Null on
    * everything an agent earned themselves. It is what makes a referral credit
@@ -501,7 +503,6 @@ model DataAgentLedger {
   referralLevel Int?
   /**
    * The one thing that makes a commission payable exactly once.
-   *
    * Every automatic credit derives a key from what it is paying for —
    * "REFERRAL_L1:<recruit id>", "TEAM_COMMISSION:<order id>" — and the unique
    * index refuses the second write. Guarded status flips already stop the
@@ -509,7 +510,7 @@ model DataAgentLedger {
    * after a status was reset by hand, two sweeps on two instances), because the
    * database, not the code path, is what says no.
    */
-  dedupeKey String? @unique
+  dedupeKey     String?    @unique
 
   createdAt DateTime @default(now())
 
@@ -521,7 +522,6 @@ model DataAgentLedger {
 
 /**
  * An agent putting money into their own wallet through Paystack.
- *
  * The row exists before the agent ever reaches the gateway, and that is its
  * whole point. A top-up used to be nothing but a reference handed to Paystack
  * with the agent id in the transaction metadata: if the money was captured but
@@ -529,7 +529,6 @@ model DataAgentLedger {
  * code, a webhook dropped, metadata missing on a replay — there was no record
  * anywhere that the agent had ever tried, and the payment could only be found
  * by going through the Paystack dashboard by hand.
- *
  * With this, an unsettled top-up is a row somebody can see: the wallet shows
  * it, the sweep re-checks it against Paystack, and crediting it needs nothing
  * but the reference. `creditedAmount` is what Paystack actually captured, which
@@ -540,12 +539,18 @@ model DataWalletTopup {
   agentId String
   agent   DataAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
-  /** The Paystack reference (NT-…). Unique, so a top-up settles once. */
-  reference String @unique
-  /** What the agent asked to pay (GH₵). */
-  amount    Float
-  /** What was actually captured and credited. 0 until it settles. */
-  creditedAmount Float @default(0)
+  /**
+   * The Paystack reference (NT-…). Unique, so a top-up settles once.
+   */
+  reference      String @unique
+  /**
+   * What the agent asked to pay (GH₵).
+   */
+  amount         Float
+  /**
+   * What was actually captured and credited. 0 until it settles.
+   */
+  creditedAmount Float  @default(0)
 
   // pending | paid | abandoned
   status String    @default("pending")
@@ -599,7 +604,6 @@ model DataAgentWithdrawal {
 
 /**
  * One movement of an agent's points, and the only way `pointsBalance` moves.
- *
  * `dedupeKey` is what makes a placement pay exactly once: the award for first
  * place on the sales board for September is "RANK:SALES:2026-09:<agentId>",
  * and the unique index refuses the second write however many times the sweep
@@ -612,16 +616,20 @@ model DataAgentPoint {
 
   // RANK_SALES | RANK_RECRUITS | RANK_PERFORMANCE | PERFORMANCE_BONUS |
   // REDEMPTION | REFUND | ADJUSTMENT
-  type String
+  type         String
   // Signed: positive earns, negative spends.
-  points Int
+  points       Int
   // Points in hand after this entry, so history never has to be replayed.
   balanceAfter Int
-  narration    String @default("")
-  /** The ranking period this was awarded for, e.g. "2026-09" or "2026-W37". */
-  periodKey String?
-  /** The place that earned it: 1, 2 or 3. Null on everything else. */
-  rank      Int?
+  narration    String  @default("")
+  /**
+   * The ranking period this was awarded for, e.g. "2026-09" or "2026-W37".
+   */
+  periodKey    String?
+  /**
+   * The place that earned it: 1, 2 or 3. Null on everything else.
+   */
+  rank         Int?
 
   dedupeKey String? @unique
 
@@ -637,17 +645,23 @@ model DataAgentPoint {
  * it is on the shelf at all. Nothing in the code assumes a price or a tier.
  */
 model DataRewardTier {
-  id    String @id @default(cuid())
-  label String
+  id         String @id @default(cuid())
+  label      String
   // CASH | BUNDLE
-  kind  String @default("CASH")
-  /** What it costs the agent. */
-  points Int
-  /** Credited to the agent's balance when the reward is a cash one. */
-  cashAmount Float @default(0)
-  /** The bundle sent when the reward is a data one. */
-  network String @default("")
-  sizeGb  Float  @default(0)
+  kind       String @default("CASH")
+  /**
+   * What it costs the agent.
+   */
+  points     Int
+  /**
+   * Credited to the agent's balance when the reward is a cash one.
+   */
+  cashAmount Float  @default(0)
+  /**
+   * The bundle sent when the reward is a data one.
+   */
+  network    String @default("")
+  sizeGb     Float  @default(0)
 
   isActive Boolean @default(true)
   order    Int     @default(0)
@@ -674,13 +688,15 @@ model DataRewardRedemption {
 
   // Snapshotted from the tier, so editing or retiring it never rewrites what
   // somebody redeemed.
-  label      String
-  kind       String @default("CASH")
-  points     Int
-  cashAmount Float  @default(0)
-  network    String @default("")
-  sizeGb     Float  @default(0)
-  /** Where a bundle reward should be sent. Empty on a cash one. */
+  label          String
+  kind           String @default("CASH")
+  points         Int
+  cashAmount     Float  @default(0)
+  network        String @default("")
+  sizeGb         Float  @default(0)
+  /**
+   * Where a bundle reward should be sent. Empty on a cash one.
+   */
   recipientPhone String @default("")
 
   // pending | fulfilled | rejected
@@ -698,19 +714,19 @@ model DataRewardRedemption {
 
 // Broadcast announcements shown to agents (Justice's Notifications screen).
 model DataAnnouncement {
-  id       String  @id @default(cuid())
-  title    String
-  body     String
+  id        String    @id @default(cuid())
+  title     String
+  body      String
   // info | warning | success — drives the accent on the notice card.
-  tone     String  @default("info")
-  isActive Boolean @default(true)
+  tone      String    @default("info")
+  isActive  Boolean   @default(true)
   // Pinned notices sort above the rest regardless of date.
-  isPinned Boolean @default(false)
+  isPinned  Boolean   @default(false)
   /**
    * Who it is for: AGENTS, CUSTOMERS or EVERYONE. A notice about commission is
    * not a notice a customer buying a bundle should read.
    */
-  audience String  @default("AGENTS")
+  audience  String    @default("AGENTS")
   /**
    * When it starts mattering, and when it stops. Null publishAt means "now";
    * null expiresAt means "until somebody hides it". Between them they cover
@@ -719,8 +735,10 @@ model DataAnnouncement {
    */
   publishAt DateTime?
   expiresAt DateTime?
-  /** Who wrote it. A broadcast nobody can be asked about is one nobody owns. */
-  createdBy String  @default("")
+  /**
+   * Who wrote it. A broadcast nobody can be asked about is one nobody owns.
+   */
+  createdBy String    @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -762,35 +780,35 @@ model DataSupportRequest {
 model DataAgentApplication {
   id String @id @default(cuid())
 
-  fullName    String
-  phone       String
-  email       String
+  fullName     String
+  phone        String
+  email        String
   /**
    * The store name they typed, exactly as they typed it.
    */
-  storeName   String @default("")
+  storeName    String  @default("")
   /**
    * The store link they asked for, already normalised.
    */
-  desiredSlug String
+  desiredSlug  String
   /**
    * Optional note from the applicant.
    */
-  note        String @default("")
+  note         String  @default("")
   /**
    * The agent code the applicant typed, if they were recruited by an existing
    * agent — stored exactly as given so an admin can see what was claimed even
    * when it turns out to be a typo. The relationship itself is only created on
    * approval, once the code has been resolved to a live agent.
    */
-  referralCode String @default("")
+  referralCode String  @default("")
   /**
    * The admin-issued registration link this applicant came through, if any.
    * Kept beside the referral code and read the same way: what was claimed,
    * with the discount it granted snapshotted into the fee columns below, so an
    * invite edited or deleted later never rewrites what somebody was charged.
    */
-  inviteCode   String @default("")
+  inviteCode   String  @default("")
   /**
    * The agent the code resolved to when the application was submitted. Held
    * here so the queue can show who is recruiting whom before anything is
@@ -803,7 +821,7 @@ model DataAgentApplication {
    * (paid through Paystack before the store opens). Referral rewards are
    * released either way, but only once the fee has actually been paid.
    */
-  feeMethod    String @default("BALANCE")
+  feeMethod    String  @default("BALANCE")
 
   // pending | approved | rejected
   status     String    @default("pending")
@@ -827,37 +845,38 @@ model DataAgentApplication {
 
   // --- What the applicant set for themselves --------------------------------
   /**
+   * /**
    * The password they chose on the signup form, hashed. It is moved onto the
    * Nickimart user account at approval and cleared here at the same moment, so
    * a hash never outlives the application it was collected on.
-   *
    * Collecting it up front is what lets an approved agent simply sign in: there
    * is no setup link to deliver, and therefore no registration that can end
    * with an account nobody can get into because a text never arrived.
    */
-  passwordHash String?
+  passwordHash        String?
   /**
    * True when that hash is of a password *we* generated and sent, rather than
    * one the applicant typed. It rides through approval onto the account, which
    * is then made to change it at first sign-in.
    */
-  passwordIsTemporary Boolean @default(false)
+  passwordIsTemporary Boolean   @default(false)
   /**
    * When the username and that password were sent. Null means they have not
    * been, and the guarded write that sets it is what keeps a webhook and a
    * redirect settling the same payment from sending two different passwords.
    */
-  credentialsSentAt DateTime?
-  firstName    String  @default("")
-  lastName     String  @default("")
+  credentialsSentAt   DateTime?
+  firstName           String    @default("")
+  lastName            String    @default("")
 
   // --- The registration fee, paid before anybody reviews this ---------------
   /**
+   * /**
    * What this applicant was quoted, after any referral waiver. Held on the
    * application because it is what they actually paid, and the programme fee
    * may change between paying and being approved.
    */
-  feeAmount     Float   @default(0)
+  feeAmount        Float     @default(0)
   /**
    * The rest of that quote, exactly as the signup form showed it: the fee at
    * full price, the waiver their recruiter's code granted, what it was worth,
@@ -866,19 +885,21 @@ model DataAgentApplication {
    * being approved, and a registration must always read back as the deal that
    * was actually struck.
    */
-  feeGross           Float @default(0)
-  feeWaiverPercent   Float @default(0)
-  feeWaived          Float @default(0)
-  feeReferrerShare   Float @default(0)
+  feeGross         Float     @default(0)
+  feeWaiverPercent Float     @default(0)
+  feeWaived        Float     @default(0)
+  feeReferrerShare Float     @default(0)
   /**
    * none    — there is nothing to pay (no fee, or it clears from commission).
    * pending — a Paystack transaction was started and hasn't been confirmed.
    * paid    — the money is in. Only then may the application be approved.
    */
-  paymentStatus String  @default("none")
-  /** The Paystack reference of the payment, for verification and reconciliation. */
-  feeReference  String?
-  feePaidAt     DateTime?
+  paymentStatus    String    @default("none")
+  /**
+   * The Paystack reference of the payment, for verification and reconciliation.
+   */
+  feeReference     String?
+  feePaidAt        DateTime?
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -896,43 +917,50 @@ model DataAgentApplication {
 
 /**
  * A registration link issued by Nickimart itself.
- *
  * An agent's invite link carries their agent code and pays them a share of what
  * their recruit is charged. This is the other kind: a link the admin hands out
  * directly — at an event, to a partner, to somebody they simply want on board —
  * where the discount is whatever they decided when they made the link and
  * nobody earns a referral share, because nobody recruited them.
- *
  * `waiverPercent` is the whole configuration: 0 is full price, 100 waives the
  * registration fee entirely. Usage is capped and dated so a link that leaks
  * cannot go on discounting registrations forever.
  */
 model DataAgentInvite {
-  id String @id @default(cuid())
-  /** The token in the URL: /become-an-agent?invite=<code>. */
-  code String @unique
+  id    String  @id @default(cuid())
+  /**
+   * The token in the URL: /become-an-agent?invite=<code>.
+   */
+  code  String  @unique
   /**
    * An advert-friendly short path for the same link: nickimart.com/<slug>.
-   *
    * Optional, and unique when set. Facebook and WhatsApp refuse a link with a
    * query string on a domain they don't know, so a link that has to survive an
    * advert gets a bare path as well as a code.
    */
-  slug String? @unique
-  /** What this link is for, in the admin's own words. */
-  label String @default("")
+  slug  String? @unique
+  /**
+   * What this link is for, in the admin's own words.
+   */
+  label String  @default("")
 
-  /** How much of the registration fee it takes off, 0–100. 100 waives it. */
+  /**
+   * How much of the registration fee it takes off, 0–100. 100 waives it.
+   */
   waiverPercent Float @default(0)
 
-  /** How many registrations it may open. 0 is unlimited. */
+  /**
+   * How many registrations it may open. 0 is unlimited.
+   */
   maxUses   Int @default(0)
   usedCount Int @default(0)
 
   expiresAt DateTime?
   isActive  Boolean   @default(true)
 
-  /** The `User.id` of the admin who issued it, for the audit trail. */
+  /**
+   * The `User.id` of the admin who issued it, for the audit trail.
+   */
   createdBy String?
 
   createdAt DateTime @default(now())
@@ -952,41 +980,39 @@ model DataAgentInvite {
 // ---------------------------------------------------------------------------
 /**
  * An automatic message the admin has rewritten.
- *
  * Absent means "use the default in lib/message-templates.ts". Present means
  * the admin has had their say, and the switches are explicit rather than
  * inferred from empty text: silencing half a message is a decision, not a
  * blank field.
  */
 model DataMessageTemplate {
-  key          String  @id
-  sms          String  @default("")
-  emailSubject String  @default("")
-  emailBody    String  @default("")
-  smsEnabled   Boolean @default(true)
-  emailEnabled Boolean @default(true)
-  updatedBy    String  @default("")
-  updatedAt    DateTime @updatedAt @default(now())
+  key          String   @id
+  sms          String   @default("")
+  emailSubject String   @default("")
+  emailBody    String   @default("")
+  smsEnabled   Boolean  @default(true)
+  emailEnabled Boolean  @default(true)
+  updatedBy    String   @default("")
+  updatedAt    DateTime @default(now()) @updatedAt
 }
 
 /**
  * A message the admin sent on purpose.
- *
  * A broadcast costs real money per recipient and cannot be recalled, so the
  * record of one is part of sending it rather than an extra.
  */
 model DataBroadcast {
-  id         String @id @default(cuid())
+  id         String   @id @default(cuid())
   audience   String
   /// sms | email | both
-  channel    String @default("sms")
-  subject    String @default("")
+  channel    String   @default("sms")
+  subject    String   @default("")
   body       String
   /// How many the audience resolved to, and how many the gateway accepted.
-  recipients Int    @default(0)
-  delivered  Int    @default(0)
-  failed     Int    @default(0)
-  sentBy     String @default("")
+  recipients Int      @default(0)
+  delivered  Int      @default(0)
+  failed     Int      @default(0)
+  sentBy     String   @default("")
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
@@ -994,17 +1020,14 @@ model DataBroadcast {
 
 /**
  * Something that happened and somebody should know about.
- *
  * The console already shows what needs doing — a pending count here, a failed
  * count there — but only to an admin who is standing on the right screen at
  * the right time. Counts also forget: a withdrawal requested and paid on
  * Tuesday leaves nothing behind saying anybody was ever asked.
- *
  * A notification is the record that stays. It is written where the thing
  * happened, carries a link back to it, and is marked read by the person who
  * dealt with it — so the bell is a queue of work rather than a badge that
  * clears itself when the underlying count happens to drop.
- *
  * `dedupeKey` is what stops one event being recorded twice: a webhook and a
  * redirect both settling the same registration write the same key, and the
  * unique index refuses the second.
@@ -1037,20 +1060,19 @@ model DataNotification {
 
 /**
  * Something a team leader wrote to their own team.
- *
  * Distinct from a Nickimart announcement, which comes from the platform and
  * goes to everybody. This one belongs to one leader and reaches their own two
  * levels — the difference between "the store is closed on Friday" and "well
  * done Ama, and here is what worked".
  */
 model DataTeamPost {
-  id       String @id @default(cuid())
+  id       String    @id @default(cuid())
   /// The agent who wrote it. Their own team is who can read it.
   leaderId String
   leader   DataAgent @relation("TeamPostAuthor", fields: [leaderId], references: [id], onDelete: Cascade)
 
-  title String
-  body  String
+  title    String
+  body     String
   /// Pinned posts sit above the rest whatever their date.
   isPinned Boolean @default(false)
 
@@ -1062,14 +1084,13 @@ model DataTeamPost {
 
 /**
  * A leader's private note about one of their members.
- *
  * Mentorship is mostly remembering: what was agreed last time, what they were
  * struggling with, what they asked for. Visible only to the leader who wrote
  * it — a member reading their own coaching notes changes what gets written
  * down, and then the notes stop being useful.
  */
 model DataTeamNote {
-  id       String @id @default(cuid())
+  id       String    @id @default(cuid())
   leaderId String
   leader   DataAgent @relation("TeamNoteAuthor", fields: [leaderId], references: [id], onDelete: Cascade)
   memberId String
@@ -1084,7 +1105,6 @@ model DataTeamNote {
 
 /**
  * A live session a leader holds with their team.
- *
  * The row is the durable part: when it was held, who turned up, and what was
  * said once it is over. The conversation itself is carried by the realtime
  * service and never touches this database while it is happening — a chat that
@@ -1117,7 +1137,6 @@ model DataTeamSession {
 
 /**
  * Who turned up, and for how long.
- *
  * One row per person per session, written when they join rather than per
  * heartbeat — a leader wants to know who came, not a second-by-second log of
  * who had the tab open.
@@ -1138,7 +1157,6 @@ model DataTeamSessionAttendee {
 
 /**
  * The transcript, written once when the session ends.
- *
  * In one batch rather than a row per message as it is typed: the live delivery
  * is the realtime service's job, and this is the record of what was decided.
  */
@@ -1148,11 +1166,11 @@ model DataTeamSessionMessage {
   session   DataTeamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   /// The agent who said it. Null for anybody since removed.
-  agentId   String?
+  agentId    String?
   authorName String
-  body      String
+  body       String
   /// When it was said, as the browser stamped it.
-  saidAt    DateTime
+  saidAt     DateTime
 
   createdAt DateTime @default(now())
 
@@ -1161,11 +1179,9 @@ model DataTeamSessionMessage {
 
 /**
  * A room: an enquiry, a team, a group, a scheduled session, or two people.
- *
  * One model for all of them, because everything above the first line is the
  * same — people in a room, messages in order, who has read what. What differs
  * is only who may walk in, and that is a rule rather than a table.
- *
  * Participants are strings rather than relations. An agent is a row here, an
  * admin is a user in the retail database and a visitor is nobody at all until
  * they give a name; no foreign key spans those, so each is stored as
@@ -1191,7 +1207,7 @@ model DataConversation {
   visitorPhone String @default("")
 
   /// open | closed
-  status String @default("open")
+  status        String    @default("open")
   /// Denormalised so an inbox can sort without touching every message.
   lastMessageAt DateTime?
 
@@ -1208,7 +1224,9 @@ model DataConversation {
   @@index([status, lastMessageAt])
 }
 
-/** One person in one room, and how far they have read. */
+/**
+ * One person in one room, and how far they have read.
+ */
 model DataConversationMember {
   id             String           @id @default(cuid())
   conversationId String
@@ -1230,7 +1248,6 @@ model DataConversationMember {
 
 /**
  * One message.
- *
  * Written here as well as published to the realtime service, because the
  * service keeps a day and an enquiry is worth following up next week. The row
  * is a few hundred bytes; what would have cost this platform its database is
@@ -1252,7 +1269,6 @@ model DataChatMessage {
 
 /**
  * Somebody asking to be let into a room.
- *
  * A team's room and a scheduled session are the leader's to admit people to.
  * The request is a row so it survives the leader being offline when it is
  * made, which is exactly when it usually is.
@@ -1263,10 +1279,10 @@ model DataConversationRequest {
   conversation   DataConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   participant String
-  displayName String @default("")
-  message     String @default("")
+  displayName String    @default("")
+  message     String    @default("")
   /// pending | approved | declined
-  status      String @default("pending")
+  status      String    @default("pending")
   decidedAt   DateTime?
 
   createdAt DateTime @default(now())
@@ -1282,20 +1298,17 @@ model DataSetting {
 
 /**
  * A reading of the provider's wallet, and what moved since the one before it.
- *
  * The provider has no statement endpoint — only a balance — so the money put
  * into that wallet, and the money taken out of it by orders placed on the
  * provider's own platform rather than through Nickimart, were invisible here.
  * What a top-up really costs and what is being spent outside the storefront
  * were both unanswerable, which makes "how much am I actually putting in" an
  * unanswerable question too.
- *
  * So the balance is read on every sweep and written down. Between two readings
  * the arithmetic is forced: the balance moved by `change`, our own dispatches
  * account for `ourCost` of that, and whatever is left over is either money
  * somebody added (`credited`) or money that left for an order we did not place
  * (`debited`). One of the two is always zero.
- *
  * The resolution is the sweep's, not the clock's: a top-up and a direct order
  * inside the same interval net off against each other. That is the price of
  * polling a balance instead of reading a statement, and it is still the
@@ -1327,13 +1340,11 @@ model DataProviderBalance {
 
 /**
  * A movement on the provider's wallet declared by an administrator.
- *
  * Readings can only see what the balance did between two of them, so anything
  * that happened before the first reading — or that netted off against trading
  * inside one interval — is invisible to the arithmetic and stays invisible
  * however many readings follow. Those are exactly the movements an audit has
  * to account for, so they are entered rather than inferred.
- *
  * Kept in its own table rather than written as a synthetic reading. A reading
  * is a fact the provider stated; this is a figure a person asserted, and the
  * two carry different weight in a reconciliation. Keeping them apart also
@@ -1385,23 +1396,23 @@ model DataBackup {
   id String @id
 
   /// manual | safety | auto-daily | auto-weekly | auto-monthly.
-  kind String @default("manual")
+  kind     String @default("manual")
   /// running | completed | failed. The row is inserted before the dump begins,
   /// so a crash leaves evidence instead of silence.
-  status String @default("running")
+  status   String @default("running")
   /// The file format, e.g. "nickimart-data-backup/1".
   format   String @default("")
   fileName String @default("")
 
-  tableCount  Int @default(0)
-  recordCount Int @default(0)
+  tableCount  Int    @default(0)
+  recordCount Int    @default(0)
   /// Compressed size of the stored file, in bytes.
-  byteSize    Int @default(0)
+  byteSize    Int    @default(0)
   /// SHA-256 of the stored file.
   checksum    String @default("")
 
   /// "<database>@<host>" — never a credential.
-  databaseId String @default("")
+  databaseId    String @default("")
   /// The last migration applied, and the build that took the snapshot.
   schemaVersion String @default("")
   appVersion    String @default("")
@@ -1449,7 +1460,7 @@ model DataRestore {
   status String @default("running")
 
   /// Where the file came from: a backup id from history, or an uploaded name.
-  source String @default("")
+  source         String @default("")
   /// Set when the file came from this database's own backup history.
   sourceBackupId String @default("")
 
@@ -1479,4 +1490,78 @@ model DataRestore {
 
   @@index([startedAt])
   @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Messenger
+// ---------------------------------------------------------------------------
+
+/**
+ * Somebody the bundle console can write to.
+ * The twin of MessengerContact in the retail schema, and separate for the same
+ * reason every other model here is: the two consoles address their own people
+ * out of their own database, and neither can reach the other's list. An agent
+ * is not a mall customer and should never appear in a mall broadcast by
+ * accident.
+ * `dedupeKey` is the normalised phone, or the lowercased email when there is no
+ * phone, so re-importing a spreadsheet updates rather than duplicates.
+ */
+model DataMessengerContact {
+  id       String  @id @default(cuid())
+  name     String  @default("")
+  phone    String  @default("")
+  email    String  @default("")
+  /// Comma-separated labels. A group is a label, so a contact can be in several.
+  tags     String  @default("")
+  note     String  @default("")
+  /// manual | import | the audience key it was pulled in from.
+  source   String  @default("manual")
+  archived Boolean @default(false)
+
+  dedupeKey String @unique
+
+  lastMessageAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages DataMessengerMessage[]
+
+  @@index([archived, lastMessageAt])
+  @@index([name])
+}
+
+/**
+ * One message the bundle console sent, to one person.
+ * A broadcast is one row per recipient sharing a `batchId`, so "I never got it"
+ * has an answer rather than a total.
+ */
+model DataMessengerMessage {
+  id        String                @id @default(cuid())
+  contactId String?
+  contact   DataMessengerContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  toName  String @default("")
+  toPhone String @default("")
+  toEmail String @default("")
+
+  /// sms | email | both
+  channel String @default("sms")
+  subject String @default("")
+  body    String
+
+  /// sent | partial | failed
+  status  String   @default("sent")
+  smsOk   Boolean?
+  emailOk Boolean?
+
+  batchId  String @default("")
+  audience String @default("")
+
+  sentBy    String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([contactId, createdAt])
+  @@index([batchId])
+  @@index([createdAt])
 }

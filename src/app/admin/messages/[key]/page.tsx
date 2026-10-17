@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Megaphone } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Container } from "@/components/ui/Container";
-import { ModuleHeader } from "@/components/admin/ModuleHeader";
-import { ModuleTabs } from "@/components/admin/ModuleTabs";
+import { MessengerHeader } from "@/components/admin/messenger/MessengerHeader";
 import { ActionLink } from "@/components/ui/motion";
 import { MessageEditor } from "@/components/admin/MessageEditor";
 import { ANNOUNCEMENT_MODULE_TABS } from "@/lib/announcement-module";
@@ -24,14 +23,7 @@ export default async function AdminRetailMessagePage({
 
   return (
     <Container className="py-8">
-      <ModuleHeader
-        title="Announcements"
-        subtitle="What Nickimart says to people: on their screen, when something happens, and on purpose."
-        icon={Megaphone}
-      />
-      <div className="mt-5">
-        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("retail", 0, await countOpenComplaints())} />
-      </div>
+      <MessengerHeader scope="retail" tabs={ANNOUNCEMENT_MODULE_TABS("retail", 0, await countOpenComplaints())} />
 
       <ActionLink
         href="/admin/messages"

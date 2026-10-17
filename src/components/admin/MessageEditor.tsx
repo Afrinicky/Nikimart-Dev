@@ -49,6 +49,12 @@ export function MessageEditor({ template }: { template: MessageEditorTemplate })
   const [body, setBody] = useState(template.currentBody);
 
   const vars = exampleVars(template);
+  // The same message with every "can be empty" value left empty. Shown beside
+  // the ordinary preview because that is the half nobody checks, and the half
+  // that goes out wrong: a sentence written around a balance note reads like
+  // nonsense on the orders that have no balance.
+  const optional = template.variables.filter((v) => v.optional);
+  const blankVars = { ...vars, ...Object.fromEntries(optional.map((v) => [v.name, ""])) };
   const parts = smsSegments(sms);
   const unknown = [
     ...unknownPlaceholders(template, sms),
@@ -173,6 +179,17 @@ export function MessageEditor({ template }: { template: MessageEditorTemplate })
             {renderMessage(sms, vars) || "—"}
           </div>
 
+          {optional.length > 0 ? (
+            <div className={cn("mt-2.5", !template.smsEnabled && "opacity-40")}>
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-niki-ink/40">
+                When {optional.map((v) => `{{${v.name}}}`).join(" and ")} {optional.length === 1 ? "is" : "are"} empty
+              </p>
+              <div className="rounded-2xl bg-niki-surface px-4 py-3 text-sm leading-relaxed text-niki-ink/80 ring-1 ring-dashed ring-niki-edge">
+                {renderMessage(sms, blankVars) || "—"}
+              </div>
+            </div>
+          ) : null}
+
           {template.hasEmail ? (
             <div className={cn("mt-3", !template.emailEnabled && "opacity-40")}>
               <div className="mb-1.5 flex items-center gap-2">
@@ -193,16 +210,26 @@ export function MessageEditor({ template }: { template: MessageEditorTemplate })
           <ul className="space-y-2">
             {template.variables.map((v) => (
               <li key={v.name} className="text-xs">
-                <code className="rounded bg-niki-surface px-1.5 py-0.5 font-mono text-[11px] text-niki-ink">
-                  {`{{${v.name}}}`}
-                </code>
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <code className="rounded bg-niki-surface px-1.5 py-0.5 font-mono text-[11px] text-niki-ink">
+                    {`{{${v.name}}}`}
+                  </code>
+                  {v.optional ? (
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                      can be empty
+                    </span>
+                  ) : null}
+                </span>
                 <p className="mt-0.5 text-niki-ink/55">{v.note}</p>
               </li>
             ))}
           </ul>
           <p className="mt-3 text-[11px] text-niki-ink/45">
             Anything else in double braces is left in the message as written, so a typo shows
-            rather than silently blanking a word.
+            rather than silently blanking a word. One marked{" "}
+            <span className="font-semibold text-amber-700">can be empty</span> simply disappears
+            when there is nothing to put there, so write the sentence so it still reads without
+            it.
           </p>
         </section>
 
