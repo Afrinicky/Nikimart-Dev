@@ -13,6 +13,7 @@ import { buildProductData, parseImages, validateProduct } from "@/lib/product-fo
 import { syncProductImages } from "@/lib/product-images";
 import { releaseStockForOrder } from "@/lib/stock";
 import { syncAffiliateCommissions } from "@/lib/affiliate-ledger";
+import { recordHandover } from "@/lib/pickup-collection";
 import {
   DB_FOREIGN_KEY_VIOLATION,
   DB_UNIQUE_VIOLATION,
@@ -521,12 +522,48 @@ export async function deleteUser(fd: FormData): Promise<void> {
 
 const ORDER_STATUSES = ["pending", "paid", "shipped", "delivered", "cancelled"];
 
+/**
+ * Write the hand-over an admin made from the console rather than the counter.
+ *
+ * Only when there isn't one already: a parcel collected properly, with a code
+ * and an ID, must not have that record overwritten by an admin later tidying
+ * the status dropdown.
+ */
+async function recordAdminHandover(input: {
+  orderId: string;
+  pickupPointId: string | null;
+  releasedById: string;
+  releasedByName: string;
+}): Promise<void> {
+  const existing = await prisma.pickupCollection
+    .findUnique({ where: { orderId: input.orderId }, select: { collectedAt: true } })
+    .catch(() => null);
+  if (existing?.collectedAt) return;
+
+  await recordHandover({
+    orderId: input.orderId,
+    pickupPointId: input.pickupPointId,
+    method: "override",
+    collectorName: "Not recorded",
+    collectorPhone: "",
+    collectorIdType: "",
+    collectorIdNumber: "",
+    collectorRelation: "unknown",
+    overrideReason: "Marked collected from the order's status control in the admin console.",
+    releasedById: input.releasedById,
+    releasedByName: input.releasedByName,
+  });
+}
+
 export async function setOrderStatus(fd: FormData): Promise<void> {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const id = str(fd, "id");
   const status = str(fd, "status");
   if (id && ORDER_STATUSES.includes(status)) {
-    const before = await prisma.order.findUnique({ where: { id }, select: { status: true } });
+    const before = await prisma.order.findUnique({
+      where: { id },
+      select: { status: true, deliveryMethod: true, pickupPointId: true },
+    });
     await prisma.order.update({ where: { id }, data: { status } });
 
     // Cancelling frees the units this order was holding. Guarded on the
@@ -559,6 +596,21 @@ export async function setOrderStatus(fd: FormData): Promise<void> {
       shipmentData.transitAt = now;
     }
     await prisma.shipment.updateMany({ where: { orderId: id }, data: shipmentData });
+
+    // This dropdown can mark a parcel collected without anybody having stood
+    // at a counter, which is a legitimate correction and also the one way
+    // round the collection guard. So it is not refused — it is recorded, as
+    // an override with the admin's name on it, exactly like one made at the
+    // counter. An order that reads "collected" with nothing to say who took
+    // it is the gap, not the dropdown.
+    if (status === "delivered" && before?.deliveryMethod === "pickup") {
+      await recordAdminHandover({
+        orderId: id,
+        pickupPointId: before.pickupPointId,
+        releasedById: admin.id,
+        releasedByName: admin.name ?? admin.email ?? admin.id,
+      });
+    }
 
     // Affiliate commission follows the order: delivery starts the return
     // window, a cancellation reverses it. Run after the shipment write so the

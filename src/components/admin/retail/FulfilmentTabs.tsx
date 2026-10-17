@@ -1,18 +1,18 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ClipboardList, ListOrdered, Radar } from "lucide-react";
+import { ClipboardList, ListOrdered, MapPin, Radar } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { cn } from "@/lib/cn";
 
 /**
- * The two halves of one job, as two tabs.
+ * The halves of one job, as tabs.
  *
  * Orders and order placement were separate entries in the sidebar, which read
  * as two unrelated screens and worked as one: every row in the placement queue
  * is a line of an order on the other screen, and an admin moving between them
  * lost the thread each time. They are tabs of one module now — the order book,
- * and the buying it is waiting on.
+ * the buying it is waiting on, and the counter it ends at.
  *
  * Links rather than state, so a tab is an address: a filtered queue can be
  * sent to somebody, and Back walks the tabs you opened.
@@ -30,6 +30,12 @@ const TABS = [
     label: "Order placement",
     icon: ClipboardList,
     hint: "What has to be bought from the suppliers",
+  },
+  {
+    href: "/admin/orders/pickups",
+    label: "Pickups",
+    icon: MapPin,
+    hint: "Every parcel going over a counter, and who collected it",
   },
   {
     href: "/admin/orders/tracker",
@@ -52,7 +58,7 @@ export function FulfilmentTabs({ counts }: { counts?: Partial<Record<string, num
         const active =
           tab.href === "/admin/orders"
             ? pathname === "/admin/orders" ||
-              /^\/admin\/orders\/(?!placement|tracker)/.test(pathname)
+              /^\/admin\/orders\/(?!placement|tracker|pickups)/.test(pathname)
             : pathname.startsWith(tab.href);
         const count = counts?.[tab.href];
         return (

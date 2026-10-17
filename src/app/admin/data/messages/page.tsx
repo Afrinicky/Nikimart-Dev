@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { Mail, MessageSquare, Megaphone, PencilLine } from "lucide-react";
+import { Mail, MessageSquare, PencilLine } from "lucide-react";
 import { Container } from "@/components/ui/Container";
-import { ModuleHeader } from "@/components/admin/ModuleHeader";
-import { ModuleTabs } from "@/components/admin/ModuleTabs";
+import { MessengerHeader } from "@/components/admin/messenger/MessengerHeader";
 import { ActionLink } from "@/components/ui/motion";
 import { ANNOUNCEMENT_MODULE_TABS } from "@/lib/announcement-module";
 import { unreadNotificationCount } from "@/lib/data-bundles/notifications";
@@ -36,14 +35,7 @@ export default async function AdminDataMessagesPage() {
 
   return (
     <Container className="py-8">
-      <ModuleHeader
-        title="Announcements"
-        subtitle="What Nickimart says to people: on their screen, when something happens, and on purpose."
-        icon={Megaphone}
-      />
-      <div className="mt-5">
-        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("data", unread)} />
-      </div>
+      <MessengerHeader scope="data" tabs={ANNOUNCEMENT_MODULE_TABS("data", unread)} />
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <Status

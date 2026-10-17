@@ -3,7 +3,6 @@ import { after } from "next/server";
 import { dataDb } from "@/lib/data-db";
 import { DATA_REFERENCE_PREFIX, AFA_REFERENCE_PREFIX } from "@/lib/data-bundles/reference";
 import { toPesewas } from "@/lib/payments";
-import { sendSms } from "@/lib/notifications";
 import { notifyTemplate, smsTemplate } from "@/lib/messages";
 import { siteUrl } from "@/lib/site";
 import { callbackToken } from "@/lib/data-bundles/callback-token";
@@ -530,10 +529,9 @@ export async function dispatchAfaRegistration(id: string): Promise<DispatchResul
       completedAt: status === "completed" ? new Date() : null,
     },
   });
-  await sendSms(
-    row.phoneNumber,
-    `Nickimart Data: your AFA registration (ref ${row.reference}) has been submitted. We'll text you once it's approved.`,
-  );
+  // Through the template registry, not a string literal, so the Messenger's
+  // switch for it is the switch that decides whether it goes.
+  await smsTemplate(row.phoneNumber, "afa.submitted", { reference: row.reference });
   // A provider that approves on the spot owes both commissions now —
   // applyAfaProviderStatus never runs for that registration.
   if (status === "completed") {

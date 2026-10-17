@@ -71,6 +71,8 @@ model User {
   /// Conversations with an affiliate who referred them, and the messages in them.
   affiliateThreads    AffiliateThread[]    @relation("AffiliateThreadCustomer")
   affiliateMessages   AffiliateMessage[]   @relation("AffiliateMessageAuthor")
+  /// Parcels this person handed over at a pickup point.
+  pickupReleases      PickupCollection[]   @relation("PickupReleasedBy")
   // No `dataAgent` relation: agent accounts live in the data-bundle database
   // (prisma/data/schema.prisma), which Postgres cannot reference from here.
   /**
@@ -687,6 +689,9 @@ model Order {
   // what is still outstanding.
   affiliateThreads   AffiliateThread[]
   affiliateFollowUps AffiliateFollowUp[]
+
+  /// The collection code and the hand-over record, for an order collected in person.
+  pickupCollection PickupCollection?
 }
 
 model OrderItem {
@@ -767,7 +772,8 @@ model PickupPoint {
   operator   User?   @relation("PickupOperator", fields: [operatorId], references: [id], onDelete: SetNull)
 
   orders           Order[]
-  preferredByUsers User[]  @relation("PreferredPickup")
+  preferredByUsers User[]             @relation("PreferredPickup")
+  collections      PickupCollection[]
 
   // Sellers whose origin/consolidation hub is this point.
   originVendors Vendor[]          @relation("VendorOrigin")
@@ -2083,4 +2089,156 @@ model AffiliateFollowUp {
 
   @@unique([affiliateId, key])
   @@index([affiliateId, handledAt])
+}
+
+// ---------------------------------------------------------------------------
+// Collecting in person
+// ---------------------------------------------------------------------------
+
+/**
+ * The code that releases a parcel, and the record of who took it.
+ * Before this, collection was a button. Anybody who could name an order number
+ * at the counter — or anybody standing behind the counter having a bad day —
+ * could have a stranger's goods, and afterwards there was nothing to say who
+ * had walked out with them. For a platform that imports goods people have paid
+ * for weeks in advance, that is the weakest link in the whole chain.
+ * So a parcel ready for collection gets a one-time code, texted to the buyer,
+ * and the counter cannot mark it collected without it. The code is stored as a
+ * digest, never as itself: an operator reading the database should not be able
+ * to read the codes. Guessing is bounded the same way a sign-in is — five
+ * wrong tries and the code is locked until an admin reissues one.
+ * The second half is the record. Ghana runs on somebody's brother collecting
+ * for them, and refusing that outright would just mean codes passed around by
+ * phone. So the hand-over is *witnessed* instead: the name, number and ID of
+ * whoever actually took it, kept against the order for as long as the order
+ * exists. A dispute then has an answer.
+ */
+model PickupCollection {
+  id      String @id @default(cuid())
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  pickupPointId String?
+  pickupPoint   PickupPoint? @relation(fields: [pickupPointId], references: [id], onDelete: SetNull)
+
+  // --- The code ------------------------------------------------------------
+  /// sha256 of the live code. Empty once it has been spent.
+  codeHash    String    @default("")
+  /// Shown to the operator so they can read it back: "ends 42".
+  codeHint    String    @default("")
+  codeSentAt  DateTime?
+  /// How many times a code has been issued for this order, reissues included.
+  issued      Int       @default(0)
+  /// Wrong codes typed since the last good one.
+  attempts    Int       @default(0)
+  /// Set when the attempts ran out. Clears on a reissue.
+  lockedUntil DateTime?
+
+  // --- The hand-over -------------------------------------------------------
+  collectedAt       DateTime?
+  /// "code" when the buyer's code was typed, "override" when an admin released it anyway.
+  method            String    @default("")
+  collectorName     String    @default("")
+  collectorPhone    String    @default("")
+  /// Ghana Card, passport, voter ID — whatever was shown.
+  collectorIdType   String    @default("")
+  collectorIdNumber String    @default("")
+  /// "buyer" when they came themselves, otherwise how they know the buyer.
+  collectorRelation String    @default("buyer")
+  /// Why an admin released it without a code. Required for an override.
+  overrideReason    String    @default("")
+
+  releasedById   String?
+  releasedBy     User?   @relation("PickupReleasedBy", fields: [releasedById], references: [id], onDelete: SetNull)
+  /// Kept as text as well, so the record survives the operator's account being removed.
+  releasedByName String  @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([pickupPointId])
+  @@index([collectedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Messenger
+// ---------------------------------------------------------------------------
+
+/**
+ * Somebody the console can write to.
+ * Deliberately not the User table. A contact book holds people who are not
+ * customers — a supplier, a courier, a landlord, a WhatsApp group's worth of
+ * market traders — and holds them under whatever name the admin wants to find
+ * them by. Linking it to accounts would mean you could only message people who
+ * had signed up, which is not what a contact book is for.
+ * `dedupeKey` is the normalised phone, or the lowercased email when there is no
+ * phone. Importing the same spreadsheet twice is the common case, not the edge
+ * one, and it has to update rather than duplicate.
+ */
+model MessengerContact {
+  id       String  @id @default(cuid())
+  name     String  @default("")
+  phone    String  @default("")
+  email    String  @default("")
+  /// Comma-separated labels. A group is a label, so a contact can be in several.
+  tags     String  @default("")
+  note     String  @default("")
+  /// manual | import | the audience key it was pulled in from.
+  source   String  @default("manual")
+  archived Boolean @default(false)
+
+  /// Normalised phone, else lowercased email. Unique, so an import updates.
+  dedupeKey String @unique
+
+  /// Denormalised so the chat list can sort without touching every message.
+  lastMessageAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages MessengerMessage[]
+
+  @@index([archived, lastMessageAt])
+  @@index([name])
+}
+
+/**
+ * One message the console sent, to one person.
+ * A broadcast to four hundred people is four hundred of these sharing a
+ * `batchId`, rather than one row with a count. It costs more rows and buys the
+ * thing that matters when somebody says "I never got it": you can point at
+ * their row and say whether the gateway took it.
+ * The recipient is snapshotted alongside the relation. A contact deleted a year
+ * later must not take the record of what they were told with it.
+ */
+model MessengerMessage {
+  id        String            @id @default(cuid())
+  contactId String?
+  contact   MessengerContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  toName  String @default("")
+  toPhone String @default("")
+  toEmail String @default("")
+
+  /// sms | email | both
+  channel String @default("sms")
+  subject String @default("")
+  body    String
+
+  /// sent | partial | failed
+  status  String   @default("sent")
+  smsOk   Boolean?
+  emailOk Boolean?
+
+  /// Shared by every message of one broadcast. Empty on a one-to-one send.
+  batchId  String @default("")
+  /// What the broadcast was aimed at, for the history. Empty on a one-to-one send.
+  audience String @default("")
+
+  sentBy    String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([contactId, createdAt])
+  @@index([batchId])
+  @@index([createdAt])
 }

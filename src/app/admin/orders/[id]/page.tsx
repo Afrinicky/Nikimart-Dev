@@ -25,12 +25,14 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { OrderStatusSelect } from "@/components/admin/OrderStatusSelect";
 import { StageAdvance } from "@/components/admin/retail/StageAdvance";
 import { PaymentPill, StagePill } from "@/components/admin/retail/StagePill";
+import { CollectionPanel } from "@/components/admin/retail/CollectionPanel";
 import { ActionLink } from "@/components/ui/motion";
 import { DeleteButton } from "@/components/admin/DeleteButton";
 import { deleteOrder } from "@/lib/admin-actions";
 import { requireDashboard } from "@/lib/session";
 import { formatPrice } from "@/lib/format";
 import { normalizeGhPhone } from "@/lib/phone";
+import { getCollection, maskPhone } from "@/lib/pickup-collection";
 import { isDeferredPlan } from "@/lib/cart-bill";
 import { parseAbroadTerms } from "@/lib/abroad";
 import { buildTimeline } from "@/lib/tracking";
@@ -74,6 +76,8 @@ export default async function AdminOrderDetailPage({
   if (!order) notFound();
 
   const method: "pickup" | "delivery" = order.deliveryMethod === "pickup" ? "pickup" : "delivery";
+  // Only a parcel going over a counter has one, so only that one is read.
+  const collection = method === "pickup" ? await getCollection(order.id) : null;
   const route: "domestic" | "abroad" = order.hasAbroadItems ? "abroad" : "domestic";
   const placed = order.items.some((i) => i.purchaseOrderId);
   const stage = deriveStage({ status: order.status, shipment: order.shipment, placed });
@@ -561,6 +565,36 @@ export default async function AdminOrderDetailPage({
                 </div>
               </div>
             </section>
+
+            {/* Who took it, or what is standing between it and being taken. */}
+            {method === "pickup" ? (
+              <CollectionPanel
+                orderId={order.id}
+                buyerPhoneMasked={maskPhone(order.user.phone)}
+                collection={
+                  collection
+                    ? {
+                        hasLiveCode: collection.hasLiveCode,
+                        codeHint: collection.codeHint,
+                        codeSentAt: collection.codeSentAt?.toISOString() ?? null,
+                        issued: collection.issued,
+                        attempts: collection.attempts,
+                        attemptsLeft: collection.attemptsLeft,
+                        locked: collection.locked,
+                        collectedAt: collection.collectedAt?.toISOString() ?? null,
+                        method: collection.method,
+                        collectorName: collection.collectorName,
+                        collectorPhone: collection.collectorPhone,
+                        collectorIdType: collection.collectorIdType,
+                        collectorIdNumber: collection.collectorIdNumber,
+                        collectorRelation: collection.collectorRelation,
+                        overrideReason: collection.overrideReason,
+                        releasedByName: collection.releasedByName,
+                      }
+                    : null
+                }
+              />
+            ) : null}
 
             {/* The purchases that cover it. */}
             {purchases.length > 0 ? (

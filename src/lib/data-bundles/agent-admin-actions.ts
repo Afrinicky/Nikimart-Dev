@@ -7,7 +7,6 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { dataDb } from "@/lib/data-db";
 import { requireAdmin } from "@/lib/session";
-import { sendSms } from "@/lib/notifications";
 import { formatMoney } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
@@ -16,7 +15,7 @@ import { InsufficientBalanceError, postLedgerEntry } from "@/lib/data-bundles/ag
 import { normaliseSlug, round2, slugProblem } from "@/lib/data-bundles/agents";
 import { getAgentUser } from "@/lib/data-bundles/user-link";
 import { reconcileWalletTopup } from "@/lib/data-bundles/wallet";
-import { notifyTemplate } from "@/lib/messages";
+import { notifyTemplate, smsTemplate } from "@/lib/messages";
 import { normalisePaymentMode, paymentModeLabel } from "@/lib/data-bundles/payment-mode";
 import {
   checkReferralLink,
@@ -90,11 +89,10 @@ export async function setAgentStatus(fd: FormData): Promise<void> {
     revalidatePath(`/store/${agent.slug}`);
 
     if (agent.supportPhone) {
-      await sendSms(
+      await smsTemplate(
         agent.supportPhone,
-        status === "active"
-          ? `Nickimart: your agent account (${agent.storeName}) is active again. Your store is back online.`
-          : `Nickimart: your agent account (${agent.storeName}) has been suspended. Please contact support.`,
+        status === "active" ? "agent.reactivated" : "agent.suspended",
+        { store: agent.storeName },
       );
     }
   } catch {
@@ -402,10 +400,7 @@ export async function rejectWithdrawal(fd: FormData): Promise<void> {
     });
 
     revalidateAgents(row.agentId);
-    await sendSms(
-      row.momoPhone,
-      `Nickimart: your withdrawal of ${formatMoney(row.amount)} could not be processed. The amount is back on your balance.`,
-    );
+    await smsTemplate(row.momoPhone, "withdrawal.rejected", { amount: formatMoney(row.amount) });
   } catch {
     // Not migrated — nothing to reverse.
   }

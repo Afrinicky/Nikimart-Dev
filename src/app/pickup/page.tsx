@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { MapPin } from "lucide-react";
+import { MapPin, ShieldCheck } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -9,6 +9,8 @@ import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/format";
 import { ORDER_STATUS_LABELS, statusTone } from "@/lib/order-status";
 import { ConfirmStageButton } from "@/components/order/ConfirmStageButton";
+import { ReleaseParcel } from "@/components/pickup/ReleaseParcel";
+import { getCollections, maskPhone } from "@/lib/pickup-collection";
 import {
   confirmActionLabel,
   nextStageForRole,
@@ -19,6 +21,8 @@ import {
 export const metadata: Metadata = {
   title: "Pickup Dashboard — Nickimart",
 };
+
+export const dynamic = "force-dynamic";
 
 export default async function PickupDashboardPage() {
   const user = await requireDashboard("/pickup");
@@ -38,6 +42,8 @@ export default async function PickupDashboardPage() {
   const allOrders = pickupPoints.flatMap((p) => p.orders);
   const awaiting = allOrders.filter((o) => o.status !== "delivered" && o.status !== "cancelled");
   const collected = allOrders.filter((o) => o.status === "delivered");
+  // One query for every parcel's code state, rather than one per card.
+  const collections = await getCollections(allOrders.map((o) => o.id));
 
   return (
     <>
@@ -69,6 +75,15 @@ export default async function PickupDashboardPage() {
               <StatCard label="Collected" value={collected.length} />
             </div>
 
+            <p className="mt-4 flex items-start gap-2 rounded-2xl bg-white px-5 py-4 text-sm text-niki-ink/65 ring-1 ring-niki-edge">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-niki-orange" />
+              <span>
+                Every parcel is released against the code texted to the buyer. Ask for it, type it
+                in, and write down who is taking it — including when somebody is collecting on the
+                buyer&apos;s behalf.
+              </span>
+            </p>
+
             {pickupPoints.map((point) => (
               <section key={point.id} className="mt-8">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -94,49 +109,99 @@ export default async function PickupDashboardPage() {
                   </p>
                 ) : (
                   <div className="mt-4 space-y-3">
-                    {point.orders.map((order) => (
-                      <div
-                        key={order.id}
-                        className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge"
-                      >
-                        <div>
-                          <p className="font-semibold text-niki-ink">Order {order.orderNumber}</p>
-                          <p className="mt-0.5 text-sm text-niki-ink/60">
-                            {order.user.name ?? order.user.email} ·{" "}
-                            {order.items.length} item{order.items.length === 1 ? "" : "s"} ·{" "}
-                            {formatPrice(order.total)}
-                          </p>
+                    {point.orders.map((order) => {
+                      const route: ShipmentRoute = order.hasAbroadItems ? "abroad" : "domestic";
+                      const ts: ShipmentTimestamps = order.shipment
+                        ? {
+                            processingAt: order.shipment.processingAt,
+                            transitAt: order.shipment.transitAt,
+                            outForDeliveryAt: order.shipment.outForDeliveryAt,
+                            deliveredAt: order.shipment.deliveredAt,
+                            forwarderReceivedAt: order.shipment.forwarderReceivedAt,
+                            arrivedGhanaAt: order.shipment.arrivedGhanaAt,
+                          }
+                        : {
+                            processingAt: null,
+                            transitAt: null,
+                            outForDeliveryAt: null,
+                            deliveredAt: null,
+                          };
+                      const next =
+                        order.shipment && order.status !== "cancelled"
+                          ? nextStageForRole(user.role, "pickup", ts, route)
+                          : null;
+                      // The hand-over is not a confirm button. It needs the
+                      // buyer's code and a record of who took the parcel, so
+                      // it gets its own card (lib/pickup-actions.ts).
+                      const handover = next === "delivered";
+                      const collection = collections.get(order.id) ?? null;
+
+                      return (
+                        <div
+                          key={order.id}
+                          className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-4">
+                            <div className="min-w-0">
+                              <p className="font-semibold text-niki-ink">
+                                Order {order.orderNumber}
+                              </p>
+                              <p className="mt-0.5 text-sm text-niki-ink/60">
+                                {order.user.name ?? order.user.email} · {order.items.length} item
+                                {order.items.length === 1 ? "" : "s"} · {formatPrice(order.total)}
+                              </p>
+                              {collection?.collectedAt ? (
+                                <p className="mt-1 text-xs text-niki-ink/55">
+                                  Collected by{" "}
+                                  <span className="font-semibold text-niki-ink/75">
+                                    {collection.collectorName}
+                                  </span>
+                                  {collection.collectorRelation !== "buyer"
+                                    ? ` (${collection.collectorRelation})`
+                                    : ""}
+                                  {collection.method === "override" ? " · released without a code" : ""}
+                                </p>
+                              ) : null}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span
+                                className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone(order.status)}`}
+                              >
+                                {ORDER_STATUS_LABELS[order.status] ?? order.status}
+                              </span>
+                              {next && !handover && order.shipment ? (
+                                <ConfirmStageButton
+                                  shipmentId={order.shipment.id}
+                                  stage={next}
+                                  label={confirmActionLabel(next, "pickup", route)}
+                                />
+                              ) : null}
+                              {handover ? (
+                                <ReleaseParcel
+                                  orderId={order.id}
+                                  orderNumber={order.orderNumber}
+                                  buyerName={order.user.name ?? "the buyer"}
+                                  buyerPhoneMasked={maskPhone(order.user.phone)}
+                                  isAdmin={user.role === "ADMIN"}
+                                  collection={
+                                    collection
+                                      ? {
+                                          hasLiveCode: collection.hasLiveCode,
+                                          codeHint: collection.codeHint,
+                                          codeSentAt: collection.codeSentAt?.toISOString() ?? null,
+                                          attemptsLeft: collection.attemptsLeft,
+                                          locked: collection.locked,
+                                          issued: collection.issued,
+                                        }
+                                      : null
+                                  }
+                                />
+                              ) : null}
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone(order.status)}`}
-                          >
-                            {ORDER_STATUS_LABELS[order.status] ?? order.status}
-                          </span>
-                          {order.shipment && order.status !== "cancelled"
-                            ? (() => {
-                                const route: ShipmentRoute = order.hasAbroadItems ? "abroad" : "domestic";
-                                const ts: ShipmentTimestamps = {
-                                  processingAt: order.shipment.processingAt,
-                                  transitAt: order.shipment.transitAt,
-                                  outForDeliveryAt: order.shipment.outForDeliveryAt,
-                                  deliveredAt: order.shipment.deliveredAt,
-                                  forwarderReceivedAt: order.shipment.forwarderReceivedAt,
-                                  arrivedGhanaAt: order.shipment.arrivedGhanaAt,
-                                };
-                                const next = nextStageForRole(user.role, "pickup", ts, route);
-                                return next ? (
-                                  <ConfirmStageButton
-                                    shipmentId={order.shipment.id}
-                                    stage={next}
-                                    label={confirmActionLabel(next, "pickup", route)}
-                                  />
-                                ) : null;
-                              })()
-                            : null}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </section>

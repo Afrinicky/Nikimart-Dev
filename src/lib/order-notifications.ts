@@ -241,7 +241,6 @@ export async function notifyShipmentUpdate(
       where: { id: orderId },
       select: {
         orderNumber: true,
-        hasAbroadItems: true,
         paymentPlan: true,
         balanceDue: true,
         pickupPoint: { select: { name: true, locationName: true, openingHours: true } },
@@ -286,13 +285,12 @@ export async function notifyShipmentUpdate(
       return;
     }
 
-    await notify(order.user, {
-      sms: `Nickimart: your order ${order.orderNumber} is now "${statusLabel}". Track it in your account.`,
-      emailSubject: `Order ${order.orderNumber}: ${statusLabel}`,
-      emailHtml: emailShell(
-        `Your order <strong>${order.orderNumber}</strong> status is now <strong>${statusLabel}</strong>.`,
-        order.hasAbroadItems ? "Shipment update" : "Delivery update",
-      ),
+    // Every other step goes through the registry too, so an admin who does not
+    // want their customers texted at each hop has a switch for it rather than
+    // a feature request.
+    await notifyTemplate(order.user, "order.status", {
+      orderNumber: order.orderNumber,
+      status: statusLabel,
     });
   } catch {
     // best-effort

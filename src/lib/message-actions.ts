@@ -7,6 +7,7 @@ import { dataDb } from "@/lib/data-db";
 import { requireAdmin } from "@/lib/session";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { findTemplate, unknownPlaceholders, type MessageScope } from "@/lib/message-templates";
+import { forgetMessageOverrides } from "@/lib/messages";
 import {
   broadcastAudiences,
   estimateBroadcast,
@@ -91,7 +92,12 @@ export async function saveMessageTemplate(
     return { error: "Couldn't save that. Please try again." };
   }
 
+  // Drop the fallback snapshot: a switch just turned off must not be able to
+  // come back from a copy taken before it was.
+  forgetMessageOverrides(template.scope);
+
   revalidatePath(template.scope === "retail" ? "/admin/messages" : "/admin/data/messages");
+  revalidatePath(template.scope === "retail" ? "/admin/messenger" : "/admin/data/messenger");
   return { ok: true, message: "Saved. The next message out uses this." };
 }
 
@@ -108,7 +114,9 @@ export async function resetMessageTemplate(fd: FormData): Promise<void> {
   } catch {
     // Never edited; the default is already what is in force.
   }
+  forgetMessageOverrides(template.scope);
   revalidatePath(template.scope === "retail" ? "/admin/messages" : "/admin/data/messages");
+  revalidatePath(template.scope === "retail" ? "/admin/messenger" : "/admin/data/messenger");
 }
 
 // ---------------------------------------------------------------------------

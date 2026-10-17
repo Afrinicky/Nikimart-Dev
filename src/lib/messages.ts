@@ -44,24 +44,74 @@ interface Override {
 }
 
 /**
+ * The last overrides we successfully read, per console, per process.
+ *
+ * This is the fix for a switched-off message that kept going out anyway.
+ *
+ * The read below used to swallow any failure and return an empty map, and an
+ * empty map means "nobody has overridden anything", which means every switch
+ * is on. So a single unlucky query — a Neon cold start, a pool timeout, a
+ * connection dropped while the send ran in `after()` after the response had
+ * already gone — silently turned every "off" back on for that send. Nothing
+ * logged it and nothing was visibly broken, which is exactly why it read as
+ * "sometimes it still sends".
+ *
+ * A snapshot of the last good read makes the failure mode safe instead: the
+ * switches an admin set are what gets used, even on the attempt that could not
+ * reach the database. It is not a cache — the read below still happens every
+ * time and still wins — only a floor to fall back to.
+ */
+const lastKnownGood = new Map<MessageScope, Map<string, Override>>();
+
+/**
  * Every override for one console, read once per request.
  *
  * One query rather than one per message: an order that notifies a buyer, a
  * seller and three admins would otherwise make five round trips for text that
  * changes about twice a year.
+ *
+ * Two attempts, because the failure this guards against is usually a cold
+ * connection and the second one has a warm one. Then the snapshot. Only a
+ * process that has never once read the table falls through to the defaults,
+ * and it says so loudly when it does — a site whose messages table has never
+ * been reachable is a real problem, not something to paper over in silence.
  */
 const overridesFor = cache(async (scope: MessageScope): Promise<Map<string, Override>> => {
-  try {
-    const rows =
-      scope === "retail"
-        ? await prisma.messageTemplate.findMany()
-        : await dataDb.dataMessageTemplate.findMany();
-    return new Map(rows.map((r) => [r.key, r as Override]));
-  } catch {
-    // Not migrated, or briefly unreachable. The defaults are a complete set.
-    return new Map();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const rows =
+        scope === "retail"
+          ? await prisma.messageTemplate.findMany()
+          : await dataDb.dataMessageTemplate.findMany();
+      const map = new Map(rows.map((r) => [r.key, r as Override]));
+      lastKnownGood.set(scope, map);
+      return map;
+    } catch (e) {
+      if (attempt === 0) continue;
+      const snapshot = lastKnownGood.get(scope);
+      console.error(
+        `[messages] couldn't read the ${scope} message overrides: ${e instanceof Error ? e.message : String(e)}` +
+          (snapshot
+            ? ` — using the last ${snapshot.size} read, so the switches still hold.`
+            : " — no snapshot to fall back on, so the built-in defaults are in force and every channel counts as on."),
+      );
+      if (snapshot) return snapshot;
+    }
   }
+  return new Map();
 });
+
+/**
+ * Forget the snapshot for one console.
+ *
+ * Called when an admin saves or resets a message. The snapshot is only ever a
+ * fallback, so a stale one costs nothing while the database is up — but a
+ * switch just turned off should not be able to come back from a snapshot taken
+ * before it was, however briefly.
+ */
+export function forgetMessageOverrides(scope: MessageScope): void {
+  lastKnownGood.delete(scope);
+}
 
 /**
  * The message for one key, with the placeholders filled.
@@ -85,10 +135,18 @@ export async function resolveMessage(
   const smsOn = override ? override.smsEnabled : true;
   const emailOn = template.hasEmail && (override ? override.emailEnabled : true);
 
+  // The email falls back to the SMS wording when it has no body of its own,
+  // and that fallback is read here rather than at the point of sending — an
+  // email left on while the text message is switched off used to go out empty,
+  // because the sender reached for a `sms` that resolveMessage had already
+  // nulled. Switching off the text message means "don't text"; it has never
+  // meant "send a blank email".
+  const emailText = body || smsText;
+
   return {
     sms: smsOn && smsText ? renderMessage(smsText, vars) : null,
     emailSubject: emailOn && subject ? renderMessage(subject, vars) : null,
-    emailBody: emailOn && body ? renderMessage(body, vars) : null,
+    emailBody: emailOn && emailText ? renderMessage(emailText, vars) : null,
   };
 }
 
@@ -161,13 +219,9 @@ export async function notifyTemplate(
 
   const tasks: Promise<unknown>[] = [];
   if (to.phone && message.sms) tasks.push(sendSms(to.phone, message.sms));
-  if (to.email && message.emailSubject) {
+  if (to.email && message.emailSubject && message.emailBody) {
     tasks.push(
-      sendEmail(
-        to.email,
-        message.emailSubject,
-        emailShell(paragraphs(message.emailBody ?? message.sms ?? ""), message.emailSubject),
-      ),
+      sendEmail(to.email, message.emailSubject, emailShell(paragraphs(message.emailBody), message.emailSubject)),
     );
   }
   await Promise.allSettled(tasks);

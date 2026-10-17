@@ -19,6 +19,7 @@ import {
 } from "@/lib/tracking";
 import { notifyShipmentUpdate, notifyNextResponsible } from "@/lib/order-notifications";
 import { syncAffiliateCommissions } from "@/lib/affiliate-ledger";
+import { issueCollectionCode } from "@/lib/pickup-collection";
 
 export type ConfirmState = { ok?: boolean; error?: string };
 
@@ -68,6 +69,18 @@ export async function confirmShipmentStage(_prev: ConfirmState, fd: FormData): P
   // Role may confirm this stage for this method?
   if (!canConfirmStage(user.role, stage, method, route)) {
     return { error: "You're not responsible for this step." };
+  }
+
+  // The one stage that is not a tick-box. Handing a parcel over the counter
+  // needs the buyer's collection code and a record of who took it, and both
+  // live in releaseParcel (lib/pickup-actions.ts). Letting this generic path
+  // mark a pickup collected would be the hole that guard exists to close —
+  // for an admin as much as for an operator, since an admin override has to
+  // carry a written reason rather than be one click.
+  if (stage === "delivered" && method === "pickup") {
+    return {
+      error: "Collect it from the parcel's own card — the buyer's code and who is collecting are both needed.",
+    };
   }
 
   // Ownership checks per role.
@@ -125,10 +138,16 @@ export async function confirmShipmentStage(_prev: ConfirmState, fd: FormData): P
     const oid = shipment.order.id;
     const label = stageLabel(status, method, route);
     const actingRole = user.role;
+    const readyForCollection = method === "pickup" && status === "out_for_delivery";
     after(async () => {
-      // The stage goes through as well as its label: arrival in Ghana and
-      // hand-over get their own message rather than a generic status line.
-      await notifyShipmentUpdate(oid, label, status);
+      // A parcel that has just reached its point needs a collection code
+      // before anything else: the buyer's next move is to walk in and ask for
+      // it, and the counter cannot release it without one. The generic
+      // "status changed" text is skipped in that case — the code message says
+      // it is ready, says where, and says what to bring, which is strictly
+      // more than the status line it replaces.
+      if (readyForCollection) await issueCollectionCode(oid);
+      else await notifyShipmentUpdate(oid, label, status);
       await notifyNextResponsible(oid, actingRole);
     });
   }
