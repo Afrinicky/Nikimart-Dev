@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Clock, Gift, Users, Wallet } from "lucide-react";
 import { RecruitLinkCard } from "@/components/affiliate/RecruitLinkCard";
+import { InviteRecruitForm } from "@/components/affiliate/InviteRecruitForm";
 import { SubmitButton } from "@/components/ui/motion";
 import { payRegistrationFee } from "@/lib/affiliate-console-actions";
 import { getAffiliateWorkspace } from "@/lib/affiliate-console";
@@ -167,6 +168,16 @@ export default async function AffiliateTeamPage({
               Set your referral code in Settings and your recruiting link appears here.
             </div>
           )}
+
+          {link && config.enabled && affiliate.status === "active" ? (
+            <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
+              <p className="font-display font-bold text-niki-ink">Invite someone directly</p>
+              <p className="mt-1 mb-3 text-sm text-niki-ink/60">
+                We&apos;ll text them your link. They finish the signup themselves.
+              </p>
+              <InviteRecruitForm />
+            </div>
+          ) : null}
 
           {registration.outstanding > 0 ? (
             <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge">

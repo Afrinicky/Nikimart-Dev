@@ -6,7 +6,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getAffiliateForUser, generateAffiliateCode } from "@/lib/affiliate";
-import { getAffiliatePolicy } from "@/lib/affiliate-settings";
+import { getAffiliatePolicy, getAffiliateReferralConfig } from "@/lib/affiliate-settings";
+import { affiliateReferralLink, teamRewardsLine } from "@/lib/affiliate-team-rules";
+import { notify } from "@/lib/notifications";
+import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+import { siteUrl } from "@/lib/site";
 import { admissionRoute } from "@/lib/affiliate-policy";
 import {
   claimLinesForPayout,
@@ -730,4 +734,66 @@ export async function payRegistrationFee(): Promise<void> {
   if (!payment.ok) redirect("/affiliate/team?fee=error");
   // No gateway configured (local, preview): it settled directly.
   redirect(payment.authorizationUrl ?? "/affiliate/team?fee=paid");
+}
+
+// ---------------------------------------------------------------------------
+// Recruiting somebody directly
+// ---------------------------------------------------------------------------
+
+/**
+ * Send somebody your recruiting link, by text and email.
+ *
+ * The bundle console lets an agent register a recruit outright, password and
+ * all. An affiliate account is attached to a Nickimart shopping account most
+ * people already have, so the same favour here is sending them the link rather
+ * than minting a password nobody asked for: they finish the signup themselves,
+ * on the page that quotes them the fee, and arrive attributed either way.
+ *
+ * Rate-limited, because a form that sends an SMS to any number typed into it
+ * is a form somebody will use to send SMS to any number they like.
+ */
+export async function inviteRecruit(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { user, affiliate } = await requireAffiliate();
+  if (!affiliate) return { error: "You don't have an affiliate account." };
+  if (affiliate.status !== "active") {
+    return { error: "Your account is on hold, so invitations are paused." };
+  }
+  if (!affiliate.code) {
+    return { error: "Set your referral code in Settings first — the link is built from it." };
+  }
+
+  const name = str(fd, "name").slice(0, 80);
+  const phone = str(fd, "phone").slice(0, 32);
+  const email = str(fd, "email").slice(0, 120).toLowerCase();
+  if (!phone && !email) return { error: "A phone number or an email address, so we can reach them." };
+
+  const limit = await rateLimit(`affiliate-invite:${affiliate.id}`, 20, 60 * 60_000);
+  if (!limit.ok) {
+    return { error: `That is a lot of invitations. Try again in ${retryAfterLabel(limit.retryAfter)}.` };
+  }
+
+  const [config, policy] = await Promise.all([
+    getAffiliateReferralConfig(),
+    getAffiliatePolicy(),
+  ]);
+  if (!config.enabled) return { error: "Recruiting is paused at the moment." };
+  if (!policy.enabled) return { error: "The affiliate programme is closed at the moment." };
+
+  const link = affiliateReferralLink(siteUrl(), affiliate.code);
+  const who = name ? `${name}, ` : "";
+  const line =
+    `Nickimart: ${who}${user.name ?? "an affiliate"} has invited you to earn with them. ` +
+    `${teamRewardsLine(config)} Join here: ${link}`;
+
+  const sent = await notify(
+    { phone: phone || null, email: email || null },
+    { sms: line, emailSubject: "You have been invited to the Nickimart affiliate programme" },
+  );
+  if (!sent.sms && !sent.email) {
+    return { error: "We couldn't send that. Check the number or the address and try again." };
+  }
+
+  await record(affiliate.id, user.id, "recruit_invited", `${name || phone || email}`);
+  revalidatePath("/affiliate/team");
+  return { ok: true, message: `Invitation sent to ${name || phone || email}.` };
 }
