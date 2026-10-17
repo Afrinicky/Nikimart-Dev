@@ -7,6 +7,7 @@ import { ModuleTabs } from "@/components/admin/ModuleTabs";
 import { ActionLink } from "@/components/ui/motion";
 import { MessageEditor } from "@/components/admin/MessageEditor";
 import { ANNOUNCEMENT_MODULE_TABS } from "@/lib/announcement-module";
+import { countOpenComplaints } from "@/lib/retail/complaints";
 import { getTemplateView } from "@/lib/messages";
 
 export const metadata: Metadata = { title: "Message — Admin — Nickimart" };
@@ -29,7 +30,7 @@ export default async function AdminRetailMessagePage({
         icon={Megaphone}
       />
       <div className="mt-5">
-        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("retail")} />
+        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("retail", 0, await countOpenComplaints())} />
       </div>
 
       <ActionLink

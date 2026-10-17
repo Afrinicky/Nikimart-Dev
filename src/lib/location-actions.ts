@@ -30,7 +30,7 @@ function revalidateLocations() {
   // The storefront list is cached across requests; drop it by tag as well.
   updateTag(LOCATIONS_TAG);
   revalidatePath("/", "layout");
-  revalidatePath("/admin/locations");
+  revalidatePath("/admin/shipping/areas");
 }
 
 export async function createLocation(_prev: CrudState, fd: FormData): Promise<CrudState> {
@@ -41,7 +41,7 @@ export async function createLocation(_prev: CrudState, fd: FormData): Promise<Cr
   }
   await prisma.location.create({ data: d });
   revalidateLocations();
-  redirect("/admin/locations");
+  redirect("/admin/shipping/areas");
 }
 
 export async function updateLocation(id: string, _prev: CrudState, fd: FormData): Promise<CrudState> {
@@ -52,7 +52,7 @@ export async function updateLocation(id: string, _prev: CrudState, fd: FormData)
   }
   await prisma.location.update({ where: { id }, data: d });
   revalidateLocations();
-  redirect("/admin/locations");
+  redirect("/admin/shipping/areas");
 }
 
 export async function deleteLocation(fd: FormData): Promise<void> {

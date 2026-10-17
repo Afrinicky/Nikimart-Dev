@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Coins, Gauge, Grid3x3, MapPin, Plane } from "lucide-react";
+import { Coins, Gauge, Grid3x3, Map, MapPin, Plane } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { cn } from "@/lib/cn";
 
@@ -9,7 +9,8 @@ import { cn } from "@/lib/cn";
  * The screens of the shipping console, in the order they are set up.
  *
  * The places first, because nothing else means anything without them: every
- * station buyers collect at and every point goods gather at, in one list. Then
+ * station buyers collect at and every point goods gather at, in one list,
+ * followed by the campuses and towns those stations are picked from. Then
  * the grid, which prices every run between them — the first item, each extra
  * one, and the large goods that are priced by their size instead. Then the
  * forwarders, who hold their own warehouses and their own rate grids. Then the
@@ -19,6 +20,7 @@ import { cn } from "@/lib/cn";
 const TABS = [
   { href: "/admin/shipping", label: "Overview", icon: Gauge, exact: true },
   { href: "/admin/shipping/locations", label: "Pickup points", icon: MapPin },
+  { href: "/admin/shipping/areas", label: "Locations", icon: Map },
   { href: "/admin/shipping/lanes", label: "Base fees", icon: Grid3x3 },
   { href: "/admin/shipping/forwarders", label: "Forwarders", icon: Plane },
   { href: "/admin/shipping/currencies", label: "Currencies", icon: Coins },

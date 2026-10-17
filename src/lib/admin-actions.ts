@@ -347,9 +347,9 @@ export async function createCategory(_prev: CrudState, fd: FormData): Promise<Cr
   if (existing) return { error: "Slug already in use.", fieldErrors: { slug: "Already exists." } };
 
   await prisma.category.create({ data });
-  revalidatePath("/admin/categories");
+  revalidatePath("/admin/settings/categories");
   revalidateCatalog();
-  redirect("/admin/categories");
+  redirect("/admin/settings/categories");
 }
 
 export async function updateCategory(id: string, _prev: CrudState, fd: FormData): Promise<CrudState> {
@@ -365,9 +365,9 @@ export async function updateCategory(id: string, _prev: CrudState, fd: FormData)
   if (clash) return { error: "Slug already in use.", fieldErrors: { slug: "Already exists." } };
 
   await prisma.category.update({ where: { id }, data });
-  revalidatePath("/admin/categories");
+  revalidatePath("/admin/settings/categories");
   revalidateCatalog();
-  redirect("/admin/categories");
+  redirect("/admin/settings/categories");
 }
 
 export async function deleteCategory(fd: FormData): Promise<void> {
@@ -377,7 +377,7 @@ export async function deleteCategory(fd: FormData): Promise<void> {
   const productCount = await prisma.product.count({ where: { categoryId: id } });
   if (productCount > 0) return; // don't orphan products
   await prisma.category.delete({ where: { id } });
-  revalidatePath("/admin/categories");
+  revalidatePath("/admin/settings/categories");
   revalidateCatalog();
 }
 

@@ -29,7 +29,7 @@ export function SectionForm({
       <div className="rounded-xl bg-niki-surface p-4 text-sm text-niki-ink/60 ring-1 ring-niki-edge">
         This block has no editable settings. Use the controls on the page to move, hide, or remove it.
         <div className="mt-4">
-          <Link href={`/admin/pages/${pageId}`} className="text-sm font-semibold text-niki-orange hover:underline">
+          <Link href={`/admin/settings/pages/${pageId}`} className="text-sm font-semibold text-niki-orange hover:underline">
             ← Back to page
           </Link>
         </div>
@@ -93,7 +93,7 @@ export function SectionForm({
         <div className="w-40">
           <SubmitButton>Save section</SubmitButton>
         </div>
-        <Link href={`/admin/pages/${pageId}`} className="text-sm font-medium text-niki-ink/60 hover:text-niki-ink">
+        <Link href={`/admin/settings/pages/${pageId}`} className="text-sm font-medium text-niki-ink/60 hover:text-niki-ink">
           Cancel
         </Link>
       </div>

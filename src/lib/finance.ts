@@ -120,7 +120,7 @@ export async function getFinanceBreakdown(metric: FinanceMetric): Promise<Breakd
     case "owed": {
       const rows = (await getVendorSettlements())
         .filter((s) => s.earnings.available > 0)
-        .map((s) => ({ id: s.id, primary: s.businessName, secondary: "Cleared, awaiting payout", amount: s.earnings.available, href: `/admin/finance/sellers/${s.id}` }));
+        .map((s) => ({ id: s.id, primary: s.businessName, secondary: "Cleared, awaiting payout", amount: s.earnings.available, href: `/admin/finance/settlements/${s.id}` }));
       return {
         title: "Owed to sellers",
         description: "Cleared earnings still to be paid out, per seller.",
@@ -136,7 +136,7 @@ export async function getFinanceBreakdown(metric: FinanceMetric): Promise<Breakd
         description: "Completed seller settlements.",
         total: money(payouts.reduce((s, p) => s + p.amount, 0)),
         columns: ["Seller", "Method / date", "Amount"],
-        rows: payouts.map((p) => ({ id: p.id, primary: p.vendor.businessName, secondary: `${p.method || "—"} · ${shortDate(p.paidAt ?? p.createdAt)}`, amount: p.amount, href: `/admin/finance/sellers/${p.vendor.id}` })),
+        rows: payouts.map((p) => ({ id: p.id, primary: p.vendor.businessName, secondary: `${p.method || "—"} · ${shortDate(p.paidAt ?? p.createdAt)}`, amount: p.amount, href: `/admin/finance/settlements/${p.vendor.id}` })),
       };
     }
     case "escrow": {

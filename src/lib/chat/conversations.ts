@@ -1,6 +1,7 @@
 import "server-only";
 import { dataDb } from "@/lib/data-db";
 import { memberLevelFor } from "@/lib/data-bundles/team/hierarchy";
+import { teamLevelFor } from "@/lib/affiliate-team";
 import {
   fallbackTitle,
   parseParticipant,
@@ -106,9 +107,11 @@ export async function conversationAccess(
   if (isMember) return { ok: true, isOwner, isAdmin: false, isMember, conversation };
 
   // A leader reaches their own team's room whether or not anybody has written
-  // them onto it — it is theirs by being the team's.
+  // them onto it — it is theirs by being the team's. The leader id is an agent
+  // or an affiliate depending on which programme the room belongs to; the ids
+  // are cuids, so one cannot be mistaken for the other.
   if (
-    who.kind === "AGENT" &&
+    (who.kind === "AGENT" || who.kind === "AFFILIATE") &&
     conversation.kind === "TEAM" &&
     conversation.teamLeaderId === who.id
   ) {
@@ -119,11 +122,13 @@ export async function conversationAccess(
 }
 
 /**
- * Whether an agent is entitled to ask to join a room.
+ * Whether somebody is entitled to ask to join a room.
  *
  * Asking is not joining, but it should not be possible to ask your way into a
  * team you have nothing to do with — so a team's room can only be requested by
- * somebody actually in that leader's two levels.
+ * somebody actually in that leader's two levels. Which hierarchy that is read
+ * from follows the asker: an agent's team is the bundle programme's, an
+ * affiliate's is the retail one, and neither can see into the other.
  */
 export async function mayRequestToJoin(
   conversation: Conversation,
@@ -134,6 +139,9 @@ export async function mayRequestToJoin(
   if (conversation.kind === "GROUP") return true;
   if (conversation.teamLeaderId) {
     if (conversation.teamLeaderId === who.id) return true;
+    if (who.kind === "AFFILIATE") {
+      return (await teamLevelFor(conversation.teamLeaderId, who.id)) !== null;
+    }
     return (await memberLevelFor(conversation.teamLeaderId, who.id)) !== null;
   }
   return false;

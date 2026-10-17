@@ -28,7 +28,7 @@ function bool(fd: FormData, key: string): boolean {
 function revalidateSite(slug?: string) {
   revalidatePath("/");
   if (slug) revalidatePath(`/pages/${slug}`);
-  revalidatePath("/admin/pages");
+  revalidatePath("/admin/settings/pages");
 }
 
 // ---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ export async function createPage(_prev: CrudState, fd: FormData): Promise<CrudSt
 
   const page = await prisma.page.create({ data: { slug, title: parsed.data.title } });
   revalidateSite(slug);
-  redirect(`/admin/pages/${page.id}`);
+  redirect(`/admin/settings/pages/${page.id}`);
 }
 
 export async function updatePageMeta(id: string, fd: FormData): Promise<void> {
@@ -75,7 +75,7 @@ export async function deletePage(fd: FormData): Promise<void> {
   if (page && !page.isSystem) {
     await prisma.page.delete({ where: { id } });
     revalidateSite(page.slug);
-    redirect("/admin/pages");
+    redirect("/admin/settings/pages");
   }
 }
 
@@ -106,7 +106,7 @@ export async function ensureDefaultPages(): Promise<void> {
     });
   }
   revalidateSite();
-  redirect("/admin/pages");
+  redirect("/admin/settings/pages");
 }
 
 // ---------------------------------------------------------------------------
@@ -149,7 +149,7 @@ export async function updateSection(sectionId: string, _prev: CrudState, fd: For
 
   await prisma.pageSection.update({ where: { id: sectionId }, data: { config: JSON.stringify(config) } });
   revalidateSite(section.page.slug);
-  redirect(`/admin/pages/${section.pageId}`);
+  redirect(`/admin/settings/pages/${section.pageId}`);
 }
 
 export async function deleteSection(fd: FormData): Promise<void> {

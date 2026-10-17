@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 import { getSellerEarnings } from "@/lib/seller";
+import { claimLinesForPayout, markLinesPaid } from "@/lib/affiliate-ledger";
 import type { CrudState } from "@/lib/admin-actions";
 
 function str(fd: FormData, key: string): string {
@@ -51,7 +52,31 @@ export async function createSellerPayout(_prev: CrudState, fd: FormData): Promis
     },
   });
   revalidateFinance();
-  redirect("/admin/finance");
+  revalidatePath(`/admin/finance/settlements/${vendorId}`);
+  revalidatePath("/admin/finance/settlements");
+  redirect(`/admin/finance/settlements/${vendorId}?paid=1`);
+}
+
+/**
+ * Reject a payout request a seller raised.
+ *
+ * Deleting it rather than flagging it: a request is an ask, not a ledger
+ * entry, and the money it asked for goes straight back to payable. What
+ * happened is a conversation, which belongs on WhatsApp rather than in a
+ * status nobody reads.
+ */
+export async function rejectPayoutRequest(fd: FormData): Promise<void> {
+  await requireAdmin();
+  const id = str(fd, "id");
+  if (!id) return;
+  const row = await prisma.payout
+    .findUnique({ where: { id }, select: { vendorId: true, status: true } })
+    .catch(() => null);
+  if (!row || row.status !== "pending") return;
+  await prisma.payout.deleteMany({ where: { id, status: "pending" } });
+  revalidateFinance();
+  revalidatePath(`/admin/finance/settlements/${row.vendorId}`);
+  revalidatePath("/admin/finance/settlements");
 }
 
 /** Mark a pending seller payout (e.g. a seller request) as paid. */
@@ -61,6 +86,7 @@ export async function markPayoutPaid(fd: FormData): Promise<void> {
   if (!id) return;
   await prisma.payout.updateMany({ where: { id, status: "pending" }, data: { status: "paid", paidAt: new Date() } });
   revalidateFinance();
+  revalidatePath("/admin/finance/settlements");
 }
 
 // --- Affiliates -----------------------------------------------------------
@@ -141,11 +167,7 @@ export async function markAffiliatePayoutPaid(fd: FormData): Promise<void> {
     where: { id, status: { in: ["pending", "processing"] } },
     data: { status: "paid", paidAt: new Date() },
   });
-  if (flipped.count > 0) {
-    await prisma.affiliateCommission
-      .updateMany({ where: { payoutId: id }, data: { status: "paid" } })
-      .catch(() => {});
-  }
+  if (flipped.count > 0) await markLinesPaid(id);
   revalidateFinance();
   revalidatePath("/affiliate");
   revalidatePath("/admin/affiliates/payouts");
@@ -186,26 +208,8 @@ export async function createAffiliatePayout(_prev: CrudState, fd: FormData): Pro
    * anything cleared simply settles what there is and the rest is a credit the
    * next cleared line meets.
    */
-  const cleared = await prisma.affiliateCommission
-    .findMany({
-      where: { affiliateId, status: "cleared", payoutId: null },
-      orderBy: { clearedAt: "asc" },
-      select: { id: true, amount: true, reversedAmount: true },
-    })
-    .catch(() => [] as { id: string; amount: number; reversedAmount: number }[]);
-
-  const covered: string[] = [];
-  let running = 0;
-  for (const line of cleared) {
-    if (running >= paid - 0.005) break;
-    covered.push(line.id);
-    running += Math.max(0, line.amount - line.reversedAmount);
-  }
-  if (covered.length > 0) {
-    await prisma.affiliateCommission
-      .updateMany({ where: { id: { in: covered } }, data: { payoutId: payout.id, status: "paid" } })
-      .catch(() => {});
-  }
+  await claimLinesForPayout(affiliateId, payout.id, paid);
+  await markLinesPaid(payout.id);
 
   revalidateFinance();
   redirect(`/admin/affiliates/${affiliateId}`);

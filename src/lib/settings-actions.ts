@@ -84,8 +84,8 @@ export async function createFaq(_prev: CrudState, fd: FormData): Promise<CrudSta
   const last = await prisma.faq.findFirst({ orderBy: { order: "desc" }, select: { order: true } });
   await prisma.faq.create({ data: { ...data, order: data.order || (last?.order ?? -1) + 1 } });
   revalidatePath("/help");
-  revalidatePath("/admin/faqs");
-  redirect("/admin/faqs");
+  revalidatePath("/admin/settings/faqs");
+  redirect("/admin/settings/faqs");
 }
 
 export async function updateFaq(id: string, _prev: CrudState, fd: FormData): Promise<CrudState> {
@@ -96,8 +96,8 @@ export async function updateFaq(id: string, _prev: CrudState, fd: FormData): Pro
   }
   await prisma.faq.update({ where: { id }, data });
   revalidatePath("/help");
-  revalidatePath("/admin/faqs");
-  redirect("/admin/faqs");
+  revalidatePath("/admin/settings/faqs");
+  redirect("/admin/settings/faqs");
 }
 
 export async function deleteFaq(fd: FormData): Promise<void> {
@@ -106,6 +106,6 @@ export async function deleteFaq(fd: FormData): Promise<void> {
   if (id) {
     await prisma.faq.delete({ where: { id } });
     revalidatePath("/help");
-    revalidatePath("/admin/faqs");
+    revalidatePath("/admin/settings/faqs");
   }
 }

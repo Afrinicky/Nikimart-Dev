@@ -6,6 +6,7 @@ import { ModuleTabs } from "@/components/admin/ModuleTabs";
 import { BroadcastComposer } from "@/components/admin/BroadcastComposer";
 import { formatWhen } from "@/components/agent/AgentUi";
 import { ANNOUNCEMENT_MODULE_TABS } from "@/lib/announcement-module";
+import { countOpenComplaints } from "@/lib/retail/complaints";
 import { audienceLabel, broadcastAudiences, listBroadcasts } from "@/lib/broadcasts";
 import { cn } from "@/lib/cn";
 
@@ -34,7 +35,7 @@ export default async function AdminRetailBroadcastsPage() {
         icon={Megaphone}
       />
       <div className="mt-5">
-        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("retail")} />
+        <ModuleTabs tabs={ANNOUNCEMENT_MODULE_TABS("retail", 0, await countOpenComplaints())} />
       </div>
 
       <div className="mt-6">

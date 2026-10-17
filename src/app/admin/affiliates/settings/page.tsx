@@ -75,7 +75,7 @@ export default async function AdminAffiliateSettingsPage() {
                 — which products pay, and out of whose money.
               </li>
               <li>
-                <Link href="/admin/categories" className="font-semibold text-niki-orange hover:underline">
+                <Link href="/admin/settings/categories" className="font-semibold text-niki-orange hover:underline">
                   Categories
                 </Link>{" "}
                 — a default rate for a whole category.

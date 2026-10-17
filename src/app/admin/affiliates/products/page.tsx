@@ -201,7 +201,7 @@ export default async function AdminAffiliateProductsPage({
       <p className="mt-4 text-xs leading-relaxed text-niki-ink/50">
         A rate left blank inherits the category&apos;s affiliate rate, then the programme default of{" "}
         {policy.defaultRate}%. Category rates are set in{" "}
-        <Link href="/admin/categories" className="font-semibold text-niki-orange hover:underline">
+        <Link href="/admin/settings/categories" className="font-semibold text-niki-orange hover:underline">
           Categories
         </Link>
         , and a seller sets their own product&apos;s rate when they enrol it. Changing a rate here

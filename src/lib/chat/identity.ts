@@ -1,17 +1,18 @@
 /**
  * Who is in a conversation.
  *
- * Three kinds of participant, and they do not live in one table: an agent is a
- * row in the bundle database, an admin is a user in the retail one, and a
- * visitor on a public page is nobody at all until they type their name. A
- * foreign key could never span those, so a participant is stored as a string
- * that says which kind it is and which one.
+ * Four kinds of participant, and they do not live in one table: an agent is a
+ * row in the bundle database, an affiliate is a row in the retail one, an
+ * admin is a user in the retail one, and a visitor on a public page is nobody
+ * at all until they type their name. A foreign key could never span those, so
+ * a participant is stored as a string that says which kind it is and which
+ * one.
  *
  * Pure, because the same string is built when a message is sent, checked when
  * a token is minted, and compared when a room is drawn. One spelling.
  */
 
-export const PARTICIPANT_KINDS = ["AGENT", "ADMIN", "VISITOR"] as const;
+export const PARTICIPANT_KINDS = ["AGENT", "AFFILIATE", "ADMIN", "VISITOR"] as const;
 export type ParticipantKind = (typeof PARTICIPANT_KINDS)[number];
 
 export interface Participant {

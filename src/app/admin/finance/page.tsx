@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowUpRight, Banknote, Percent, Users, Wallet } from "lucide-react";
 import { Container } from "@/components/ui/Container";
+import { ActionLink } from "@/components/ui/motion";
 import { ExportButton } from "@/components/admin/ExportButton";
 import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
@@ -27,11 +28,13 @@ export default async function AdminFinancePage() {
   const pendingAffiliateRequests = await prisma.affiliatePayout.findMany({ where: { status: "pending" }, orderBy: { createdAt: "asc" }, include: { affiliate: { select: { name: true } } } });
 
   return (
-    <Container className="py-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <Container className="py-6 sm:py-8">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold text-niki-ink">Finance</h1>
-          <p className="mt-1 text-sm text-niki-ink/60">Commissions, seller payouts, affiliate payments, and accounts.</p>
+          <h2 className="font-display text-lg font-bold text-niki-ink sm:text-xl">Where the money stands</h2>
+          <p className="mt-0.5 text-sm text-niki-ink/60">
+            Commission earned, what is held, and what is owed. Every tile opens its rows.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExportButton dataset="finance" />
@@ -88,7 +91,7 @@ export default async function AdminFinancePage() {
           )}
           <div className="mt-4 flex flex-wrap gap-2 text-sm">
             <Link href="/admin/settings" className="font-semibold text-niki-orange hover:underline">Edit default →</Link>
-            <Link href="/admin/categories" className="font-semibold text-niki-orange hover:underline">Per-category →</Link>
+            <Link href="/admin/settings/categories" className="font-semibold text-niki-orange hover:underline">Per-category →</Link>
           </div>
 
           {/* Where affiliate commission actually comes from. */}
@@ -188,53 +191,27 @@ export default async function AdminFinancePage() {
         </div>
       ) : null}
 
-      {/* Seller settlements */}
-      <div className="mt-8 flex items-center gap-2">
-        <Wallet className="h-5 w-5 text-niki-orange" />
-        <h2 className="font-display text-lg font-bold text-niki-ink">Seller settlements</h2>
-      </div>
-      {settlements.length === 0 ? (
-        <p className="mt-4 rounded-2xl bg-white p-6 text-sm text-niki-ink/60 ring-1 ring-niki-edge">
-          No seller sales yet. Settlements appear here once sellers make sales.
-        </p>
-      ) : (
-        <div className="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-niki-edge">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="border-b border-niki-edge text-xs uppercase tracking-wide text-niki-ink/50">
-              <tr>
-                <th className="px-5 py-3 font-semibold">Seller</th>
-                <th className="px-5 py-3 font-semibold">Gross</th>
-                <th className="px-5 py-3 font-semibold">Commission</th>
-                <th className="px-5 py-3 font-semibold">Cleared</th>
-                <th className="px-5 py-3 font-semibold">Paid out</th>
-                <th className="px-5 py-3 font-semibold">Available</th>
-                <th className="px-5 py-3 font-semibold sr-only">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-niki-edge">
-              {settlements.map((s) => (
-                <tr key={s.id} className="hover:bg-niki-surface">
-                  <td className="px-5 py-3 font-medium text-niki-ink">{s.businessName}</td>
-                  <td className="px-5 py-3 text-niki-ink/70">{formatPrice(s.earnings.gross)}</td>
-                  <td className="px-5 py-3 text-niki-ink/70">{formatPrice(s.earnings.commission)}</td>
-                  <td className="px-5 py-3 text-niki-ink/70">{formatPrice(s.earnings.cleared)}</td>
-                  <td className="px-5 py-3 text-niki-ink/70">{formatPrice(s.earnings.paidOut)}</td>
-                  <td className="px-5 py-3 font-semibold text-niki-ink">{formatPrice(s.earnings.available)}</td>
-                  <td className="px-5 py-3 text-right">
-                    {s.earnings.available > 0 ? (
-                      <Link href={`/admin/finance/sellers/${s.id}`} className="inline-flex items-center gap-1 rounded-lg bg-niki-orange px-3 py-1.5 text-xs font-semibold text-white hover:bg-niki-orange-light">
-                        Pay out <ArrowUpRight className="h-3.5 w-3.5" />
-                      </Link>
-                    ) : (
-                      <span className="text-xs text-niki-ink/40">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {/* Settling a seller is one screen now, with the payout details and the
+          history on it. A copy of the table here would be a second place for
+          the two to disagree about what a shop is owed. */}
+      <ActionLink
+        href="/admin/finance/settlements"
+        className="niki-focus group mt-8 flex items-center gap-3 rounded-2xl bg-white p-5 ring-1 ring-niki-edge transition-colors hover:ring-niki-orange/40"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-niki-black text-niki-orange">
+          <Wallet className="h-5 w-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-niki-ink">Seller settlements</span>
+          <span className="mt-0.5 block text-sm text-niki-ink/60">
+            {settlements.filter((s) => s.earnings.available > 0).length} shop
+            {settlements.filter((s) => s.earnings.available > 0).length === 1 ? "" : "s"} payable ·{" "}
+            {formatPrice(settlements.reduce((t, s) => t + s.earnings.available, 0))} waiting to go out
+          </span>
+        </span>
+        <ArrowUpRight className="h-4 w-4 shrink-0 text-niki-ink/35 transition-transform group-hover:translate-x-0.5" />
+      </ActionLink>
+
     </Container>
   );
 }

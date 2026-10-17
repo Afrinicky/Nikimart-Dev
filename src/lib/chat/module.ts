@@ -18,11 +18,28 @@ export function CHATROOM_TABS(unread = 0): ModuleTab[] {
   ];
 }
 
+/** The affiliate module's, which an admin reaches from that console. */
+export function AFFILIATE_CHATROOM_TABS(): ModuleTab[] {
+  return [
+    { href: "/admin/affiliates/chatroom", label: "Rooms", icon: "users", exact: true },
+    { href: "/admin/affiliates/chatroom/direct", label: "Direct", icon: "message" },
+  ];
+}
+
 /** The agent's own, which is the same idea with fewer doors. */
 export function AGENT_CHATROOM_TABS(): { href: string; label: string }[] {
   return [
     { href: "/agent/chatroom", label: "Rooms" },
     { href: "/agent/chatroom/direct", label: "Direct" },
     { href: "/agent/chatroom/requests", label: "Requests" },
+  ];
+}
+
+/** And the affiliate's, the same three doors on their own console. */
+export function AFFILIATE_ROOM_TABS(): { href: string; label: string }[] {
+  return [
+    { href: "/affiliate/chatroom", label: "Rooms" },
+    { href: "/affiliate/chatroom/direct", label: "Direct" },
+    { href: "/affiliate/chatroom/requests", label: "Requests" },
   ];
 }

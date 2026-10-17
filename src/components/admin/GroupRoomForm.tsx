@@ -16,9 +16,17 @@ import { cn } from "@/lib/cn";
  * than three hundred checkboxes.
  */
 export function GroupRoomForm({
-  agents,
+  people,
+  community = "agents",
+  noun = "agent",
 }: {
-  agents: { id: string; code: string; storeName: string }[];
+  /** Who may be put in the room: an id, a name, and something to tell two
+   *  people of the same name apart. */
+  people: { id: string; name: string; hint: string }[];
+  /** Which community these are. The two never share a room. */
+  community?: "agents" | "affiliates";
+  /** What one of them is called, for the "every active …" button. */
+  noun?: string;
 }) {
   const [state, formAction] = useActionState<ChatState, FormData>(createGroupRoom, {});
   const [open, setOpen] = useState(false);
@@ -46,11 +54,12 @@ export function GroupRoomForm({
         <h2 className="font-display font-bold text-niki-ink">New room</h2>
       </div>
 
+      <input type="hidden" name="community" value={community} />
       <input
         name="title"
         required
         maxLength={80}
-        placeholder="Room name — e.g. All data agents"
+        placeholder={`Room name — e.g. All ${noun}s`}
         className={inputClass}
       />
 
@@ -73,28 +82,28 @@ export function GroupRoomForm({
               onChange={() => setAudience(value)}
               className="sr-only"
             />
-            {value === "all-agents" ? `Every active agent (${agents.length})` : "Choose people"}
+            {value === "all-agents"
+              ? `Every active ${noun} (${people.length})`
+              : "Choose people"}
           </label>
         ))}
       </div>
 
       {audience === "chosen" ? (
         <div className="max-h-60 space-y-1 overflow-y-auto rounded-xl bg-niki-surface p-2">
-          {agents.map((a) => (
+          {people.map((p) => (
             <label
-              key={a.id}
+              key={p.id}
               className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm hover:bg-white"
             >
               <input
                 type="checkbox"
                 name="agentIds"
-                value={a.id}
+                value={p.id}
                 className="h-4 w-4 accent-niki-orange"
               />
-              <span className="min-w-0 flex-1 truncate font-medium text-niki-ink">
-                {a.storeName}
-              </span>
-              <span className="shrink-0 font-mono text-[11px] text-niki-ink/40">{a.code}</span>
+              <span className="min-w-0 flex-1 truncate font-medium text-niki-ink">{p.name}</span>
+              <span className="shrink-0 font-mono text-[11px] text-niki-ink/40">{p.hint}</span>
             </label>
           ))}
         </div>

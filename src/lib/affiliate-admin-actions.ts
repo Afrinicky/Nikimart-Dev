@@ -5,7 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 import { generateAffiliateCode } from "@/lib/affiliate";
 import { maxPlatformFundedRate, maxSellerFundedRate } from "@/lib/affiliate-commission";
-import { releaseCommission, reverseCommission } from "@/lib/affiliate-ledger";
+import { commitRegistrationOnApproval } from "@/lib/affiliate-registration";
+import {
+  markLinesPaid,
+  releaseCommission,
+  releaseLinesFromPayout,
+  reverseCommission,
+} from "@/lib/affiliate-ledger";
 import { resolveCommissionRate } from "@/lib/commission";
 import { getCommissionRate } from "@/lib/settings";
 import { formatMoney } from "@/lib/format";
@@ -76,7 +82,25 @@ export async function approveApplication(_prev: AdminActionState, fd: FormData):
 
   const application = await prisma.affiliateApplication.findUnique({
     where: { id },
-    select: { id: true, userId: true, fullName: true, email: true, phone: true, desiredCode: true, status: true },
+    select: {
+      id: true,
+      userId: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      desiredCode: true,
+      status: true,
+      referredById: true,
+      inviteId: true,
+      feeGross: true,
+      feeWaiverPercent: true,
+      feeWaived: true,
+      feeAmount: true,
+      feeReferrerShare: true,
+      feeMethod: true,
+      feePaidAt: true,
+      feeReference: true,
+    },
   });
   if (!application) return { error: "That application no longer exists." };
   if (application.status === "approved") return { ok: true };
@@ -117,6 +141,12 @@ export async function approveApplication(_prev: AdminActionState, fd: FormData):
     } catch {
       return { error: "Couldn't create the affiliate account. Is that code already taken?" };
     }
+
+    // The quote this application was given, committed onto the account: what
+    // they owe, who recruited them, and the reward that releases once the fee
+    // is settled. Recorded rather than recomputed, so a fee change next month
+    // never rewrites what this registration was.
+    await commitRegistrationOnApproval({ affiliateId, application });
   }
 
   await prisma.affiliateApplication.update({
@@ -353,11 +383,8 @@ export async function payAffiliatePayout(
         reference: reference || undefined,
       },
     }),
-    prisma.affiliateCommission.updateMany({
-      where: { payoutId: payout.id },
-      data: { status: "paid" },
-    }),
   ]);
+  await markLinesPaid(payout.id);
 
   await record(payout.affiliateId, admin, "payout_paid", `${formatMoney(payout.amount)}${reference ? ` · ${reference}` : ""}`);
   refreshAdmin();
@@ -382,12 +409,9 @@ export async function rejectAffiliatePayout(
   if (!payout) return { error: "That payout request no longer exists." };
   if (payout.status === "paid") return { error: "That one has already been paid." };
 
+  // The lines go back to cleared, so the affiliate can ask again.
+  await releaseLinesFromPayout(payout.id);
   await prisma.$transaction([
-    // The lines go back to cleared, so the affiliate can ask again.
-    prisma.affiliateCommission.updateMany({
-      where: { payoutId: payout.id },
-      data: { payoutId: null },
-    }),
     prisma.affiliatePayout.update({
       where: { id: payout.id },
       data: { status: "rejected", decidedAt: new Date(), decidedById: admin.id, rejectReason: reason },
@@ -590,4 +614,54 @@ export async function saveAffiliateWatermark(
   revalidatePath("/admin/affiliates/branding");
   revalidatePath("/affiliate", "layout");
   return { ok: true, message: "Watermark saved." };
+}
+
+// ---------------------------------------------------------------------------
+// What one affiliate's recruits get
+// ---------------------------------------------------------------------------
+
+/**
+ * Set the terms this affiliate offers the people they recruit.
+ *
+ * Two numbers that answer different halves of one question: the waiver is what
+ * a recruit is charged, the share is who keeps what they do pay. Both are
+ * blank by default, and blank is genuinely different from zero — an affiliate
+ * with no figure of their own follows the programme default as it changes,
+ * while one explicitly set to 0 grants nothing however generous the default
+ * becomes. That is the whole point of being able to set them per affiliate:
+ * somebody who has earned it can bring people in cheaper than the rest.
+ */
+export async function setRecruitTerms(
+  _prev: AdminActionState,
+  fd: FormData,
+): Promise<AdminActionState> {
+  const admin = await requireAdmin();
+  const id = str(fd, "id");
+  if (!id) return { error: "Missing affiliate." };
+
+  const read = (key: string): number | null | "bad" => {
+    const raw = str(fd, key);
+    if (!raw) return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0 || n > 100) return "bad";
+    return Math.round(n * 100) / 100;
+  };
+
+  const waiver = read("referralWaiverPercent");
+  const share = read("referralSharePercent");
+  if (waiver === "bad" || share === "bad") {
+    return { error: "Both figures are percentages between 0 and 100." };
+  }
+
+  await prisma.affiliate
+    .update({
+      where: { id },
+      data: { referralWaiverPercent: waiver, referralSharePercent: share },
+    })
+    .catch(() => null);
+
+  await record(id, admin, "recruit_terms_set", `waiver ${waiver ?? "default"}%, share ${share ?? "default"}%`);
+  refreshAdmin();
+  revalidatePath(`/admin/affiliates/${id}`);
+  return { ok: true, message: "Saved." };
 }

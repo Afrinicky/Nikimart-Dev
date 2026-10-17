@@ -64,7 +64,7 @@ export function CategoryForm({
         <div className="w-40">
           <SubmitButton>{submitLabel}</SubmitButton>
         </div>
-        <Link href="/admin/categories" className="text-sm font-medium text-niki-ink/60 hover:text-niki-ink">
+        <Link href="/admin/settings/categories" className="text-sm font-medium text-niki-ink/60 hover:text-niki-ink">
           Cancel
         </Link>
       </div>

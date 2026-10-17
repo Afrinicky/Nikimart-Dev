@@ -34,7 +34,7 @@ function refresh(id: string) {
   revalidatePath(`/admin/orders/placement/purchase/${id}`);
   revalidatePath("/admin/orders/placement");
   revalidatePath("/admin/orders");
-  revalidatePath("/admin/transactions/procurement");
+  revalidatePath("/admin/finance/orders");
 }
 
 /** Re-add the payments and store the total on the purchase. */

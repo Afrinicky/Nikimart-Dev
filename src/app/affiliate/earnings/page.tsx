@@ -7,6 +7,7 @@ import { ConsolePill, ConsoleRow, ConsoleTable, formatWhen, td } from "@/compone
 import { RequestPayoutForm } from "@/components/affiliate/RequestPayoutForm";
 import { CancelPayoutButton } from "@/components/affiliate/CancelPayoutButton";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { ActionLink } from "@/components/ui/motion";
 import {
   PAYOUT_STATUS_OPTIONS,
   getAffiliateBalance,
@@ -80,6 +81,31 @@ export default async function AffiliateEarningsPage({
         <StatCard label="Requested" value={formatMoney(balance.requested)} />
         <StatCard label="Paid out" value={formatMoney(balance.paid)} />
       </div>
+
+      {balance.team > 0 || balance.registrationOwed > 0 || balance.registrationTaken > 0 ? (
+        <p className="mt-4 rounded-2xl bg-niki-surface px-4 py-3 text-sm text-niki-ink/65">
+          {balance.team > 0 ? (
+            <>
+              {formatMoney(balance.team)} of this is what your team earned you.{" "}
+              <ActionLink href="/affiliate/team" className="font-semibold text-niki-orange hover:underline">
+                See your team
+              </ActionLink>
+              {balance.registrationOwed > 0 ? " " : "."}
+            </>
+          ) : null}
+          {balance.registrationOwed > 0 ? (
+            <>
+              {formatMoney(balance.registrationOwed)} of your registration fee is still clearing,
+              and is held back from what you can withdraw until it is settled.
+            </>
+          ) : balance.registrationTaken > 0 ? (
+            <>
+              {formatMoney(balance.registrationTaken)} of what you earned went to your
+              registration fee, which is settled.
+            </>
+          ) : null}
+        </p>
+      ) : null}
 
       <section className="mt-5 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
         <PanelHeading

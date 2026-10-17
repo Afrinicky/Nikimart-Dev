@@ -90,7 +90,7 @@ export function BannerForm({
         <div className="w-40">
           <SubmitButton>{submitLabel}</SubmitButton>
         </div>
-        <Link href="/admin/banners" className="text-sm font-medium text-niki-ink/60 hover:text-niki-ink">
+        <Link href="/admin/settings/carousel" className="text-sm font-medium text-niki-ink/60 hover:text-niki-ink">
           Cancel
         </Link>
       </div>

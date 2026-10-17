@@ -480,7 +480,7 @@ export default async function AdminDashboardPage({
               ? `${economics.margin}% of what was sold · before affiliates`
               : `Before affiliates · ${windowLabel}`
           }
-          href="/admin/transactions/orders"
+          href="/admin/finance/orders"
           icon={PiggyBank}
           tone="success"
         />
@@ -492,7 +492,7 @@ export default async function AdminDashboardPage({
               ? `After ${formatPrice(economics.affiliateCost)} of affiliate commission`
               : `What Nickimart keeps · ${windowLabel}`
           }
-          href="/admin/transactions/orders"
+          href="/admin/finance/orders"
           icon={Wallet}
           tone="success"
         />
@@ -506,7 +506,7 @@ export default async function AdminDashboardPage({
           label="Cost of goods"
           value={formatPrice(economics.cost)}
           hint={`Paid to suppliers and shops · ${windowLabel}`}
-          href="/admin/transactions/orders"
+          href="/admin/finance/orders"
           icon={ShoppingBag}
         />
         <Stat
@@ -639,7 +639,7 @@ export default async function AdminDashboardPage({
         <Panel
           title="Categories"
           subtitle="Revenue by category"
-          href="/admin/categories"
+          href="/admin/settings/categories"
           linkLabel="All categories"
         >
           <BarList

@@ -45,7 +45,7 @@ function bannerData(fd: FormData) {
 function revalidateBanners() {
   updateTag(BANNERS_TAG);
   revalidatePath("/", "layout");
-  revalidatePath("/admin/banners");
+  revalidatePath("/admin/settings/carousel");
 }
 
 const STORAGE_ERROR =
@@ -63,7 +63,7 @@ export async function createBanner(_prev: CrudState, fd: FormData): Promise<Crud
     return { error: STORAGE_ERROR };
   }
   revalidateBanners();
-  redirect("/admin/banners"); // outside try — redirect() throws NEXT_REDIRECT
+  redirect("/admin/settings/carousel"); // outside try — redirect() throws NEXT_REDIRECT
 }
 
 export async function updateBanner(id: string, _prev: CrudState, fd: FormData): Promise<CrudState> {
@@ -78,7 +78,7 @@ export async function updateBanner(id: string, _prev: CrudState, fd: FormData): 
     return { error: STORAGE_ERROR };
   }
   revalidateBanners();
-  redirect("/admin/banners"); // outside try — redirect() throws NEXT_REDIRECT
+  redirect("/admin/settings/carousel"); // outside try — redirect() throws NEXT_REDIRECT
 }
 
 export async function deleteBanner(fd: FormData): Promise<void> {
