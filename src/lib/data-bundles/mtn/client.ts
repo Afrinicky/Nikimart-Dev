@@ -131,22 +131,51 @@ function readToken(json: unknown): { token: string; ttlMs: number } | null {
  * difference between "unsupported grant type" and "invalid client" is the
  * whole diagnosis, so every shape is read and the raw body is the last resort.
  */
+const DETAIL_FIELDS = [
+  "error_description",
+  "statusMessage",
+  "supportMessage",
+  "message",
+  "faultstring",
+  "error",
+] as const;
+
+/** Pull a named field out of a body that would not parse as JSON. */
+function fieldFromText(text: string, field: string): string | null {
+  const match = new RegExp(`"${field}"\\s*:\\s*"([^"]*)"`).exec(text);
+  return match && match[1].trim() ? match[1].trim() : null;
+}
+
 function errorDetail(json: unknown, text: string, status: number): string {
+  const parts: string[] = [];
+
   if (typeof json === "object" && json !== null) {
     const record = json as Record<string, unknown>;
     const fault = record.fault as Record<string, unknown> | undefined;
-    const candidates = [
-      record.error_description,
-      record.message,
-      record.statusMessage,
-      fault?.faultstring,
-      record.error,
-    ];
-    for (const value of candidates) {
-      if (typeof value === "string" && value.trim()) return `${value.trim()} (HTTP ${status})`;
+    for (const field of DETAIL_FIELDS) {
+      const value = field === "faultstring" ? fault?.faultstring : record[field];
+      if (typeof value === "string" && value.trim()) parts.push(value.trim());
     }
   }
-  const body = text.trim().slice(0, 200);
+
+  // A body that would not parse at all still usually *contains* the answer, so
+  // it is read with a regex rather than thrown away in favour of the raw text.
+  // That is what put a wall of JSON in front of an operator last time, with
+  // "Unauthorised." sitting inside it unread.
+  if (parts.length === 0) {
+    for (const field of DETAIL_FIELDS) {
+      const value = fieldFromText(text, field);
+      if (value) parts.push(value);
+    }
+  }
+
+  if (parts.length > 0) {
+    // Several fields say different halves of it — "Unauthorised." and "Please
+    // verify credentials and approval status." are both worth reading.
+    return `${[...new Set(parts)].join(" ")} (HTTP ${status})`;
+  }
+
+  const body = text.trim().slice(0, 300);
   return body ? `HTTP ${status}: ${body}` : `HTTP ${status}`;
 }
 
@@ -168,15 +197,21 @@ function errorDetail(json: unknown, text: string, status: number): string {
  * The winner is remembered per client id, so this costs one extra round trip
  * once rather than on every call.
  */
-type TokenDialect = "basic-body" | "basic-query" | "body-credentials";
+type TokenDialect = "basic-body" | "basic-query" | "body-credentials" | "json-credentials";
 
-const DIALECTS: readonly TokenDialect[] = ["basic-body", "basic-query", "body-credentials"];
+const DIALECTS: readonly TokenDialect[] = [
+  "basic-body",
+  "basic-query",
+  "body-credentials",
+  "json-credentials",
+];
 
 const dialectInUse = new Map<string, TokenDialect>();
 
 export function describeDialect(dialect: TokenDialect): string {
   if (dialect === "basic-query") return "Basic auth with grant_type in the query";
-  if (dialect === "body-credentials") return "credentials in the body";
+  if (dialect === "body-credentials") return "credentials in a form body";
+  if (dialect === "json-credentials") return "credentials in a JSON body";
   return "Basic auth with grant_type in the body";
 }
 
@@ -205,6 +240,20 @@ function tokenRequest(
       client_secret: config.clientSecret,
     });
     return { url: base, headers: { ...form }, body: body.toString() };
+  }
+  if (dialect === "json-credentials") {
+    // The least standard of the four, and the reason it is last: a gateway
+    // that wants JSON here is unusual. It costs one request to rule out, and
+    // ruling it out is worth more than assuming.
+    return {
+      url: base,
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        grant_type: "client_credentials",
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+      }),
+    };
   }
   return {
     url: base,
@@ -260,6 +309,7 @@ export async function mtnToken(config: MtnConfig): Promise<MtnResult<string>> {
 
   const failures: string[] = [];
   let lastStatus = 0;
+  let sawUnauthorised = false;
 
   for (const dialect of order) {
     let result;
@@ -282,20 +332,27 @@ export async function mtnToken(config: MtnConfig): Promise<MtnResult<string>> {
 
     failures.push(`${describeDialect(dialect)} — ${result.error}`);
     lastStatus = result.status;
-
-    // 401 means the gateway understood the request and rejected the
-    // credentials. Trying another way of phrasing the same wrong secret only
-    // produces the same answer, and repeated failed sign-ins are their own
-    // problem on somebody else's system.
-    if (result.status === 401) break;
+    if (result.status === 401) sawUnauthorised = true;
+    // Every dialect is tried, including after a 401. A 401 says the
+    // credentials were rejected *as presented*, and the third dialect presents
+    // them differently — in the body rather than in a Basic header — so it is
+    // a genuinely different question rather than the same one asked twice.
   }
 
-  // A stored value with a stray newline from a copy-paste is the single most
-  // common cause of a token request that is well-formed and still refused, and
-  // it is invisible in every dashboard. Worth saying before the detail.
+  // The verdict first, because the three detail lines below it are only
+  // meaningful once you know which kind of "no" this was.
+  //
+  // A 401 anywhere is the informative case: the gateway understood the request
+  // and reached the credentials, so the request shape is right and what is
+  // wrong is the key, the secret, or the app's approval for this product. A
+  // 400 everywhere means nothing got that far.
+  const verdict = sawUnauthorised
+    ? "MTN understood the request and rejected the credentials. The key or secret is wrong, or the app is not approved for this product. Copy both with the portal's copy button rather than by selecting the text — the portal shows them masked, and a selection copies the mask."
+    : "MTN would not issue a token. Check the key and secret for a stray space or line break.";
+
   return {
     ok: false,
-    message: `MTN would not issue a token. Check the key and secret for a stray space or line break, then: ${failures.join(" · ")}`,
+    message: `${verdict} Tried: ${failures.join(" · ")}`,
     status: lastStatus,
     payload: null,
   };
