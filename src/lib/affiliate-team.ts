@@ -246,11 +246,16 @@ export async function syncTeamEarnings(orderId: string): Promise<void> {
         // their share, not all of it.
         const reversedShare =
           row.amount > 0 ? money((earning.amount * row.reversedAmount) / row.amount) : 0;
+        // The parent being paid says the affiliate was paid, not the upline:
+        // a team earning is only "paid" once a payout of its own settles it,
+        // which markLinesPaid does. Reading the parent's "paid" straight
+        // across would retire a line nobody had been paid for.
+        const mirrored = row.status === "paid" ? "cleared" : row.status;
         const next = parentReversedAll
           ? "reversed"
           : earning.status === "paid"
             ? "paid"
-            : row.status;
+            : mirrored;
 
         const unchanged =
           next === earning.status &&
