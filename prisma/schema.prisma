@@ -76,6 +76,7 @@ model User {
   /**
    * /**
    * /**
+   * /**
    * When this person accepted the terms at registration.
    */
   termsAcceptedAt     DateTime?
@@ -249,15 +250,20 @@ model Vendor {
 
   // --- Registration fee -----------------------------------------------------
   /**
+   * /**
    * What this shop was charged to open, snapshotted when it registered. Zero
    * is a free registration, which is what Nickimart has always offered and
    * what the setting defaults to; a shop that registered before the fee
    * existed carries zero and owes nothing.
    */
   registrationFee       Float     @default(0)
-  /** When it was paid. Null while a charged shop still owes it. */
+  /**
+   * When it was paid. Null while a charged shop still owes it.
+   */
   registrationPaidAt    DateTime?
-  /** Paystack reference, so a payment is verified and never credited twice. */
+  /**
+   * Paystack reference, so a payment is verified and never credited twice.
+   */
   registrationReference String?
 
   products        Product[]
@@ -319,6 +325,7 @@ model Affiliate {
   /**
    * /**
    * /**
+   * /**
    * How this affiliate got here: "self" (applied), "seller" / "agent" (an
    * existing Nickimart trader who was admitted automatically), or "admin"
    * (created in the console). Kept because the three are reviewed differently.
@@ -356,6 +363,7 @@ model Affiliate {
   // --- Their team -----------------------------------------------------------
   /**
    * /**
+   * /**
    * The affiliate who recruited this one — their direct (level 1) upline. Set
    * once, from the referral code the application quoted, and never changed
    * after that: `referralLockedAt` records when it became permanent. Level 2
@@ -384,44 +392,53 @@ model Affiliate {
   // --- Registration fee -----------------------------------------------------
   /**
    * /**
+   * /**
    * What this affiliate was actually charged to join, and how that number came
    * about: the fee at full price, the waiver their recruiter or an admin link
    * granted, what that waiver was worth, and the share of what they paid that
    * went to their recruiter. Recorded on the row rather than recomputed, so a
    * settings change tomorrow never rewrites what this registration was.
    */
-  registrationFee           Float     @default(0)
-  registrationGross         Float     @default(0)
-  registrationWaiverPercent Float     @default(0)
-  registrationWaived        Float     @default(0)
-  registrationReferrerShare Float     @default(0)
+  registrationFee            Float     @default(0)
+  registrationGross          Float     @default(0)
+  registrationWaiverPercent  Float     @default(0)
+  registrationWaived         Float     @default(0)
+  registrationReferrerShare  Float     @default(0)
   /**
    * How it is being settled: UPFRONT (paid before the account opened),
    * COMMISSION (owed, and clearing itself out of what they earn) or WAIVED
    * (there was nothing to pay). Only a fee that was actually paid releases
    * their recruiter's joining reward — a waived one pays nobody.
    */
-  registrationMethod        String    @default("WAIVED")
+  registrationMethod         String    @default("WAIVED")
   /**
    * When it was settled in full. Null while outstanding, and null if waived.
    */
-  registrationPaidAt        DateTime?
+  registrationPaidAt         DateTime?
   /**
    * Paystack reference, so a payment can be verified and never credited twice.
    */
-  registrationReference     String?
+  registrationReference      String?
   /**
    * PAYMENT | COMMISSION | ADJUSTMENT | WAIVED — who actually settled it.
    */
-  registrationSettledBy     String?
+  registrationSettledBy      String?
   /**
    * What is still owed on a fee that clears out of commission.
    */
-  registrationOwed          Float     @default(0)
+  registrationOwed           Float     @default(0)
+  /**
+   * What that fee has already taken out of their commission. Held back from
+   * the payable balance for good: the balance is derived from the commission
+   * lines every time it is read, so without this the money the fee consumed
+   * would reappear the moment the fee was marked settled, and the same cedis
+   * would be counted twice.
+   */
+  registrationFromCommission Float     @default(0)
   /**
    * The admin registration link they arrived through, if any.
    */
-  inviteId                  String?
+  inviteId                   String?
 
   payouts          AffiliatePayout[]
   orders           Order[]
@@ -1505,6 +1522,7 @@ model AffiliateApplication {
 
   // --- Who recruited them, and what they were quoted ------------------------
   /**
+   * /**
    * /**
    * The referral code the application arrived with, exactly as typed, and the
    * affiliate it resolved to. Kept separately because a code that resolved to

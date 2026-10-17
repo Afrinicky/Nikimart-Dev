@@ -549,7 +549,12 @@ export async function applyEarningsToRegistration(affiliateId: string): Promise<
   try {
     const affiliate = await prisma.affiliate.findUnique({
       where: { id: affiliateId },
-      select: { id: true, registrationOwed: true, registrationPaidAt: true },
+      select: {
+        id: true,
+        registrationOwed: true,
+        registrationPaidAt: true,
+        registrationFromCommission: true,
+      },
     });
     if (!affiliate || affiliate.registrationPaidAt) return 0;
     const owed = money(Math.max(0, affiliate.registrationOwed));
@@ -559,9 +564,14 @@ export async function applyEarningsToRegistration(affiliateId: string): Promise<
       where: { affiliateId, status: "cleared" },
       _sum: { amount: true, reversedAmount: true },
     });
-    const available = money(
+    const clearedTotal = money(
       Math.max(0, (cleared._sum.amount ?? 0) - (cleared._sum.reversedAmount ?? 0)),
     );
+    // What the fee has already taken has to come off, or every read would
+    // apply the same cleared commission again and settle a GH₵30 fee out of
+    // GH₵12 of earnings.
+    const taken = money(Math.max(0, affiliate.registrationFromCommission));
+    const available = money(Math.max(0, clearedTotal - taken));
     const { toFee, owedAfter } = applyToRegistration(available, owed);
     if (toFee <= 0) return 0;
 
@@ -571,6 +581,7 @@ export async function applyEarningsToRegistration(affiliateId: string): Promise<
         where: { id: affiliateId, registrationPaidAt: null },
         data: {
           registrationOwed: owedAfter,
+          registrationFromCommission: money(taken + toFee),
           ...(settled
             ? {
                 registrationPaidAt: new Date(),

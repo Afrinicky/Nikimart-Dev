@@ -401,6 +401,8 @@ export interface LedgerBalance {
   team: number;
   /** What is still owed on their registration fee, held back from `available`. */
   registrationOwed: number;
+  /** And what it has already taken out of commission, held back for good. */
+  registrationTaken: number;
 }
 
 export const EMPTY_BALANCE: LedgerBalance = {
@@ -416,6 +418,7 @@ export const EMPTY_BALANCE: LedgerBalance = {
   orders: 0,
   team: 0,
   registrationOwed: 0,
+  registrationTaken: 0,
 };
 
 /**
@@ -445,7 +448,11 @@ export async function getLedgerBalance(affiliateId: string): Promise<LedgerBalan
       prisma.affiliate
         .findUnique({
           where: { id: affiliateId },
-          select: { registrationOwed: true, registrationPaidAt: true },
+          select: {
+            registrationOwed: true,
+            registrationPaidAt: true,
+            registrationFromCommission: true,
+          },
         })
         .catch(() => null),
     ]);
@@ -489,13 +496,21 @@ export async function getLedgerBalance(affiliateId: string): Promise<LedgerBalan
       affiliate && !affiliate.registrationPaidAt
         ? money(Math.max(0, affiliate.registrationOwed))
         : 0;
+    // What the registration fee has already taken out of commission. It never
+    // comes back: the balance is derived from the lines each time it is read,
+    // so money the fee consumed would otherwise reappear the moment the fee
+    // was marked settled.
+    balance.registrationTaken = money(Math.max(0, affiliate?.registrationFromCommission ?? 0));
     // A payout already made against a line that was later reversed leaves the
     // affiliate owing it back. Netting it off here means the next payout
     // settles the debt rather than an admin chasing it. A registration fee
     // still clearing itself out of commission is held back the same way: it
     // was promised to the fee before it was promised to them.
     balance.available = money(
-      Math.max(0, balance.cleared - balance.requested - balance.registrationOwed),
+      Math.max(
+        0,
+        balance.cleared - balance.requested - balance.registrationOwed - balance.registrationTaken,
+      ),
     );
     return balance;
   } catch {

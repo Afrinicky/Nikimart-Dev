@@ -82,7 +82,7 @@ export default async function AffiliateEarningsPage({
         <StatCard label="Paid out" value={formatMoney(balance.paid)} />
       </div>
 
-      {balance.team > 0 || balance.registrationOwed > 0 ? (
+      {balance.team > 0 || balance.registrationOwed > 0 || balance.registrationTaken > 0 ? (
         <p className="mt-4 rounded-2xl bg-niki-surface px-4 py-3 text-sm text-niki-ink/65">
           {balance.team > 0 ? (
             <>
@@ -97,6 +97,11 @@ export default async function AffiliateEarningsPage({
             <>
               {formatMoney(balance.registrationOwed)} of your registration fee is still clearing,
               and is held back from what you can withdraw until it is settled.
+            </>
+          ) : balance.registrationTaken > 0 ? (
+            <>
+              {formatMoney(balance.registrationTaken)} of what you earned went to your
+              registration fee, which is settled.
             </>
           ) : null}
         </p>
