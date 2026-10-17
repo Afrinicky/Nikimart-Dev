@@ -247,6 +247,19 @@ model Vendor {
   ownerId String? @unique
   owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
+  // --- Registration fee -----------------------------------------------------
+  /**
+   * What this shop was charged to open, snapshotted when it registered. Zero
+   * is a free registration, which is what Nickimart has always offered and
+   * what the setting defaults to; a shop that registered before the fee
+   * existed carries zero and owes nothing.
+   */
+  registrationFee       Float     @default(0)
+  /** When it was paid. Null while a charged shop still owes it. */
+  registrationPaidAt    DateTime?
+  /** Paystack reference, so a payment is verified and never credited twice. */
+  registrationReference String?
+
   products        Product[]
   payouts         Payout[]
   /**

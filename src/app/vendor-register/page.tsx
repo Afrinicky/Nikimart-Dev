@@ -7,6 +7,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { VendorRegisterForm } from "@/components/seller/VendorRegisterForm";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getVendorRegistrationFee } from "@/lib/seller-registration";
+import { formatMoney } from "@/lib/format";
 
 export const metadata: Metadata = {
   title: "Register your shop — Nickimart",
@@ -15,7 +17,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function VendorRegisterPage() {
-  const session = await auth();
+  const [session, fee] = await Promise.all([auth(), getVendorRegistrationFee()]);
 
   // Logged-out visitors get a proper landing with sign-in / create-account
   // options that return here (not a bare redirect to /login).
@@ -34,7 +36,12 @@ export default async function VendorRegisterPage() {
               <span className="font-display font-bold">Sell to thousands of buyers</span>
             </div>
             <ul className="mt-4 space-y-2 text-sm text-white/70">
-              <li className="flex items-start gap-2"><BadgeCheck className="mt-0.5 h-4 w-4 text-niki-orange" /> List products in minutes — no setup fee.</li>
+              <li className="flex items-start gap-2">
+                <BadgeCheck className="mt-0.5 h-4 w-4 text-niki-orange" />
+                {fee > 0
+                  ? `List products in minutes — ${formatMoney(fee)} to open the shop.`
+                  : "List products in minutes — no setup fee."}
+              </li>
               <li className="flex items-start gap-2"><BadgeCheck className="mt-0.5 h-4 w-4 text-niki-orange" /> Get paid to Mobile Money or your bank account.</li>
               <li className="flex items-start gap-2"><BadgeCheck className="mt-0.5 h-4 w-4 text-niki-orange" /> Track orders and settlements from your seller dashboard.</li>
             </ul>
@@ -81,9 +88,19 @@ export default async function VendorRegisterPage() {
       />
       <Container className="py-8">
         <div className="mx-auto max-w-2xl">
+          {fee > 0 ? (
+            <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl bg-niki-black px-4 py-3 text-white">
+              <span className="text-sm text-white/75">Registration</span>
+              <span className="font-figures text-lg font-bold">{formatMoney(fee)}</span>
+            </div>
+          ) : null}
           <div className="mb-6 flex items-center gap-3 rounded-2xl bg-niki-orange/10 px-4 py-3 text-sm text-niki-ink/70">
             <Wallet className="h-5 w-5 shrink-0 text-niki-orange" />
-            <span>Your payment details stay private and are only used to settle your earnings.</span>
+            <span>
+              {fee > 0
+                ? "You'll be taken to a secure checkout once your details are saved. Your payment details stay private and are only used to settle your earnings."
+                : "Your payment details stay private and are only used to settle your earnings."}
+            </span>
           </div>
           <VendorRegisterForm
             defaultName={session.user.name ?? undefined}

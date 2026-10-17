@@ -18,6 +18,12 @@ import {
 import { isRegistrationReference, isWalletReference } from "@/lib/data-bundles/reference";
 import { isAffiliateRegistrationReference } from "@/lib/affiliate-reference";
 import {
+  isSellerRegistrationReference,
+  settleVendorFee,
+  vendorFeeCovers,
+  vendorIdFromMetadata,
+} from "@/lib/seller-registration";
+import {
   affiliateRegistrationCovers,
   settleAffiliateRegistrationCharge,
 } from "@/lib/affiliate-registration";
@@ -112,6 +118,8 @@ export async function POST(req: Request) {
     // An affiliate registration is retail money, so it routes to the retail
     // account like a mall order — only what settles it is different.
     const isAffiliateJoining = isAffiliateRegistrationReference(reference);
+    // A shop opening is retail money too, and settles the same way.
+    const isShopJoining = isSellerRegistrationReference(reference);
     const belongsTo = accountForReference(reference);
     if (!signerMaySettle(signedBy, belongsTo)) {
       console.warn(
@@ -139,17 +147,20 @@ export async function POST(req: Request) {
             ? await registrationChargeCovers(reference, amount, metadata)
             : isAffiliateJoining
               ? await affiliateRegistrationCovers(reference, amount, metadata)
-              : // A wallet top-up is worth whatever was captured, so there is no
+              : isShopJoining
+                ? await vendorFeeCovers(reference, amount, vendorIdFromMetadata(metadata))
+                : // A wallet top-up is worth whatever was captured, so there is no
               // total for it to fall short of — only a real amount to credit.
-                isWalletTopup
-                ? amount > 0
-                : await paymentCoversOrder(reference, amount));
+                  isWalletTopup
+                  ? amount > 0
+                  : await paymentCoversOrder(reference, amount));
 
     if (covered) {
       if (isDataReference(reference)) await settleDataOrder(reference);
       else if (isAfaReference(reference)) await settleAfaRegistration(reference);
       else if (isRegistration) await settleRegistrationCharge(reference, metadata);
       else if (isAffiliateJoining) await settleAffiliateRegistrationCharge(reference, metadata);
+      else if (isShopJoining) await settleVendorFee(vendorIdFromMetadata(metadata), reference);
       else if (isWalletTopup) await settleWalletTopup(reference, amount, metadata);
       else await markOrderPaid(reference);
     } else {

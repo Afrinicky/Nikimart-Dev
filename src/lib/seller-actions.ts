@@ -4,6 +4,11 @@ import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import type { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import {
+  getVendorRegistrationFee,
+  startVendorFeePayment,
+  vendorFeeStatus,
+} from "@/lib/seller-registration";
 import { termsAccepted, TERMS_REQUIRED_MESSAGE } from "@/lib/terms";
 import { requireUser } from "@/lib/session";
 import { PRODUCTS_TAG, VENDORS_TAG } from "@/lib/catalog";
@@ -70,6 +75,11 @@ function revalidate() {
 export async function createSellerProduct(_prev: CrudState, fd: FormData): Promise<CrudState> {
   const vendor = await currentVendor();
   if (!vendor) return { error: "You don't have a shop yet. Register one first." };
+  // A shop that has not settled its registration fee is registered but not
+  // open. Listing is what "open" means, so this is where it is refused.
+  if (!vendorFeeStatus(vendor).paid) {
+    return { error: "Your shop opens once your registration fee is settled." };
+  }
 
   const parsed = validateProduct(fd);
   if (!parsed.success) return zodErrors(parsed.error);
@@ -271,10 +281,16 @@ export async function registerVendor(_prev: VendorRegisterState, fd: FormData): 
   // back; after it, the shop is real and sending them back to the form would
   // have them try to register a second one they cannot have.
   let created = false;
+  // What it costs to open a shop, as the admin has it set right now. Zero is
+  // the default and the way Nickimart has always registered sellers; it is
+  // snapshotted onto the row either way, so a price change next month never
+  // rewrites what this shop was charged.
+  const registrationFee = await getVendorRegistrationFee();
+  let vendorId = "";
 
   try {
     const slug = await uniqueVendorSlug(businessName);
-    await prisma.vendor.create({
+    const shop = await prisma.vendor.create({
       data: {
         businessName,
         slug,
@@ -298,10 +314,16 @@ export async function registerVendor(_prev: VendorRegisterState, fd: FormData): 
         consolidationPointId: s("consolidationPointId") || null,
         ownerId: user.id,
         termsAcceptedAt: new Date(),
+        registrationFee,
+        // Nothing to pay is settled, not outstanding: a free registration must
+        // never look like one waiting on a payment that will never come.
+        registrationPaidAt: registrationFee > 0 ? null : new Date(),
       },
+      select: { id: true },
     });
 
     created = true;
+    vendorId = shop.id;
 
     // Promote the account to SELLER and record the contact phone. The sign-in
     // email is deliberately left alone: this form doesn't verify ownership of
@@ -337,6 +359,23 @@ export async function registerVendor(_prev: VendorRegisterState, fd: FormData): 
 
   revalidatePath("/seller");
   revalidatePath("/shops");
+
+  // A shop that owes a registration fee goes straight to the checkout for it.
+  // The shop exists either way — they have registered — but it does not open
+  // until the fee is settled, which is what the seller console says.
+  if (registrationFee > 0 && vendorId) {
+    const payment = await startVendorFeePayment(
+      {
+        id: vendorId,
+        businessName,
+        registrationFee,
+        registrationPaidAt: null,
+      },
+      user.email ?? "",
+    );
+    if (payment.ok && payment.authorizationUrl) redirect(payment.authorizationUrl);
+  }
+
   redirect("/seller");
 }
 
@@ -390,4 +429,33 @@ export async function requestSellerPayout(_prev: PayoutRequestState, fd: FormDat
   revalidatePath("/seller");
   revalidatePath("/admin/finance");
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Opening the shop
+// ---------------------------------------------------------------------------
+
+/**
+ * Pay the registration fee a shop still owes.
+ *
+ * Takes nothing and returns nothing: every exit is a redirect, so there is no
+ * state for a form to render and no field for a browser to lie about.
+ */
+export async function payShopRegistration(): Promise<void> {
+  const user = await requireUser();
+  const vendor = await prisma.vendor.findFirst({
+    where: { ownerId: user.id },
+    select: {
+      id: true,
+      businessName: true,
+      registrationFee: true,
+      registrationPaidAt: true,
+    },
+  });
+  if (!vendor) redirect("/vendor-register");
+
+  const payment = await startVendorFeePayment(vendor, user.email ?? "");
+  revalidatePath("/seller");
+  if (!payment.ok) redirect("/seller?fee=error");
+  redirect(payment.authorizationUrl ?? "/seller?fee=paid");
 }

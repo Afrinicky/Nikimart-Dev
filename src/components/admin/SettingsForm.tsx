@@ -44,6 +44,41 @@ export function SettingsForm({ settings }: { settings: Settings }) {
       </section>
 
       <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
+        <h2 className="font-display text-lg font-bold text-niki-ink">Shop registration</h2>
+        <p className="mt-1 text-sm text-niki-ink/60">
+          What it costs to open a shop. Zero is free registration, which is how Nickimart has
+          always taken sellers; set a price and the registration form quotes it and collects it
+          before the shop opens. The data bundle programme and the affiliate programme each carry
+          their own price, set in{" "}
+          <Link href="/admin/data/agents/settings" className="font-semibold text-niki-orange hover:underline">
+            their console
+          </Link>{" "}
+          and{" "}
+          <Link href="/admin/affiliates/settings" className="font-semibold text-niki-orange hover:underline">
+            theirs
+          </Link>
+          .
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <Field
+            label="Registration fee (GH₵)"
+            htmlFor="vendorRegistrationFee"
+            hint="Charged once, when somebody registers a shop. Snapshotted onto the shop, so changing it never rewrites what an existing seller paid."
+          >
+            <input
+              id="vendorRegistrationFee"
+              name="vendorRegistrationFee"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={settings.vendorRegistrationFee}
+              className={inputClass}
+            />
+          </Field>
+        </div>
+      </section>
+
+      <section className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
         <h2 className="font-display text-lg font-bold text-niki-ink">Affiliate programme</h2>
         <p className="mt-1 text-sm text-niki-ink/60">
           Affiliates only earn on products enrolled in the programme. Sellers enrol their own products

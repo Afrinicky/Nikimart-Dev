@@ -5,9 +5,12 @@ import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { SubmitButton } from "@/components/ui/motion";
 import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getSellerEarnings } from "@/lib/seller";
+import { vendorFeeStatus } from "@/lib/seller-registration";
+import { payShopRegistration } from "@/lib/seller-actions";
 import { getWorkspaces } from "@/lib/workspaces";
 import { WorkspaceBar } from "@/components/workspace/WorkspaceBar";
 import { formatPrice } from "@/lib/format";
@@ -26,8 +29,13 @@ const ACTIONS = [
   { icon: Settings, title: "Shop settings", desc: "Update your shop profile and delivery options.", href: "/seller/settings" },
 ];
 
-export default async function SellerDashboardPage() {
-  const user = await requireDashboard("/seller");
+export default async function SellerDashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ fee?: string }>;
+}) {
+  const [user, params] = await Promise.all([requireDashboard("/seller"), searchParams]);
+  const feeState = (params?.fee ?? "").trim();
 
   // The other consoles this person holds. Plenty of sellers are also bundle
   // agents or affiliates, and the seller area is a set of ordinary pages
@@ -96,6 +104,42 @@ export default async function SellerDashboardPage() {
 
       <Container className="py-8">
         <WorkspaceBar workspaces={workspaces} active="seller" className="mb-6" />
+
+        {vendor && !vendorFeeStatus(vendor).paid ? (
+          <div className="mb-6 rounded-2xl bg-niki-black p-6 text-white">
+            <p className="font-display font-bold">Your shop isn&apos;t open yet</p>
+            <p className="mt-1 max-w-xl text-sm text-white/70">
+              Registration is {formatPrice(vendor.registrationFee)}. Settle it and your listings go
+              live — everything else here is already set up and waiting.
+            </p>
+            {feeState === "pending" ? (
+              <p className="mt-3 rounded-xl bg-white/10 px-3 py-2 text-xs text-white/80">
+                We haven&apos;t had confirmation from the payment gateway yet. It usually lands
+                within a minute.
+              </p>
+            ) : null}
+            {feeState === "error" ? (
+              <p className="mt-3 rounded-xl bg-white/10 px-3 py-2 text-xs text-white/80">
+                We couldn&apos;t open the checkout. Nothing has been charged — try again in a
+                moment.
+              </p>
+            ) : null}
+            <form action={payShopRegistration} className="mt-4">
+              <SubmitButton
+                pendingLabel="Opening checkout…"
+                className="rounded-full bg-niki-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-niki-orange-light"
+              >
+                Pay {formatPrice(vendor.registrationFee)} and open the shop
+              </SubmitButton>
+            </form>
+          </div>
+        ) : null}
+
+        {feeState === "paid" && vendor && vendorFeeStatus(vendor).paid ? (
+          <p className="animate-fade-up mb-6 rounded-2xl bg-niki-success/10 px-4 py-3 text-sm font-medium text-niki-success ring-1 ring-niki-success/30">
+            Your registration fee is paid and your shop is open.
+          </p>
+        ) : null}
 
         {!vendor ? (
           <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl bg-niki-black p-6">
