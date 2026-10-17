@@ -197,15 +197,21 @@ function errorDetail(json: unknown, text: string, status: number): string {
  * The winner is remembered per client id, so this costs one extra round trip
  * once rather than on every call.
  */
-type TokenDialect = "basic-body" | "basic-query" | "body-credentials";
+type TokenDialect = "basic-body" | "basic-query" | "body-credentials" | "json-credentials";
 
-const DIALECTS: readonly TokenDialect[] = ["basic-body", "basic-query", "body-credentials"];
+const DIALECTS: readonly TokenDialect[] = [
+  "basic-body",
+  "basic-query",
+  "body-credentials",
+  "json-credentials",
+];
 
 const dialectInUse = new Map<string, TokenDialect>();
 
 export function describeDialect(dialect: TokenDialect): string {
   if (dialect === "basic-query") return "Basic auth with grant_type in the query";
-  if (dialect === "body-credentials") return "credentials in the body";
+  if (dialect === "body-credentials") return "credentials in a form body";
+  if (dialect === "json-credentials") return "credentials in a JSON body";
   return "Basic auth with grant_type in the body";
 }
 
@@ -234,6 +240,20 @@ function tokenRequest(
       client_secret: config.clientSecret,
     });
     return { url: base, headers: { ...form }, body: body.toString() };
+  }
+  if (dialect === "json-credentials") {
+    // The least standard of the four, and the reason it is last: a gateway
+    // that wants JSON here is unusual. It costs one request to rule out, and
+    // ruling it out is worth more than assuming.
+    return {
+      url: base,
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        grant_type: "client_credentials",
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+      }),
+    };
   }
   return {
     url: base,
