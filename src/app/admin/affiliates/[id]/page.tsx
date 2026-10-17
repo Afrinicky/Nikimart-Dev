@@ -7,6 +7,10 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { PayoutForm } from "@/components/admin/PayoutForm";
 import { AffiliateCommissionForm } from "@/components/admin/AffiliateCommissionForm";
+import { RecruitTermsForm } from "@/components/admin/affiliate/RecruitTermsForm";
+import { getAffiliateReferralConfig } from "@/lib/affiliate-settings";
+import { getTeamSummary } from "@/lib/affiliate-team";
+import { registrationStatus } from "@/lib/affiliate-registration";
 import { DeleteButton } from "@/components/admin/DeleteButton";
 import { requireDashboard } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
@@ -26,7 +30,7 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
   const affiliate = await prisma.affiliate.findUnique({ where: { id }, include: { payouts: { orderBy: { createdAt: "desc" } } } });
   if (!affiliate) notFound();
 
-  const [earnings, rate, referred, activity, counts] = await Promise.all([
+  const [earnings, rate, referred, activity, counts, referral, team] = await Promise.all([
     getAffiliateEarnings(affiliate.id),
     getAffiliateRate(),
     prisma.order.findMany({
@@ -45,9 +49,12 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
         .count({ where: { affiliateId: affiliate.id, status: "open" } })
         .catch(() => 0),
     ]),
+    getAffiliateReferralConfig(),
+    getTeamSummary({ id: affiliate.id, code: affiliate.code }),
   ]);
   const [productCount, clickCount, openFlags] = counts;
   const suspended = affiliate.status !== "active";
+  const registration = registrationStatus(affiliate);
 
   return (
     <>
@@ -218,6 +225,36 @@ export default async function ManageAffiliatePage({ params }: { params: Promise<
                   {suspended ? "Reactivate affiliate" : "Suspend affiliate"}
                 </button>
               </form>
+            </div>
+
+            <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">
+              <h2 className="font-display font-bold text-niki-ink">Their team</h2>
+              <p className="mt-1 text-sm text-niki-ink/60">
+                {team.level1 + team.level2 === 0
+                  ? "Nobody yet."
+                  : `${team.level1} recruited${team.level2 > 0 ? `, ${team.level2} below them` : ""} — ${formatPrice(team.balance.earned)} earned.`}
+              </p>
+              {registration.amount > 0 ? (
+                <p className="mt-2 text-xs text-niki-ink/55">
+                  Registration {formatPrice(registration.amount)} —{" "}
+                  {registration.paid
+                    ? "paid"
+                    : `${formatPrice(registration.outstanding)} still clearing out of commission`}
+                  .
+                </p>
+              ) : null}
+              <div className="mt-4 border-t border-niki-edge pt-4">
+                <p className="text-sm font-semibold text-niki-ink/70">What their recruits get</p>
+                <div className="mt-2">
+                  <RecruitTermsForm
+                    id={affiliate.id}
+                    waiver={affiliate.referralWaiverPercent}
+                    share={affiliate.referralSharePercent}
+                    defaultWaiver={referral.waiverDefaultPercent}
+                    defaultShare={referral.referrerSharePercent}
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="rounded-2xl bg-white p-6 ring-1 ring-niki-edge">

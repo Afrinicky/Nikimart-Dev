@@ -615,3 +615,53 @@ export async function saveAffiliateWatermark(
   revalidatePath("/affiliate", "layout");
   return { ok: true, message: "Watermark saved." };
 }
+
+// ---------------------------------------------------------------------------
+// What one affiliate's recruits get
+// ---------------------------------------------------------------------------
+
+/**
+ * Set the terms this affiliate offers the people they recruit.
+ *
+ * Two numbers that answer different halves of one question: the waiver is what
+ * a recruit is charged, the share is who keeps what they do pay. Both are
+ * blank by default, and blank is genuinely different from zero — an affiliate
+ * with no figure of their own follows the programme default as it changes,
+ * while one explicitly set to 0 grants nothing however generous the default
+ * becomes. That is the whole point of being able to set them per affiliate:
+ * somebody who has earned it can bring people in cheaper than the rest.
+ */
+export async function setRecruitTerms(
+  _prev: AdminActionState,
+  fd: FormData,
+): Promise<AdminActionState> {
+  const admin = await requireAdmin();
+  const id = str(fd, "id");
+  if (!id) return { error: "Missing affiliate." };
+
+  const read = (key: string): number | null | "bad" => {
+    const raw = str(fd, key);
+    if (!raw) return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0 || n > 100) return "bad";
+    return Math.round(n * 100) / 100;
+  };
+
+  const waiver = read("referralWaiverPercent");
+  const share = read("referralSharePercent");
+  if (waiver === "bad" || share === "bad") {
+    return { error: "Both figures are percentages between 0 and 100." };
+  }
+
+  await prisma.affiliate
+    .update({
+      where: { id },
+      data: { referralWaiverPercent: waiver, referralSharePercent: share },
+    })
+    .catch(() => null);
+
+  await record(id, admin, "recruit_terms_set", `waiver ${waiver ?? "default"}%, share ${share ?? "default"}%`);
+  refreshAdmin();
+  revalidatePath(`/admin/affiliates/${id}`);
+  return { ok: true, message: "Saved." };
+}
