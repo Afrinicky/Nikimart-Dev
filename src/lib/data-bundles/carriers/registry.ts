@@ -91,6 +91,8 @@ export interface CarrierEnvVar {
   set: boolean;
   /** What the code falls back to when it is unset, where there is one. */
   fallback?: string;
+  /** The value's length, and anything suspicious about it. Never the value. */
+  shape?: string;
 }
 
 export interface CarrierAdapter {

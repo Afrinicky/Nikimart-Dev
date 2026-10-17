@@ -104,6 +104,17 @@ export interface MtnEnvVarStatus {
   set: boolean;
   /** What the code falls back to when it is not set, where there is one. */
   fallback?: string;
+  /**
+   * The value's shape — its length, and anything suspicious about it. Never
+   * the value itself.
+   *
+   * A credential that was pasted with the quotes around it, or with a line
+   * break on the end, produces a perfectly well-formed request carrying
+   * something that was never the secret. The platform shows it as set, the
+   * gateway says "unauthorised", and there is nothing anywhere to look at.
+   * A character count and a warning cost nothing and end that guessing.
+   */
+  shape?: string;
 }
 
 const FALLBACKS: Record<string, string> = {
@@ -115,6 +126,28 @@ const FALLBACKS: Record<string, string> = {
   MTN_OPERATION: "the transfer type",
 };
 
+/**
+ * What a stored value looks like, without saying what it is.
+ *
+ * Read from the raw variable rather than the trimmed one on purpose: trimming
+ * is what *hides* a trailing line break, and a trailing line break is one of
+ * the two things this is here to catch.
+ */
+function shapeOf(raw: string): string | undefined {
+  if (raw === "") return undefined;
+
+  const problems: string[] = [];
+  if (/^["']|["']$/.test(raw)) problems.push("looks wrapped in quotes");
+  if (/\s/.test(raw)) problems.push("contains a space or line break");
+
+  const length = `${raw.length} characters`;
+  return problems.length > 0 ? `${length} — ${problems.join(", ")}` : length;
+}
+
+/** Variables whose exact shape is worth reporting, because a mis-paste here
+ *  is invisible everywhere else. */
+const SHAPE_REPORTED = new Set(["MTN_CLIENT_ID", "MTN_CLIENT_SECRET", "MTN_TARGET_SYSTEM"]);
+
 /** Which variables are set, for the console. Values never included. */
 export function mtnEnvStatus(): MtnEnvVarStatus[] {
   return MTN_ENV_VARS.map((v) => ({
@@ -123,6 +156,7 @@ export function mtnEnvStatus(): MtnEnvVarStatus[] {
     required: v.required,
     set: env(v.name) !== "",
     fallback: FALLBACKS[v.name],
+    shape: SHAPE_REPORTED.has(v.name) ? shapeOf(process.env[v.name] ?? "") : undefined,
   }));
 }
 

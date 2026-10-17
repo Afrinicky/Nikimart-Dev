@@ -38,6 +38,8 @@ export interface EnvVarView {
   required: boolean;
   set: boolean;
   fallback?: string;
+  /** The value's length, and anything suspicious about it. Never the value. */
+  shape?: string;
 }
 
 export interface ProductRowView {
@@ -104,6 +106,17 @@ function EnvRow({ v }: { v: EnvVarView }) {
             <span> — not set, omitted from the request</span>
           )}
         </span>
+        {v.shape ? (
+          <span
+            className={`mt-0.5 block text-xs ${
+              /quotes|space|line break/.test(v.shape)
+                ? "font-medium text-niki-danger"
+                : "text-niki-ink/40"
+            }`}
+          >
+            {v.shape}
+          </span>
+        ) : null}
       </span>
     </li>
   );
