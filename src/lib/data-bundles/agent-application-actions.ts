@@ -25,6 +25,7 @@ import { generateAgentCode, slugProblem } from "@/lib/data-bundles/agents";
 import { userIdForEmail } from "@/lib/data-bundles/user-link";
 import { consumeAgentInvite, resolveAgentInvite } from "@/lib/data-bundles/invites";
 import { normaliseInviteCode } from "@/lib/data-bundles/invite-rules";
+import { channelFee, joinChannel } from "@/lib/start-selling";
 import {
   settleRegistrationFee,
   startApplicationFeePayment,
@@ -181,11 +182,16 @@ export interface FeeQuote {
  * shown on the form, from the same function the approval commits, and a code
  * that resolves to nothing simply quotes the full fee.
  */
-export async function quoteRegistration(rawCode: string): Promise<FeeQuote> {
+export async function quoteRegistration(rawCode: string, via = ""): Promise<FeeQuote> {
   const config = await getAgentProgramConfig();
+  // The Start Selling page can charge its own price for a storefront, so the
+  // figure quoted as somebody types a referral code has to know which door
+  // they came through.
+  const channel = joinChannel(via);
+  const fee = await channelFee("agent", channel, config.setupFee);
   const full: FeeQuote = {
-    gross: config.setupFee,
-    payable: config.setupFee,
+    gross: fee,
+    payable: fee,
     waiverPercent: 0,
     referrerName: null,
   };
@@ -201,7 +207,7 @@ export async function quoteRegistration(rawCode: string): Promise<FeeQuote> {
   const resolved = await resolveReferralCode(code);
   if (!resolved.ok) return full;
 
-  const quote = await quoteRegistrationFee(resolved.agentId);
+  const quote = await quoteRegistrationFee(resolved.agentId, 0, fee);
   return {
     gross: quote.gross,
     payable: quote.payable,
@@ -230,6 +236,8 @@ const applySchema = z.object({
    * UPFRONT is paid on this form, before anybody reviews them.
    */
   feeMethod: z.enum(["BALANCE", "UPFRONT"]).optional(),
+  /** The door they came through, which can carry a price of its own. */
+  via: z.string().trim().max(32).optional(),
 });
 
 /**
@@ -267,6 +275,7 @@ export async function applyToBeAgent(
     referralCode: fd.get("referralCode") ?? undefined,
     inviteCode: fd.get("inviteCode") ?? undefined,
     feeMethod: fd.get("feeMethod") ?? undefined,
+    via: fd.get("via") ?? undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Please check the form and try again." };
@@ -339,7 +348,11 @@ export async function applyToBeAgent(
   // What they will actually be charged, quoted from the same function the
   // approval commits — including whatever their recruiter's code, or the link
   // they arrived on, takes off.
-  const quote = await quoteRegistrationFee(referrerId, inviteWaiver);
+  // Priced for the door they came through: the Start Selling page can charge
+  // its own, and it is re-read here rather than trusted from the form, which
+  // only says which door it was.
+  const channelPrice = await channelFee("agent", joinChannel(data.via), config.setupFee);
+  const quote = await quoteRegistrationFee(referrerId, inviteWaiver, channelPrice);
   const payNow = feeMethod === "UPFRONT" && quote.payable > 0;
 
   let applicationId: string;

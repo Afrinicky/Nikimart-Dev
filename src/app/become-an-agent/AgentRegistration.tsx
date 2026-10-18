@@ -15,6 +15,7 @@ import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { recruitPaymentMode, resolveReferralCode } from "@/lib/data-bundles/referrals";
 import type { InviteLookup } from "@/lib/data-bundles/invites";
 import { inviteProblemMessage, inviteWaiverLabel } from "@/lib/data-bundles/invite-rules";
+import { channelFee, type JoinChannel } from "@/lib/start-selling";
 
 /**
  * The registration page itself, minus how it was reached.
@@ -38,11 +39,14 @@ const POINTS = [
 export async function AgentRegistration({
   referralCode,
   inviteLookup,
+  channel = "default",
 }: {
   /** The recruiter's agent code from `?ref=`, normalised, or "". */
   referralCode: string;
   /** The Nickimart link this applicant arrived on, already resolved. */
   inviteLookup: InviteLookup | null;
+  /** The door they came through, which can carry a price of its own. */
+  channel?: JoinChannel;
 }) {
   const session = await auth();
   const [program, store, referral] = await Promise.all([
@@ -80,6 +84,10 @@ export async function AgentRegistration({
   // straight off the programme — the same resolution the submit enforces.
   const resolved = invitedBy ? await resolveReferralCode(invitedBy) : null;
   const paymentMode = await recruitPaymentMode(resolved?.ok ? resolved.agentId : null);
+
+  // What a storefront costs through this door. The Start Selling page can
+  // carry its own price; everywhere else this is the programme's own.
+  const setupFee = await channelFee("agent", channel, program.setupFee);
 
   // Already an agent? There's nothing to pitch — send them to their console.
   let signedInAs: { name: string; email: string; phone: string } | null = null;
@@ -150,10 +158,11 @@ export async function AgentRegistration({
                 origin={siteUrl()}
                 referralCode={invitedBy}
                 invite={invite}
-                setupFee={program.setupFee}
+                setupFee={setupFee}
                 referralOpen={referral.enabled}
                 paymentMode={paymentMode}
                 signedInAs={signedInAs}
+                via={channel === "default" ? "" : channel}
               />
             )}
           </div>

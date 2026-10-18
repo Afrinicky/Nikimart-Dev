@@ -38,6 +38,7 @@ export function ApplyAgentForm({
   referralOpen,
   paymentMode,
   signedInAs,
+  via = "",
 }: {
   origin: string;
   /** Prefilled from ?ref= on an invite link, and still editable. */
@@ -56,6 +57,8 @@ export function ApplyAgentForm({
   paymentMode: "UPFRONT" | "COMMISSION" | "BOTH";
   /** Set when they're already signed in: their account is reused, no password. */
   signedInAs?: { name: string; email: string; phone: string } | null;
+  /** The door they came through, when it carries a price of its own. */
+  via?: string;
 }) {
   const [state, formAction] = useActionState<ApplyState, FormData>(applyToBeAgent, {});
   const [storeName, setStoreName] = useState("");
@@ -102,14 +105,14 @@ export function ApplyAgentForm({
     if (!referralOpen || setupFee <= 0) return;
     let cancelled = false;
     const t = setTimeout(async () => {
-      const result = await quoteRegistration(code);
+      const result = await quoteRegistration(code, via);
       if (!cancelled) setQuote(result);
     }, 450);
     return () => {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [code, referralOpen, setupFee]);
+  }, [code, referralOpen, setupFee, via]);
 
   // Two discounts can be in play — a recruiter's code and an admin link — and
   // the larger one applies rather than the two stacking, exactly as the server
@@ -139,6 +142,9 @@ export function ApplyAgentForm({
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
+      {/* The door they came through. The server re-reads it and re-prices
+          from it, so this says which door, not what it costs. */}
+      <input type="hidden" name="via" value={via} />
       {invite ? <input type="hidden" name="inviteCode" value={invite.code} /> : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="First name" htmlFor="firstName">

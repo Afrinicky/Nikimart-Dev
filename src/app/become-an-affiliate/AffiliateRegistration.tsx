@@ -19,6 +19,7 @@ import { getAffiliatePitch } from "@/lib/settings";
 import { getAffiliateWorkspace } from "@/lib/affiliate-console";
 import { getAffiliateReferralConfig } from "@/lib/affiliate-settings";
 import { quoteAffiliateRegistration } from "@/lib/affiliate-registration";
+import { CHANNEL_PARAM, type JoinChannel } from "@/lib/start-selling";
 import { teamRewardsLine } from "@/lib/affiliate-team-rules";
 import type { AffiliateInviteLookup } from "@/lib/affiliate-invites";
 import { inviteProblemMessage, inviteWaiverLabel } from "@/lib/data-bundles/invite-rules";
@@ -51,6 +52,7 @@ export async function AffiliateRegistration({
   referralCode,
   inviteLookup,
   paid = "",
+  channel = "default",
 }: {
   /** The recruiter's code from `?ref=`, normalised, or "". */
   referralCode: string;
@@ -58,6 +60,8 @@ export async function AffiliateRegistration({
   inviteLookup: AffiliateInviteLookup | null;
   /** "1" or "pending" when they have just come back from the gateway. */
   paid?: string;
+  /** The door they came through, which can carry a price of its own. */
+  channel?: JoinChannel;
 }) {
   const session = await auth();
   const [pitch, referral] = await Promise.all([
@@ -78,12 +82,13 @@ export async function AffiliateRegistration({
   const offer = await quoteAffiliateRegistration({
     referralCode,
     inviteCode: invite?.code ?? null,
+    channel,
   });
 
   // Signed out: the account comes first, because a referral code has to
   // survive the detour through sign-in.
   if (!session?.user?.id) {
-    const back = `/become-an-affiliate${query(referralCode, invite?.code)}`;
+    const back = `/become-an-affiliate${query(referralCode, invite?.code, channel)}`;
     return (
       <Shell
         title="Become an affiliate"
@@ -237,6 +242,7 @@ export async function AffiliateRegistration({
           payable: offer.quote.payable,
         }}
         paymentMode={offer.mode}
+        via={channel === "default" ? "" : channel}
       />
     </Shell>
   );
@@ -313,10 +319,11 @@ function Shell({
 }
 
 /** Carry the link they arrived on through sign-in, so the price survives it. */
-function query(ref: string, invite?: string): string {
+function query(ref: string, invite?: string, channel: JoinChannel = "default"): string {
   const parts: string[] = [];
   if (ref) parts.push(`ref=${encodeURIComponent(ref)}`);
   if (invite) parts.push(`invite=${encodeURIComponent(invite)}`);
+  if (channel !== "default") parts.push(`${CHANNEL_PARAM}=${encodeURIComponent(channel)}`);
   return parts.length > 0 ? `?${parts.join("&")}` : "";
 }
 

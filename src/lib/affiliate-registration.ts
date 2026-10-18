@@ -10,6 +10,7 @@ import {
 import { callbackOrigin } from "@/lib/site";
 import { AFFILIATE_REFERENCE_PREFIX } from "@/lib/affiliate-reference";
 import { getAffiliatePolicy, getAffiliateReferralConfig } from "@/lib/affiliate-settings";
+import { channelFee, type JoinChannel } from "@/lib/start-selling";
 import { resolveAffiliateInvite } from "@/lib/affiliate-invites";
 import { linkReferral, releaseJoiningRewards, resolveReferralCode } from "@/lib/affiliate-team";
 import {
@@ -91,11 +92,14 @@ export interface RegistrationOffer {
 export async function quoteAffiliateRegistration(input: {
   referralCode?: string | null;
   inviteCode?: string | null;
+  /** How they reached the form. The Start Selling page can charge its own. */
+  channel?: JoinChannel;
 }): Promise<RegistrationOffer> {
   const [policy, config] = await Promise.all([
     getAffiliatePolicy(),
     getAffiliateReferralConfig(),
   ]);
+  const fee = await channelFee("affiliate", input.channel ?? "default", policy.registrationFee);
 
   const typedRef = (input.referralCode ?? "").trim();
   let referrer: RegistrationOffer["referrer"] = null;
@@ -138,7 +142,7 @@ export async function quoteAffiliateRegistration(input: {
   }
 
   const quote = registrationQuote({
-    fee: policy.registrationFee,
+    fee,
     waiverPercent,
     referrerSharePercent: sharePercent,
     hasReferrer: Boolean(referrer),

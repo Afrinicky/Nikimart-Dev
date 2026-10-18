@@ -42,6 +42,7 @@ export function JoinAffiliateForm({
   invite = null,
   fee,
   paymentMode = "BOTH",
+  via = "",
 }: {
   /** "auto" admits them immediately; "apply" files an application. */
   route: "auto" | "apply";
@@ -55,6 +56,8 @@ export function JoinAffiliateForm({
   /** What they will be charged, quoted on the server. */
   fee: { gross: number; waived: number; waiverPercent: number; payable: number };
   paymentMode?: "UPFRONT" | "COMMISSION" | "BOTH";
+  /** The door they came through, when it carries a price of its own. */
+  via?: string;
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(
     joinAffiliateProgramme,
@@ -71,6 +74,7 @@ export function JoinAffiliateForm({
           re-priced on the server, so editing these buys nothing. */}
       <input type="hidden" name="ref" value={referralCode} />
       <input type="hidden" name="invite" value={invite?.code ?? ""} />
+      <input type="hidden" name="via" value={via} />
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
           <span className="mb-1.5 block text-sm font-medium text-niki-ink/80">Your name</span>

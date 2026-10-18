@@ -170,6 +170,20 @@ export const SETTINGS_DEFAULTS = {
   // The headline on the team screens and the recruitment pitch.
   affiliateReferralPitch:
     "Build a team. Earn from every sale they make, on top of your own.",
+  // --- Start Selling: the page's own prices --------------------------------
+  // The three programmes each carry a price of their own, set in their own
+  // console. These override those *for people who arrive through the Start
+  // Selling page*, and only there — a campaign price for the one door the
+  // adverts point at, which leaves a referral link, a direct registration and
+  // an admin invitation charging what they always did.
+  //
+  // Off by default, which means the page quotes each programme's own price.
+  startSellingFeesEnabled: "0",
+  // Blank means "the same as the programme's own price". Zero is a real
+  // price: free through this page.
+  startSellingShopFee: "",
+  startSellingAgentFee: "",
+  startSellingAffiliateFee: "",
   // --- Seller registration -------------------------------------------------
   // What it costs to open a shop (GH₵). "0" — the default — is the free
   // registration Nickimart has always offered; set it and the shop

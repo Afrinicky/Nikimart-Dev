@@ -20,11 +20,14 @@ export function VendorRegisterForm({
   defaultEmail,
   defaultPhone,
   hubs = [],
+  via = "",
 }: {
   defaultName?: string;
   defaultEmail?: string;
   defaultPhone?: string;
   hubs?: { id: string; label: string }[];
+  /** How they got here, when the price depends on it. Re-read on the server. */
+  via?: string;
 }) {
   const [state, formAction] = useActionState<VendorRegisterState, FormData>(registerVendor, {});
   const [payoutMethod, setPayoutMethod] = useState<"momo" | "bank">("momo");
@@ -32,6 +35,10 @@ export function VendorRegisterForm({
 
   return (
     <form action={formAction} className="space-y-8" noValidate>
+      {/* The door they came through, which can carry a price of its own. The
+          server re-reads it and re-prices from it, so this is a hint, not a
+          number a browser gets to choose. */}
+      <input type="hidden" name="via" value={via} />
       {/* 1 — Business details */}
       <section className="space-y-5 rounded-3xl bg-white p-6 ring-1 ring-niki-edge sm:p-8">
         <div>
