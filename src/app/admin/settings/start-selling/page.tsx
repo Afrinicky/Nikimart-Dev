@@ -17,11 +17,11 @@ export const dynamic = "force-dynamic";
 /**
  * What the Start Selling page charges.
  *
- * The three programmes are priced in three consoles, which is right — they are
- * three different businesses — but the page that advertises all three is one
- * campaign, and a campaign is a thing you price. So the prices for people who
- * arrive through it live here, together, next to what each programme charges
- * everybody else.
+ * Each programme can name a second price for people who arrive through that
+ * page, and each one is set where that programme is run — so this screen owns
+ * the shop's and shows the other two, with the console that sets them one
+ * click away. What it is for is the whole picture: three prices, and what each
+ * of them is instead of.
  */
 export default async function AdminStartSellingPage() {
   await requireDashboard("/admin");
@@ -55,7 +55,8 @@ export default async function AdminStartSellingPage() {
           >
             the Start Selling page <ArrowUpRight className="h-3.5 w-3.5" />
           </ActionLink>
-          . Everywhere else, each programme charges its own price.
+          . Everywhere else, each programme charges its own price. A tile that is not the shop&apos;s
+          is set in that programme&apos;s console — open it to change it.
         </p>
       </div>
 
@@ -88,9 +89,27 @@ export default async function AdminStartSellingPage() {
       </div>
 
       <div className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-niki-edge sm:p-6">
+        <h3 className="font-display font-bold text-niki-ink">Opening a shop</h3>
+        <p className="mb-4 mt-0.5 text-sm text-niki-ink/60">
+          The other two are set under{" "}
+          <ActionLink
+            href="/admin/data/agents/settings"
+            className="font-semibold text-niki-orange hover:underline"
+          >
+            Data bundles → Programme settings
+          </ActionLink>{" "}
+          and{" "}
+          <ActionLink
+            href="/admin/affiliates/settings"
+            className="font-semibold text-niki-orange hover:underline"
+          >
+            Affiliates → Programme settings
+          </ActionLink>
+          .
+        </p>
         <StartSellingForm
           settings={settings as unknown as Record<string, string>}
-          normal={normal}
+          normal={normal.shop}
         />
       </div>
     </Container>

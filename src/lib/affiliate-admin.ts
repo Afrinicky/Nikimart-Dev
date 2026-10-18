@@ -53,7 +53,7 @@ export function AFFILIATE_MODULE_TABS(counts: {
       badge: counts.enquiries,
     },
     { href: "/admin/affiliates/fraud", label: "Abuse", icon: "audit", badge: counts.flags },
-    { href: "/admin/affiliates/settings", label: "Policy", icon: "rules" },
+    { href: "/admin/affiliates/settings", label: "Programme settings", icon: "rules" },
   ];
 }
 

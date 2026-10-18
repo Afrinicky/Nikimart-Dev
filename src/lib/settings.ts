@@ -167,23 +167,20 @@ export const SETTINGS_DEFAULTS = {
   // a reward for a registration nobody paid for is how invented recruits
   // become profitable.
   affiliateReferralFullWaiverPaysReward: "0",
+  // What somebody arriving through the Start Selling page pays to join
+  // instead. Blank means the registration fee above applies there too; zero
+  // is a real price, free through that page only.
+  affiliateStartSellingFee: "",
   // The headline on the team screens and the recruitment pitch.
   affiliateReferralPitch:
     "Build a team. Earn from every sale they make, on top of your own.",
-  // --- Start Selling: the page's own prices --------------------------------
-  // The three programmes each carry a price of their own, set in their own
-  // console. These override those *for people who arrive through the Start
-  // Selling page*, and only there — a campaign price for the one door the
-  // adverts point at, which leaves a referral link, a direct registration and
-  // an admin invitation charging what they always did.
-  //
-  // Off by default, which means the page quotes each programme's own price.
-  startSellingFeesEnabled: "0",
-  // Blank means "the same as the programme's own price". Zero is a real
-  // price: free through this page.
+  // What it costs to open a shop for somebody who arrives through the Start
+  // Selling page — a campaign price for the one door the adverts point at,
+  // which leaves a direct registration charging what it always did. Blank
+  // means the fee above applies there too; zero is a real price, free through
+  // that page only. The other two programmes carry theirs in their own
+  // consoles.
   startSellingShopFee: "",
-  startSellingAgentFee: "",
-  startSellingAffiliateFee: "",
   // --- Seller registration -------------------------------------------------
   // What it costs to open a shop (GH₵). "0" — the default — is the free
   // registration Nickimart has always offered; set it and the shop

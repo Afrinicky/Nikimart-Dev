@@ -175,6 +175,22 @@ export function AgentProgrammeSettingsForm({ settings }: { settings: DataSetting
             />
           </Field>
           <Field
+            label="Start Selling price (GH₵)"
+            htmlFor="agentStartSellingFee"
+            hint="What somebody pays when they arrive through the Start Selling page. Leave it empty and they pay the registration fee like everybody else; a zero is a price in its own right — free, through that page only."
+          >
+            <input
+              id="agentStartSellingFee"
+              name="agentStartSellingFee"
+              type="number"
+              min="0"
+              step="1"
+              defaultValue={settings.agentStartSellingFee}
+              placeholder={settings.agentSetupFee}
+              className={inputClass}
+            />
+          </Field>
+          <Field
             label="How the registration fee is collected"
             htmlFor="agentPaymentMode"
             hint="An up-front registration keeps the new agent's storefront closed until the payment clears."
