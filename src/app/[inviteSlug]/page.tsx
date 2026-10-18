@@ -1,11 +1,22 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AgentRegistration } from "../become-an-agent/AgentRegistration";
+import { AffiliateRegistration } from "../become-an-affiliate/AffiliateRegistration";
 import { resolveAgentInviteBySlug, type InviteLookup } from "@/lib/data-bundles/invites";
+import {
+  resolveAffiliateInviteBySlug,
+  type AffiliateInviteLookup,
+} from "@/lib/affiliate-invites";
 import { inviteProblem } from "@/lib/data-bundles/invite-rules";
 
 /**
  * A registration link short enough to advertise: nickimart.com/join.
+ *
+ * Both programmes issue them — a data bundle storefront and an affiliate
+ * account — and a single-segment path can only be matched here, so this one
+ * route serves both. A path belongs to one programme or the other: the
+ * consoles refuse a word the other has already claimed, so there is never a
+ * pair for this route to choose between.
  *
  * Why this route exists at all. The link the admin console issues is
  * `/become-an-agent?invite=ABCD2345`, and Facebook and WhatsApp refuse it — a
@@ -46,22 +57,36 @@ type Search = Promise<{ ref?: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { inviteSlug } = await params;
-  const invite = await resolveAgentInviteBySlug(inviteSlug);
+  const [agent, affiliate] = await Promise.all([
+    resolveAgentInviteBySlug(inviteSlug),
+    resolveAffiliateInviteBySlug(inviteSlug),
+  ]);
   // No link claims this path, so the page below is the site's not-found page.
   // Said out loud here because the status code cannot say it: without this, a
   // mistyped address would be a page a search engine is willing to index.
-  if (!invite) {
+  if (!agent && !affiliate) {
     return { title: "Page not found — Nickimart", robots: { index: false, follow: false } };
   }
 
+  // The short path is the canonical address of this link. Adverts and shares
+  // point here, so a preview card that named the long URL instead would send
+  // people to the address the advert could not use in the first place.
+  const canonical = `/${agent?.slug ?? affiliate?.slug ?? inviteSlug}`;
+
+  if (agent) {
+    return {
+      title: "Agent registration — Nickimart",
+      description:
+        "Open your own data bundle storefront under Nickimart. Set your own prices, sell to your customers, and earn on every bundle.",
+      alternates: { canonical },
+    };
+  }
+
   return {
-    title: "Agent registration — Nickimart",
+    title: "Become an affiliate — Nickimart",
     description:
-      "Open your own data bundle storefront under Nickimart. Set your own prices, sell to your customers, and earn on every bundle.",
-    // The short path is the canonical address of this link. Adverts and shares
-    // point here, so a preview card that named the long URL instead would send
-    // people to the address the advert could not use in the first place.
-    alternates: { canonical: `/${invite.slug ?? inviteSlug}` },
+      "Share Nickimart products and earn commission on every sale you refer. No shop and no stock needed.",
+    alternates: { canonical },
   };
 }
 
@@ -73,23 +98,30 @@ export default async function InviteSlugPage({
   searchParams?: Search;
 }) {
   const { inviteSlug } = await params;
-  const invite = await resolveAgentInviteBySlug(inviteSlug);
-  if (!invite) notFound();
+  const [agent, affiliate] = await Promise.all([
+    resolveAgentInviteBySlug(inviteSlug),
+    resolveAffiliateInviteBySlug(inviteSlug),
+  ]);
+  if (!agent && !affiliate) notFound();
 
-  // Lapsed, switched off, or used up is not a 404. An advert that has already
-  // run keeps being clicked for weeks, and the page says what happened and
-  // offers the normal fee — exactly as the long link does for the same code.
-  const problem = inviteProblem(invite);
-  const inviteLookup: InviteLookup = problem ? { ok: false, problem } : { ok: true, invite };
+  // A recruiter's code still works on a short link, so one person can share
+  // the advert's URL and keep their referral.
+  const search = await searchParams;
+  const referralCode = (search?.ref ?? "").trim().toUpperCase().slice(0, 20);
 
-  // A recruiter's code still works on a short link, so one agent can share the
-  // advert's URL and keep their referral.
-  const params2 = await searchParams;
+  if (agent) {
+    // Lapsed, switched off, or used up is not a 404. An advert that has
+    // already run keeps being clicked for weeks, and the page says what
+    // happened and offers the normal fee — exactly as the long link does for
+    // the same code.
+    const problem = inviteProblem(agent);
+    const lookup: InviteLookup = problem ? { ok: false, problem } : { ok: true, invite: agent };
+    return <AgentRegistration referralCode={referralCode} inviteLookup={lookup} />;
+  }
 
-  return (
-    <AgentRegistration
-      referralCode={(params2?.ref ?? "").trim().toUpperCase().slice(0, 20)}
-      inviteLookup={inviteLookup}
-    />
-  );
+  const problem = inviteProblem(affiliate!);
+  const lookup: AffiliateInviteLookup = problem
+    ? { ok: false, problem }
+    : { ok: true, invite: affiliate! };
+  return <AffiliateRegistration referralCode={referralCode} inviteLookup={lookup} />;
 }

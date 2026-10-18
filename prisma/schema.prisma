@@ -77,6 +77,7 @@ model User {
    * /**
    * /**
    * /**
+   * /**
    * When this person accepted the terms at registration.
    */
   termsAcceptedAt     DateTime?
@@ -251,6 +252,7 @@ model Vendor {
   // --- Registration fee -----------------------------------------------------
   /**
    * /**
+   * /**
    * What this shop was charged to open, snapshotted when it registered. Zero
    * is a free registration, which is what Nickimart has always offered and
    * what the setting defaults to; a shop that registered before the fee
@@ -326,6 +328,7 @@ model Affiliate {
    * /**
    * /**
    * /**
+   * /**
    * How this affiliate got here: "self" (applied), "seller" / "agent" (an
    * existing Nickimart trader who was admitted automatically), or "admin"
    * (created in the console). Kept because the three are reviewed differently.
@@ -364,6 +367,7 @@ model Affiliate {
   /**
    * /**
    * /**
+   * /**
    * The affiliate who recruited this one — their direct (level 1) upline. Set
    * once, from the referral code the application quoted, and never changed
    * after that: `referralLockedAt` records when it became permanent. Level 2
@@ -391,6 +395,7 @@ model Affiliate {
 
   // --- Registration fee -----------------------------------------------------
   /**
+   * /**
    * /**
    * /**
    * What this affiliate was actually charged to join, and how that number came
@@ -1524,6 +1529,7 @@ model AffiliateApplication {
   /**
    * /**
    * /**
+   * /**
    * The referral code the application arrived with, exactly as typed, and the
    * affiliate it resolved to. Kept separately because a code that resolved to
    * nobody is still worth seeing: it is usually a recruiter spelling their own
@@ -1573,15 +1579,24 @@ model AffiliateApplication {
  * discount it carries.
  */
 model AffiliateInvite {
-  id    String @id @default(cuid())
+  id    String  @id @default(cuid())
   /**
    * The token in the URL: /become-an-affiliate?invite=<code>.
    */
-  code  String @unique
+  code  String  @unique
+  /**
+   * An advert-friendly short path for the same link: nickimart.com/<slug>.
+   * Optional, and unique when set. Facebook and WhatsApp refuse a link with a
+   * query string on a domain they don't know, so a link that has to survive an
+   * advert gets a bare path as well as a code. The same root route serves the
+   * agent programme's short links, so a path belongs to one programme or the
+   * other and never to both.
+   */
+  slug  String? @unique
   /**
    * What this link is for, in the admin's own words.
    */
-  label String @default("")
+  label String  @default("")
 
   /**
    * How much of the registration fee it takes off, 0–100. 100 waives it.

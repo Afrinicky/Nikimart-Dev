@@ -114,7 +114,8 @@ export function normaliseInviteCode(value: string | null | undefined): string {
 export const RESERVED_INVITE_SLUGS: readonly string[] = [
   // Top-level routes.
   "account", "admin", "affiliate", "agent", "agent-setup", "api",
-  "become-an-agent", "brand", "buy-for-me", "buyer-protection", "campus",
+  "become-an-affiliate", "become-an-agent", "brand", "buy-for-me",
+  "buyer-protection", "campus",
   "cart", "categories", "checkout", "data-bundles", "forgot-password",
   "freight", "global-shopping", "help", "how-it-works", "legal", "login",
   "order-tracking", "orders", "pages", "pickup", "pickup-points", "preorders",
