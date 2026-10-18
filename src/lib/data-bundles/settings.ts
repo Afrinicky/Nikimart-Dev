@@ -37,6 +37,10 @@ export const DATA_SETTINGS_DEFAULTS = {
   // --- Agent programme ------------------------------------------------------
   agentProgramEnabled: "1",
   agentSetupFee: "30",
+  // What it costs to open a storefront for somebody who arrives through the
+  // Start Selling page. Blank means they pay the registration fee above like
+  // everybody else; a number — zero included — is a price for that door only.
+  agentStartSellingFee: "",
   agentWithdrawalFee: "1",
   agentMinWithdrawal: "10",
   agentAgentMarkupPercent: "12",
@@ -331,6 +335,20 @@ function intOr(raw: string, fallback: number): number {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 }
 
+/**
+ * An amount where blank is genuinely different from zero.
+ *
+ * A price nobody has set and a price of nothing are two different answers,
+ * and `Number("")` is 0 — which would read an empty box as "free".
+ */
+function optionalAmount(raw: string | undefined): number | null {
+  const value = (raw ?? "").trim();
+  if (value === "") return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 100) / 100;
+}
+
 export interface DataStoreConfig {
   enabled: boolean;
   name: string;
@@ -362,6 +380,11 @@ export type { PaymentMode };
 export interface AgentProgramConfig {
   enabled: boolean;
   setupFee: number;
+  /**
+   * What somebody arriving through the Start Selling page pays instead. Null
+   * is the ordinary case: that door charges `setupFee` like every other.
+   */
+  startSellingFee: number | null;
   /** How the registration fee may be settled, across the whole programme. */
   paymentMode: PaymentMode;
   /**
@@ -389,6 +412,7 @@ export async function getAgentProgramConfig(): Promise<AgentProgramConfig> {
   return {
     enabled: on(s.agentProgramEnabled),
     setupFee: numOr(s.agentSetupFee, 30),
+    startSellingFee: optionalAmount(s.agentStartSellingFee),
     paymentMode: programPaymentMode(s.agentPaymentMode),
     perAgentOverrides: on(s.agentPaymentModeOverrides),
     withdrawalFee: numOr(s.agentWithdrawalFee, 1),

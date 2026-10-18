@@ -289,6 +289,24 @@ export function AffiliatePolicyForm({
           </label>
 
           <label className="block">
+            <span className={field}>Start Selling price (GH₵)</span>
+            <input
+              name="affiliateStartSellingFee"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={settings.affiliateStartSellingFee}
+              placeholder={settings.affiliateRegistrationFee}
+              className={inputClass}
+            />
+            <span className={hint}>
+              What somebody pays when they arrive through the Start Selling page. Leave it empty
+              and they pay the fee beside it like everybody else; a zero is a price in its own
+              right — free, through that page only.
+            </span>
+          </label>
+
+          <label className="block">
             <span className={field}>How it is settled</span>
             <select
               name="affiliateRegistrationPaymentMode"

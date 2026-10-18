@@ -1,5 +1,7 @@
 import "server-only";
 import { getSettings } from "@/lib/settings";
+import { getAffiliatePolicy } from "@/lib/affiliate-settings";
+import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 
 /**
  * What it costs to join through the Start Selling page.
@@ -11,14 +13,17 @@ import { getSettings } from "@/lib/settings";
  *
  * This is the one door the adverts point at, and a door you are paying to send
  * people through is worth being able to price separately: a campaign fee, a
- * launch offer, free for a week. So the page carries its own three prices,
- * which apply only to a registration that came through it, and nothing else
- * changes.
+ * launch offer, free for a week. So each programme can name a second price for
+ * that door, which applies only to a registration that came through it.
  *
- * Off by default, and blank means "whatever that programme charges anyway", so
- * nobody has to set three numbers to use one of them. Zero is a real price —
- * free through this page — which is exactly the thing an empty box could not
- * say.
+ * Each price is set where that programme is run — a shop's in Settings, the
+ * bundle storefront's in the agent console, an affiliate's in theirs — because
+ * that is where somebody goes to change what joining costs. This module only
+ * gathers the three.
+ *
+ * Blank means "whatever that programme charges anyway", so nobody has to set
+ * three numbers to use one of them. Zero is a real price — free through this
+ * page — which is exactly the thing an empty box could not say.
  */
 
 /** How somebody reached a registration form. */
@@ -50,8 +55,6 @@ export function withChannel(href: string, channel: JoinChannel): string {
 export type JoinKind = "shop" | "agent" | "affiliate";
 
 export interface StartSellingFees {
-  /** False leaves every programme charging its own price. */
-  enabled: boolean;
   /** Null means "whatever that programme charges anyway". */
   shop: number | null;
   agent: number | null;
@@ -59,7 +62,6 @@ export interface StartSellingFees {
 }
 
 export const NO_START_SELLING_FEES: StartSellingFees = {
-  enabled: false,
   shop: null,
   agent: null,
   affiliate: null,
@@ -74,14 +76,17 @@ function amount(raw: string | undefined): number | null {
   return Math.round(n * 100) / 100;
 }
 
+/** The three, each read from the console that owns it. */
 export async function getStartSellingFees(): Promise<StartSellingFees> {
-  const raw = (await getSettings()) as unknown as Record<string, string>;
-  const on = (raw.startSellingFeesEnabled ?? "").trim();
+  const [raw, program, policy] = await Promise.all([
+    getSettings(),
+    getAgentProgramConfig(),
+    getAffiliatePolicy(),
+  ]);
   return {
-    enabled: on === "1" || on.toLowerCase() === "true",
-    shop: amount(raw.startSellingShopFee),
-    agent: amount(raw.startSellingAgentFee),
-    affiliate: amount(raw.startSellingAffiliateFee),
+    shop: amount((raw as unknown as Record<string, string>).startSellingShopFee),
+    agent: program.startSellingFee,
+    affiliate: policy.startSellingFee,
   };
 }
 
@@ -97,7 +102,7 @@ export function feeForChannel(
   normal: number,
   fees: StartSellingFees,
 ): number {
-  if (channel !== START_SELLING_CHANNEL || !fees.enabled) return normal;
+  if (channel !== START_SELLING_CHANNEL) return normal;
   const own = fees[kind];
   return own === null ? normal : own;
 }

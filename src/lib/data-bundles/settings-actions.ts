@@ -26,6 +26,7 @@ const NON_NEGATIVE: Array<[string, string]> = [
   ["dataMarkupPercent", "Default markup"],
   ["dataLowBalanceThreshold", "Low balance alert"],
   ["agentSetupFee", "Registration fee"],
+  ["agentStartSellingFee", "Start Selling price"],
   ["agentWithdrawalFee", "Withdrawal fee"],
   ["agentMinWithdrawal", "Minimum withdrawal"],
   ["agentAgentMarkupPercent", "Agent discount"],

@@ -63,6 +63,11 @@ export interface AffiliatePolicy {
   registrationFee: number;
   /** How that fee may be settled. */
   registrationPaymentMode: PaymentMode;
+  /**
+   * What somebody arriving through the Start Selling page pays instead. Null
+   * is the ordinary case: that door charges the fee above like every other.
+   */
+  startSellingFee: number | null;
 }
 
 export const AFFILIATE_POLICY_FALLBACK: AffiliatePolicy = {
@@ -85,6 +90,7 @@ export const AFFILIATE_POLICY_FALLBACK: AffiliatePolicy = {
   maxRate: 10,
   registrationFee: 0,
   registrationPaymentMode: "BOTH",
+  startSellingFee: null,
 };
 
 /** A stored setting that means yes. Anything unreadable keeps the fallback. */
@@ -115,6 +121,20 @@ function amount(raw: string | undefined, fallback: number): number {
   if (value === "") return fallback;
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0) return fallback;
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * An amount where blank is genuinely different from zero.
+ *
+ * A price nobody has set and a price of nothing are two different answers,
+ * and `Number("")` is 0 — which would read an empty box as "free".
+ */
+function optionalAmount(raw: string | undefined): number | null {
+  const value = (raw ?? "").trim();
+  if (value === "") return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return null;
   return Math.round(n * 100) / 100;
 }
 
@@ -164,6 +184,7 @@ export function resolveAffiliatePolicy(
     maxRate: percent(raw.affiliateMaxRate, f.maxRate),
     registrationFee: amount(raw.affiliateRegistrationFee, f.registrationFee),
     registrationPaymentMode: programPaymentMode(raw.affiliateRegistrationPaymentMode),
+    startSellingFee: optionalAmount(raw.affiliateStartSellingFee),
   };
 }
 
