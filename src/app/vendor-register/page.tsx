@@ -8,6 +8,7 @@ import { VendorRegisterForm } from "@/components/seller/VendorRegisterForm";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getVendorRegistrationFee } from "@/lib/seller-registration";
+import { channelFee, joinChannel } from "@/lib/start-selling";
 import { formatMoney } from "@/lib/format";
 
 export const metadata: Metadata = {
@@ -16,8 +17,21 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function VendorRegisterPage() {
-  const [session, fee] = await Promise.all([auth(), getVendorRegistrationFee()]);
+export default async function VendorRegisterPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ via?: string }>;
+}) {
+  const [session, normalFee, params] = await Promise.all([
+    auth(),
+    getVendorRegistrationFee(),
+    searchParams,
+  ]);
+  // The Start Selling page can charge its own price for a shop. Resolved here
+  // and again on submit, so the form quotes exactly what it will charge.
+  const channel = joinChannel(params?.via);
+  const fee = await channelFee("shop", channel, normalFee);
+  const via = channel === "default" ? "" : channel;
 
   // Logged-out visitors get a proper landing with sign-in / create-account
   // options that return here (not a bare redirect to /login).
@@ -48,13 +62,13 @@ export default async function VendorRegisterPage() {
           </div>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <Link
-              href="/register?callbackUrl=/vendor-register"
+              href={`/register?callbackUrl=${encodeURIComponent(`/vendor-register${via ? `?via=${via}` : ""}`)}`}
               className="flex-1 rounded-full bg-niki-orange px-5 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-niki-orange-light"
             >
               Create a free account
             </Link>
             <Link
-              href="/login?callbackUrl=/vendor-register"
+              href={`/login?callbackUrl=${encodeURIComponent(`/vendor-register${via ? `?via=${via}` : ""}`)}`}
               className="flex-1 rounded-full px-5 py-3 text-center text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge-strong transition-colors hover:bg-white"
             >
               Sign in
@@ -106,6 +120,7 @@ export default async function VendorRegisterPage() {
             defaultName={session.user.name ?? undefined}
             defaultEmail={session.user.email ?? undefined}
             hubs={hubs}
+            via={via}
           />
         </div>
       </Container>

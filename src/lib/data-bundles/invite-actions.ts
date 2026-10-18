@@ -9,6 +9,7 @@ import {
   setAgentInviteActive,
 } from "@/lib/data-bundles/invites";
 import { inviteSlugProblem, normaliseInviteSlug } from "@/lib/data-bundles/invite-rules";
+import { OWNER_LABELS, slugHeldElsewhere } from "@/lib/invite-slug-registry";
 import { siteUrl } from "@/lib/site";
 
 /**
@@ -50,6 +51,12 @@ export async function issueInvite(_prev: InviteState, fd: FormData): Promise<Inv
   if (slug) {
     const slugError = inviteSlugProblem(slug);
     if (slugError) return { error: slugError };
+    // Or when the affiliate console has already claimed it: one root route
+    // matches both programmes' short paths, so a word belongs to one of them.
+    const held = await slugHeldElsewhere(slug, "agent");
+    if (held) {
+      return { error: `nickimart.com/${slug} already belongs to ${OWNER_LABELS[held]}. Pick another word.` };
+    }
   }
 
   const expiresRaw = str(fd, "expiresAt");

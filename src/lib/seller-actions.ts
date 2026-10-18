@@ -9,6 +9,7 @@ import {
   startVendorFeePayment,
   vendorFeeStatus,
 } from "@/lib/seller-registration";
+import { channelFee, joinChannel } from "@/lib/start-selling";
 import { termsAccepted, TERMS_REQUIRED_MESSAGE } from "@/lib/terms";
 import { requireUser } from "@/lib/session";
 import { PRODUCTS_TAG, VENDORS_TAG } from "@/lib/catalog";
@@ -285,7 +286,11 @@ export async function registerVendor(_prev: VendorRegisterState, fd: FormData): 
   // the default and the way Nickimart has always registered sellers; it is
   // snapshotted onto the row either way, so a price change next month never
   // rewrites what this shop was charged.
-  const registrationFee = await getVendorRegistrationFee();
+  const registrationFee = await channelFee(
+    "shop",
+    joinChannel(s("via")),
+    await getVendorRegistrationFee(),
+  );
   let vendorId = "";
 
   try {

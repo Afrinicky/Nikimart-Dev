@@ -17,9 +17,13 @@ import { cn } from "@/lib/cn";
 
 const QUICK = [0, 25, 50, 100];
 
-export function AffiliateInviteForm() {
+export function AffiliateInviteForm({ origin }: { origin?: string }) {
   const [state, formAction] = useActionState<InviteState, FormData>(issueAffiliateInvite, {});
   const [waiver, setWaiver] = useState("100");
+  const [slug, setSlug] = useState("");
+
+  const host = (origin ?? "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  const prefix = host ? `${host}/` : "nickimart.com/";
 
   return (
     <form action={formAction} className="space-y-4 rounded-2xl bg-white p-5 ring-1 ring-niki-edge">
@@ -48,6 +52,29 @@ export function AffiliateInviteForm() {
           placeholder="Campus ambassador drive"
           className={inputClass}
         />
+      </Field>
+
+      <Field
+        label="Short path"
+        htmlFor="slug"
+        hint="Optional, and only needed for a link going into a Facebook or WhatsApp ad — they reject the ?invite= link. Reusing a path another affiliate link has moves it onto this one."
+      >
+        <div className="flex items-center overflow-hidden rounded-xl border border-niki-edge-strong bg-white transition-colors focus-within:border-niki-orange focus-within:ring-2 focus-within:ring-niki-orange/20">
+          <span className="shrink-0 border-r border-niki-edge bg-niki-surface px-3 py-2.5 text-sm text-niki-ink/45">
+            {prefix}
+          </span>
+          <input
+            id="slug"
+            name="slug"
+            maxLength={32}
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+            placeholder="earn"
+            autoComplete="off"
+            spellCheck={false}
+            className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm font-medium text-niki-ink outline-none placeholder:font-normal placeholder:text-niki-ink/40"
+          />
+        </div>
       </Field>
 
       <div>

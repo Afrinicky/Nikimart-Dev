@@ -8,6 +8,7 @@ import {
   LayoutTemplate,
   Scale,
   SlidersHorizontal,
+  Store,
 } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { cn } from "@/lib/cn";
@@ -23,6 +24,7 @@ import { cn } from "@/lib/cn";
  */
 const TABS: { href: string; label: string; icon: React.ElementType; exact?: boolean }[] = [
   { href: "/admin/settings", label: "General", icon: SlidersHorizontal, exact: true },
+  { href: "/admin/settings/start-selling", label: "Start Selling", icon: Store },
   { href: "/admin/settings/categories", label: "Categories", icon: LayoutGrid },
   { href: "/admin/settings/pages", label: "Pages", icon: LayoutTemplate },
   { href: "/admin/settings/carousel", label: "Carousel", icon: GalleryHorizontalEnd },

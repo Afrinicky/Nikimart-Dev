@@ -339,6 +339,12 @@ export async function quoteRegistrationFee(
   referrerId: string | null,
   /** A discount from an admin-issued registration link, 0–100. */
   inviteWaiverPercent = 0,
+  /**
+   * The fee to price against, when it is not the programme's own — the Start
+   * Selling page can charge its own for people who arrive through it. Null is
+   * the ordinary case and reads the programme's price.
+   */
+  feeOverride: number | null = null,
 ): Promise<RegistrationQuote> {
   const [program, config] = await Promise.all([getAgentProgramConfig(), getReferralConfig()]);
 
@@ -359,7 +365,7 @@ export async function quoteRegistrationFee(
 
   const active = Boolean(referrer && referrer.status === "active");
   return registrationQuote({
-    fee: program.setupFee,
+    fee: feeOverride ?? program.setupFee,
     inviteWaiverPercent,
     waiverPercent: active ? waiverPercentFor(referrer?.referralWaiverPercent, config.waiverDefaultPercent) : 0,
     // Per recruiter where one is set, the programme default otherwise — the

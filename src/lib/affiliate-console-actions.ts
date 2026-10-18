@@ -25,6 +25,7 @@ import {
   startApplicationFeePayment,
 } from "@/lib/affiliate-registration";
 import { consumeAffiliateInvite } from "@/lib/affiliate-invites";
+import { joinChannel } from "@/lib/start-selling";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { formatMoney } from "@/lib/format";
 import { MAX_BULK_SHARE, resolveFlyerDesign } from "@/lib/affiliate-flyer";
@@ -116,6 +117,10 @@ export async function joinAffiliateProgramme(
   const offer = await quoteAffiliateRegistration({
     referralCode: str(fd, "ref"),
     inviteCode: str(fd, "invite"),
+    // Re-read rather than trusted: the channel is a price, and a price a
+    // browser chooses is not a price — but it is the browser that knows which
+    // door it came through, so it travels as a hint and is priced here.
+    channel: joinChannel(str(fd, "via")),
   });
   const feeMethod = settlementMethodFor(offer, str(fd, "feeMethod"));
   const payNow = feeMethod === "UPFRONT" && offer.quote.payable > 0;

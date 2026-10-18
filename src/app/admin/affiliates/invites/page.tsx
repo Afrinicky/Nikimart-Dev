@@ -5,12 +5,13 @@ import { AffiliateModuleHeader } from "@/components/admin/AffiliateModuleHeader"
 import { AffiliateInviteForm } from "@/components/admin/affiliate/AffiliateInviteForm";
 import { InviteLink } from "@/components/admin/InviteTools";
 import { DeleteButton } from "@/components/admin/DeleteButton";
-import { affiliateInviteUrl, listAffiliateInvites } from "@/lib/affiliate-invites";
-import { inviteProblem } from "@/lib/data-bundles/invite-rules";
+import { affiliateInviteShareUrl, listAffiliateInvites } from "@/lib/affiliate-invites";
+import { inviteProblem, isReservedInviteSlug } from "@/lib/data-bundles/invite-rules";
 import { getAffiliatePolicy } from "@/lib/affiliate-settings";
 import { removeAffiliateInvite, toggleAffiliateInvite } from "@/lib/affiliate-invite-actions";
 import { requireDashboard } from "@/lib/session";
 import { formatMoney } from "@/lib/format";
+import { siteUrl } from "@/lib/site";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Registration links — Affiliates — Nickimart" };
@@ -61,7 +62,10 @@ export default async function AdminAffiliateInvitesPage() {
                   <tbody>
                     {invites.map((invite) => {
                       const problem = inviteProblem(invite);
-                      const url = affiliateInviteUrl(invite.code);
+                      // What to hand somebody: the short path when the link
+                      // has one, because that is the address an advert carries
+                      // and the one people will be sharing on.
+                      const url = affiliateInviteShareUrl(invite);
                       const payable =
                         Math.round(
                           policy.registrationFee * (1 - invite.waiverPercent / 100) * 100,
@@ -72,12 +76,44 @@ export default async function AdminAffiliateInvitesPage() {
                           className="border-b border-niki-edge transition-colors last:border-0 hover:bg-niki-surface/50"
                         >
                           <td className={td}>
-                            <p className="font-mono text-sm font-bold text-niki-ink">
-                              {invite.code}
-                            </p>
-                            <p className="max-w-[22rem] truncate text-[11px] text-niki-ink/45">
-                              {url}
-                            </p>
+                            {invite.slug && !isReservedInviteSlug(invite.slug) ? (
+                              <>
+                                <p className="font-mono text-sm font-bold text-niki-ink">
+                                  /{invite.slug}
+                                </p>
+                                <p className="max-w-[22rem] truncate text-[11px] text-niki-ink/45">
+                                  {url}
+                                </p>
+                                {/* The code still works, and is still the link
+                                    to send to one person, so it stays visible. */}
+                                <p className="mt-0.5 font-mono text-[11px] text-niki-ink/35">
+                                  {invite.code}
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="font-mono text-sm font-bold text-niki-ink">
+                                  {invite.code}
+                                </p>
+                                <p className="max-w-[22rem] truncate text-[11px] text-niki-ink/45">
+                                  {url}
+                                </p>
+                                {invite.slug ? (
+                                  // Only reachable when a later release added a
+                                  // route with this name: the path now opens
+                                  // that page, so the code link is the live one
+                                  // and the admin needs to know before an ad runs.
+                                  <p className="mt-0.5 text-[11px] font-medium text-amber-700">
+                                    /{invite.slug} is now a page on the site — issue a new link
+                                    with a different short path
+                                  </p>
+                                ) : (
+                                  <p className="mt-0.5 text-[11px] text-niki-ink/35">
+                                    No short path — not usable in an ad
+                                  </p>
+                                )}
+                              </>
+                            )}
                           </td>
                           <td className={`${td} text-niki-ink/70`}>{invite.label || "—"}</td>
                           <td className={td}>
@@ -152,7 +188,14 @@ export default async function AdminAffiliateInvitesPage() {
           </div>
 
           <div className="space-y-4">
-            <AffiliateInviteForm />
+            <AffiliateInviteForm origin={siteUrl()} />
+            <p className="rounded-2xl bg-niki-surface px-4 py-3 text-xs leading-relaxed text-niki-ink/55">
+              A short path is the same link at a plain address —{" "}
+              {siteUrl().replace(/^https?:\/\//, "")}/earn — which is what Facebook and WhatsApp
+              will accept in an ad. It lands straight on the registration page at this
+              link&apos;s fee, and turning the link off, letting it expire or deleting it controls
+              the ad exactly as it controls any other link.
+            </p>
             <p className="rounded-2xl bg-niki-surface px-4 py-3 text-xs leading-relaxed text-niki-ink/55">
               {policy.registrationFee > 0 ? (
                 <>

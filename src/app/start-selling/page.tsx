@@ -8,6 +8,7 @@ import { getAffiliatePitch } from "@/lib/settings";
 import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import { getAffiliatePolicy, getAffiliateReferralConfig } from "@/lib/affiliate-settings";
 import { getVendorRegistrationFee } from "@/lib/seller-registration";
+import { START_SELLING_CHANNEL, feeForChannel, getStartSellingFees, withChannel } from "@/lib/start-selling";
 import { teamRewardsLine } from "@/lib/affiliate-team-rules";
 import { cn } from "@/lib/cn";
 
@@ -29,6 +30,11 @@ export const dynamic = "force-dynamic";
  * it: the shop's from Settings, the bundle storefront's from the agent
  * programme, the affiliate's from the affiliate programme. Nothing here is
  * hardcoded, and a programme that is switched off is not offered.
+ *
+ * This page can also carry prices of its own (Settings → Start Selling), for
+ * a campaign the adverts point at. Where it does, every link out of here says
+ * so — and each registration form re-reads the channel and re-prices from it,
+ * so what is quoted on this card is what is charged on that form.
  */
 
 interface Way {
@@ -43,22 +49,30 @@ interface Way {
 }
 
 export default async function StartSellingPage() {
-  const [pitch, program, policy, referral, shopFee] = await Promise.all([
+  const [pitch, program, policy, referral, shopFee, fees] = await Promise.all([
     getAffiliatePitch(),
     getAgentProgramConfig(),
     getAffiliatePolicy(),
     getAffiliateReferralConfig(),
     getVendorRegistrationFee(),
+    getStartSellingFees(),
   ]);
+
+  // The page's own prices where it has them, each programme's otherwise.
+  const price = {
+    shop: feeForChannel("shop", START_SELLING_CHANNEL, shopFee, fees),
+    agent: feeForChannel("agent", START_SELLING_CHANNEL, program.setupFee, fees),
+    affiliate: feeForChannel("affiliate", START_SELLING_CHANNEL, policy.registrationFee, fees),
+  };
 
   const ways: Way[] = [
     {
-      href: "/vendor-register",
+      href: withChannel("/vendor-register", START_SELLING_CHANNEL),
       icon: Store,
       title: "Open a shop",
       blurb: "Sell your own products or services to buyers across Ghana.",
-      fee: shopFee,
-      feeNote: shopFee > 0 ? "once, to open the shop" : "no setup fee",
+      fee: price.shop,
+      feeNote: price.shop > 0 ? "once, to open the shop" : "no setup fee",
       points: [
         "Your own shop page and listings",
         "Orders, delivery and pickup handled for you",
@@ -69,15 +83,13 @@ export default async function StartSellingPage() {
     ...(program.enabled
       ? [
           {
-            href: "/become-an-agent",
+            href: withChannel("/become-an-agent", START_SELLING_CHANNEL),
             icon: Smartphone,
             title: "Resell data bundles",
             blurb: "Your own data storefront, at prices you set.",
-            fee: program.setupFee,
+            fee: price.agent,
             feeNote:
-              program.setupFee > 0
-                ? "clears out of what you earn"
-                : "nothing to pay up front",
+              price.agent > 0 ? "clears out of what you earn" : "nothing to pay up front",
             points: [
               "MTN, Telecel and AirtelTigo, delivered in seconds",
               "You set the price on every bundle",
@@ -90,12 +102,12 @@ export default async function StartSellingPage() {
     ...(policy.enabled
       ? [
           {
-            href: "/become-an-affiliate",
+            href: withChannel("/become-an-affiliate", START_SELLING_CHANNEL),
             icon: Gift,
             title: "Refer and earn",
             blurb: pitch,
-            fee: policy.registrationFee,
-            feeNote: policy.registrationFee > 0 ? "once, to join" : "free to join",
+            fee: price.affiliate,
+            feeNote: price.affiliate > 0 ? "once, to join" : "free to join",
             points: [
               "The whole catalogue to share from",
               "A ready-made flyer for every product",
