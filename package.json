@@ -14,7 +14,7 @@
     "db:reset": "prisma migrate reset --force",
     "db:setup-sql": "tsx scripts/generate-setup-sql.ts",
     "db:migrate:deploy": "node scripts/migrate.mjs",
-    "prisma:generate": "prisma generate && prisma generate --schema prisma/data/schema.prisma",
+    "prisma:generate": "prisma generate && prisma generate --schema prisma/data/schema.prisma && prisma generate --schema prisma/medical/schema.prisma",
     "db:copy-data": "node scripts/copy-data-db.mjs"
   },
   "prisma": {
