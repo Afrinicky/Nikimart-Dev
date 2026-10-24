@@ -67,7 +67,7 @@ model MedicalStaff {
   email  String @default("")
   phone  String @default("")
 
-  /// OWNER | MANAGER | SALES | PROCUREMENT | STORES | FINANCE | SUPPORT
+  /// ADMIN | MANAGER | SALES | PROCUREMENT | STORES | FINANCE | SUPPORT
   /// Checked in src/lib/medical/roles.ts, which also maps a role to the console
   /// sections it may reach. A string rather than an enum so a role can be added
   /// without a migration, validated in one place on the way in.
@@ -617,6 +617,27 @@ model SupplierQuote {
   /// price quoted at last month's rate is how margin quietly disappears.
   exchangeRate Decimal @default(1) @db.Decimal(14, 6)
 
+  // --- Everything between their gate and our shelf -------------------------
+  // Without these a "landed cost" comparison is a currency conversion wearing
+  // the wrong name: two offers at the same converted goods value can differ by
+  // a third once freight, duty and clearing are counted, and the cheaper unit
+  // price is routinely the dearer shelf.
+  //
+  // Freight, insurance and their other charges are in the supplier's own
+  // currency, because that is how they quote them.
+  freight      Decimal @default(0) @db.Decimal(14, 2)
+  insurance    Decimal @default(0) @db.Decimal(14, 2)
+  otherCharges Decimal @default(0) @db.Decimal(14, 2)
+  /// Import duty as a rate in basis points of the CIF value (20% → 2000), not
+  /// an amount: the amount depends on the goods value, and the goods value is
+  /// the thing the comparison varies.
+  dutyRateBp   Int     @default(0)
+  /// Clearing, handling and inland transport. In GH₵ — these are paid here, in
+  /// cedis, and running them through the supplier's exchange rate would be an
+  /// invented figure.
+  clearingGhs  Decimal @default(0) @db.Decimal(14, 2)
+  otherGhs     Decimal @default(0) @db.Decimal(14, 2)
+
   notes       String @default("")
   attachment  String @default("")
 
@@ -629,7 +650,8 @@ model SupplierQuote {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  items SupplierQuoteItem[]
+  items          SupplierQuoteItem[]
+  purchaseOrders PurchaseOrder[]
 
   @@index([supplierId, status])
   @@index([sourcingRequestId])
@@ -666,6 +688,12 @@ model PurchaseOrder {
   reference  String @unique
   supplierId String
   supplier   Supplier @relation(fields: [supplierId], references: [id])
+
+  /// The supplier quotation this order was placed against, where the buyer
+  /// chose one. What proves the price paid was the price compared — without it
+  /// a landed-cost comparison is a screen nobody can audit afterwards.
+  supplierQuoteId String?
+  supplierQuote   SupplierQuote? @relation(fields: [supplierQuoteId], references: [id], onDelete: SetNull)
 
   /// DRAFT | SENT | CONFIRMED | PARTIALLY_RECEIVED | RECEIVED | CANCELLED
   status String @default("DRAFT")
@@ -715,6 +743,7 @@ model PurchaseOrder {
 
   @@index([supplierId, status])
   @@index([status, expectedAt])
+  @@index([supplierQuoteId])
   @@map("medical_purchase_orders")
 }
 

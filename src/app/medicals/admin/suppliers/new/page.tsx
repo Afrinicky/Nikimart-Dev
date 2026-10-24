@@ -8,7 +8,7 @@ export default async function NewSupplierPage() {
   return (
     <div className="max-w-4xl space-y-5">
       <ConsoleHeader
-        title="Add a supplier"
+        title="New supplier"
         icon={Users}
         back={{ href: "/medicals/admin/suppliers", label: "Suppliers" }}
       />

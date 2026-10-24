@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { Banknote } from "lucide-react";
 import { ConsoleHeader, StatCard } from "@/components/medical/console/ConsoleHeader";
 import { ConsoleTable, Row, td, tdKey, tdNum } from "@/components/medical/console/ConsoleTable";
-import { ConsolePager, readPaging } from "@/components/medical/console/ConsolePager";
+import { ConsolePager } from "@/components/medical/console/ConsolePager";
+import { readPaging } from "@/lib/medical/admin/paging";
 import { ConsoleSearch, FilterChips } from "@/components/medical/console/ConsoleFilters";
 import { MedicalLink } from "@/components/medical/ui/MedicalLink";
 import { requireMedicalStaff } from "@/lib/medical/session";
@@ -42,7 +43,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Sea
     <div className="space-y-5">
       <ConsoleHeader
         title="Payables"
-        subtitle="Supplier invoices, matched against what was ordered and what was accepted."
+        subtitle="Supplier invoices, matched against what was ordered and what was accepted on delivery."
         icon={Banknote}
       />
 
@@ -68,7 +69,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Sea
           <FilterChips
             name="discrepancy"
             allLabel="All invoices"
-            options={[{ value: "1", label: "Unresolved differences" }]}
+            options={[{ value: "1", label: "Unresolved variances" }]}
           />
         </Suspense>
       </div>

@@ -450,7 +450,7 @@ summary {
      "green" is not a status to somebody who cannot see green. */
   --color-medi-success: oklch(0.52 0.12 152);
   --color-medi-success-soft: oklch(0.96 0.03 152);
-  --color-medi-warning: oklch(0.56 0.12 70);
+  --color-medi-warning: oklch(0.52 0.12 70);
   --color-medi-warning-soft: oklch(0.96 0.04 80);
   --color-medi-danger: oklch(0.53 0.17 25);
   --color-medi-danger-soft: oklch(0.96 0.03 25);

@@ -61,7 +61,16 @@ export function ConsoleTable({
 
   return (
     <div className="medi-panel medi-panel-lg mt-4 p-4 sm:p-5">
-      <div className="-mx-4 overflow-x-auto px-4 sm:-mx-5 sm:px-5">
+      {/*
+        `relative` is load-bearing, not decoration. A visually hidden label
+        inside a cell is position: absolute, and with nothing positioned between
+        it and the page its containing block is the document — so a scroller
+        like this one does not clip it, it sits at its static position inside a
+        table wider than a phone, and the whole page scrolls sideways by a few
+        hundred pixels. Making the scroller the containing block puts those
+        labels back inside it. Every wide table in this console does the same.
+      */}
+      <div className="relative -mx-4 overflow-x-auto px-4 sm:-mx-5 sm:px-5">
         <table
           className="w-full border-separate border-spacing-0 text-sm"
           style={{ minWidth: `${minWidth}px` }}

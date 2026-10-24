@@ -32,7 +32,7 @@ export function SupplierForm({
     city: string;
     region: string;
     leadTimeDays: number;
-    minimumOrderValue: unknown;
+    minimumOrderValue: string;
     paymentTermsDays: number;
     paymentDetails: string;
     notes: string;
@@ -106,7 +106,7 @@ export function SupplierForm({
         >
           <NumberInput
             id="minimumOrderValue"
-            defaultValue={supplier ? String(supplier.minimumOrderValue) : "0"}
+            defaultValue={supplier ? supplier.minimumOrderValue : "0"}
           />
         </Field>
         <Field

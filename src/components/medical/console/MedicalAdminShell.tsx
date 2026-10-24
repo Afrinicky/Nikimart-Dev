@@ -4,21 +4,15 @@ import { useCallback, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import {
   Banknote,
-  Boxes,
   Building2,
   ChevronLeft,
   ClipboardList,
   FileSignature,
-  FileText,
   Gavel,
   LayoutDashboard,
   Menu,
-  Package,
   PackageCheck,
   Receipt,
-  ScrollText,
-  Settings,
-  ShieldCheck,
   ShoppingCart,
   Truck,
   Users,
@@ -60,45 +54,35 @@ interface NavGroup {
 /**
  * Grouped by what somebody is doing, not by which table it reads.
  *
- * Selling, buying and holding are three different jobs done by three different
- * people here, and a flat list of fourteen entries makes each of them scan
- * past the other two every time.
+ * Sales and procurement are two different jobs done by two different people
+ * here, and a flat list of ten entries makes each of them scan past the other
+ * every time.
+ *
+ * Only sections that exist are listed. A menu entry that leads to a 404 costs
+ * more than a missing one: it teaches people that the navigation cannot be
+ * trusted, and after that they stop believing the parts that work. Quotations,
+ * inventory, products, staff, the audit log and settings all have tables
+ * behind them and no screens yet — they go in when their screens do.
  */
 const GROUPS: NavGroup[] = [
   {
-    heading: "Selling",
+    heading: "Sales",
     items: [
       { section: "tenders", label: "Tenders", icon: Gavel },
       { section: "institutions", label: "Institutions", icon: Building2 },
-      { section: "quotations", label: "Quotations", icon: FileText },
-      { section: "customer-purchase-orders", label: "Customer POs", icon: FileSignature },
+      { section: "customer-purchase-orders", label: "Customer purchase orders", icon: FileSignature },
       { section: "customer-orders", label: "Sales orders", icon: ShoppingCart },
     ],
   },
   {
-    heading: "Buying",
+    heading: "Procurement",
     items: [
-      { section: "sourcing", label: "Sourcing", icon: ClipboardList },
+      { section: "sourcing", label: "Sourcing requests", icon: ClipboardList },
       { section: "suppliers", label: "Suppliers", icon: Users },
-      { section: "supplier-quotes", label: "Supplier quotes", icon: Receipt },
+      { section: "supplier-quotes", label: "Supplier quotations", icon: Receipt },
       { section: "purchase-orders", label: "Purchase orders", icon: Truck },
-      { section: "goods-received", label: "Goods received", icon: PackageCheck },
+      { section: "goods-received", label: "Goods receipts", icon: PackageCheck },
       { section: "payables", label: "Payables", icon: Banknote },
-    ],
-  },
-  {
-    heading: "Holding",
-    items: [
-      { section: "inventory", label: "Inventory", icon: Boxes },
-      { section: "products", label: "Products", icon: Package },
-    ],
-  },
-  {
-    heading: "Administration",
-    items: [
-      { section: "staff", label: "Staff", icon: ShieldCheck },
-      { section: "audit", label: "Audit log", icon: ScrollText },
-      { section: "settings", label: "Settings", icon: Settings },
     ],
   },
 ];
@@ -333,7 +317,7 @@ function Sidebar({
                 className="mx-auto mb-2 block h-px w-6 bg-medi-rule-light"
               />
             ) : (
-              <p className="medi-meta px-3 pb-1.5 font-semibold uppercase tracking-wider text-white/35">
+              <p className="medi-meta px-3 pb-1.5 font-semibold uppercase tracking-wider text-white/55">
                 {group.heading}
               </p>
             )}

@@ -13,8 +13,10 @@ import { cn } from "@/lib/cn";
  * all of it on one screen; somebody checking one delivery on a phone wants ten.
  */
 
-export const PER_PAGE_OPTIONS = [10, 25, 50, 100] as const;
-export const DEFAULT_PER_PAGE = 25;
+// The constants and `readPaging` live in a module with no "use client"
+// directive, because the server components that render this pager need them
+// too — and anything exported from a client module is a client function.
+import { PER_PAGE_OPTIONS } from "@/lib/medical/admin/paging";
 
 export function ConsolePager({
   page,
@@ -117,17 +119,3 @@ export function ConsolePager({
   );
 }
 
-/** Read `page` and `per` out of a search-params object, safely. */
-export function readPaging(
-  query: Record<string, string | string[] | undefined>,
-): { page: number; perPage: number; skip: number } {
-  const pageRaw = Number(Array.isArray(query.page) ? query.page[0] : query.page);
-  const perRaw = Number(Array.isArray(query.per) ? query.per[0] : query.per);
-  const page = Number.isInteger(pageRaw) && pageRaw > 0 ? pageRaw : 1;
-  // Clamped to the offered options. A hand-edited `?per=100000` is a query
-  // that tries to read the whole table into memory.
-  const perPage = (PER_PAGE_OPTIONS as readonly number[]).includes(perRaw)
-    ? perRaw
-    : DEFAULT_PER_PAGE;
-  return { page, perPage, skip: (page - 1) * perPage };
-}

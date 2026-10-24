@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { Truck } from "lucide-react";
 import { ConsoleHeader } from "@/components/medical/console/ConsoleHeader";
 import { ConsoleTable, Row, td, tdKey, tdNum } from "@/components/medical/console/ConsoleTable";
-import { ConsolePager, readPaging } from "@/components/medical/console/ConsolePager";
+import { ConsolePager } from "@/components/medical/console/ConsolePager";
+import { readPaging } from "@/lib/medical/admin/paging";
 import { ConsoleSearch, FilterChips } from "@/components/medical/console/ConsoleFilters";
 import { StatusBadge } from "@/components/medical/console/StatusBadge";
 import { MedicalLink } from "@/components/medical/ui/MedicalLink";
@@ -35,7 +36,7 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
     <div className="space-y-5">
       <ConsoleHeader
         title="Purchase orders"
-        subtitle="What we have ordered from our own suppliers. Not the same thing as a purchase order a hospital sends us."
+        subtitle="Orders we have issued to our own suppliers. A separate record from the purchase orders institutions issue to us."
         icon={Truck}
       />
 
@@ -47,7 +48,7 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
           <FilterChips name="status" options={purchaseOrderStatus.options} />
         </Suspense>
         <Suspense fallback={null}>
-          <FilterChips name="overdue" allLabel="Any date" options={[{ value: "1", label: "Past due" }]} />
+          <FilterChips name="overdue" allLabel="All dates" options={[{ value: "1", label: "Overdue" }]} />
         </Suspense>
       </div>
 
@@ -58,8 +59,8 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
           "Status",
           "Ordered",
           "Expected",
-          { label: "Lines", numeric: true },
-          { label: "Landed (GH₵)", numeric: true },
+          { label: "Line items", numeric: true },
+          { label: "Landed cost (GH₵)", numeric: true },
         ]}
         empty={{
           title: "No purchase orders",
@@ -99,7 +100,7 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
               <td className={td}>
                 {formatDate(order.expectedAt)}
                 {late ? (
-                  <StatusBadge label="Past due" tone="bad" className="ml-2 align-middle" />
+                  <StatusBadge label="Overdue" tone="bad" className="ml-2 align-middle" />
                 ) : null}
               </td>
               <td className={tdNum}>{order._count.items}</td>

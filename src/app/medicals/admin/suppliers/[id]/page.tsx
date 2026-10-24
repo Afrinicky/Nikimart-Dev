@@ -34,13 +34,13 @@ export default async function SupplierPage({ params }: { params: Params }) {
       {showMoney ? (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard label="Invoiced to date" value={formatPesewas(balance.invoiced)} />
-          <StatCard label="Paid" value={formatPesewas(balance.paid)} />
+          <StatCard label="Paid to date" value={formatPesewas(balance.paid)} />
           <StatCard
-            label="Outstanding"
+            label="Outstanding balance"
             value={formatPesewas(balance.outstanding)}
             tone={balance.outstanding > 0 ? "attention" : "default"}
           />
-          <StatCard label="Open orders" value={String(balance.openOrders)} />
+          <StatCard label="Open purchase orders" value={String(balance.openOrders)} />
         </div>
       ) : null}
 
@@ -53,7 +53,7 @@ export default async function SupplierPage({ params }: { params: Params }) {
             "Status",
             "Ordered",
             "Expected",
-            { label: "Landed (GH₵)", numeric: true },
+            { label: "Landed cost (GH₵)", numeric: true },
           ]}
           empty={{ title: "No orders yet", body: "Nothing has been bought from this supplier." }}
         >
@@ -82,7 +82,7 @@ export default async function SupplierPage({ params }: { params: Params }) {
 
       {showMoney ? (
         <section>
-          <PanelHeading title="Invoices" />
+          <PanelHeading title="Supplier invoices" />
           <ConsoleTable
             minWidth={820}
             columns={[
@@ -126,9 +126,11 @@ export default async function SupplierPage({ params }: { params: Params }) {
       ) : null}
 
       <section>
-        <PanelHeading title="Details" subtitle="Everything here is internal." />
+        <PanelHeading title="Supplier details" subtitle="Internal record. None of it reaches the storefront." />
         <div className="mt-4">
-          <SupplierForm supplier={supplier} />
+          <SupplierForm
+            supplier={{ ...supplier, minimumOrderValue: String(supplier.minimumOrderValue) }}
+          />
         </div>
       </section>
     </div>

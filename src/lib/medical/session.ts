@@ -92,7 +92,7 @@ export async function requireMedicalRole(
   if (!canReach(staff.role, `/medicals/admin/${section}`)) {
     throw new Error("You do not have access to this part of the console.");
   }
-  if (allow && staff.role !== "OWNER" && !allow.includes(staff.role)) {
+  if (allow && staff.role !== "ADMIN" && !allow.includes(staff.role)) {
     throw new Error("Your role cannot perform this action.");
   }
   return staff;

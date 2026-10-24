@@ -67,9 +67,19 @@ never the only signal — a badge carries a word as well as a colour.
 | Role | Foreground | Surface |
 |---|---|---|
 | Success / in stock / paid | `oklch(0.52 0.12 152)` | `oklch(0.96 0.03 152)` |
-| Warning / low stock / due | `oklch(0.56 0.12 70)` | `oklch(0.96 0.04 80)` |
+| Warning / low stock / due | `oklch(0.52 0.12 70)` | `oklch(0.96 0.04 80)` |
 | Danger / out of stock / overdue | `oklch(0.53 0.17 25)` | `oklch(0.96 0.03 25)` |
 | Info / draft / pending | `oklch(0.52 0.09 243)` | `oklch(0.96 0.02 243)` |
+
+Warning was `0.56` until axe measured a status badge at 4.24:1 against its own
+surface — the pairing passes at the body size the rest of the console uses and
+fails at the 11px a badge is set in. The figure is for the smallest place a
+token is used, not the most common one, so it is `0.52` and measures 5.01:1 on
+the warning surface and 5.65:1 on white.
+
+Group headings in the console sidebar are `white/55` on the teal-900 rail,
+which measures 5.67:1. `white/35` reads as a nicely recessive label and
+measures 3.13:1, which is not a label at all for anyone who cannot resolve it.
 
 ### Strategy
 

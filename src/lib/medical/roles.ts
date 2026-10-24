@@ -7,13 +7,19 @@
  * cannot express that, and bending them to try would change a model three
  * businesses share.
  *
+ * ADMIN is spelled the same here as in retail and means something different.
+ * There is no collision to resolve: a medical role is carried by a row in
+ * `medical_staff` and read by `requireMedicalStaff`, so a retail administrator
+ * with no such row reaches nothing in this console, and a medical
+ * administrator has no standing in the retail dashboards.
+ *
  * Pure, so it can be tested and so the sidebar and the page guard cannot
  * disagree about what somebody may see — a menu that offers a section the
  * page then refuses is worse than no menu.
  */
 
 export const MEDICAL_ROLES = [
-  "OWNER",
+  "ADMIN",
   "MANAGER",
   "SALES",
   "PROCUREMENT",
@@ -25,7 +31,7 @@ export const MEDICAL_ROLES = [
 export type MedicalRole = (typeof MEDICAL_ROLES)[number];
 
 export const MEDICAL_ROLE_LABELS: Record<MedicalRole, string> = {
-  OWNER: "Owner",
+  ADMIN: "Administrator",
   MANAGER: "Manager",
   SALES: "Sales",
   PROCUREMENT: "Procurement",
@@ -35,13 +41,13 @@ export const MEDICAL_ROLE_LABELS: Record<MedicalRole, string> = {
 };
 
 export const MEDICAL_ROLE_DESCRIPTIONS: Record<MedicalRole, string> = {
-  OWNER: "Everything, including staff and settings.",
-  MANAGER: "Everything operational. Not staff or settings.",
-  SALES: "Quotations, tenders, customers and orders.",
+  ADMIN: "Full access, including staff accounts and settings.",
+  MANAGER: "All operations. Not staff accounts or settings.",
+  SALES: "Quotations, tenders, institutions and sales orders.",
   PROCUREMENT: "Suppliers, sourcing, purchase orders and supplier pricing.",
-  STORES: "Inventory, goods received and dispatch.",
+  STORES: "Inventory, goods receipts and dispatch.",
   FINANCE: "Payments, payables, expenses and reporting.",
-  SUPPORT: "Customers and support requests, read-only elsewhere.",
+  SUPPORT: "Customer records and support requests. Read-only elsewhere.",
 };
 
 export function isMedicalRole(value: unknown): value is MedicalRole {
@@ -54,7 +60,7 @@ export function isMedicalRole(value: unknown): value is MedicalRole {
  * Keyed by the first path segment under `/medicals/admin`. The empty key is
  * the overview, which everybody with a staff account can see.
  *
- * OWNER is not listed on each line; it is allowed everywhere by `canReach`.
+ * ADMIN is not listed on each line; it is allowed everywhere by `canReach`.
  * Spelling it out on every row is how one gets missed.
  */
 export const SECTION_ACCESS: Record<string, MedicalRole[]> = {
@@ -93,7 +99,7 @@ export function sectionOf(pathname: string): string {
 }
 
 export function canReach(role: MedicalRole, pathname: string): boolean {
-  if (role === "OWNER") return true;
+  if (role === "ADMIN") return true;
   const section = sectionOf(pathname);
   const allowed = SECTION_ACCESS[section];
   // An unknown section is closed, not open. A new page added without a line in
@@ -105,7 +111,7 @@ export function canReach(role: MedicalRole, pathname: string): boolean {
 
 /** Whether a role may see a section at all, for building the sidebar. */
 export function canSeeSection(role: MedicalRole, section: string): boolean {
-  if (role === "OWNER") return true;
+  if (role === "ADMIN") return true;
   return (SECTION_ACCESS[section] ?? []).includes(role);
 }
 
@@ -117,10 +123,10 @@ export function canSeeSection(role: MedicalRole, section: string): boolean {
  * this is the second gate, for the console itself.
  */
 export function canSeeCost(role: MedicalRole): boolean {
-  return role === "OWNER" || role === "MANAGER" || role === "PROCUREMENT" || role === "FINANCE";
+  return role === "ADMIN" || role === "MANAGER" || role === "PROCUREMENT" || role === "FINANCE";
 }
 
 /** Whether a role may approve a purchase order or release a supplier payment. */
 export function canApproveSpending(role: MedicalRole): boolean {
-  return role === "OWNER" || role === "MANAGER" || role === "FINANCE";
+  return role === "ADMIN" || role === "MANAGER" || role === "FINANCE";
 }

@@ -66,18 +66,18 @@ export default async function PurchaseOrderPage({ params }: { params: Params }) 
       ) : null}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Lines" value={String(order.items.length)} />
+        <StatCard label="Line items" value={String(order.items.length)} />
         <StatCard
           label="Received"
           value={`${acceptedTotal} of ${orderedTotal}`}
-          hint="Accepted units against ordered"
+          hint="Accepted units against quantity ordered"
         />
-        <StatCard label="Expected" value={formatDate(order.expectedAt)} />
+        <StatCard label="Expected delivery" value={formatDate(order.expectedAt)} />
         {showMoney ? (
           <StatCard
             label="Landed cost"
             value={formatPesewas(toPesewas(order.totalLandedGhs))}
-            hint={order.costsConfirmed ? "Confirmed" : "Still estimated"}
+            hint={order.costsConfirmed ? "Confirmed" : "Estimated"}
             tone={order.costsConfirmed ? "default" : "attention"}
           />
         ) : null}
@@ -86,8 +86,8 @@ export default async function PurchaseOrderPage({ params }: { params: Params }) 
       {servingSalesOrders.length > 0 ? (
         <section>
           <PanelHeading
-            title="Bought for"
-            subtitle="The customer orders waiting on this delivery."
+            title="Allocated to"
+            subtitle="The sales orders awaiting this delivery."
           />
           <ul className="medi-panel mt-3 divide-y divide-medi-rule">
             {servingSalesOrders.map((entry) => (
@@ -103,7 +103,7 @@ export default async function PurchaseOrderPage({ params }: { params: Params }) 
                     href={`/medicals/admin/customer-orders/${entry.salesOrderId}`}
                     className="medi-focus medi-meta rounded text-medi-teal-700 hover:underline"
                   >
-                    View the customer order
+                    View the sales order
                   </MedicalLink>
                 ) : (
                   <span className="medi-meta text-medi-muted">Stock replenishment</span>
@@ -115,22 +115,22 @@ export default async function PurchaseOrderPage({ params }: { params: Params }) 
       ) : null}
 
       <section>
-        <PanelHeading title="Lines" />
+        <PanelHeading title="Line items" />
         <ConsoleTable
           minWidth={880}
           columns={[
             "Description",
-            { label: "Ordered", numeric: true },
+            { label: "Quantity ordered", numeric: true },
             { label: "Accepted", numeric: true },
             ...(showMoney
               ? [
                   { label: "Unit cost", numeric: true },
                   { label: "Line total", numeric: true },
-                  { label: "Landed/unit", numeric: true },
+                  { label: "Landed cost per unit", numeric: true },
                 ]
               : []),
           ]}
-          empty={{ title: "No lines", body: "Add what is being bought." }}
+          empty={{ title: "No line items", body: "Add what is being purchased." }}
         >
           {order.items.map((item) => (
             <Row key={item.id}>
@@ -170,8 +170,8 @@ export default async function PurchaseOrderPage({ params }: { params: Params }) 
       {order.status !== "DRAFT" && order.status !== "CANCELLED" ? (
         <section>
           <PanelHeading
-            title="Record a delivery"
-            subtitle="Part deliveries are normal. Record what actually arrived."
+            title="Record a goods receipt"
+            subtitle="Part deliveries are routine. Record what actually arrived."
           />
           <div className="mt-4">
             <GoodsReceiptForm
@@ -191,7 +191,7 @@ export default async function PurchaseOrderPage({ params }: { params: Params }) 
 
       {order.receipts.length > 0 ? (
         <section>
-          <PanelHeading title="Deliveries" />
+          <PanelHeading title="Goods receipts" />
           <ConsoleTable
             minWidth={720}
             columns={[
@@ -201,7 +201,7 @@ export default async function PurchaseOrderPage({ params }: { params: Params }) 
               { label: "Accepted", numeric: true },
               { label: "Rejected", numeric: true },
             ]}
-            empty={{ title: "Nothing received", body: "No deliveries recorded yet." }}
+            empty={{ title: "Nothing received", body: "No goods receipts recorded yet." }}
           >
             {order.receipts.map((receipt) => {
               const accepted = receipt.items.reduce((n, i) => n + i.quantityAccepted, 0);
@@ -233,11 +233,28 @@ export default async function PurchaseOrderPage({ params }: { params: Params }) 
       {showMoney ? (
         <section>
           <PanelHeading
-            title="Landed costs"
-            subtitle="What the goods cost by the time they are on the shelf. Estimates stand in until the actuals are known, and reports say which is which."
+            title="Landed cost"
+            subtitle="The full cost of the goods once they are on the shelf. Estimates stand in until the actual figures are known, and reports distinguish the two."
           />
           <div className="mt-4">
-            <LandedCostForm order={order} />
+            <LandedCostForm
+              order={{
+                id: order.id,
+                currency: order.currency,
+                // Decimal instances cannot cross into a client component, so
+                // they are turned into strings here rather than there.
+                exchangeRate: String(order.exchangeRate),
+                shippingEstimate: String(order.shippingEstimate),
+                shippingActual: String(order.shippingActual),
+                dutyEstimate: String(order.dutyEstimate),
+                dutyActual: String(order.dutyActual),
+                clearingEstimate: String(order.clearingEstimate),
+                clearingActual: String(order.clearingActual),
+                otherEstimate: String(order.otherEstimate),
+                otherActual: String(order.otherActual),
+                costsConfirmed: order.costsConfirmed,
+              }}
+            />
           </div>
         </section>
       ) : null}

@@ -22,19 +22,25 @@ export default async function MedicalAdminOverview() {
   return (
     <div className="space-y-8">
       <ConsoleHeader
-        title={`Good day, ${staff.name.split(" ")[0]}`}
-        subtitle="What is waiting on somebody here. Every figure is counted from the database."
+        title="Operations overview"
+        subtitle="Outstanding items across sales, procurement and finance. Every figure is counted from the database."
         icon={LayoutDashboard}
       />
 
+      {/*
+        A tile links somewhere only when that somewhere exists. The quotation
+        and inventory figures are real and worth reporting, but their sections
+        have no screens yet, so those tiles are not links: a tile that opens a
+        404 teaches people the console cannot be trusted, and Next prefetches
+        the route on hover, so it fails before anybody even clicks.
+      */}
       <section aria-labelledby="waiting">
-        <PanelHeading title="Waiting on us" subtitle="Nothing below is an estimate." />
+        <PanelHeading title="Action required" subtitle="Counts from live records. Nothing below is an estimate." />
         <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {sees("quotations") ? (
             <StatCard
               label="New quotation requests"
               value={String(figures.quotationRequestsNew)}
-              href="/medicals/admin/quotations?status=NEW"
               tone={figures.quotationRequestsNew > 0 ? "attention" : "default"}
             />
           ) : null}
@@ -43,12 +49,11 @@ export default async function MedicalAdminOverview() {
               label="Quotations awaiting a reply"
               value={String(figures.quotationsAwaitingReply)}
               hint="Sent, not yet accepted or declined"
-              href="/medicals/admin/quotations?status=SENT"
             />
           ) : null}
           {sees("customer-purchase-orders") ? (
             <StatCard
-              label="Customer POs to review"
+              label="Customer purchase orders to review"
               value={String(figures.customerPosToReview)}
               href="/medicals/admin/customer-purchase-orders?status=RECEIVED"
               tone={figures.customerPosToReview > 0 ? "attention" : "default"}
@@ -79,7 +84,7 @@ export default async function MedicalAdminOverview() {
           ) : null}
           {sees("purchase-orders") ? (
             <StatCard
-              label="Deliveries past their date"
+              label="Overdue deliveries"
               value={String(figures.purchaseOrdersOverdue)}
               href="/medicals/admin/purchase-orders?overdue=1"
               tone={figures.purchaseOrdersOverdue > 0 ? "attention" : "default"}
@@ -87,7 +92,7 @@ export default async function MedicalAdminOverview() {
           ) : null}
           {sees("payables") ? (
             <StatCard
-              label="Invoices with discrepancies"
+              label="Supplier invoices with discrepancies"
               value={String(figures.invoicesWithDiscrepancies)}
               hint="Billed does not match ordered or accepted"
               href="/medicals/admin/payables?discrepancy=1"
@@ -100,8 +105,8 @@ export default async function MedicalAdminOverview() {
       {sees("payables") || sees("customer-orders") ? (
         <section aria-labelledby="money">
           <PanelHeading
-            title="Money"
-            subtitle="Owed to us and owed by us. Kept apart, because they are different questions."
+            title="Receivables, payables and stock"
+            subtitle="Amounts owed to us and by us are reported separately — they answer different questions."
           />
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {sees("customer-orders") ? (
@@ -122,9 +127,8 @@ export default async function MedicalAdminOverview() {
             ) : null}
             {sees("inventory") ? (
               <StatCard
-                label="Lines at or below reorder level"
+                label="Products at or below reorder level"
                 value={String(figures.lowStockLines)}
-                href="/medicals/admin/inventory?filter=low"
                 tone={figures.lowStockLines > 0 ? "attention" : "default"}
               />
             ) : null}
@@ -132,7 +136,6 @@ export default async function MedicalAdminOverview() {
               <StatCard
                 label="Batches expiring in 90 days"
                 value={String(figures.expiringBatches)}
-                href="/medicals/admin/inventory?filter=expiring"
                 tone={figures.expiringBatches > 0 ? "attention" : "default"}
               />
             ) : null}
@@ -143,8 +146,8 @@ export default async function MedicalAdminOverview() {
       {sees("tenders") ? (
         <section aria-labelledby="dates">
           <PanelHeading
-            title="Dates that matter"
-            subtitle="Submission deadlines and renewals in the next sixty days."
+            title="Upcoming deadlines"
+            subtitle="Tender submission deadlines and contract renewals in the next sixty days."
           />
           {upcoming.length === 0 ? (
             <div className="medi-panel mt-4 px-5 py-10 text-center">

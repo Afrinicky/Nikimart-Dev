@@ -17,7 +17,8 @@
     "prisma:generate": "prisma generate && prisma generate --schema prisma/data/schema.prisma && prisma generate --schema prisma/medical/schema.prisma",
     "db:copy-data": "node scripts/copy-data-db.mjs",
     "medical:seed": "tsx prisma/medical/seed.ts",
-    "medical:migrate": "node scripts/migrate.mjs"
+    "medical:migrate": "node scripts/migrate.mjs",
+    "medical:check": "NODE_OPTIONS=--conditions=react-server tsx scripts/medical-workflow-check.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

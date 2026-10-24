@@ -76,7 +76,7 @@ export function GoodsReceiptForm({
         </Field>
       </div>
 
-      <div className="-mx-5 overflow-x-auto px-5 sm:-mx-6 sm:px-6">
+      <div className="relative -mx-5 overflow-x-auto px-5 sm:-mx-6 sm:px-6">
         <table className="w-full min-w-[840px] border-separate border-spacing-0 text-sm">
           <thead>
             <tr className="bg-medi-mint-50">

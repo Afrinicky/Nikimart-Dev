@@ -72,19 +72,19 @@ export default async function PayablePage({ params }: { params: Params }) {
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Invoice" value={formatPesewas(amount)} hint={invoice.currency} />
-        <StatCard label="Paid" value={formatPesewas(paid)} />
+        <StatCard label="Invoice total" value={formatPesewas(amount)} hint={invoice.currency} />
+        <StatCard label="Paid to date" value={formatPesewas(paid)} />
         <StatCard
-          label="Outstanding"
+          label="Outstanding balance"
           value={formatPesewas(outstanding)}
           tone={outstanding > 0 ? "attention" : "default"}
         />
-        <StatCard label="Due" value={formatDate(invoice.dueAt)} />
+        <StatCard label="Due date" value={formatDate(invoice.dueAt)} />
       </div>
 
       <section>
         <PanelHeading
-          title="Ordered, accepted, invoiced"
+          title="Three-way match"
           subtitle="The three figures that should agree. Where they do not, the difference is priced."
         />
         <ConsoleTable
@@ -187,8 +187,8 @@ export default async function PayablePage({ params }: { params: Params }) {
           {!match.isClean && !invoice.isMatched ? (
             <section>
               <PanelHeading
-                title="Accept the differences"
-                subtitle="A deliberate act, with your name against it. Only then can the invoice be paid."
+                title="Accept the variances"
+                subtitle="A deliberate act, recorded against your name. The invoice cannot be paid until it is done."
               />
               <div className="mt-4">
                 <MatchInvoiceForm invoiceId={invoice.id} />
@@ -200,7 +200,7 @@ export default async function PayablePage({ params }: { params: Params }) {
             <section>
               <PanelHeading
                 title="Record a payment"
-                subtitle="Part payments are normal. The status follows what has actually gone out."
+                subtitle="Part payments are routine. The status follows what has actually been paid."
               />
               <div className="mt-4">
                 <SupplierPaymentForm

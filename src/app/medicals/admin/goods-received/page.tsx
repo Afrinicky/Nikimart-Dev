@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { PackageCheck } from "lucide-react";
 import { ConsoleHeader } from "@/components/medical/console/ConsoleHeader";
 import { ConsoleTable, Row, td, tdKey, tdNum } from "@/components/medical/console/ConsoleTable";
-import { ConsolePager, readPaging } from "@/components/medical/console/ConsolePager";
+import { ConsolePager } from "@/components/medical/console/ConsolePager";
+import { readPaging } from "@/lib/medical/admin/paging";
 import { ConsoleSearch } from "@/components/medical/console/ConsoleFilters";
 import { StatusBadge } from "@/components/medical/console/StatusBadge";
 import { MedicalLink } from "@/components/medical/ui/MedicalLink";
@@ -65,8 +66,8 @@ export default async function GoodsReceivedPage({ searchParams }: { searchParams
   return (
     <div className="space-y-5">
       <ConsoleHeader
-        title="Goods received"
-        subtitle="Every delivery recorded against a purchase order. Accepted quantities are what entered stock."
+        title="Goods receipts"
+        subtitle="Every delivery recorded against a purchase order. Only accepted quantities entered stock."
         icon={PackageCheck}
       />
 

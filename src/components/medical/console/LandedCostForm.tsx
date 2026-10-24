@@ -19,35 +19,43 @@ import { savePurchaseOrderCosts } from "@/lib/medical/procurement/actions";
 export function LandedCostForm({
   order,
 }: {
+  /**
+   * Plain strings, not the Prisma row.
+   *
+   * Decimal columns arrive as Decimal instances, and a Decimal cannot cross
+   * into a client component: React refuses to serialise it, warns on every
+   * field, and what reaches the browser is an object the form cannot read.
+   * The page converts before it hands them over.
+   */
   order: {
     id: string;
     currency: string;
-    exchangeRate: unknown;
-    shippingEstimate: unknown;
-    shippingActual: unknown;
-    dutyEstimate: unknown;
-    dutyActual: unknown;
-    clearingEstimate: unknown;
-    clearingActual: unknown;
-    otherEstimate: unknown;
-    otherActual: unknown;
+    exchangeRate: string;
+    shippingEstimate: string;
+    shippingActual: string;
+    dutyEstimate: string;
+    dutyActual: string;
+    clearingEstimate: string;
+    clearingActual: string;
+    otherEstimate: string;
+    otherActual: string;
     costsConfirmed: boolean;
   };
 }) {
   const rows = [
     { key: "shipping", label: "Shipping and freight" },
-    { key: "duty", label: "Duty" },
+    { key: "duty", label: "Import duty" },
     { key: "clearing", label: "Clearing and handling" },
-    { key: "other", label: "Other" },
+    { key: "other", label: "Other charges" },
   ] as const;
 
-  const value = (key: string) => String((order as Record<string, unknown>)[key] ?? "0");
+  const value = (key: keyof typeof order) => order[key] as string;
 
   return (
     <ActionForm
       action={savePurchaseOrderCosts}
-      submitLabel="Save costs"
-      successMessage="Costs saved and spread over the lines."
+      submitLabel="Save landed costs"
+      successMessage="Costs saved and apportioned across the line items."
       className="medi-panel medi-panel-lg p-5 sm:p-6"
     >
       <input type="hidden" name="purchaseOrderId" value={order.id} />
@@ -58,15 +66,15 @@ export function LandedCostForm({
           htmlFor="exchangeRate"
           hint={`GH₵ per 1 ${order.currency}. Locked to this order, not looked up later.`}
         >
-          <NumberInput id="exchangeRate" defaultValue={String(order.exchangeRate ?? "1")} />
+          <NumberInput id="exchangeRate" defaultValue={order.exchangeRate} />
         </Field>
         <Field
-          label="Are these final?"
+          label="Cost status"
           htmlFor="costsConfirmed"
-          hint="Until this is yes, every report labels this order's cost as estimated."
+          hint="Until these are confirmed, every report labels this order's cost as estimated."
         >
           <Select id="costsConfirmed" defaultValue={order.costsConfirmed ? "1" : "0"}>
-            <option value="0">Still estimates</option>
+            <option value="0">Estimated</option>
             <option value="1">Confirmed</option>
           </Select>
         </Field>
@@ -96,7 +104,7 @@ export function LandedCostForm({
                 </label>
                 <NumberInput
                   id={`${row.key}Estimate`}
-                  defaultValue={value(`${row.key}Estimate`)}
+                  defaultValue={value(`${row.key}Estimate` as keyof typeof order)}
                   className="w-32"
                 />
               </td>
@@ -106,7 +114,7 @@ export function LandedCostForm({
                 </label>
                 <NumberInput
                   id={`${row.key}Actual`}
-                  defaultValue={value(`${row.key}Actual`)}
+                  defaultValue={value(`${row.key}Actual` as keyof typeof order)}
                   className="w-32"
                 />
               </td>
@@ -116,8 +124,9 @@ export function LandedCostForm({
       </table>
 
       <p className="medi-meta mt-4 text-medi-muted">
-        Charges are spread over the lines by value, so a GH₵12 swab does not carry the same freight
-        as a GH₵32,500 analyser. The parts add back to exactly what was paid.
+        Charges are apportioned across the line items by value, so a GH₵12 swab does not carry the
+        same freight as a GH₵32,500 analyser. The apportioned parts add back to exactly what was
+        paid.
       </p>
     </ActionForm>
   );

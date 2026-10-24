@@ -129,3 +129,98 @@ No equivalent exists in the repository.
 - **Tax.** No VAT/NHIL/GETFund treatment is implemented. Quotation and proforma
   documents carry a configurable charge line, which is where it will go once the
   business states its position.
+
+---
+
+## 7. The extension: tenders and internal procurement
+
+Added after the first two phases, on the same rule: inspect first, extend, break
+nothing. Nothing in sections 1–6 was rewritten; the twelve new tables, three new
+columns and ten console screens below sit beside what was already there.
+
+### What was reused rather than rebuilt
+
+- **The console itself.** `MedicalAdminShell`, `ConsoleTable`, `ConsoleHeader`,
+  `StatCard`, `ConsoleFilters`, `ConsolePager`, `Field`, `ActionForm`,
+  `StatusBadge`. Ten new screens, no new layout primitive.
+- **The role table.** `SECTION_ACCESS` already had rows for `sourcing`,
+  `supplier-quotes`, `customer-orders` and `customer-purchase-orders`; the
+  screens were built to the access that was already declared, not the reverse.
+- **The money module.** Every figure on the new screens goes through
+  `money.ts` — `toPesewas` on the way in, `formatPesewas` on the way out.
+- **The landed-cost module.** `compareOffers` and `landedCostOf` already existed
+  and were tested. The extension gave them something to read.
+- **Stock, ledger, numbering, audit.** `reserveStock`, `postTransaction`,
+  `nextReference` and `recordAudit` are called by the new actions unchanged.
+
+### What the extension had to add, and why
+
+| Addition | Why it could not be folded into something existing |
+|---|---|
+| `CustomerPurchaseOrder` (+ items) | A purchase order a hospital issues to us and one we issue to a supplier are different documents with opposite obligations. Sharing `PurchaseOrder` would make every total ambiguous. |
+| `TenderSubmissionItem.outcome` | A tender returns a different answer per line. One status on the tender cannot say "won three of five, part-awarded on a fourth". |
+| `ApprovedProduct` | An award is authorisation to supply at a price until a date, with a quantity ceiling. It is not an order and not a sale, and it has to be drawn down against. |
+| `SourcingRequest` (+ items) | The bridge. What has to be procured is not what was sold: four customers short of one reagent is one supplier order, and consolidating them needs a record a buyer can see all of them in. Items carry `salesOrderItemId`, so a short delivery traces to the customer it was for. |
+| `SupplierInvoiceItem` | Three-way match needs the invoiced line beside the ordered and the accepted line. |
+| Six charge columns on `SupplierQuote` | Added during this phase, after the comparison screen was built: without freight, duty rate and clearing, a "landed cost comparison" is a currency conversion wearing the wrong name. |
+| `PurchaseOrder.supplierQuoteId` | So the order can say which quotation it was priced from. A comparison nobody can trace to the order it produced is a screen, not a record. |
+
+### Invariants the extension is held to
+
+Asserted by `npm run medical:check`, which runs the whole chain against a real
+Postgres and currently makes 51 assertions:
+
+- A tender with mixed per-line outcomes reports `PARTIALLY_AWARDED`, not won or
+  lost.
+- An award creates register entries and **zero** sales orders and **zero**
+  revenue.
+- A customer purchase order is a separate record; accepting it marks nothing
+  paid and nothing dispatched.
+- Reserving more than exists is refused; a second order cannot reserve the same
+  stock.
+- The cheapest unit price and the cheapest landed cost are different suppliers,
+  and the comparison states what choosing on unit price would have cost.
+- An unanswered request for prices is not ranked at zero, and an import quoted
+  with no freight or duty is not reported as costed.
+- The purchase order records the quotation it was priced from, at that
+  quotation's prices.
+- Only accepted quantities enter stock, at landed cost; the movement log
+  explains the counter.
+- Revenue is posted once, on delivery; over-billing is caught and priced; the
+  invoice is unpayable until the variance is accepted.
+
+### Shared files changed by the extension
+
+Still additive, and still few:
+
+- `src/lib/medical/procurement/actions.ts` — `createPurchaseOrder` learned to
+  price from a chosen supplier quotation. Existing behaviour unchanged when no
+  quotation is passed.
+- `src/lib/medical/procurement/queries.ts` — `compareQuotesForSourcing` now
+  reads the charge columns instead of passing zeros, and drops unpriced
+  quotations from the ranking.
+- `src/components/medical/console/MedicalAdminShell.tsx` — nav entries for the
+  new sections.
+- `src/app/globals.css`, `DESIGN.md` — `--color-medi-warning` darkened from
+  `0.52` to clear 4.5:1 at badge size. Measured, not guessed.
+- `db/medical-migrations/0003_quote_costs_and_order_link.sql` — the only new
+  migration. Purely additive, re-runnable, verified against a schema-to-schema
+  diff.
+
+### The role rename
+
+The top medical role was `OWNER` and is now `ADMIN`. Migration 0003 carries the
+`UPDATE` for any row that already said `OWNER`, because the role is a validated
+string: a staff row the validator no longer recognises is a person the console
+turns away. `ADMIN` is spelled the same as retail's top role and means something
+different — a medical role is carried by a row in `medical_staff`, so a retail
+administrator with no such row reaches nothing here.
+
+### Still not built
+
+Quotations, inventory, products, staff, settings and the audit log have tables
+behind them and no screens. They are absent from the navigation and their
+figures on the overview are reported without links, because a tile that opens a
+404 teaches people the console cannot be trusted. Customer-side dispatch,
+invoicing and payment are likewise recorded by the modules and exercised by
+`medical:check`, but have no console screen yet.

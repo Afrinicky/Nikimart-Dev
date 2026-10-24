@@ -20,18 +20,18 @@ test("sectionOf finds the section a console path belongs to", () => {
 });
 
 test("the owner reaches everything, including a section nobody else can", () => {
-  assert.equal(canReach("OWNER", "/medicals/admin/settings"), true);
-  assert.equal(canReach("OWNER", "/medicals/admin/staff"), true);
-  assert.equal(canReach("OWNER", "/medicals/admin/tenders"), true);
+  assert.equal(canReach("ADMIN", "/medicals/admin/settings"), true);
+  assert.equal(canReach("ADMIN", "/medicals/admin/staff"), true);
+  assert.equal(canReach("ADMIN", "/medicals/admin/tenders"), true);
   for (const section of Object.keys(SECTION_ACCESS)) {
-    assert.equal(canReach("OWNER", `/medicals/admin/${section}`), true, section);
+    assert.equal(canReach("ADMIN", `/medicals/admin/${section}`), true, section);
   }
 });
 
 test("an unknown section is closed to everyone but the owner", () => {
   // A page added without a line in the table should 404 rather than be open.
   for (const role of MEDICAL_ROLES) {
-    if (role === "OWNER") continue;
+    if (role === "ADMIN") continue;
     assert.equal(canReach(role, "/medicals/admin/not-a-real-section"), false, role);
   }
 });
@@ -60,7 +60,7 @@ test("roles are kept apart where it matters", () => {
 
 test("settings and staff are the owner's alone", () => {
   for (const role of MEDICAL_ROLES) {
-    if (role === "OWNER") continue;
+    if (role === "ADMIN") continue;
     assert.equal(canReach(role, "/medicals/admin/settings"), false, role);
     assert.equal(canReach(role, "/medicals/admin/staff"), false, role);
   }
@@ -92,7 +92,7 @@ test("cost is visible only to the roles that need it", () => {
   assert.equal(canSeeCost("PROCUREMENT"), true);
   assert.equal(canSeeCost("FINANCE"), true);
   assert.equal(canSeeCost("MANAGER"), true);
-  assert.equal(canSeeCost("OWNER"), true);
+  assert.equal(canSeeCost("ADMIN"), true);
 });
 
 test("spending is approved by the roles accountable for it", () => {
@@ -101,12 +101,17 @@ test("spending is approved by the roles accountable for it", () => {
   assert.equal(canApproveSpending("SALES"), false);
   assert.equal(canApproveSpending("FINANCE"), true);
   assert.equal(canApproveSpending("MANAGER"), true);
-  assert.equal(canApproveSpending("OWNER"), true);
+  assert.equal(canApproveSpending("ADMIN"), true);
 });
 
 test("isMedicalRole narrows a string from the database", () => {
   assert.equal(isMedicalRole("PROCUREMENT"), true);
-  assert.equal(isMedicalRole("ADMIN"), false, "a retail role is not a medical one");
+  assert.equal(isMedicalRole("SELLER"), false, "a retail role is not a medical one");
+  // ADMIN is spelled the same in both systems and means different things in
+  // each. The name matching proves nothing: a medical role is only a medical
+  // role because a row in medical_staff says so, and `requireMedicalStaff` is
+  // what reads that row. Retail's own ADMIN reaches no part of this console.
+  assert.equal(isMedicalRole("ADMIN"), true);
   assert.equal(isMedicalRole(null), false);
   assert.equal(isMedicalRole(""), false);
 });

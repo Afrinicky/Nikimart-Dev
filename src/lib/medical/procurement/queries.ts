@@ -166,36 +166,61 @@ export async function compareQuotesForSourcing(
     const quotes = await medicalDb.supplierQuote.findMany({
       where: { sourcingRequestId, status: { in: ["RECEIVED", "REQUESTED"] } },
       include: {
-        supplier: { select: { id: true, name: true } },
+        supplier: { select: { id: true, name: true, kind: true } },
         items: { select: { id: true, quantity: true, unitCost: true, leadTimeDays: true } },
       },
     });
 
-    const offers: Offer[] = quotes.map((quote) => ({
-      id: quote.id,
-      supplierId: quote.supplier.id,
-      supplierName: quote.supplier.name,
-      currency: quote.currency,
-      exchangeRate: toBasisPoints(quote.exchangeRate),
-      lines: quote.items.map((item) => ({
-        id: item.id,
-        quantity: item.quantity,
-        unitPrice: toPesewas(item.unitCost),
-      })),
-      // Carried on the quote where the supplier stated them; otherwise zero and
-      // the costing says so rather than inventing a freight figure.
-      freight: 0,
-      insurance: 0,
-      otherSupplierCharges: 0,
-      dutyRate: 0,
-      clearingGhs: 0,
-      otherGhs: 0,
-      leadTimeDays: Math.max(0, ...quote.items.map((item) => item.leadTimeDays), 0),
-      costsConfirmed: quote.status === "RECEIVED",
-    }));
+    const offers: Offer[] = quotes.map((quote) => {
+      const statedCharges =
+        toPesewas(quote.freight) +
+        toPesewas(quote.insurance) +
+        toPesewas(quote.otherCharges) +
+        toPesewas(quote.clearingGhs) +
+        toPesewas(quote.otherGhs);
+
+      return {
+        id: quote.id,
+        supplierId: quote.supplier.id,
+        supplierName: quote.supplier.name,
+        currency: quote.currency,
+        exchangeRate: toBasisPoints(quote.exchangeRate),
+        lines: quote.items.map((item) => ({
+          id: item.id,
+          quantity: item.quantity,
+          unitPrice: toPesewas(item.unitCost),
+        })),
+        // Freight, insurance and their other charges as the supplier stated
+        // them, in the supplier's own currency; duty as a rate on the CIF
+        // value; clearing and the inland charges in GH₵, because they are paid
+        // here in cedis.
+        freight: toPesewas(quote.freight),
+        insurance: toPesewas(quote.insurance),
+        otherSupplierCharges: toPesewas(quote.otherCharges),
+        dutyRate: quote.dutyRateBp,
+        clearingGhs: toPesewas(quote.clearingGhs),
+        otherGhs: toPesewas(quote.otherGhs),
+        leadTimeDays: Math.max(0, ...quote.items.map((item) => item.leadTimeDays), 0),
+        // A local quote with no charges on it is fully costed: there is nothing
+        // between their gate and ours to cost. An import quote with none stated
+        // is not, and the difference matters — freight, duty and clearing on an
+        // import are certainly not zero, they are merely unknown, and a ranking
+        // that treats unknown as zero puts the wrong supplier first.
+        costsConfirmed:
+          quote.status === "RECEIVED" &&
+          (quote.supplier.kind !== "INTERNATIONAL" || statedCharges > 0 || quote.dutyRateBp > 0),
+      };
+    });
+
+    // A request that has been sent and not yet answered is not an offer, and
+    // ranking it at zero would make every comparison name it the cheapest.
+    // Kept in `quotes` so the screen can still show it as outstanding.
+    const priced = offers.filter((offer) =>
+      offer.lines.some((line) => line.quantity > 0 && line.unitPrice > 0),
+    );
 
     return {
-      ...compareOffers(offers),
+      ...compareOffers(priced),
       quotes: quotes.map((q) => ({
         id: q.id,
         reference: q.reference,

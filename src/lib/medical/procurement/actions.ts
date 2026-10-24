@@ -15,6 +15,7 @@ import {
   sum,
   toDecimalString,
   toPesewas,
+  type MoneyInput,
   type Pesewas,
 } from "@/lib/medical/money";
 
@@ -166,12 +167,32 @@ async function uniqueSupplierCode(tx: Prisma.TransactionClient, name: string): P
 export async function createPurchaseOrder(form: FormData): Promise<ActionResult> {
   try {
     const staff = await requireMedicalRole("purchase-orders");
-    const supplierId = text(form, "supplierId");
-    if (!supplierId) return { ok: false, error: "Choose a supplier." };
-
+    const chosenSupplierId = text(form, "supplierId");
     const sourcingRequestId = text(form, "sourcingRequestId") || null;
+    // The quotation this order is being placed against, where the buyer picked
+    // one. Its prices and its rate are what the order is raised at — re-pricing
+    // from the catalogue here would quietly discard the comparison the buyer
+    // just made. Picking a quotation names the supplier too, so the sourcing
+    // screen can offer one choice rather than two that must agree.
+    const supplierQuoteId = text(form, "supplierQuoteId") || null;
+    if (!chosenSupplierId && !supplierQuoteId) {
+      return { ok: false, error: "Choose a supplier." };
+    }
 
     const result = await medicalDb.$transaction(async (tx) => {
+      const quote = supplierQuoteId
+        ? await tx.supplierQuote.findUnique({
+            where: { id: supplierQuoteId },
+            include: { items: true },
+          })
+        : null;
+      if (supplierQuoteId && !quote) throw new Error("That quotation no longer exists.");
+      if (quote && chosenSupplierId && quote.supplierId !== chosenSupplierId) {
+        throw new Error("That quotation belongs to a different supplier.");
+      }
+
+      const supplierId = chosenSupplierId || quote?.supplierId;
+      if (!supplierId) throw new Error("Choose a supplier.");
       const supplier = await tx.supplier.findUniqueOrThrow({
         where: { id: supplierId },
         select: { id: true, name: true, currency: true, leadTimeDays: true },
@@ -184,9 +205,12 @@ export async function createPurchaseOrder(form: FormData): Promise<ActionResult>
         data: {
           reference,
           supplierId,
+          supplierQuoteId: quote?.id ?? null,
           status: "DRAFT",
-          currency: text(form, "currency") || supplier.currency,
-          exchangeRate: toDecimalString(money(form, "exchangeRate")) || "1",
+          currency: text(form, "currency") || quote?.currency || supplier.currency,
+          exchangeRate:
+            toDecimalString(money(form, "exchangeRate")) ||
+            (quote ? String(quote.exchangeRate) : "1"),
           expectedAt:
             expectedAt ??
             new Date(Date.now() + Math.max(1, supplier.leadTimeDays) * 86_400_000),
@@ -203,10 +227,23 @@ export async function createPurchaseOrder(form: FormData): Promise<ActionResult>
           include: { product: { select: { purchaseCost: true, unitOfSale: true } } },
         });
 
+        // The quoted price for a line, matched on the product where both
+        // sides have one and on the wording otherwise — a supplier's own
+        // description is often all a non-catalogue line has.
+        const quoted = (productId: string | null, description: string) => {
+          if (!quote) return null;
+          const line =
+            (productId ? quote.items.find((q) => q.productId === productId) : undefined) ??
+            quote.items.find((q) => q.description === description);
+          return line ? toPesewas(line.unitCost) : null;
+        };
+
         for (const item of items) {
           const outstanding = Math.max(0, item.quantity - item.quantityOrdered);
           if (outstanding <= 0) continue;
-          const unitCost = toPesewas(item.product?.purchaseCost ?? 0);
+          const unitCost =
+            quoted(item.productId, item.description) ??
+            toPesewas(item.product?.purchaseCost ?? 0);
           await tx.purchaseOrderItem.create({
             data: {
               purchaseOrderId: order.id,
@@ -363,9 +400,11 @@ async function recalculatePurchaseOrder(
   }));
   const subtotal = sum(lines.map((line) => lineAmount(line.quantity, line.unitCost)));
 
-  const pick = (actual: unknown, estimate: unknown): Pesewas => {
-    const a = toPesewas(actual as never);
-    return a > 0 ? a : toPesewas(estimate as never);
+  // The actual where it has been entered, the estimate until then. Typed as
+  // MoneyInput rather than unknown so a Decimal column passes without a cast.
+  const pick = (actual: MoneyInput, estimate: MoneyInput): Pesewas => {
+    const a = toPesewas(actual);
+    return a > 0 ? a : toPesewas(estimate);
   };
   const landedCharges =
     pick(order.shippingActual, order.shippingEstimate) +

@@ -1,7 +1,8 @@
 import { Plus, Users } from "lucide-react";
 import { ConsoleHeader } from "@/components/medical/console/ConsoleHeader";
 import { ConsoleTable, Row, td, tdKey, tdNum } from "@/components/medical/console/ConsoleTable";
-import { ConsolePager, readPaging } from "@/components/medical/console/ConsolePager";
+import { ConsolePager } from "@/components/medical/console/ConsolePager";
+import { readPaging } from "@/lib/medical/admin/paging";
 import { ConsoleSearch, FilterChips } from "@/components/medical/console/ConsoleFilters";
 import { StatusBadge } from "@/components/medical/console/StatusBadge";
 import { MedicalButtonLink } from "@/components/medical/ui/MedicalButton";
@@ -33,7 +34,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Se
     <div className="space-y-5">
       <ConsoleHeader
         title="Suppliers"
-        subtitle="Who we buy from, locally and abroad. Internal — none of this reaches the storefront."
+        subtitle="Suppliers we purchase from, local and international. An internal record: none of it reaches the storefront."
         icon={Users}
       >
         <MedicalButtonLink href="/medicals/admin/suppliers/new" size="sm">
@@ -50,7 +51,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Se
           <FilterChips
             name="kind"
             options={[
-              { value: "LOCAL", label: "Ghana" },
+              { value: "LOCAL", label: "Local" },
               { value: "INTERNATIONAL", label: "International" },
             ]}
           />
@@ -74,8 +75,8 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Se
           "Where",
           "Currency",
           { label: "Lead time", numeric: true },
-          { label: "Terms", numeric: true },
-          { label: "Orders", numeric: true },
+          { label: "Payment terms", numeric: true },
+          { label: "Purchase orders", numeric: true },
           "Status",
         ]}
         empty={{
