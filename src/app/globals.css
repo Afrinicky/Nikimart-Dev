@@ -394,3 +394,344 @@ summary {
     transform: none;
   }
 }
+
+/* ===========================================================================
+   Nickimart Medical
+   ===========================================================================
+   medicals.nickimart.com — the third business in this repository, and the only
+   one with a palette of its own. Everything here is prefixed `--medi-` and
+   every rule is scoped under `.medi`, which the medical layout puts on its own
+   wrapper. The retail tokens above are not redefined, not shadowed and not
+   read; a change on either side cannot reach the other.
+
+   The colours are OKLCH. The retail palette is hex because it predates the
+   decision, but this one is new and a nine-step teal ramp in hex drifts muddy
+   through the middle — OKLCH keeps the steps perceptually even, which is the
+   whole reason a ramp exists.
+
+   Every text colour below was measured against its surface rather than
+   estimated, and the numbers are in the comments. There is deliberately no
+   fifth, lighter grey: the obvious next step down lands at 3.6:1 on white, and
+   a token that exists is a token that eventually ends up on body copy.
+   DESIGN.md has the full table.
+   ------------------------------------------------------------------------ */
+
+@theme inline {
+  /* --- Teal: the one accent ---------------------------------------------- */
+  --color-medi-mint-50: oklch(0.975 0.014 186);
+  --color-medi-mint-100: oklch(0.95 0.026 185);
+  --color-medi-mint-200: oklch(0.903 0.046 184);
+  --color-medi-teal-300: oklch(0.8 0.076 184);
+  --color-medi-teal-400: oklch(0.7 0.095 184);
+  --color-medi-teal-500: oklch(0.62 0.104 184);
+  --color-medi-teal-600: oklch(0.545 0.096 185);
+  --color-medi-teal-700: oklch(0.47 0.082 186);
+  --color-medi-teal-800: oklch(0.39 0.066 188);
+  --color-medi-teal-900: oklch(0.31 0.05 190);
+
+  /* --- Ink: type and authority -------------------------------------------
+     On white: 15.71 · 12.16 · 8.07 · 5.26. `muted` is the lightest type in the
+     system and the floor for anything a person has to read. */
+  --color-medi-ink: oklch(0.255 0.045 243);
+  --color-medi-ink-soft: oklch(0.33 0.038 243);
+  --color-medi-body: oklch(0.43 0.026 243);
+  --color-medi-muted: oklch(0.53 0.021 243);
+
+  /* Non-text greys. Named so they cannot be mistaken for type: a disabled
+     control and a rule are allowed to be quiet, a sentence is not. */
+  --color-medi-disabled: oklch(0.72 0.012 243);
+  --color-medi-rule: oklch(0.255 0.045 243 / 0.11);
+  --color-medi-rule-strong: oklch(0.255 0.045 243 / 0.2);
+  --color-medi-rule-light: oklch(1 0 0 / 0.16);
+
+  /* --- Semantic ----------------------------------------------------------
+     Each is a 600-weight foreground over a 50-weight surface. Colour is never
+     the only signal — every badge in this system carries a word too, because
+     "green" is not a status to somebody who cannot see green. */
+  --color-medi-success: oklch(0.52 0.12 152);
+  --color-medi-success-soft: oklch(0.96 0.03 152);
+  --color-medi-warning: oklch(0.56 0.12 70);
+  --color-medi-warning-soft: oklch(0.96 0.04 80);
+  --color-medi-danger: oklch(0.53 0.17 25);
+  --color-medi-danger-soft: oklch(0.96 0.03 25);
+  --color-medi-info: oklch(0.52 0.09 243);
+  --color-medi-info-soft: oklch(0.96 0.02 243);
+
+  /* --- Surfaces ----------------------------------------------------------- */
+  --color-medi-page: oklch(1 0 0);
+  --color-medi-surface: oklch(0.988 0.002 243);
+
+  /* The display face. One family, not two: a storefront whose headings are a
+     second, similar sans is the timid pairing that makes a page look
+     assembled. Contrast comes from weight — 800 display, 700 headings, 600
+     controls, 400–500 text. Chosen against reflex; DESIGN.md says why. */
+  --font-medi: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ---------------------------------------------------------------------------
+   The medical shell
+   ---------------------------------------------------------------------------
+   Everything below is scoped to `.medi`. The root layout gives the whole site
+   the retail surface colour and the retail body face; a medical page sets its
+   own on this wrapper rather than fighting the body rule, so the two can
+   coexist in one tree without either knowing about the other. */
+
+@layer base {
+  .medi {
+    background: var(--color-medi-page);
+    color: var(--color-medi-body);
+    font-family: var(--font-medi);
+    /* Steadier horizontal rhythm at text sizes, which matters on a page that
+       is mostly specifications and part numbers. */
+    font-feature-settings: "cv05" 1;
+  }
+}
+
+/* Element defaults go in `@layer base`, and the selector is wrapped in
+   `:where()`.
+   
+   Both are load-bearing. An unlayered rule beats every rule in a cascade
+   layer, and Tailwind v4 puts all utilities in `@layer utilities` — so a bare
+   `.medi h1 { color: … }` silently overrides `text-white` on the hero heading
+   and paints it ink-on-ink. That is exactly what happened the first time this
+   shipped; the headline rendered near-black on the dark teal band. `:where()`
+   then drops the selector's specificity to zero so even an unlayered utility
+   wins. These are defaults, and a default that cannot be overridden is not a
+   default. */
+@layer base {
+  .medi :where(h1, h2, h3, h4) {
+    color: var(--color-medi-ink);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    /* Even line lengths on a heading that wraps — "Laboratory reagents and
+       consumables" should not break after one word. */
+    text-wrap: balance;
+  }
+}
+
+.medi ::selection {
+  background: var(--color-medi-teal-600);
+  color: #fff;
+}
+
+@layer utilities {
+  /* --- Type ---------------------------------------------------------------
+     A fixed rem scale, because a clamped heading that shrinks inside a console
+     panel looks worse than a fixed one. The hero is the single exception and
+     has its own class below. */
+  /* The hero heading, and the only fluid size in the system.
+     
+     The ceiling is 3.5rem rather than the 4.25rem it started at. The hero
+     copy sits in a column about 58% of the panel, which at 68px gave roughly
+     eight characters a line and wrapped the headline into four — a block that
+     shouts without being any easier to read. At 56px it sets in three, which
+     is the shape a headline wants. */
+  .medi-display {
+    font-size: clamp(2.125rem, 1.35rem + 2.8vw, 3.5rem);
+    font-weight: 800;
+    line-height: 1.06;
+    letter-spacing: -0.032em;
+    text-wrap: balance;
+  }
+  .medi-h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+  }
+  .medi-h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.22;
+    letter-spacing: -0.02em;
+  }
+  .medi-h3 {
+    font-size: 1.1875rem;
+    font-weight: 650;
+    line-height: 1.3;
+    letter-spacing: -0.015em;
+  }
+  .medi-lede {
+    font-size: 1.0625rem;
+    line-height: 1.6;
+    max-width: 62ch;
+    text-wrap: pretty;
+  }
+  .medi-prose {
+    font-size: 0.9375rem;
+    line-height: 1.65;
+    max-width: 68ch;
+    text-wrap: pretty;
+  }
+  .medi-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+  }
+  .medi-meta {
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.45;
+  }
+
+  /* --- Focus --------------------------------------------------------------
+     One ring, everywhere. A white halo first so it reads on mint and on teal
+     as well as on white — a single-colour ring disappears on exactly the
+     surfaces where a keyboard user most needs it. */
+  .medi-focus:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px var(--color-medi-page),
+      0 0 0 4px var(--color-medi-teal-600);
+  }
+
+  /* --- Surfaces -----------------------------------------------------------
+     A hairline, not a shadow. Nothing in this system floats unless it is
+     genuinely above the page (a drawer, a dropdown, a modal), and a card that
+     carries a drop shadow for decoration is the thing that makes a layout look
+     like a template. */
+  .medi-panel {
+    background: var(--color-medi-page);
+    border-radius: 14px;
+    box-shadow: inset 0 0 0 1px var(--color-medi-rule);
+  }
+  .medi-panel-lg {
+    border-radius: 20px;
+  }
+
+  /* A surface that lifts on hover, for a card the whole of which is a link.
+     The shadow appears on hover and is absent at rest, which is the difference
+     between "this is raised" and "this can be raised". */
+  .medi-raise {
+    transition:
+      transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.18s ease;
+  }
+  .medi-raise:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      inset 0 0 0 1px var(--color-medi-rule-strong),
+      0 10px 28px -12px oklch(0.255 0.045 243 / 0.28);
+  }
+  .medi-raise:active {
+    transform: translateY(0) scale(0.995);
+  }
+
+  /* The press feel on anything tappable. Matches the retail `niki-press` curve
+     and duration exactly — the two consoles belong to one company and should
+     answer a finger the same way. */
+  .medi-press {
+    transition:
+      transform 0.14s cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 0.18s ease,
+      box-shadow 0.18s ease,
+      color 0.18s ease;
+  }
+  .medi-press:active:not(:disabled) {
+    transform: scale(0.972);
+  }
+
+  /* --- The two dark bands -------------------------------------------------
+     The only gradients in the system, and each is one shallow step inside a
+     single hue: a large dark area that is perfectly flat reads as a missing
+     image, and a two-stop ramp across two hues reads as a landing-page
+     template. This is the narrow band between the two. Nothing sits behind
+     body text except the flat end. */
+  .medi-band-hero {
+    background:
+      radial-gradient(
+        120% 100% at 85% 0%,
+        oklch(0.37 0.062 188) 0%,
+        oklch(0.31 0.05 190) 58%
+      ),
+      var(--color-medi-teal-900);
+  }
+
+  /* The scrim over the hero photograph.
+     
+     Four stops rather than two, and angled slightly off the horizontal. A
+     two-stop ramp from solid to transparent puts a visible vertical seam down
+     the middle of the panel — the eye finds the point where the gradient
+     stops, and a hard edge in the middle of a photograph reads as a rendering
+     fault. Holding near-solid to 34% and then falling away slowly past 80%
+     reads as light falling off instead. */
+  .medi-hero-scrim {
+    background: linear-gradient(
+      97deg,
+      var(--color-medi-teal-900) 0%,
+      color-mix(in srgb, var(--color-medi-teal-900) 97%, transparent) 34%,
+      color-mix(in srgb, var(--color-medi-teal-900) 72%, transparent) 55%,
+      color-mix(in srgb, var(--color-medi-teal-900) 18%, transparent) 80%,
+      color-mix(in srgb, var(--color-medi-teal-900) 0%, transparent) 100%
+    );
+  }
+  .medi-band-cta {
+    background: linear-gradient(
+      168deg,
+      oklch(0.42 0.07 188) 0%,
+      oklch(0.355 0.06 190) 100%
+    );
+  }
+
+  /* --- Sticky header edge -------------------------------------------------
+     A white bar on a white page has no edge of its own, and a sticky header
+     would otherwise slide over content with nothing between the two. */
+  .medi-header-edge {
+    box-shadow:
+      inset 0 -1px 0 var(--color-medi-rule),
+      0 1px 3px oklch(0.255 0.045 243 / 0.05);
+  }
+
+  /* --- Skeletons ----------------------------------------------------------
+     Tinted toward the brand rather than grey, so a loading grid looks like the
+     page that is coming rather than like a different page. */
+  .medi-skeleton {
+    background-image: linear-gradient(
+      90deg,
+      oklch(0.255 0.045 243 / 0.05) 25%,
+      oklch(0.255 0.045 243 / 0.1) 37%,
+      oklch(0.255 0.045 243 / 0.05) 63%
+    );
+    background-size: 320% 100%;
+    animation: niki-shimmer 1.4s ease-in-out infinite;
+  }
+
+  /* --- Scroll rails -------------------------------------------------------
+     A horizontal rail that snaps to each card, so a flick lands on a product
+     rather than between two. */
+  .medi-rail {
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .medi-rail::-webkit-scrollbar {
+    display: none;
+  }
+  .medi-rail > * {
+    scroll-snap-align: start;
+  }
+
+  /* --- z-index ------------------------------------------------------------
+     A named scale. Never an arbitrary 999: two of those in one codebase is a
+     stacking bug nobody can reason about. */
+  .medi-z-dropdown { z-index: 10; }
+  .medi-z-sticky { z-index: 20; }
+  .medi-z-drawer-backdrop { z-index: 30; }
+  .medi-z-drawer { z-index: 40; }
+  .medi-z-modal-backdrop { z-index: 50; }
+  .medi-z-modal { z-index: 60; }
+  .medi-z-toast { z-index: 70; }
+  .medi-z-tooltip { z-index: 80; }
+}
+
+/* The shared reduced-motion block at the top of this file already zeroes every
+   animation and transition. This adds the transforms that are specific to the
+   medical surfaces, so a hover still changes colour but nothing moves. */
+@media (prefers-reduced-motion: reduce) {
+  .medi-raise:hover,
+  .medi-raise:active,
+  .medi-press:active:not(:disabled) {
+    transform: none;
+  }
+}
