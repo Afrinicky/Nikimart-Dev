@@ -1,4 +1,8 @@
+"use client";
+
 import type { ComponentProps, ReactNode } from "react";
+import { useFormStatus } from "react-dom";
+import { Loader2 } from "lucide-react";
 import { MedicalLink } from "@/components/medical/ui/MedicalLink";
 import { cn } from "@/lib/cn";
 
@@ -92,5 +96,47 @@ export function MedicalButtonLink({
     <MedicalLink {...props} className={buttonClass(variant, size, className)}>
       {children}
     </MedicalLink>
+  );
+}
+
+/**
+ * A submit button that shows its own spinner while the form's server action
+ * runs.
+ *
+ * A medical twin of the mall's `SubmitButton` for the same reason
+ * `MedicalLink` exists: that one hard-codes `niki-focus`, which draws an
+ * orange ring, and `cn` here is plain clsx with no tailwind-merge — so passing
+ * `medi-focus` alongside it leaves both classes on the element and the ring
+ * that wins is whichever rule happens to be later in the stylesheet. A focus
+ * ring decided by CSS source order is one that will eventually turn orange on
+ * a teal console without anybody touching this file.
+ */
+export function MedicalSubmit({
+  variant = "primary",
+  size = "sm",
+  className,
+  pendingLabel,
+  icon,
+  children,
+  ...props
+}: ComponentProps<"button"> & {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  pendingLabel?: string;
+  icon?: ReactNode;
+  children: ReactNode;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      {...props}
+      disabled={pending || props.disabled}
+      aria-busy={pending || undefined}
+      className={buttonClass(variant, size, className)}
+    >
+      {pending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : icon}
+      {pending && pendingLabel ? pendingLabel : children}
+    </button>
   );
 }

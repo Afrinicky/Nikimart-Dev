@@ -84,6 +84,8 @@ model MedicalStaff {
   auditLogs          MedicalAuditLog[]
   stockMovements     StockMovement[]
   posSales           SalesOrder[]       @relation("PosOperator")
+  ownedTenders       Tender[]           @relation("TenderOwner")
+  tenderSubmissions  TenderSubmission[] @relation("TenderSubmitter")
 
   @@index([role, isActive])
   @@map("medical_staff")
@@ -147,6 +149,9 @@ model Organisation {
   quotationRequests QuotationRequest[]
   quotations        Quotation[]
   salesOrders       SalesOrder[]
+  tenders           Tender[]
+  approvedProducts  ApprovedProduct[]
+  purchaseOrders    CustomerPurchaseOrder[]
 
   @@index([kind, isActive])
   @@map("medical_organisations")
@@ -227,6 +232,7 @@ model MedicalCustomer {
   salesOrders       SalesOrder[]
   wishlist          WishlistItem[]
   supportRequests   SupportRequest[]
+  purchaseOrders    CustomerPurchaseOrder[]
 
   @@index([customerType, isActive])
   @@index([organisationId])
@@ -487,6 +493,11 @@ model MedicalProduct {
   costHistory        ProductCostHistory[]
   wishlistedBy       WishlistItem[]
   commissions        RedistributorCommission[]
+  tenderItems        TenderItem[]
+  tenderSubmissionItems TenderSubmissionItem[]
+  approvedFor        ApprovedProduct[]
+  customerPoItems    CustomerPurchaseOrderItem[]
+  sourcingItems      SourcingRequestItem[]
 
   @@index([categoryId, status, position])
   @@index([status, isFeatured])
@@ -609,12 +620,19 @@ model SupplierQuote {
   notes       String @default("")
   attachment  String @default("")
 
+  /// The sourcing round this was requested for. A quote that belongs to a
+  /// round can be compared against the other replies to the same round, which
+  /// is the only comparison worth making.
+  sourcingRequestId String?
+  sourcingRequest   SourcingRequest? @relation(fields: [sourcingRequestId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   items SupplierQuoteItem[]
 
   @@index([supplierId, status])
+  @@index([sourcingRequestId])
   @@map("medical_supplier_quotes")
 }
 
@@ -721,10 +739,23 @@ model PurchaseOrderItem {
 
   notes String @default("")
 
+  /// What this line was bought for. Both are nullable because plenty is bought
+  /// to put on a shelf, and line-level because one supplier order serves
+  /// several customers — anything coarser cannot answer "whose goods are
+  /// these" when the delivery arrives short.
+  sourcingRequestItemId String?
+  sourcingRequestItem   SourcingRequestItem? @relation(fields: [sourcingRequestItemId], references: [id], onDelete: SetNull)
+  /// The customer line it covers, denormalised from the sourcing item so
+  /// fulfilment can find it without a second join.
+  salesOrderItemId      String?
+
   receiptItems GoodsReceiptItem[]
+  invoiceItems SupplierInvoiceItem[]
 
   @@index([purchaseOrderId])
   @@index([productId])
+  @@index([sourcingRequestItemId])
+  @@index([salesOrderItemId])
   @@map("medical_purchase_order_items")
 }
 
@@ -799,10 +830,19 @@ model SupplierInvoice {
   notes      String @default("")
   attachment String @default("")
 
+  /// Set when every line matches the order and the receipt, or when somebody
+  /// has signed off the differences. Nothing is paid until it is true.
+  isMatched     Boolean @default(false)
+  matchedById   String  @default("")
+  matchedAt     DateTime?
+  /// NONE | QUANTITY | PRICE | TAX | CHARGES | MULTIPLE | UNMATCHED
+  discrepancyKind String @default("NONE")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   payments SupplierPayment[]
+  items    SupplierInvoiceItem[]
 
   @@index([supplierId, status])
   @@index([status, dueAt])
@@ -1190,6 +1230,7 @@ model Quotation {
   schedule      InstalmentSchedule[]
   salesOrders   SalesOrder[]
   events        QuotationEvent[]
+  customerPurchaseOrders CustomerPurchaseOrder[]
 
   @@unique([reference, version])
   @@index([status, issuedAt])
@@ -1500,6 +1541,8 @@ model SalesOrder {
   refunds     Refund[]
   schedule    InstalmentSchedule[]
   commissions RedistributorCommission[]
+  customerPurchaseOrder CustomerPurchaseOrder?
+  sourcingRequests      SourcingRequest[]
 
   @@index([fulfilmentStatus, placedAt])
   @@index([paymentStatus, placedAt])
@@ -1980,7 +2023,8 @@ model DocumentTemplate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  quotations Quotation[]
+  quotations        Quotation[]
+  tenderSubmissions TenderSubmission[]
 
   @@index([documentType, isActive])
   @@map("medical_document_templates")
@@ -2193,4 +2237,635 @@ model MedicalSetting {
 
   @@index([group])
   @@map("medical_settings")
+}
+
+// ===========================================================================
+// Tenders
+// ===========================================================================
+//
+// A hospital does not ring up and order a centrifuge. Twice a year it runs a
+// procurement exercise: it publishes a list of what it needs, suppliers submit
+// priced offers against that list by a deadline, and months later some of the
+// lines come back awarded and some do not. Everything below exists to hold
+// that shape.
+//
+// The shape it must hold, and the one most systems get wrong: a tender is not
+// won or lost. A tender of forty lines is won on eleven of them, lost on
+// twenty-six, and awarded at a reduced quantity on three — to three different
+// suppliers. So the outcome lives on the line, not on the tender, and the
+// tender's own status is a summary of its lines rather than a fact of its own.
+//
+// Nothing here creates a sale. An award is permission to supply at a price for
+// a period; the hospital still has to raise a purchase order against it, and
+// that is `CustomerPurchaseOrder`.
+
+/// A procurement exercise run by an institution.
+model Tender {
+  id        String @id @default(cuid())
+  /// Ours: TD-2026-0001. What our own people quote internally.
+  reference String @unique
+  /// Theirs. The number printed on the advertisement and on every document
+  /// they will send back — the one that actually matters on the phone.
+  tenderNumber String @default("")
+
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id])
+
+  title       String
+  description String @default("")
+
+  /// OPEN | RESTRICTED | FRAMEWORK | RENEWAL | DIRECT | RFQ
+  kind String @default("OPEN")
+  /// The institution's own naming for the round: "2026 First Half".
+  cycle String @default("")
+
+  // --- The date cycle -------------------------------------------------------
+  // Six dates, because six of them matter and a single "deadline" field is how
+  // a submission gets prepared against the advertisement date.
+  advertisedAt       DateTime?
+  /// The one that ends the business if it is missed.
+  submissionDeadline DateTime?
+  /// When bids are opened, which is often after the deadline and public.
+  opensAt            DateTime?
+  awardExpectedAt    DateTime?
+  /// The period an award covers once it lands.
+  contractStartAt    DateTime?
+  contractEndAt      DateTime?
+  /// When the next exercise is expected. The single most valuable field here:
+  /// it is what turns a one-off bid into a pipeline.
+  renewalDueAt       DateTime?
+
+  /// IDENTIFIED | PREPARING | SUBMITTED | UNDER_EVALUATION | AWARDED |
+  /// PARTIALLY_AWARDED | NOT_AWARDED | CANCELLED | EXPIRED | WITHDRAWN
+  /// Summarised from the line outcomes by src/lib/medical/tenders/status.ts
+  /// rather than typed in, so it cannot disagree with them.
+  status String @default("IDENTIFIED")
+
+  currency       String  @default("GHS")
+  /// What the whole exercise is thought to be worth, for pipeline reporting.
+  /// An estimate, and labelled as one everywhere it is shown.
+  estimatedValue Decimal @default(0) @db.Decimal(14, 2)
+
+  ownerId String?
+  owner   MedicalStaff? @relation("TenderOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  /// How it was found: ADVERTISEMENT | INVITATION | PORTAL | RELATIONSHIP.
+  sourcedVia String @default("")
+  /// Where the documents live, if they are behind a portal.
+  portalUrl  String @default("")
+  /// What it costs to bid: tender document fees, bid bonds.
+  bidCost    Decimal @default(0) @db.Decimal(14, 2)
+
+  notes         String @default("")
+  /// Never shown on any document. Who we are bidding against, what we think
+  /// the incumbent charges, where we can afford to go.
+  internalNotes String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items            TenderItem[]
+  submissions      TenderSubmission[]
+  documents        TenderDocument[]
+  events           TenderEvent[]
+  approvedProducts ApprovedProduct[]
+  customerPurchaseOrders CustomerPurchaseOrder[]
+  sourcingRequests SourcingRequest[]
+
+  @@index([organisationId, status])
+  @@index([status, submissionDeadline])
+  @@index([renewalDueAt])
+  @@map("medical_tenders")
+}
+
+/// One line of what the institution published, in their words.
+///
+/// Deliberately a record of *their* requirement, not of our offer. The two are
+/// different documents and they differ in ways that decide the award — they
+/// ask for a 500 mL pack and we offer 2 × 250 mL, they name three acceptable
+/// brands and we carry the second. Our side is `TenderSubmissionItem`.
+model TenderItem {
+  id       String @id @default(cuid())
+  tenderId String
+  tender   Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  /// Their line or lot number. Submissions are marked against it, so it has to
+  /// be kept exactly as published even when it is "3(b)(ii)".
+  lotNumber String @default("")
+  position  Int    @default(0)
+
+  description   String
+  specification String @default("")
+  /// Brands the institution will accept, as a JSON string[]. Empty means they
+  /// did not say, which is not the same as "any".
+  acceptableBrands String @default("[]")
+
+  quantity Int    @default(1)
+  unit     String @default("unit")
+
+  /// Shelf life they require on delivery. A reagent with four months left is a
+  /// rejected delivery, and this is the field that catches it before we bid.
+  minimumShelfLifeMonths Int @default(0)
+  /// Days from order to delivery, as required by them.
+  requiredDeliveryDays   Int @default(0)
+  /// Anything else on the line: "must include installation and training".
+  conditions String @default("")
+
+  /// Our catalogue match, where there is one. Nullable because half of a
+  /// published list is usually things we would have to source.
+  productId String?
+  product   MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submissionItems TenderSubmissionItem[]
+
+  @@index([tenderId, position])
+  @@index([productId])
+  @@map("medical_tender_items")
+}
+
+/// A document the institution requires with a submission, and whether we have
+/// it. A bid thrown out for a missing tax clearance certificate is a bid that
+/// cost the same to prepare as one that was read.
+model TenderDocument {
+  id       String @id @default(cuid())
+  tenderId String
+  tender   Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  label      String
+  isRequired Boolean @default(true)
+  /// Where our copy lives, once it has been attached.
+  fileUrl    String  @default("")
+  /// Certificates expire. A tax clearance that lapses the week before a
+  /// deadline is the most common reason a prepared bid is not submitted.
+  expiresAt  DateTime?
+  isProvided Boolean @default(false)
+  note       String  @default("")
+  position   Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenderId, position])
+  @@map("medical_tender_documents")
+}
+
+/// What we submitted, at a version.
+///
+/// Versioned for the same reason quotations are: a resubmission after a
+/// clarification is a different offer, and the one that was evaluated has to
+/// stay readable exactly as it was sent.
+model TenderSubmission {
+  id        String @id @default(cuid())
+  reference String
+  version   Int    @default(1)
+
+  tenderId String
+  tender   Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  /// DRAFT | SUBMITTED | ACKNOWLEDGED | UNDER_EVALUATION | CLOSED |
+  /// WITHDRAWN | SUPERSEDED
+  status String @default("DRAFT")
+
+  submittedAt   DateTime?
+  submittedById String?
+  submittedBy   MedicalStaff? @relation("TenderSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  /// PORTAL | EMAIL | HAND_DELIVERY | COURIER
+  method        String @default("HAND_DELIVERY")
+  /// Their acknowledgement: a receipt number, a portal confirmation.
+  receiptReference String @default("")
+
+  currency String  @default("GHS")
+  /// Sum of the lines we actually bid, server-computed. No-bid lines
+  /// contribute nothing, which is why this is not derivable from the tender.
+  totalOffered Decimal @default(0) @db.Decimal(14, 2)
+  /// What those lines cost us at the time of bidding. Private, and the only
+  /// way to answer "did we win it at a price we can supply at".
+  totalCostAtBid Decimal @default(0) @db.Decimal(14, 2)
+
+  /// How long our prices stand. Institutions evaluate for months.
+  validUntil     DateTime?
+  deliveryTerms  String @default("")
+  paymentTerms   String @default("")
+  /// The letter on top of the schedule.
+  coverLetter    String @default("")
+  notes          String @default("")
+
+  templateId String?
+  template   DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  pdfUrl     String @default("")
+
+  /// The submission this replaces, when it is a resubmission.
+  supersedesId String? @unique
+  supersedes   TenderSubmission?  @relation("SubmissionRevision", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy TenderSubmission?  @relation("SubmissionRevision")
+  revisionReason String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items TenderSubmissionItem[]
+
+  @@unique([reference, version])
+  @@index([tenderId, status])
+  @@map("medical_tender_submissions")
+}
+
+/// One line we offered, and what became of it.
+///
+/// The outcome is here and nowhere else. `awardedQuantity` below the quantity
+/// offered is a partial award, which is ordinary — an institution splits a
+/// line across two suppliers to keep both of them honest, and a system that
+/// can only record "won" or "lost" records that as a loss.
+model TenderSubmissionItem {
+  id           String @id @default(cuid())
+  submissionId String
+  submission   TenderSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  tenderItemId String
+  tenderItem   TenderItem @relation(fields: [tenderItemId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  // --- What we offered ------------------------------------------------------
+  offeredDescription   String
+  offeredBrand         String @default("")
+  offeredSpecification String @default("")
+  /// Where our offer differs from what they asked for, stated plainly. An
+  /// undeclared deviation found at evaluation disqualifies the whole bid.
+  deviationNote        String @default("")
+
+  quantity  Int     @default(1)
+  unit      String  @default("unit")
+  unitPrice Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal Decimal @default(0) @db.Decimal(14, 2)
+
+  leadTimeDays    Int @default(0)
+  shelfLifeMonths Int @default(0)
+
+  /// PRIVATE. Our cost per unit when the bid went in, so margin on an award is
+  /// measured against what it cost then and not what it costs now.
+  unitCostAtBid Decimal @default(0) @db.Decimal(14, 2)
+
+  /// A line we chose not to bid. Recorded rather than omitted: "we did not
+  /// offer it" and "we offered and lost" are different facts, and only one of
+  /// them is a reason to change anything next time.
+  isNoBid     Boolean @default(false)
+  noBidReason String  @default("")
+
+  // --- What came back -------------------------------------------------------
+  /// PENDING | AWARDED | PARTIALLY_AWARDED | NOT_AWARDED | WITHDRAWN |
+  /// CANCELLED
+  outcome          String  @default("PENDING")
+  awardedQuantity  Int     @default(0)
+  /// The price they awarded at, which is not always the price we offered.
+  awardedUnitPrice Decimal @default(0) @db.Decimal(14, 2)
+  awardedAt        DateTime?
+  /// Who took it, where we know. Worth more than the loss itself.
+  awardedToOther   String  @default("")
+  outcomeNote      String  @default("")
+
+  position Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  approvedProducts ApprovedProduct[]
+
+  @@index([submissionId, position])
+  @@index([tenderItemId])
+  @@index([outcome])
+  @@map("medical_tender_submission_items")
+}
+
+/// The timeline of one tender. Append-only, same reasoning as QuotationEvent:
+/// "the deadline moved" with no name and no timestamp is not a record.
+model TenderEvent {
+  id       String @id @default(cuid())
+  tenderId String
+  tender   Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  /// CREATED | STATUS_CHANGED | DATE_CHANGED | ITEM_ADDED | SUBMITTED |
+  /// ACKNOWLEDGED | AWARD_RECORDED | DOCUMENT_ADDED | NOTE | REMINDER_SENT
+  kind    String
+  summary String @default("")
+  detail  String @default("{}")
+
+  actorId   String @default("")
+  actorName String @default("")
+
+  createdAt DateTime @default(now())
+
+  @@index([tenderId, createdAt])
+  @@map("medical_tender_events")
+}
+
+/// What we are approved to supply to an institution, at what price, until when.
+///
+/// The register the whole tender section exists to produce. An award is not a
+/// sale and not an order — it is permission, with a price and a period on it,
+/// and the question it answers is the one a salesperson asks every day: "can
+/// we supply this to Korle Bu, and at what price?"
+///
+/// Rows also arrive from outside a tender: a negotiated price list, a framework
+/// agreement. Hence `sourceKind`.
+model ApprovedProduct {
+  id String @id @default(cuid())
+
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  /// Frozen description. The catalogue name may change; what we were approved
+  /// to supply may not.
+  description String
+
+  /// TENDER | FRAMEWORK | NEGOTIATED | PRICE_LIST
+  sourceKind String @default("TENDER")
+  tenderId   String?
+  tender     Tender? @relation(fields: [tenderId], references: [id], onDelete: SetNull)
+  submissionItemId String?
+  submissionItem   TenderSubmissionItem? @relation(fields: [submissionItemId], references: [id], onDelete: SetNull)
+
+  unitPrice Decimal @db.Decimal(14, 2)
+  currency  String  @default("GHS")
+  unit      String  @default("unit")
+
+  /// The ceiling the award covers, and how much of it has been drawn down by
+  /// orders placed against it. A framework for 1,000 boxes is exhausted at
+  /// 1,000 boxes, and quoting the 1,001st at the awarded price is a loss.
+  quantityAwarded Int @default(0)
+  quantityDrawn   Int @default(0)
+
+  minimumOrderQuantity Int @default(1)
+  leadTimeDays         Int @default(0)
+  paymentTerms         String @default("")
+  deliveryTerms        String @default("")
+
+  validFrom  DateTime  @default(now())
+  validUntil DateTime?
+
+  /// ACTIVE | EXPIRED | EXHAUSTED | SUSPENDED | SUPERSEDED | CANCELLED
+  /// Derived on read from the dates and the drawdown as well as stored, so a
+  /// row that lapsed overnight does not read as live until somebody runs a job.
+  status String @default("ACTIVE")
+  notes  String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organisationId, status])
+  @@index([productId, status])
+  @@index([validUntil])
+  @@map("medical_approved_products")
+}
+
+// ===========================================================================
+// The institution's purchase order — to us
+// ===========================================================================
+
+/// A purchase order a hospital sends us.
+///
+/// Separate from `PurchaseOrder`, which is the one *we* send a supplier. They
+/// are opposite ends of the business and sharing a table would make every
+/// query ambiguous and every total wrong. The two meet only through
+/// `SourcingRequest`, which is where "a customer wants this" becomes "we must
+/// buy this".
+///
+/// It is a document we receive, so most of what matters is a faithful record
+/// of what it says — their number above all, because every delivery note,
+/// invoice and payment they issue will quote it and nothing else.
+model CustomerPurchaseOrder {
+  id        String @id @default(cuid())
+  /// Ours, for filing: CPO-2026-0001.
+  reference String @unique
+  /// Theirs. Quoted on every document that follows; indexed because looking it
+  /// up by their number is how every telephone call about it starts.
+  customerReference String @default("")
+
+  organisationId String?
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+  customerId     String?
+  customer       MedicalCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  /// The quotation it accepts, where it came from one.
+  quotationId String?
+  quotation   Quotation? @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  /// The award it is raised under, where it is tender business.
+  tenderId    String?
+  tender      Tender? @relation(fields: [tenderId], references: [id], onDelete: SetNull)
+  /// The order it produced. Set on acceptance, never before — a purchase order
+  /// that has been received is not yet an order we have agreed to fulfil.
+  salesOrderId String? @unique
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+
+  /// RECEIVED | UNDER_REVIEW | ACCEPTED | PARTIALLY_ACCEPTED | REJECTED |
+  /// CANCELLED | SUPERSEDED
+  status String @default("RECEIVED")
+
+  receivedAt         DateTime  @default(now())
+  /// How it arrived, because a scanned PDF and a portal entry are audited
+  /// differently.
+  receivedVia        String    @default("EMAIL")
+  expectedDeliveryAt DateTime?
+
+  currency   String  @default("GHS")
+  /// What their document says it is worth. Compared against our own total on
+  /// acceptance; a mismatch is the thing to catch before anything ships.
+  totalValue Decimal @default(0) @db.Decimal(14, 2)
+
+  paymentTerms String @default("")
+  deliveryTo   String @default("")
+  notes        String @default("")
+  /// A scan of the document itself. The thing finance will ask for.
+  documentUrl  String @default("")
+
+  reviewedById String?
+  reviewedAt   DateTime?
+  rejectionReason String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items CustomerPurchaseOrderItem[]
+
+  @@index([organisationId, status])
+  @@index([customerReference])
+  @@index([status, receivedAt])
+  @@map("medical_customer_purchase_orders")
+}
+
+model CustomerPurchaseOrderItem {
+  id        String @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   CustomerPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  /// Their wording and their line number, kept as written.
+  lineReference String @default("")
+  description   String
+
+  quantity  Int     @default(1)
+  unit      String  @default("unit")
+  unitPrice Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal Decimal @default(0) @db.Decimal(14, 2)
+
+  /// Accepted on review. A hospital routinely orders three of the five lines
+  /// quoted, at a quantity it decided itself — so acceptance is per line and
+  /// per quantity, not a yes to the document.
+  acceptedQuantity Int    @default(0)
+  isAccepted       Boolean @default(false)
+  rejectionReason  String @default("")
+
+  /// The approved-register row this line is priced under, where it is tender
+  /// business. What proves the price charged was the price agreed.
+  approvedProductId String?
+
+  position Int @default(0)
+
+  @@index([purchaseOrderId, position])
+  @@index([productId])
+  @@map("medical_customer_purchase_order_items")
+}
+
+// ===========================================================================
+// Sourcing — the bridge between a customer order and a supplier order
+// ===========================================================================
+
+/// "We need to buy these things."
+///
+/// The stage between a confirmed customer order we cannot fill from stock and
+/// a purchase order on a supplier. It exists rather than going straight to a
+/// purchase order for one reason: the things that should be bought together
+/// are not the things that were sold together. Four customer orders short of
+/// the same reagent is one supplier order, and the only way to see that is to
+/// pool the shortfalls somewhere first.
+///
+/// It is also where supplier quotations are gathered and compared, which is
+/// why `SupplierQuote` points back at it.
+model SourcingRequest {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  /// CUSTOMER_ORDER | STOCK_REPLENISHMENT | TENDER | SAMPLE | QUOTATION
+  reason String @default("CUSTOMER_ORDER")
+
+  /// What triggered it, where one thing did.
+  salesOrderId String?
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  tenderId     String?
+  tender       Tender? @relation(fields: [tenderId], references: [id], onDelete: SetNull)
+
+  /// OPEN | QUOTING | ORDERED | PARTIALLY_RECEIVED | FULFILLED | CANCELLED
+  status String @default("OPEN")
+
+  /// The date the customer was promised, carried through so the buyer can see
+  /// what they are working against without opening the order.
+  neededBy DateTime?
+  /// LOW | NORMAL | HIGH | URGENT
+  priority String @default("NORMAL")
+
+  notes       String @default("")
+  createdById String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items          SourcingRequestItem[]
+  supplierQuotes SupplierQuote[]
+
+  @@index([status, neededBy])
+  @@index([salesOrderId])
+  @@map("medical_sourcing_requests")
+}
+
+model SourcingRequestItem {
+  id                String @id @default(cuid())
+  sourcingRequestId String
+  sourcingRequest   SourcingRequest @relation(fields: [sourcingRequestId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  description String
+
+  quantity Int @default(1)
+  unit     String @default("unit")
+
+  /// The exact customer line this covers, where it covers one. Line-level
+  /// rather than order-level because one supplier order serves several
+  /// customers and one customer order needs several suppliers — anything
+  /// coarser cannot answer "whose goods are these" when the delivery arrives.
+  salesOrderItemId String?
+
+  /// How much of it is now on a purchase order, and how much has arrived.
+  quantityOrdered  Int @default(0)
+  quantityReceived Int @default(0)
+
+  /// OPEN | QUOTING | ORDERED | PARTIALLY_RECEIVED | RECEIVED | CANCELLED
+  status String @default("OPEN")
+  notes  String @default("")
+
+  position Int @default(0)
+
+  purchaseOrderItems PurchaseOrderItem[]
+
+  @@index([sourcingRequestId, position])
+  @@index([productId, status])
+  @@map("medical_sourcing_request_items")
+}
+
+// ===========================================================================
+// Supplier invoice lines
+// ===========================================================================
+
+/// A line on a supplier's invoice, against the line we ordered.
+///
+/// The three-way match. What was ordered, what was accepted at the door, and
+/// what has been billed are three different numbers, and the gap between them
+/// is where money is lost quietly: billed for 100 when 94 were accepted, at a
+/// unit price 3% above the purchase order, with a delivery charge nobody
+/// agreed. Holding the invoiced figures beside the ordered and accepted ones
+/// is what makes that a report instead of an argument.
+model SupplierInvoiceItem {
+  id                String @id @default(cuid())
+  supplierInvoiceId String
+  supplierInvoice   SupplierInvoice @relation(fields: [supplierInvoiceId], references: [id], onDelete: Cascade)
+
+  purchaseOrderItemId String?
+  purchaseOrderItem   PurchaseOrderItem? @relation(fields: [purchaseOrderItemId], references: [id], onDelete: SetNull)
+
+  /// As the supplier worded it on their invoice.
+  description String
+  supplierSku String @default("")
+
+  quantityInvoiced Int     @default(0)
+  unitPrice        Decimal @default(0) @db.Decimal(14, 2)
+  taxAmount        Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal        Decimal @default(0) @db.Decimal(14, 2)
+
+  /// Snapshots taken when the invoice is matched, so the comparison on the
+  /// screen is the comparison that was made — a later receipt against the same
+  /// order must not silently change what a reviewed invoice appeared to say.
+  quantityOrdered  Int     @default(0)
+  quantityAccepted Int     @default(0)
+  unitCostOrdered  Decimal @default(0) @db.Decimal(14, 2)
+
+  /// NONE | QUANTITY | PRICE | TAX | BOTH | UNMATCHED
+  discrepancy     String @default("NONE")
+  discrepancyNote String @default("")
+  /// Accepted despite a discrepancy, by somebody, for a reason.
+  isResolved      Boolean @default(false)
+  resolvedById    String  @default("")
+  resolutionNote  String  @default("")
+
+  position Int @default(0)
+
+  @@index([supplierInvoiceId, position])
+  @@index([purchaseOrderItemId])
+  @@map("medical_supplier_invoice_items")
 }
