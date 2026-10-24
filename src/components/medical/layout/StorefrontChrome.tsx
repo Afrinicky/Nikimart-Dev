@@ -20,3 +20,24 @@ export function StorefrontChrome({ children }: { children: React.ReactNode }) {
   const inConsole = pathname === "/medicals/admin" || pathname.startsWith("/medicals/admin/");
   return inConsole ? null : <>{children}</>;
 }
+
+/**
+ * The medical tree's main landmark, on the shop.
+ *
+ * In the console the shell draws its own `<main>` beside its sidebar, so this
+ * one stands down to a plain wrapper — leaving one main region per page rather
+ * than one wrapped inside another. The children always render either way: this
+ * decides the element, not whether the page appears.
+ */
+export function StorefrontMain({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+  const inConsole = pathname === "/medicals/admin" || pathname.startsWith("/medicals/admin/");
+  if (inConsole) return <div className={className}>{children}</div>;
+  return <main className={className}>{children}</main>;
+}

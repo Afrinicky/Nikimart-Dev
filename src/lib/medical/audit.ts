@@ -29,7 +29,14 @@ export interface AuditEntry {
     | "RECEIVE"
     | "ADJUST"
     | "PAY"
-    | "EXPORT";
+    | "EXPORT"
+    // The selling side's own three events, added when the screens that record
+    // them were built. DISPATCH and DELIVER are not RECEIVE in reverse and
+    // COLLECT is not PAY: one is money arriving and the other is money leaving,
+    // and an audit trail that calls them the same thing cannot be read.
+    | "DISPATCH"
+    | "DELIVER"
+    | "COLLECT";
   entity: string;
   entityId: string;
   summary: string;

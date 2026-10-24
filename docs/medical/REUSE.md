@@ -224,3 +224,93 @@ figures on the overview are reported without links, because a tile that opens a
 404 teaches people the console cannot be trusted. Customer-side dispatch,
 invoicing and payment are likewise recorded by the modules and exercised by
 `medical:check`, but have no console screen yet.
+
+---
+
+## 8. Customer fulfilment: dispatch, delivery, payment
+
+The last gap in the chain. The modules were already there and exercised by
+`medical:check`; this adds the three screens that drive them, on the sales
+order's own page.
+
+### Three actions, not one
+
+They are separate records because they are separate events, days or weeks
+apart, done by different people, and each is wrong to infer from either of the
+others. A courier collecting a consignment is not a delivery; a delivery is not
+a payment.
+
+| Action | Writes | Does not write |
+|---|---|---|
+| `dispatchSalesOrder` | stock out of batches (FEFO), the batches onto the line, cost of goods onto the order | revenue, payment |
+| `markSalesOrderDelivered` | the delivery date, the payable, `SALE_REVENUE`, `COGS`, `DISCOUNT`; releases reservations on lines never sent | payment |
+| `recordCustomerPayment` | a `Payment` row, the collected figure, `CASH_RECEIPT` | revenue — that was earned on delivery |
+
+Part dispatches and part payments are both ordinary, and both derive the
+order's status from what has actually happened rather than from a dropdown.
+
+### What `settlement.ts` exists for
+
+The payable is a sum, and the first version of the delivery action got it
+wrong: it computed the payable from the dispatched goods alone, so every order
+carrying a delivery charge lost it — a charge the customer had agreed to and
+would never have been billed for. The arithmetic now lives in a pure, tested
+module (`src/lib/medical/sales/settlement.ts`, nine tests) and the action calls
+it. Three decisions are recorded there because somebody will otherwise make
+each one differently next time:
+
+- Goods are **what was dispatched**, never what was ordered. Billing for ten
+  when nine went out creates a receivable nobody will pay.
+- The discount applies **in full**, not pro-rated across a part delivery: it
+  was agreed on the order, and apportioning it invents a figure neither side
+  agreed to.
+- The payable and the balance both **floor at zero**. A negative receivable
+  reads as the business owing money it does not owe; a real credit is a refund,
+  and a refund is its own record.
+
+### Roles
+
+`SECTION_ACCESS` gained STORES on `customer-orders`: their role description
+already promised them dispatch, and a warehouse that cannot open the order it
+is picking cannot pick it. The allow-list in the dispatch action had named
+STORES all along and was dead code until the section table agreed — a test now
+asserts that every role which may dispatch can reach the order.
+
+What stores must not see is the money, so three gates replaced one:
+
+- `canDispatch` — ADMIN, MANAGER, SALES, STORES
+- `canTakePayment` — ADMIN, MANAGER, FINANCE, SALES
+- `canSeeReceivables` — ADMIN, MANAGER, FINANCE, SALES
+
+`canSeeReceivables` hides what the customer owes; `canSeeCost` hides what we
+paid. They are different secrets and a test asserts they come apart: sales sees
+the receivable and never the cost, procurement the cost and never the
+receivable. Stores can confirm a delivery without being shown the revenue it
+recognises.
+
+### Landmark defect found while verifying
+
+Every medical page carried more than one `<main>`: the mall's root layout, the
+medical layout, and in the console the shell as well — three on a console page.
+A reader asked to jump to the main content was asked which one. Fixed with two
+small gates in the same idiom as the existing `ChromeGate`: `PageMain` stands
+the root layout's `<main>` down for `/medicals`, and `StorefrontMain` stands the
+medical layout's down inside the console. Every medical page, shop and console,
+now has exactly one.
+
+Scoped deliberately to `/medicals`. The retail consoles (`/admin`, `/agent`,
+`/affiliate`) render a `<main>` in their own shells under the root layout's and
+so carry the same duplication, but that is pre-existing and theirs: fixing it
+means changing the markup of pages this work was asked not to touch. The fix is
+one word in `PageMain`'s prefix list whenever somebody wants it.
+
+### Verified by driving the real console
+
+`scripts/` holds no browser test, so the flow was checked by driving the
+console as a signed-in user against the production build: 27 assertions over
+dispatch of 15 of 40 units, confirmation of delivery, a refused overpayment,
+two part payments, and a stores account seeing the line items without the
+money. The records behind it were then read back from Postgres — revenue posted
+once at GH₵6,670 (goods GH₵6,420 plus the GH₵250 delivery charge), cost of
+goods GH₵4,500, two cash receipts adding to the revenue, reservations released,
+batch allocation naming the batch it came from.

@@ -36,7 +36,7 @@ export default async function MedicalAdminOverview() {
       */}
       <section aria-labelledby="waiting">
         <PanelHeading title="Action required" subtitle="Counts from live records. Nothing below is an estimate." />
-        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mt-4 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4">
           {sees("quotations") ? (
             <StatCard
               label="New quotation requests"

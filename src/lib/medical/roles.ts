@@ -70,7 +70,11 @@ export const SECTION_ACCESS: Record<string, MedicalRole[]> = {
   tenders: ["MANAGER", "SALES"],
   institutions: ["MANAGER", "SALES", "SUPPORT"],
   quotations: ["MANAGER", "SALES"],
-  "customer-orders": ["MANAGER", "SALES", "FINANCE"],
+  // Stores is here to dispatch. Their role description promises them dispatch
+  // and a warehouse that cannot open the order it is picking cannot pick it —
+  // but the money on the page is not theirs to see, which `canSeeReceivables`
+  // below decides.
+  "customer-orders": ["MANAGER", "SALES", "FINANCE", "STORES"],
   "customer-purchase-orders": ["MANAGER", "SALES", "FINANCE"],
 
   // Buying
@@ -129,4 +133,33 @@ export function canSeeCost(role: MedicalRole): boolean {
 /** Whether a role may approve a purchase order or release a supplier payment. */
 export function canApproveSpending(role: MedicalRole): boolean {
   return role === "ADMIN" || role === "MANAGER" || role === "FINANCE";
+}
+
+/**
+ * Whether a role may send goods out and confirm a delivery.
+ *
+ * Stores is the point of it: they are the people holding the carton. Sales is
+ * included because a counter sale is picked and handed over by whoever took
+ * it, and a manager because somebody has to be able to do it when neither is
+ * in.
+ */
+export function canDispatch(role: MedicalRole): boolean {
+  return role === "ADMIN" || role === "MANAGER" || role === "SALES" || role === "STORES";
+}
+
+/** Whether a role may record money received from a customer. */
+export function canTakePayment(role: MedicalRole): boolean {
+  return role === "ADMIN" || role === "MANAGER" || role === "FINANCE" || role === "SALES";
+}
+
+/**
+ * Whether a role may see what a customer owes.
+ *
+ * Separate from `canSeeCost`, which hides what *we* paid. This hides the
+ * receivable: stores can open a sales order to pick it and does not need to
+ * know what it is worth or whether it has been paid, and a figure nobody needs
+ * is a figure that should not be on their screen.
+ */
+export function canSeeReceivables(role: MedicalRole): boolean {
+  return role === "ADMIN" || role === "MANAGER" || role === "FINANCE" || role === "SALES";
 }

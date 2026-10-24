@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   canApproveSpending,
+  canDispatch,
   canReach,
   canSeeCost,
+  canSeeReceivables,
   canSeeSection,
+  canTakePayment,
   isMedicalRole,
   MEDICAL_ROLES,
   SECTION_ACCESS,
@@ -102,6 +105,48 @@ test("spending is approved by the roles accountable for it", () => {
   assert.equal(canApproveSpending("FINANCE"), true);
   assert.equal(canApproveSpending("MANAGER"), true);
   assert.equal(canApproveSpending("ADMIN"), true);
+});
+
+test("dispatch belongs to the people holding the carton", () => {
+  assert.equal(canDispatch("STORES"), true, "the whole point of the role");
+  assert.equal(canDispatch("SALES"), true, "a counter sale is handed over by whoever took it");
+  assert.equal(canDispatch("MANAGER"), true);
+  assert.equal(canDispatch("ADMIN"), true);
+  assert.equal(canDispatch("FINANCE"), false);
+  assert.equal(canDispatch("PROCUREMENT"), false);
+  assert.equal(canDispatch("SUPPORT"), false);
+});
+
+test("a role that may dispatch can reach the order it is picking", () => {
+  // The gap this closes: the dispatch action allowed STORES and the section
+  // table did not, so the allow-list was dead code and a warehouse could not
+  // open the order it was told to pick.
+  for (const role of MEDICAL_ROLES) {
+    if (!canDispatch(role)) continue;
+    assert.equal(
+      canReach(role, "/medicals/admin/customer-orders"),
+      true,
+      `${role} may dispatch and must be able to open the order`,
+    );
+  }
+});
+
+test("money on a sales order is shown only to the roles it concerns", () => {
+  // Stores can open the order to pick it. What it is worth, and whether it has
+  // been paid, is not theirs to read.
+  assert.equal(canSeeReceivables("STORES"), false);
+  assert.equal(canTakePayment("STORES"), false);
+  assert.equal(canSeeReceivables("SUPPORT"), false);
+  assert.equal(canSeeReceivables("PROCUREMENT"), false);
+  assert.equal(canSeeReceivables("SALES"), true);
+  assert.equal(canSeeReceivables("FINANCE"), true);
+  assert.equal(canTakePayment("FINANCE"), true);
+  assert.equal(canTakePayment("ADMIN"), true);
+
+  // Receivables and cost are different secrets: sales may see what a customer
+  // owes and never what the goods cost us.
+  assert.equal(canSeeReceivables("SALES") && !canSeeCost("SALES"), true);
+  assert.equal(canSeeCost("PROCUREMENT") && !canSeeReceivables("PROCUREMENT"), true);
 });
 
 test("isMedicalRole narrows a string from the database", () => {

@@ -65,7 +65,7 @@ export default async function PurchaseOrderPage({ params }: { params: Params }) 
         </p>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Line items" value={String(order.items.length)} />
         <StatCard
           label="Received"

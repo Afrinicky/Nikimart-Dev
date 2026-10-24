@@ -54,7 +54,7 @@ export default async function TendersPage({ searchParams }: { searchParams: Sear
         </MedicalButtonLink>
       </ConsoleHeader>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Shown on this page" value={String(rows.length)} hint={`${total} in total`} />
         <StatCard label="Open" value={String(live.length)} hint="Not yet decided" />
         <StatCard

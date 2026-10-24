@@ -80,6 +80,13 @@ export function PanelHeading({
  * placeholder, an estimate or a sample — a console that opens on invented
  * numbers is one nobody can trust afterwards, and the first wrong figure costs
  * the credibility of every right one beside it.
+ *
+ * The grids these sit in stack below 360px rather than holding two columns.
+ * `GH₵6,670.00` is one unbreakable token, so in a 320px two-column grid the
+ * track grows to fit it and the whole page scrolls sideways by a couple of
+ * pixels. Breaking the number would be worse than stacking the cards, and
+ * shrinking it would make the one thing on the card that matters the hardest
+ * thing on it to read.
  */
 export function StatCard({
   label,

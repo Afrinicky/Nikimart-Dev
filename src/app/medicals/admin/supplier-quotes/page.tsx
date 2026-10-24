@@ -99,7 +99,7 @@ export default async function SupplierQuotesPage({ searchParams }: { searchParam
         icon={ReceiptText}
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-3">
         <StatCard
           label="Shown on this page"
           value={String(costed.length)}

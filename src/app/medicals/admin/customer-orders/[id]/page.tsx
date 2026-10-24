@@ -3,15 +3,25 @@ import { ClipboardList, Info } from "lucide-react";
 import { ConsoleHeader, PanelHeading, StatCard } from "@/components/medical/console/ConsoleHeader";
 import { ConsoleTable, Row, td, tdKey, tdNum } from "@/components/medical/console/ConsoleTable";
 import { OpenSourcingForm } from "@/components/medical/console/SourcingForms";
+import {
+  CustomerPaymentForm,
+  DeliveryForm,
+  DispatchForm,
+} from "@/components/medical/console/FulfilmentForms";
 import { MedicalLink } from "@/components/medical/ui/MedicalLink";
 import { requireMedicalStaff } from "@/lib/medical/session";
 import { getSalesOrder } from "@/lib/medical/sales/queries";
 import { shortfallFor } from "@/lib/medical/sales/sourcing-actions";
 import { fulfilmentStatus, paymentStatus } from "@/lib/medical/sales/status";
 import { sourcingStatus } from "@/lib/medical/procurement/status";
-import { formatPesewas, toPesewas } from "@/lib/medical/money";
+import { formatPesewas, lineAmount, sum, toPesewas } from "@/lib/medical/money";
 import { formatDate, formatDateTime } from "@/lib/medical/format";
-import { canSeeCost } from "@/lib/medical/roles";
+import {
+  canDispatch,
+  canSeeCost,
+  canSeeReceivables,
+  canTakePayment,
+} from "@/lib/medical/roles";
 
 type Params = Promise<{ id: string }>;
 
@@ -46,6 +56,21 @@ export default async function CustomerOrderPage({ params }: { params: Params }) 
   const customerName =
     order.organisation?.name ?? order.customer?.name ?? order.walkInName ?? "Walk-in";
 
+  // What has actually left, at the order's own prices. The figure delivery
+  // recognises as revenue, and not the same as the order total whenever a line
+  // went out short.
+  const dispatchedValue = sum(
+    order.items.map((item) => lineAmount(item.quantityDispatched, toPesewas(item.unitPrice))),
+  );
+  const closesShort = order.items.some((item) => item.quantityDispatched < item.quantity);
+
+  const live = order.fulfilmentStatus !== "CANCELLED" && order.fulfilmentStatus !== "REFUNDED";
+  const canFulfil = canDispatch(staff.role);
+  const canCollect = canTakePayment(staff.role);
+  // Stores can open this order to pick it and has no business with what it is
+  // worth or whether it has been paid.
+  const showMoney = canSeeReceivables(staff.role);
+
   const openRounds = order.sourcingRequests.filter(
     (request) => request.status !== "FULFILLED" && request.status !== "CANCELLED",
   );
@@ -62,19 +87,30 @@ export default async function CustomerOrderPage({ params }: { params: Params }) 
         <paymentStatus.Badge status={order.paymentStatus as never} className="self-center" />
       </ConsoleHeader>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Total payable" value={formatPesewas(payable)} />
-        <StatCard label="Payments received" value={formatPesewas(paid)} />
-        <StatCard
-          label="Balance due"
-          value={formatPesewas(outstanding)}
-          tone={outstanding > 0 ? "attention" : "default"}
-        />
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4">
+        {showMoney ? (
+          <>
+            <StatCard label="Total payable" value={formatPesewas(payable)} />
+            <StatCard label="Payments received" value={formatPesewas(paid)} />
+            <StatCard
+              label="Balance due"
+              value={formatPesewas(outstanding)}
+              tone={outstanding > 0 ? "attention" : "default"}
+            />
+          </>
+        ) : null}
         <StatCard
           label="Units dispatched"
           value={`${dispatched} of ${units}`}
           hint={`${reserved} reserved in stock`}
         />
+        {showMoney ? null : (
+          <StatCard
+            label="Line items"
+            value={String(order.items.length)}
+            hint="Prices and payment are not shown for your role"
+          />
+        )}
       </div>
 
       <section className="grid gap-4 lg:grid-cols-2">
@@ -130,9 +166,8 @@ export default async function CustomerOrderPage({ params }: { params: Params }) 
           <p className="medi-meta mt-4 flex items-start gap-2 rounded-xl bg-medi-mint-50 px-3.5 py-3 text-medi-teal-800">
             <Info className="mt-px h-4 w-4 shrink-0" aria-hidden />
             <span>
-              Dispatch and payment receipting are recorded against the delivery note and the
-              payment record, not from this page. Revenue is recognised on delivery and at no
-              earlier point.
+              Dispatch, delivery and payment are three separate records because they are three
+              separate events. Revenue is recognised on delivery and at no earlier point.
             </span>
           </p>
         </div>
@@ -150,8 +185,12 @@ export default async function CustomerOrderPage({ params }: { params: Params }) 
             { label: "Quantity ordered", numeric: true },
             { label: "Reserved", numeric: true },
             { label: "Dispatched", numeric: true },
-            { label: "Unit price", numeric: true },
-            { label: "Line total", numeric: true },
+            ...(showMoney
+              ? [
+                  { label: "Unit price", numeric: true },
+                  { label: "Line total", numeric: true },
+                ]
+              : []),
             ...(showCost ? [{ label: "Unit cost", numeric: true }] : []),
           ]}
           empty={{ title: "No line items", body: "This sales order has no line items." }}
@@ -177,8 +216,12 @@ export default async function CustomerOrderPage({ params }: { params: Params }) 
                 )}
               </td>
               <td className={tdNum}>{item.quantityDispatched}</td>
-              <td className={tdNum}>{formatPesewas(toPesewas(item.unitPrice))}</td>
-              <td className={tdNum}>{formatPesewas(toPesewas(item.lineTotal))}</td>
+              {showMoney ? (
+                <>
+                  <td className={tdNum}>{formatPesewas(toPesewas(item.unitPrice))}</td>
+                  <td className={tdNum}>{formatPesewas(toPesewas(item.lineTotal))}</td>
+                </>
+              ) : null}
               {showCost ? (
                 <td className={tdNum}>
                   {toPesewas(item.unitCost) > 0 ? (
@@ -237,7 +280,7 @@ export default async function CustomerOrderPage({ params }: { params: Params }) 
         </section>
       ) : null}
 
-      {order.payments.length > 0 ? (
+      {showMoney && order.payments.length > 0 ? (
         <section>
           <PanelHeading title="Payments" />
           <ConsoleTable
@@ -266,6 +309,58 @@ export default async function CustomerOrderPage({ params }: { params: Params }) 
               </Row>
             ))}
           </ConsoleTable>
+        </section>
+      ) : null}
+
+      {live && canFulfil && !order.deliveredAt ? (
+        <section>
+          <PanelHeading
+            title="Dispatch"
+            subtitle="What is going out today. Part consignments are ordinary — record what actually left."
+          />
+          <div className="mt-4">
+            <DispatchForm
+              salesOrderId={order.id}
+              lines={order.items.map((item) => ({
+                id: item.id,
+                description: item.description,
+                unit: item.unit,
+                outstanding: Math.max(0, item.quantity - item.quantityDispatched),
+                reserved: item.quantityReserved,
+                free: item.product
+                  ? Math.max(0, item.product.stockOnHand - item.product.stockReserved)
+                  : null,
+              }))}
+            />
+          </div>
+        </section>
+      ) : null}
+
+      {live && canFulfil && !order.deliveredAt && dispatched > 0 ? (
+        <section>
+          <PanelHeading
+            title="Delivery"
+            subtitle="Confirm what the customer has received. This is where revenue is recognised."
+          />
+          <div className="mt-4">
+            <DeliveryForm
+              salesOrderId={order.id}
+              dispatchedValue={showMoney ? dispatchedValue : null}
+              partial={closesShort}
+            />
+          </div>
+        </section>
+      ) : null}
+
+      {live && canCollect && showMoney && order.deliveredAt ? (
+        <section>
+          <PanelHeading
+            title="Payment"
+            subtitle="Money received against this order. Part payments are ordinary."
+          />
+          <div className="mt-4">
+            <CustomerPaymentForm salesOrderId={order.id} outstanding={outstanding} />
+          </div>
         </section>
       ) : null}
 

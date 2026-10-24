@@ -57,7 +57,7 @@ export default async function InstitutionPage({ params }: { params: Params }) {
         back={{ href: "/medicals/admin/institutions", label: "Institutions" }}
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Tenders" value={String(institution.tenders.length)} />
         <StatCard label="Approved lines" value={String(register.rows.length)} />
         <StatCard label="Usable today" value={String(usable)} />

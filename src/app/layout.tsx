@@ -10,6 +10,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ChromeGate } from "@/components/layout/ChromeGate";
+import { PageMain } from "@/components/layout/PageMain";
 import { ChatLauncher } from "@/components/chat/ChatLauncher";
 import { isChatConfigured } from "@/lib/chat/ably";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
@@ -104,7 +105,7 @@ export default async function RootLayout({
                 <TopBar />
                 <Header />
               </ChromeGate>
-              <main className="flex-1">{children}</main>
+              <PageMain className="flex-1">{children}</PageMain>
               <ChromeGate>
                 <Footer />
                 <MobileBottomNav />

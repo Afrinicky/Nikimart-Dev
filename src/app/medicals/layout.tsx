@@ -3,7 +3,7 @@ import { Schibsted_Grotesk } from "next/font/google";
 import { BasketProvider } from "@/components/medical/providers/BasketProvider";
 import { MedicalHeader } from "@/components/medical/layout/MedicalHeader";
 import { MedicalFooter } from "@/components/medical/layout/MedicalFooter";
-import { StorefrontChrome } from "@/components/medical/layout/StorefrontChrome";
+import { StorefrontChrome, StorefrontMain } from "@/components/medical/layout/StorefrontChrome";
 import { getCategoryTree } from "@/lib/medical/categories";
 
 /**
@@ -59,7 +59,7 @@ export default async function MedicalLayout({ children }: { children: React.Reac
         <StorefrontChrome>
           <MedicalHeader categories={categories} />
         </StorefrontChrome>
-        <main className="flex-1">{children}</main>
+        <StorefrontMain className="flex-1">{children}</StorefrontMain>
         <StorefrontChrome>
           <MedicalFooter categories={categories} />
         </StorefrontChrome>

@@ -47,7 +47,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Sea
         icon={Banknote}
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Invoices on this page" value={String(rows.length)} hint={`${total} in total`} />
         <StatCard label="Outstanding on this page" value={formatPesewas(outstandingHere)} />
         <StatCard
