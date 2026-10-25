@@ -139,6 +139,16 @@ retail database. Neither is ever printed in a log.
 reports which migrations are applied, whether it has been seeded, and whether
 anybody can sign in. It changes nothing, so run it as often as you like.
 
+If it fails, the report names which of two things is wrong, because they are
+fixed differently:
+
+| It says | What to do |
+|---|---|
+| `relation "_NikiMigration" does not exist` | The schema is not applied **yet**. It is applied by the build, not by this workflow — wait for the deploy in step 3 to finish, confirm `[migrate] medical: applied` in its build log, then run `status` again. Running this before the first successful deploy always fails this way. |
+| `Can't reach database server at …` | The secret is wrong, or the database is asleep. Check `MEDICAL_DATABASE_URL` in step 4; a Neon database that has been idle can take a moment to wake, so try once more first. |
+| `Database \`…\` does not exist` | The host is right and the database name at the end of the URL is not. |
+| `Authentication failed` | Copy the connection string from the provider again, including `?sslmode=require`. |
+
 ---
 
 ## 5. Seed the medical catalogue

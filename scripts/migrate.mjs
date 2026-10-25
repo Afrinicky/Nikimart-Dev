@@ -79,8 +79,13 @@ function fail(msg, err) {
   process.exit(1);
 }
 
-if (!process.env.DATABASE_URL) {
-  log("DATABASE_URL is not set — skipping. (Fine locally; on a deploy, check the environment.)");
+// Nothing to do only when *no* target has a URL. This used to test
+// DATABASE_URL alone, which also skipped the medical schema in an environment
+// that has MEDICAL_DATABASE_URL and no retail database — the deploy then
+// shipped code against tables that were never created. Each target still
+// reports its own missing URL below.
+if (!TARGETS.some((target) => target.url?.trim())) {
+  log("no database URL is set — skipping. (Fine locally; on a deploy, check the environment.)");
   process.exit(0);
 }
 

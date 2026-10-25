@@ -15,6 +15,7 @@
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import { PrismaClient } from ".prisma/medical-client";
+import { describeDatabaseFailure } from "../src/lib/medical/db-failure.ts";
 
 const db = new PrismaClient();
 
@@ -35,17 +36,18 @@ async function main(): Promise<void> {
       `SELECT "name" FROM "_NikiMigration" ORDER BY "name"`,
     );
   } catch (error) {
+    // Which of the two it is, said plainly. Prisma states the cause at the end
+    // of a multi-line message, so the line that matters is picked out rather
+    // than taking the first one — that printed its own header and read as no
+    // reason at all, at the one moment this report has a job to do.
+    const failure = describeDatabaseFailure(error);
     console.error("Could not read the migration record.");
-    // The first non-empty line: a Prisma error message begins with a blank
-    // one, and printing that gives a reason that reads as no reason at all.
-    const reason =
-      error instanceof Error
-        ? (error.message.split("\n").find((line) => line.trim().length > 0) ?? error.message)
-        : String(error);
-    console.error(`  ${reason.trim()}`);
-    console.error("\nEither the database is unreachable, or the schema has never been");
-    console.error("applied. The schema is applied by the build — deploy, and check the");
-    console.error("build log for lines reading: [migrate] medical: applying …");
+    console.error(`  ${failure.reason}`);
+    console.error(`\n${failure.advice}`);
+    if (failure.kind === "unknown" && failure.detail.length > 1) {
+      console.error("\nThe whole failure:");
+      for (const line of failure.detail) console.error(`  ${line}`);
+    }
     process.exit(1);
   }
 
@@ -163,7 +165,10 @@ async function main(): Promise<void> {
 
 main()
   .catch((error) => {
-    console.error("\nFailed:", error instanceof Error ? error.message : error);
+    const failure = describeDatabaseFailure(error);
+    console.error(`\nFailed: ${failure.reason}`);
+    if (failure.kind !== "unknown") console.error(failure.advice);
+    else for (const line of failure.detail.slice(0, -1)) console.error(`  ${line}`);
     process.exit(1);
   })
   .finally(() => db.$disconnect());
