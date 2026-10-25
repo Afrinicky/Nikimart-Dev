@@ -31,7 +31,10 @@ export default function AgentLoading() {
             ))}
           </aside>
 
-          <main className="min-w-0 rounded-3xl bg-niki-surface p-4 shadow-2xl shadow-black/20 sm:p-6">
+          {/* A div, not a main: this is a placeholder shape that sits inside
+              the shell’s own main region, and a landmark on a skeleton is one
+              more thing for a screen reader to announce and nothing to read. */}
+          <div className="min-w-0 rounded-3xl bg-niki-surface p-4 shadow-2xl shadow-black/20 sm:p-6">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {Array.from({ length: 4 }).map((_, i) => (
                 <Skeleton key={i} className="h-28 rounded-2xl" />
@@ -43,7 +46,7 @@ export default function AgentLoading() {
                 <Skeleton key={i} className="h-44 rounded-2xl" />
               ))}
             </div>
-          </main>
+          </div>
         </div>
       </Container>
     </div>
