@@ -1,0 +1,144 @@
+# Set up Nickimart Medical from a button, with no code on your machine.
+#
+# Everything the go-live runbook needs a shell for is here instead. Run it from
+# GitHub: Actions → "Nickimart Medical setup" → Run workflow → pick a mode.
+#
+#   status       Report what state the medical database is in. Changes nothing,
+#                and safe to run at any time. Start and finish here.
+#   seed         Create the departments, starter catalogue and settings rows.
+#                Safe to re-run: existing rows are left alone, so a setting
+#                somebody has changed is not undone.
+#   grant-admin  Make one person a medical administrator. Needs the "email"
+#                input. The only way in on a fresh deployment, because the
+#                console's own Staff screen can only be opened by an
+#                administrator.
+#
+# Two repository secrets (Settings → Secrets and variables → Actions):
+#   MEDICAL_DATABASE_URL    the medical database
+#   NIKIMART_DATABASE_URL   the retail database — already set if retail is live
+#
+# Only grant-admin needs the retail one, because the account it promotes lives
+# there: identity is one Nickimart account across the three businesses. Neither
+# secret is ever printed; the scripts read them from the environment.
+#
+# What is deliberately NOT here: `npm run medical:check`. It writes test data —
+# tenders, orders, payments — and must never be pointed at production. Run it
+# against a scratch database from a machine, or not at all.
+#
+# ORDER for a first go-live:
+#   1. "status"      — confirm the database is reachable and the schema applied.
+#   2. "seed"        — the catalogue and settings.
+#   3. Register at the live site with the address you want to administer from.
+#   4. "grant-admin" — with that address.
+#   5. "status"      — it should end with "Ready".
+
+name: Nickimart Medical setup
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "status = look only. seed = catalogue and settings. grant-admin = make somebody an administrator."
+        required: true
+        default: status
+        type: choice
+        options:
+          - status
+          - seed
+          - grant-admin
+      email:
+        description: "grant-admin only: the email of an account that has ALREADY registered at the site."
+        required: false
+        type: string
+
+concurrency:
+  group: medical-setup
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    name: ${{ inputs.mode }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      MEDICAL_DATABASE_URL: ${{ secrets.MEDICAL_DATABASE_URL }}
+      DATABASE_URL: ${{ secrets.NIKIMART_DATABASE_URL }}
+
+    steps:
+      - name: Check the secrets this mode needs
+        run: |
+          if [ -z "$MEDICAL_DATABASE_URL" ]; then
+            echo "::error::MEDICAL_DATABASE_URL is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          if [ "${{ inputs.mode }}" = "grant-admin" ] && [ -z "$DATABASE_URL" ]; then
+            echo "::error::NIKIMART_DATABASE_URL is not set, and the account being promoted lives in the retail database."
+            exit 1
+          fi
+          echo "Secrets present."
+
+      # Asked for before anything connects, so a missing email fails in two
+      # seconds rather than after an install.
+      #
+      # The input goes through the environment rather than into the script text.
+      # `${{ }}` is substituted before the shell ever sees the line, so an
+      # address containing a quote or a semicolon would become part of the
+      # command — this is somebody else's typing, and it is not going anywhere
+      # near a command line.
+      - name: Check the email was given
+        if: inputs.mode == 'grant-admin'
+        env:
+          EMAIL: ${{ inputs.email }}
+        run: |
+          if [ -z "$EMAIL" ]; then
+            echo "::error::grant-admin needs the \"email\" input: the address of an account that has already registered at the site."
+            exit 1
+          fi
+          printf 'Promoting: %s\n' "$EMAIL"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # postinstall generates all three Prisma clients. No database is touched.
+      - name: Install
+        run: npm ci
+
+      - name: Before
+        run: npm run medical:status
+
+      - name: Seed the catalogue and settings
+        if: inputs.mode == 'seed'
+        run: npm run medical:seed
+
+      - name: Grant administrator access
+        if: inputs.mode == 'grant-admin'
+        env:
+          EMAIL: ${{ inputs.email }}
+        run: npm run medical:grant-admin -- "$EMAIL"
+
+      - name: After
+        if: inputs.mode != 'status'
+        run: npm run medical:status
+
+      - name: What to do next
+        run: |
+          case "${{ inputs.mode }}" in
+            status)
+              echo "Nothing was changed. The report above says what is left."
+              ;;
+            seed)
+              echo "Seeded. Next: register at the live site with the address you want"
+              echo "to administer from, then run this workflow again in grant-admin mode."
+              ;;
+            grant-admin)
+              echo "Granted. They sign in at /login with their ordinary Nickimart"
+              echo "password, then open /medicals/admin."
+              echo "Everybody else is added from Staff inside the console, so this"
+              echo "should only be needed once."
+              ;;
+          esac

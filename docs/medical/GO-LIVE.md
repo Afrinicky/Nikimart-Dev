@@ -3,9 +3,15 @@
 A runbook for putting Nickimart Medical in front of customers. Written to be
 followed in order; each step says what it does and how to tell it worked.
 
+**You do not need the code on your machine.** Every step is a page in a browser:
+the hosting dashboard, the database provider's own console, and a GitHub Actions
+workflow for the two one-off tasks that used to need a terminal. Where a command
+is shown, it is there so you can see what the button runs — not because you have
+to type it.
+
 Everything here is the medical business. Retail and the bundle platform are
 already live and nothing in these steps changes them — the one step that
-touches shared routing is step 7, and it does nothing until a variable is set.
+touches shared routing is step 8, and it does nothing until a variable is set.
 
 ---
 
@@ -39,7 +45,9 @@ Keep the connection string. It looks like:
 postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require
 ```
 
-**Check:** you can connect with `psql "<the string>" -c "select 1"`.
+**Check:** the provider's own dashboard shows the database as available. Most
+(Neon, Supabase) have a SQL editor in the browser — `select 1` there is the
+whole test. Step 4 checks it properly from GitHub.
 
 ---
 
@@ -113,47 +121,59 @@ If it says `medical: no database URL — skipping`, step 2 did not take.
 
 ---
 
-## 4. Seed the medical catalogue
+## 4. Give GitHub the two database secrets
 
-Not part of the build, because seeding is a one-off and a build is not.
+The one-off tasks run as a GitHub Actions workflow, so GitHub needs to be able
+to reach the databases. In the repository: **Settings → Secrets and variables →
+Actions → New repository secret**.
 
-With the production `MEDICAL_DATABASE_URL` in your shell:
+| Secret | Value |
+|---|---|
+| `MEDICAL_DATABASE_URL` | the string from step 1 |
+| `NIKIMART_DATABASE_URL` | the retail database — **probably already there** |
 
-```bash
-MEDICAL_DATABASE_URL="postgresql://…" npm run medical:seed
-```
+The retail one is needed because step 6 promotes an account that lives in the
+retail database. Neither is ever printed in a log.
 
-This creates the departments, a starter catalogue, expense groups and the
-settings rows. It is safe to re-run: existing rows are left alone, so a setting
-somebody has changed is not undone.
+**Check:** **Actions → "Nickimart Medical setup" → Run workflow → status**. It
+reports which migrations are applied, whether it has been seeded, and whether
+anybody can sign in. It changes nothing, so run it as often as you like.
+
+---
+
+## 5. Seed the medical catalogue
+
+**Actions → "Nickimart Medical setup" → Run workflow → seed.**
+
+Seeding is a one-off, which is why it is not part of the build. It creates the
+departments, a starter catalogue, expense groups and the settings rows, and is
+safe to re-run: existing rows are left alone, so a setting somebody has changed
+is not undone.
 
 It creates **no** orders, customers or sales history. A dashboard that opens on
 invented figures is one nobody can trust afterwards.
 
-**Check:** `psql "$MEDICAL_DATABASE_URL" -c 'select count(*) from medical_products'`
-returns a non-zero number.
+Under the bonnet the workflow runs `npm run medical:seed`, and prints the status
+report before and after so you can see what changed.
+
+**Check:** the run's log ends with non-zero `products` and `settings` counts.
 
 ---
 
-## 5. Make yourself a medical administrator
+## 6. Make yourself a medical administrator
 
 There is a chicken-and-egg here and this step is the answer to it: the console's
 Staff screen can only be opened by an administrator, so the first one has to be
 made from outside.
 
-First, **register at the live site like any customer** — identity is one
-Nickimart account across all three businesses, and this grants a role to an
-account that already exists. It cannot create a login and cannot set a password.
+**First, register at the live site like any customer.** Identity is one Nickimart
+account across all three businesses, and this step grants a role to an account
+that already exists — it cannot create a login and cannot set a password.
 
-Then:
+Then **Actions → "Nickimart Medical setup" → Run workflow → grant-admin**, and
+put that email address in the **email** field.
 
-```bash
-MEDICAL_DATABASE_URL="postgresql://…" \
-DATABASE_URL="postgresql://…" \
-npm run medical:grant-admin -- you@example.com
-```
-
-**Check:** it prints `you@example.com is now a medical administrator.` and
+**Check:** the log reads `… is now a medical administrator.` and
 `Active administrators: 1`. Sign in at `/login` and open `/medicals/admin` —
 you should see eighteen sections in the sidebar.
 
@@ -163,7 +183,7 @@ administrator, so you cannot lock yourself out from inside.
 
 ---
 
-## 6. Settle the two decisions that are deliberately switched off
+## 7. Settle the two decisions that are deliberately switched off
 
 Open **Settings** in the console. Two switches under Finance are off and the
 screen says why:
@@ -182,7 +202,7 @@ they print on every quotation and proforma invoice.
 
 ---
 
-## 7. Point the subdomain (optional)
+## 8. Point the subdomain (optional)
 
 The medical site is always reachable at `/medicals`. This step additionally
 serves it at `medicals.nickimart.com`.
@@ -211,7 +231,7 @@ still returns the image. On the retail domain, `/` is still the mall.
 
 ---
 
-## 8. Paystack webhook
+## 9. Paystack webhook
 
 In the Paystack dashboard for whichever account medical settles into, set the
 webhook URL to:
@@ -228,7 +248,7 @@ without anybody touching it.
 
 ---
 
-## 9. Smoke test, in the order a real sale happens
+## 10. Smoke test, in the order a real sale happens
 
 Worth doing once on the live site, because it is the chain nothing else proves
 end to end:
@@ -251,12 +271,29 @@ end to end:
    recognised on delivery and nowhere earlier.
 9. **Audit log** — every step you just took is in it, with your name.
 
-`npm run medical:check` runs this whole chain against a database and makes 51
-assertions. Point it at a **scratch** database, never production:
+There is also `npm run medical:check`, which runs this whole chain against a
+database and makes 51 assertions. It is **not** in the setup workflow and not
+something to run from a browser, because it writes test data — tenders, orders,
+payments. It belongs against a scratch database from a machine that has the
+code, or not at all. The nine steps above are the live test.
 
-```bash
-MEDICAL_DATABASE_URL="postgresql://…scratch…" npm run medical:check
-```
+---
+
+## Where each task lives
+
+Nothing here needs a terminal on your machine.
+
+| Task | Where |
+|---|---|
+| Create the database | the database provider's dashboard |
+| Environment variables | the hosting dashboard |
+| Deploy, and apply migrations | push to the branch; the build does it |
+| Seed, grant an administrator, check status | GitHub → Actions → "Nickimart Medical setup" |
+| Business settings, staff, everything daily | the console itself, at `/medicals/admin` |
+| Ad-hoc SQL, if you ever need it | the database provider's SQL editor |
+
+The only thing deliberately left out of the browser is `medical:check`: it
+writes test data and must never touch production.
 
 ---
 
@@ -270,8 +307,8 @@ safe to repeat.
 **Medical shows "not configured".** `MEDICAL_DATABASE_URL` is unset or
 unreachable in that environment. Retail and bundles are unaffected.
 
-**You cannot get into the console.** Re-run step 5. It is safe to re-run and
-will reactivate a suspended account.
+**You cannot get into the console.** Re-run step 6 (grant-admin). It is safe to
+re-run and reactivates a suspended account.
 
 **You need to undo a deploy.** Roll back to the previous deployment in the
 host's dashboard. The medical migrations are additive, so an older build runs
