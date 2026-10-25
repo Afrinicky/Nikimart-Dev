@@ -47,6 +47,58 @@ const nextConfig: NextConfig = {
       { source: "/databundles/:path*", destination: "/data-bundles/:path*", permanent: true },
     ];
   },
+
+  /**
+   * Serving the medical business on its own hostname.
+   *
+   * `medicals.nickimart.com` and `/medicals` are the same application: the
+   * medical tree is a second storefront inside this project, not a second
+   * project, because the session, the providers and the retail `User` table are
+   * shared and splitting the deployment would mean maintaining two copies of
+   * all of it.
+   *
+   * Off until `MEDICAL_HOST` is set, so nothing about retail routing changes
+   * until somebody deliberately points a hostname here. An empty value is the
+   * same as unset.
+   *
+   * It has to be `beforeFiles`: an `afterFiles` rewrite runs after the
+   * filesystem, so `/products` on the medical host would resolve to the mall's
+   * own products page before this ever saw it. Running first is also what makes
+   * the exclusions below load-bearing rather than tidy —
+   *
+   *   `_next/`  the build's own assets. Rewritten, every script 404s and the
+   *             page renders unstyled and dead.
+   *   `api/`    sign-in, the Paystack webhook, uploads. One API, shared.
+   *   `medicals` so a link to the path form on the host form does not become
+   *             `/medicals/medicals/...`.
+   *   anything with a dot, which is every file in `public/` — `/logo.png`,
+   *             `/favicon.ico`, `/robots.txt`. There is no `/medicals/logo.png`
+   *             to rewrite them to.
+   *
+   * The consequence of that last one, stated because it is the surprise: a
+   * medical URL containing a dot is not rewritten on this host. Catalogue slugs
+   * are hyphenated, so this does not arise today, and a slug with a dot in it
+   * would have to be reachable by its `/medicals/...` path.
+   */
+  async rewrites() {
+    const medicalHost = process.env.MEDICAL_HOST?.trim();
+    if (!medicalHost) return [];
+
+    const onMedicalHost = [{ type: "host" as const, value: medicalHost }];
+
+    return {
+      beforeFiles: [
+        { source: "/", has: onMedicalHost, destination: "/medicals" },
+        {
+          source: "/:path((?!_next/|api/|medicals)(?!.*\\.).*)",
+          has: onMedicalHost,
+          destination: "/medicals/:path",
+        },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
+  },
 };
 
 export default nextConfig;
