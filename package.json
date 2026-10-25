@@ -19,7 +19,8 @@
     "medical:seed": "tsx prisma/medical/seed.ts",
     "medical:migrate": "node scripts/migrate.mjs",
     "medical:check": "NODE_OPTIONS=--conditions=react-server tsx scripts/medical-workflow-check.ts",
-    "medical:grant-admin": "tsx scripts/medical-grant-admin.ts"
+    "medical:grant-admin": "tsx scripts/medical-grant-admin.ts",
+    "medical:status": "tsx scripts/medical-status.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
