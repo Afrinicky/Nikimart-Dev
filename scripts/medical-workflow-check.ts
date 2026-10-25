@@ -21,12 +21,10 @@
  *   MEDICAL_DATABASE_URL=… npx tsx scripts/medical-workflow-check.ts
  */
 
-import assert from "node:assert/strict";
 import { PrismaClient } from ".prisma/medical-client";
 import {
   dispatchStock,
   receiveStock,
-  releaseReservation,
   reserveStock,
   InsufficientStockError,
 } from "../src/lib/medical/inventory/stock.ts";

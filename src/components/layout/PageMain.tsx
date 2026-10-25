@@ -17,12 +17,22 @@ import { usePathname } from "next/navigation";
  * what lets the medical tree own its own frame while keeping the session and
  * the providers above it.
  *
- * Scoped deliberately to `/medicals`. The retail consoles render a `<main>` in
- * their own shells too and so carry the same duplication, but that is theirs to
- * fix: changing it here would change the markup of pages this work was asked
- * not to touch.
+ * Every prefix below is a tree whose own layout renders a `<main>`:
+ *
+ *   /medicals   the medical storefront's layout, and its console shell
+ *   /admin      AdminShell
+ *   /agent      AgentShell, and the password branch of its layout
+ *   /affiliate  AffiliateShell
+ *
+ * Adding a prefix here is only safe once **every** route under it supplies a
+ * main of its own, including the branches that render outside the shell. The
+ * agent layout has one such branch — a password that arrived by text has to be
+ * replaced before the console opens, and that screen deliberately renders
+ * without the sidebar — and it was given its own `<main>` when this prefix was
+ * added, because standing this one down without that would have left the page
+ * with no main region at all. Two is a defect; none is worse.
  */
-const SUPPLIES_OWN_MAIN = ["/medicals"];
+const SUPPLIES_OWN_MAIN = ["/medicals", "/admin", "/agent", "/affiliate"];
 
 export function PageMain({
   className,

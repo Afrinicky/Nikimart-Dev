@@ -54,17 +54,23 @@ export default async function AgentLayout({
   // cannot go yet is only an invitation to try.
   if (account?.mustChangePassword) {
     return (
-      <Container className="py-10">
-        <div className="mx-auto max-w-lg">
-          <h1 className="font-display text-xl font-bold text-niki-ink">Choose your password</h1>
-          <p className="mb-5 mt-1 text-sm text-niki-ink/60">
-            One step, and your store is yours.
-          </p>
-          <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge sm:p-6">
-            <NewPasswordForm email={user.email ?? ""} />
+      // Its own main region: this branch renders outside AgentShell, so there
+      // is no other one on the page. The mall's root layout used to supply it
+      // by accident, until that stood down for the consoles that draw their
+      // own — see components/layout/PageMain.
+      <main className="py-10">
+        <Container>
+          <div className="mx-auto max-w-lg">
+            <h1 className="font-display text-xl font-bold text-niki-ink">Choose your password</h1>
+            <p className="mb-5 mt-1 text-sm text-niki-ink/60">
+              One step, and your store is yours.
+            </p>
+            <div className="rounded-2xl bg-white p-5 ring-1 ring-niki-edge sm:p-6">
+              <NewPasswordForm email={user.email ?? ""} />
+            </div>
           </div>
-        </div>
-      </Container>
+        </Container>
+      </main>
     );
   }
 
