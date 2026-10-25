@@ -6,6 +6,7 @@ import { SectionHead } from "@/components/medical/ui/SectionHead";
 import { ProductGallery } from "@/components/medical/product/ProductGallery";
 import { ProductPurchasePanel } from "@/components/medical/product/ProductPurchasePanel";
 import { ProductRail } from "@/components/medical/product/ProductRail";
+import { SaveButton } from "@/components/medical/account/SaveButton";
 import {
   getProductBySlug,
   getRelatedProducts,
@@ -125,6 +126,10 @@ export default async function ProductPage({ params }: { params: Params }) {
 
           <div className="mt-6">
             <ProductPurchasePanel product={product} />
+            {/* Its own state is resolved in the browser: this page is cached
+                for a minute and served to everybody, so there is no session
+                here to read. */}
+            <SaveButton productId={product.id} className="mt-3" />
           </div>
         </div>
       </div>

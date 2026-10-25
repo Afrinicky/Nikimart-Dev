@@ -12,9 +12,12 @@ import type { ProductSummary } from "@/lib/medical/catalogue";
 export function ProductGrid({
   products,
   empty,
+  renderAction,
 }: {
   products: ProductSummary[];
   empty?: { title: string; body: string; action?: React.ReactNode };
+  /** A per-product control for the card's bottom row — see ProductCard. */
+  renderAction?: (product: ProductSummary) => React.ReactNode;
 }) {
   if (products.length === 0) {
     return (
@@ -34,7 +37,11 @@ export function ProductGrid({
   return (
     <div className="grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-4">
       {products.map((product) => (
-        <ProductCard key={product.id} product={product} />
+        <ProductCard
+          key={product.id}
+          product={product}
+          action={renderAction?.(product)}
+        />
       ))}
     </div>
   );

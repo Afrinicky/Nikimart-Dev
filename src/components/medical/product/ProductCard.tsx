@@ -39,9 +39,16 @@ import { cn } from "@/lib/cn";
  */
 export function ProductCard({
   product,
+  action,
   className,
 }: {
   product: ProductSummary;
+  /**
+   * An optional control for this product, shown on the bottom row. The saved
+   * list puts its remove button here. It sits above the card's link overlay,
+   * like the add button, or the click would land on the link instead.
+   */
+  action?: React.ReactNode;
   className?: string;
 }) {
   const basket = useBasket();
@@ -192,7 +199,9 @@ export function ProductCard({
 
           <div className="mt-2.5 flex items-center justify-between gap-2">
             <AvailabilityBadge availability={product.availability} />
-            {!options.canCheckout && options.canQuote ? (
+            {action ? (
+              <span className="relative z-10 flex items-center">{action}</span>
+            ) : !options.canCheckout && options.canQuote ? (
               <span className="medi-meta text-medi-muted">Quotation</span>
             ) : null}
           </div>

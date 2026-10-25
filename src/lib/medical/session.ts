@@ -70,7 +70,10 @@ export async function medicalStaff(): Promise<MedicalStaffSession | null> {
  */
 export async function requireMedicalStaff(pathname: string): Promise<MedicalStaffSession> {
   const staff = await medicalStaff();
-  if (!staff) redirect(`/login?next=${encodeURIComponent(pathname)}`);
+  // `callbackUrl`, which is what src/app/login/page.tsx reads. It was `next`,
+  // and nothing read that: signing in from the console landed the person on
+  // the retail home instead of the page they were sent away from.
+  if (!staff) redirect(`/login?callbackUrl=${encodeURIComponent(pathname)}`);
   if (!canReach(staff.role, pathname)) redirect("/medicals/admin");
   return staff;
 }
