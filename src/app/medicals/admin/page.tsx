@@ -28,19 +28,23 @@ export default async function MedicalAdminOverview() {
       />
 
       {/*
-        A tile links somewhere only when that somewhere exists. The quotation
-        and inventory figures are real and worth reporting, but their sections
-        have no screens yet, so those tiles are not links: a tile that opens a
-        404 teaches people the console cannot be trusted, and Next prefetches
-        the route on hover, so it fails before anybody even clicks.
+        Every tile links to the filtered list that explains it, and each of
+        those filters is part of the target page's contract rather than a
+        convenience: a tile that promises "twelve at reorder level" has to land
+        on exactly those twelve. Next prefetches these on hover, so a tile
+        pointing at a route that does not exist fails before anybody clicks —
+        which is why they went in as the screens did, not before.
       */}
       <section aria-labelledby="waiting">
         <PanelHeading title="Action required" subtitle="Counts from live records. Nothing below is an estimate." />
         <div className="mt-4 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4">
-          {sees("quotations") ? (
+          {/* Gated on the section the tile links to, not on a neighbouring one
+              that happens to share its roles today. */}
+          {sees("quotation-requests") ? (
             <StatCard
               label="New quotation requests"
               value={String(figures.quotationRequestsNew)}
+              href="/medicals/admin/quotation-requests?status=NEW"
               tone={figures.quotationRequestsNew > 0 ? "attention" : "default"}
             />
           ) : null}
@@ -49,6 +53,7 @@ export default async function MedicalAdminOverview() {
               label="Quotations awaiting a reply"
               value={String(figures.quotationsAwaitingReply)}
               hint="Sent, not yet accepted or declined"
+              href="/medicals/admin/quotations?status=SENT"
             />
           ) : null}
           {sees("customer-purchase-orders") ? (
@@ -129,6 +134,7 @@ export default async function MedicalAdminOverview() {
               <StatCard
                 label="Products at or below reorder level"
                 value={String(figures.lowStockLines)}
+                href="/medicals/admin/inventory?filter=low"
                 tone={figures.lowStockLines > 0 ? "attention" : "default"}
               />
             ) : null}
@@ -136,6 +142,7 @@ export default async function MedicalAdminOverview() {
               <StatCard
                 label="Batches expiring in 90 days"
                 value={String(figures.expiringBatches)}
+                href="/medicals/admin/inventory?filter=expiring"
                 tone={figures.expiringBatches > 0 ? "attention" : "default"}
               />
             ) : null}

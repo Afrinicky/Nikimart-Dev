@@ -314,3 +314,143 @@ money. The records behind it were then read back from Postgres — revenue poste
 once at GH₵6,670 (goods GH₵6,420 plus the GH₵250 delivery charge), cost of
 goods GH₵4,500, two cash receipts adding to the revenue, reservations released,
 batch allocation naming the batch it came from.
+
+---
+
+## 9. The remaining sections: quotations, inventory, products, staff, settings, audit
+
+The six sections that had tables and no screens. Nothing in sections 1–8 was
+rewritten; the navigation grew from ten entries to eighteen as each screen went
+in, and the overview tiles that had been stripped of their links got them back
+when the pages they point at existed.
+
+### Quotations — the largest, and the one with a rule
+
+A request is the question, a quotation is one of the answers, and one request
+can carry several versions of an answer. They are two records and two screens
+because collapsing them loses the question the moment somebody answers it.
+
+The rule the whole section is built around: **an issued document is frozen.**
+Once a version is issued the customer holds a copy, so its lines, prices and
+totals are read-only. A price that has to change becomes a new version that
+supersedes the old one, with the reason recorded, and the old one is kept
+exactly as it was issued — because a revision that edited the original in place
+would make our copy and theirs disagree about what was offered.
+
+That rule lives in `quotations/status.ts` as a table of ten states and eight
+moves, with thirteen tests. The table is what both the page and the server
+action read, so a button can never offer a move the action will refuse. It also
+computes a lapse from the validity date rather than waiting for a sweep:
+nothing runs at midnight, so a quotation with yesterday's date is expired
+whether or not a job has been round to say so, and a screen that waited would
+show a price that is no longer on offer.
+
+`quotations/pricing.ts` holds the arithmetic, with fifteen tests. The order the
+parts apply in is the whole of it, and two steps are where this kind of code
+usually goes wrong:
+
+- the **document discount** applies to the subtotal *after* line discounts —
+  applying it before double-counts, taking 19% where 10% and 10% were agreed;
+- **tax** applies *after* the discount — taxing the undiscounted figure charges
+  the customer for money they were never asked for.
+
+Charges are added and never discounted (a discount on the goods is not a
+discount on getting them there), every figure floors at zero (a discount larger
+than a line does not create credit), and no tax rate is assumed anywhere.
+
+Totals are recomputed on the server on every write. The form posts quantities,
+prices and discounts; the sums are done by the tested module, so a document's
+figures cannot be whatever somebody's devtools posted.
+
+### Inventory and products
+
+`inventory/queries.ts` answers three questions — what is low, what is expiring,
+what moved — and refuses a fourth: it will not compute a stock figure from the
+movements. The counter on the product is the figure, maintained in the same
+transaction as the movement that changed it, and deriving a second answer to
+"how many are there" would be worse than one answer that can be wrong.
+
+Low is measured against each product's **own** reorder level. A reagent that
+turns over weekly and an analyser sold twice a year do not share a sensible
+threshold, and one global setting would flag the first permanently and the
+second never.
+
+Two things the product form deliberately does not offer:
+
+- **stock**, because `stockOnHand` moves only through the inventory module
+  inside a transaction that writes a movement in the same breath — a box here
+  would be the one place that rule could be broken;
+- **average cost**, because it is computed from the batches on every goods
+  receipt and a typed figure would be silently overwritten by the next
+  delivery.
+
+Quarantine writes no movement at all: nothing moves, and what changes is
+whether the units may be drawn. Held stock stays in the valuation — the money
+is tied up in it — and leaves availability, because no customer can be promised
+it.
+
+### Staff, settings and the audit log
+
+A staff record is a **role granted to an existing Nickimart account**, not a new
+login: identity is one account across the three businesses, so access is granted
+by looking somebody up by the email they already sign in with. Typing a name
+would create a record that may belong to nobody.
+
+Two refusals are built in: the console will not remove its last administrator
+(counted inside the transaction, so two simultaneous demotions cannot both
+succeed), and nobody can suspend their own access. Suspension keeps the record
+rather than deleting it, because every audit entry, stock movement and issued
+quotation points at that row.
+
+Settings are typed, and a value that cannot be read as its declared type is
+refused on save — the alternative is a value that silently falls back to the
+default and is discovered months later. Two switches under Finance stay off by
+design, and the screen says why on its face.
+
+The audit log is read-only and there is no screen anywhere that writes to it or
+deletes from it. Its entity filter is built from what is actually in the log
+rather than a hardcoded list, so it cannot drift as models are added.
+
+### Two defects found while verifying
+
+- **A new section with no access row.** `quotation-requests` was added to the
+  navigation before `SECTION_ACCESS` knew about it, and `canReach` treats an
+  unknown section as closed to everybody but an administrator — so the page was
+  built, the nav entry was there, and only one person could open it. Silent, and
+  exactly the kind of thing that survives a manual check. There is now a test
+  asserting every navigated section has a row.
+- **A paragraph inside a definition list** on the quotation totals. A `dl` may
+  only directly contain `dt`, `dd` and `div`, and the stray paragraph broke how
+  a screen reader walks the figures. axe caught it; the terms now sit outside
+  the list.
+
+### Verified
+
+The quotation lifecycle was driven through the real console as a signed-in user
+against the production build — 37 assertions over taking a request, drafting
+from it, a refused issue while a line had no price, pricing the hand-typed line,
+a 5% discount and a delivery charge, issuing and finding the document frozen,
+sending, accepting, converting to an order, the timeline recording every step,
+and a stores account turned away. The totals were then read back from Postgres:
+subtotal GH₵9,360, 5% discount GH₵468, delivery GH₵300, payable GH₵9,192, with
+each line's cost frozen at issue.
+
+Across the console: 25 routes clean under axe at WCAG 2.2 AA, no horizontal
+overflow at 320, 390, 768 or 1440 pixels, 757 unit tests passing,
+`medical:check` still at its 51 assertions, and role gating confirmed in a
+browser — an administrator sees eighteen nav entries and reaches all seventeen
+sections, a stores account sees four and is turned away from fourteen.
+
+### What is genuinely not built
+
+- **Customer-facing quotation acceptance.** The `accessToken` on a quotation is
+  the token a customer would follow to read and accept it without an account.
+  The column is there and the console records acceptance on their behalf; the
+  customer-facing page is not built.
+- **PDF rendering.** `pdfUrl` is on the model and nothing writes it yet.
+  Documents are read in the console.
+- **Instalment schedules.** The schema supports them and the pricing module
+  computes the uplift and deposit, but `instalments.enabled` is off and
+  `docs/medical/REGULATORY.md` says why.
+- **Point of sale.** `SalesOrder.channel` has a `POS` value and
+  `posOperatorId`; no counter screen exists.

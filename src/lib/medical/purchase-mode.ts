@@ -27,6 +27,28 @@
 
 import type { Availability, PurchaseMode } from "@/lib/medical/catalogue";
 
+/**
+ * The three modes, as a value.
+ *
+ * `PurchaseMode` is a type and a type cannot be iterated, so a form that offers
+ * the modes and a server action that validates what comes back both need this.
+ * Declared next to the rules that read it rather than beside the type, so a
+ * fourth mode cannot be added to one and missed by the other.
+ */
+export const PURCHASE_MODES = ["CHECKOUT", "QUOTATION", "BOTH"] as const;
+
+export const PURCHASE_MODE_LABELS: Record<PurchaseMode, string> = {
+  CHECKOUT: "Buy directly",
+  QUOTATION: "Quotation only",
+  BOTH: "Either",
+};
+
+export const PURCHASE_MODE_BLURBS: Record<PurchaseMode, string> = {
+  CHECKOUT: "A customer adds it to the basket and pays at checkout.",
+  QUOTATION: "A customer can only request a price. Nothing is sold without somebody pricing it.",
+  BOTH: "The customer chooses. Restricted and out-of-stock lines are quotation-only regardless.",
+};
+
 export interface PurchaseOptions {
   /** Whether "Add to cart" may be offered at all. */
   canCheckout: boolean;

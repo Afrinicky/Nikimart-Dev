@@ -69,6 +69,7 @@ export const SECTION_ACCESS: Record<string, MedicalRole[]> = {
   // Selling
   tenders: ["MANAGER", "SALES"],
   institutions: ["MANAGER", "SALES", "SUPPORT"],
+  "quotation-requests": ["MANAGER", "SALES"],
   quotations: ["MANAGER", "SALES"],
   // Stores is here to dispatch. Their role description promises them dispatch
   // and a warehouse that cannot open the order it is picking cannot pick it —

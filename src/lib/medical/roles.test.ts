@@ -149,6 +149,54 @@ test("money on a sales order is shown only to the roles it concerns", () => {
   assert.equal(canSeeCost("PROCUREMENT") && !canSeeReceivables("PROCUREMENT"), true);
 });
 
+test("every section the console navigates to has an access row", () => {
+  // `canReach` treats an unknown section as closed to everybody but ADMIN, so a
+  // new screen whose key was never added to the table is invisible to the
+  // people who need it and reachable by one person. That is a silent failure —
+  // the page is built, the nav entry is there, and only an administrator can
+  // open it. This is the list the sidebar is built from.
+  const navigated = [
+    "",
+    "quotation-requests",
+    "quotations",
+    "tenders",
+    "institutions",
+    "customer-purchase-orders",
+    "customer-orders",
+    "sourcing",
+    "suppliers",
+    "supplier-quotes",
+    "purchase-orders",
+    "goods-received",
+    "payables",
+    "inventory",
+    "products",
+    "staff",
+    "audit",
+    "settings",
+  ];
+
+  for (const section of navigated) {
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(SECTION_ACCESS, section),
+      `${section || "(overview)"} is navigated to and has no row in SECTION_ACCESS`,
+    );
+  }
+});
+
+test("a section nobody but an administrator may open says so explicitly", () => {
+  // Staff and settings are empty arrays rather than missing keys. The two
+  // behave identically through `canReach`, and the difference is that one is a
+  // decision and the other is an oversight.
+  assert.deepEqual(SECTION_ACCESS.staff, []);
+  assert.deepEqual(SECTION_ACCESS.settings, []);
+  assert.equal(canReach("ADMIN", "/medicals/admin/staff"), true);
+  for (const role of MEDICAL_ROLES) {
+    if (role === "ADMIN") continue;
+    assert.equal(canReach(role, "/medicals/admin/settings"), false, role);
+  }
+});
+
 test("isMedicalRole narrows a string from the database", () => {
   assert.equal(isMedicalRole("PROCUREMENT"), true);
   assert.equal(isMedicalRole("SELLER"), false, "a retail role is not a medical one");

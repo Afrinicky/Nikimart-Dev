@@ -4,18 +4,25 @@ import { useCallback, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import {
   Banknote,
+  Boxes,
   Building2,
   ChevronLeft,
   ClipboardList,
   FileSignature,
+  FileText,
   Gavel,
+  Inbox,
   LayoutDashboard,
   Menu,
   PackageCheck,
   Receipt,
+  ScrollText,
+  Settings,
   ShoppingCart,
   Truck,
   Users,
+  Users2,
+  Warehouse,
   X,
 } from "lucide-react";
 import { MedicalLink } from "@/components/medical/ui/MedicalLink";
@@ -59,15 +66,17 @@ interface NavGroup {
  * every time.
  *
  * Only sections that exist are listed. A menu entry that leads to a 404 costs
- * more than a missing one: it teaches people that the navigation cannot be
- * trusted, and after that they stop believing the parts that work. Quotations,
- * inventory, products, staff, the audit log and settings all have tables
- * behind them and no screens yet — they go in when their screens do.
+ * more than a missing one: it teaches people the navigation cannot be trusted,
+ * and after that they stop believing the parts that work. The list was shorter
+ * than this while the screens were being built, and each entry went in with
+ * its screen rather than ahead of it.
  */
 const GROUPS: NavGroup[] = [
   {
     heading: "Sales",
     items: [
+      { section: "quotation-requests", label: "Quotation requests", icon: Inbox },
+      { section: "quotations", label: "Quotations", icon: FileText },
       { section: "tenders", label: "Tenders", icon: Gavel },
       { section: "institutions", label: "Institutions", icon: Building2 },
       { section: "customer-purchase-orders", label: "Customer purchase orders", icon: FileSignature },
@@ -83,6 +92,21 @@ const GROUPS: NavGroup[] = [
       { section: "purchase-orders", label: "Purchase orders", icon: Truck },
       { section: "goods-received", label: "Goods receipts", icon: PackageCheck },
       { section: "payables", label: "Payables", icon: Banknote },
+    ],
+  },
+  {
+    heading: "Stock",
+    items: [
+      { section: "inventory", label: "Inventory", icon: Warehouse },
+      { section: "products", label: "Products", icon: Boxes },
+    ],
+  },
+  {
+    heading: "Administration",
+    items: [
+      { section: "staff", label: "Staff", icon: Users2 },
+      { section: "audit", label: "Audit log", icon: ScrollText },
+      { section: "settings", label: "Settings", icon: Settings },
     ],
   },
 ];

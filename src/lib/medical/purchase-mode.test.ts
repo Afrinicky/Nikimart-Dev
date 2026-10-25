@@ -3,6 +3,9 @@ import test from "node:test";
 import {
   formatLeadTime,
   primaryActionLabel,
+  PURCHASE_MODE_BLURBS,
+  PURCHASE_MODE_LABELS,
+  PURCHASE_MODES,
   purchaseNote,
   purchaseOptions,
 } from "./purchase-mode.ts";
@@ -128,4 +131,15 @@ test("lead time reads as a person would say it", () => {
   assert.equal(formatLeadTime({ min: 3, max: 3 }), "3 working days");
   assert.equal(formatLeadTime({ min: 1, max: 1 }), "1 working day");
   assert.equal(formatLeadTime({ min: 0, max: 0 }), "Lead time on request");
+});
+
+test("the modes as a value match the modes as a type", () => {
+  // The list a form iterates and the list an action validates against are the
+  // same list. A fourth mode added to the type without being added here would
+  // be offered nowhere and rejected everywhere, and this is what catches it.
+  assert.deepEqual([...PURCHASE_MODES], ["CHECKOUT", "QUOTATION", "BOTH"]);
+  for (const mode of PURCHASE_MODES) {
+    assert.equal(typeof PURCHASE_MODE_LABELS[mode], "string", mode);
+    assert.ok(PURCHASE_MODE_BLURBS[mode].length > 0, mode);
+  }
 });
