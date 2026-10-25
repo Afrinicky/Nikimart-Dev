@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { isRole, ROLE_HOME } from "@/lib/roles";
 import { findUserByIdentifier } from "@/lib/user-lookup";
 import { isAgentUser } from "@/lib/data-bundles/agents";
+import { medicalHomeForUser } from "@/lib/medical/home";
 import { clearRateLimit, rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { challengeState, issueChallenge } from "@/lib/two-factor";
 import { usableChannel, type TwoFactorChannel } from "@/lib/two-factor-rules";
@@ -81,7 +82,15 @@ function homeForRole(role: string | undefined) {
  */
 async function homeForUser(user: { id: string; role: string } | null): Promise<string> {
   if (!user) return "/account";
-  if (user.role === "CUSTOMER" && (await isAgentUser(user.id))) return "/agent";
+  // A retail role comes first: somebody who runs the mall signs in to the mall.
+  // Within CUSTOMER — which is what everybody who only works in one of the
+  // other two businesses is — the explicit grant wins, because a medical staff
+  // row and an agent record are both somebody deciding this person works here.
+  if (user.role === "CUSTOMER") {
+    const medical = await medicalHomeForUser(user.id);
+    if (medical) return medical;
+    if (await isAgentUser(user.id)) return "/agent";
+  }
   return homeForRole(user.role);
 }
 
