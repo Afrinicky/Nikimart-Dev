@@ -63,19 +63,50 @@ export async function medicalStaff(): Promise<MedicalStaffSession | null> {
 }
 
 /**
- * Guards a console page. Redirects somebody who is not signed in to sign in,
- * and somebody without the role for this section to the overview — not to a
- * 403, because the overview is a page they can actually use and a dead end is
- * not an answer.
+ * The three states the console cares about, told apart.
+ *
+ * `medicalStaff()` returns null for two different people: somebody who is not
+ * signed in, and somebody who is signed in with an account that has no role
+ * here. Treating them the same is a redirect loop — the second one is sent to
+ * sign in, the login page sees a session and sends them back, and the browser
+ * gives up with too many redirects. Which is what an ordinary customer gets
+ * for opening /medicals/admin out of curiosity.
+ */
+export type MedicalAccess =
+  | { kind: "anonymous" }
+  | { kind: "denied"; email: string }
+  | { kind: "staff"; staff: MedicalStaffSession };
+
+export async function medicalAccess(): Promise<MedicalAccess> {
+  const session = await auth();
+  if (!session?.user?.id) return { kind: "anonymous" };
+
+  const staff = await medicalStaff();
+  if (staff) return { kind: "staff", staff };
+  return { kind: "denied", email: session.user.email ?? "" };
+}
+
+/** Where somebody without console access is sent, and why it is not /login. */
+export const DENIED_PATH = "/medicals/account?console=denied";
+
+/**
+ * Guards a console page. Somebody who is not signed in is sent to sign in and
+ * brought back; somebody signed in without a role here is sent to their own
+ * account, which explains it; somebody with the wrong role for this section is
+ * sent to the overview — not to a 403, because the overview is a page they can
+ * actually use and a dead end is not an answer.
  */
 export async function requireMedicalStaff(pathname: string): Promise<MedicalStaffSession> {
-  const staff = await medicalStaff();
+  const access = await medicalAccess();
   // `callbackUrl`, which is what src/app/login/page.tsx reads. It was `next`,
   // and nothing read that: signing in from the console landed the person on
   // the retail home instead of the page they were sent away from.
-  if (!staff) redirect(`/login?callbackUrl=${encodeURIComponent(pathname)}`);
-  if (!canReach(staff.role, pathname)) redirect("/medicals/admin");
-  return staff;
+  if (access.kind === "anonymous") {
+    redirect(`/login?callbackUrl=${encodeURIComponent(pathname)}`);
+  }
+  if (access.kind === "denied") redirect(DENIED_PATH);
+  if (!canReach(access.staff.role, pathname)) redirect("/medicals/admin");
+  return access.staff;
 }
 
 /**

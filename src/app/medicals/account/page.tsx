@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Heart, LogOut } from "lucide-react";
+import { Heart, LogOut, ShieldCheck } from "lucide-react";
 import { Breadcrumbs } from "@/components/medical/ui/Breadcrumbs";
 import { MedicalButtonLink } from "@/components/medical/ui/MedicalButton";
 import { MedicalLink } from "@/components/medical/ui/MedicalLink";
@@ -8,6 +8,8 @@ import { AccountPanel, AccountRow } from "@/components/medical/account/AccountRo
 import { NotConfigured } from "@/components/medical/ui/NotConfigured";
 import { isMedicalConfigured } from "@/lib/medical/db";
 import { requireMedicalCustomer } from "@/lib/medical/customer";
+import { medicalStaff } from "@/lib/medical/session";
+import { MEDICAL_ROLE_LABELS } from "@/lib/medical/roles";
 import { getAccountSummary } from "@/lib/medical/account/queries";
 import {
   ORDER_FULFILMENT_LABELS,
@@ -34,10 +36,19 @@ export const metadata: Metadata = {
  * empty rather than showing a zero in a tile: a dashboard of noughts is a
  * dashboard that tells a first-time customer nothing.
  */
-export default async function MedicalAccountPage() {
+export default async function MedicalAccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ console?: string }>;
+}) {
   if (!isMedicalConfigured()) return <NotConfigured />;
 
   const customer = await requireMedicalCustomer("/medicals/account");
+  const { console: consoleParam } = await searchParams;
+  // Somebody who tried to open the console. Either they are staff and this
+  // page shows them the door in, or they are not and it says so — which is
+  // the answer the console itself cannot give them without a redirect loop.
+  const staff = await medicalStaff();
   const [summary, savedCount, organisation] = await Promise.all([
     getAccountSummary(customer.customerId),
     medicalDb.wishlistItem
@@ -60,6 +71,18 @@ export default async function MedicalAccountPage() {
           Signed in as {customer.name || customer.email}.
         </p>
       </header>
+
+      {consoleParam === "denied" && !staff ? (
+        <p className="medi-panel mt-6 max-w-[42rem] p-4 text-[0.9375rem] text-medi-body">
+          <span className="font-semibold text-medi-ink">
+            This account cannot open the medical console.
+          </span>{" "}
+          Console access is granted per account — if it should be this one,
+          ask an administrator to add {customer.email || "this address"} under
+          Staff. If you have a second Nickimart account that is already staff,
+          sign out and sign in with that one.
+        </p>
+      ) : null}
 
       <div className="mt-8 gap-10 lg:grid lg:grid-cols-[1fr_19rem] lg:items-start">
         <div className="min-w-0 space-y-9">
@@ -184,6 +207,23 @@ export default async function MedicalAccountPage() {
               .
             </p>
           </section>
+
+          {staff ? (
+            <MedicalLink
+              href="/medicals/admin"
+              className="medi-panel medi-focus flex items-center gap-3 p-5 transition-colors hover:bg-medi-mint-50"
+            >
+              <ShieldCheck className="h-5 w-5 shrink-0 text-medi-teal-600" aria-hidden />
+              <span>
+                <span className="block text-sm font-semibold text-medi-ink">
+                  Medical console
+                </span>
+                <span className="medi-meta text-medi-muted">
+                  Signed in as {MEDICAL_ROLE_LABELS[staff.role] ?? staff.role}
+                </span>
+              </span>
+            </MedicalLink>
+          ) : null}
 
           <MedicalLink
             href="/medicals/account/saved"
