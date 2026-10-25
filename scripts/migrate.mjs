@@ -59,6 +59,16 @@ const TARGETS = [
     url: process.env.DATA_DATABASE_URL?.trim() || process.env.DATABASE_URL,
     lockId: 4711_2027,
   },
+  // Medical has no fallback to DATABASE_URL, unlike the bundle target above.
+  // Its tables have never lived in the retail database and must not be created
+  // there: an environment without MEDICAL_DATABASE_URL simply has no medical
+  // application, which src/lib/medical/db.ts reports and the routes handle.
+  {
+    name: "medical",
+    dir: path.join(ROOT, "db", "medical-migrations"),
+    url: process.env.MEDICAL_DATABASE_URL?.trim(),
+    lockId: 4711_2028,
+  },
 ];
 
 const log = (msg) => process.stdout.write(`[migrate] ${msg}\n`);

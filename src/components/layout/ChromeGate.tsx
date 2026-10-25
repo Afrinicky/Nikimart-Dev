@@ -14,8 +14,15 @@ import { usePathname } from "next/navigation";
  * A client wrapper rather than a route group because the providers in the root
  * layout — session, cart, locations — are shared by both, and splitting the
  * tree to move four elements would mean maintaining two copies of them.
+ *
+ * `/medicals` is here for a different reason: it is not a console but a second
+ * storefront, with its own header, its own footer and its own palette. The
+ * mall's chrome above a medical catalogue would be two headers and two brands
+ * on one page. Next.js only allows a second root layout when there is no root
+ * layout at all, so the gate is what gives the medical tree its own chrome
+ * while it keeps the session and the providers above it.
  */
-const CONSOLE_PREFIXES = ["/admin", "/agent", "/affiliate"];
+const CONSOLE_PREFIXES = ["/admin", "/agent", "/affiliate", "/medicals"];
 
 export function ChromeGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

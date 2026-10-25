@@ -1,0 +1,2900 @@
+// Nickimart Medical — medical and laboratory supplies database.
+//
+// The third business in this repository, and the third database. Retail lives
+// in prisma/schema.prisma, data bundles in prisma/data/schema.prisma, and this
+// is medicals.nickimart.com: a catalogue of reagents, consumables, diagnostics
+// and equipment, the quotation workflow that most of that catalogue is actually
+// sold through, and the inventory, sourcing and financial records behind it.
+//
+// Why separate, again
+// -------------------
+// The same reasoning the bundle split was made on. A procurement business keeps
+// different records, fails differently and is restored differently from a mall:
+// a quotation issued three weeks ago must still read exactly as it was issued
+// even if every price in the catalogue has moved since, and a restore of the
+// mall must never roll a sales ledger back. MEDICAL_DATABASE_URL points here;
+// when it isn't set the client falls back to DATABASE_URL so an environment
+// that hasn't been split yet still runs (see src/lib/medical/db.ts).
+//
+// Identity crosses, nothing else
+// ------------------------------
+// A customer signs in with their Nickimart account, so MedicalCustomer.userId
+// and MedicalStaff.userId hold a User.id from the retail database as a plain,
+// indexed column — not a foreign key, because Postgres cannot enforce a
+// reference into another database. src/lib/medical/user-link.ts joins the two
+// sides in one round trip for a whole page of rows, exactly as the bundle
+// business does it.
+//
+// Money
+// -----
+// Every amount is Decimal(14,2) and every calculation happens in integer
+// pesewas (src/lib/medical/money.ts). The retail schema stores money as Float,
+// which is fine for a single item price and wrong for a twenty-line quotation
+// with a line discount, a delivery charge and an instalment uplift — the errors
+// compound, and the total on a document a customer signs has to be exact.
+// Percentages are Decimal(7,4): 12.5% is 12.5000, and a rate is never rounded
+// before it is applied.
+
+generator client {
+  provider = "prisma-client-js"
+  // Its own output directory. Three clients generated to the same default path
+  // would overwrite one another and the app would import the wrong schema's
+  // types — the bundle schema hit exactly this and solved it the same way.
+  output   = "../../node_modules/.prisma/medical-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("MEDICAL_DATABASE_URL")
+}
+
+// ===========================================================================
+// People
+// ===========================================================================
+
+/// A member of staff in the medical admin console.
+///
+/// Separate from the retail Role enum because the jobs are different: the
+/// person who prices a quotation is rarely the person who receives goods, and
+/// neither should be able to edit payment plans. userId is a retail User.id.
+model MedicalStaff {
+  id     String @id @default(cuid())
+  /// Retail User.id. Plain column — see the note at the head of this file.
+  userId String @unique
+  /// Denormalised so the console can list and search staff without crossing
+  /// databases on every render. Refreshed from the retail user on sign-in.
+  name   String @default("")
+  email  String @default("")
+  phone  String @default("")
+
+  /// ADMIN | MANAGER | SALES | PROCUREMENT | STORES | FINANCE | SUPPORT
+  /// Checked in src/lib/medical/roles.ts, which also maps a role to the console
+  /// sections it may reach. A string rather than an enum so a role can be added
+  /// without a migration, validated in one place on the way in.
+  role      String  @default("SALES")
+  isActive  Boolean @default(true)
+  /// Free-text note for the person who deactivated them, shown in the console.
+  statusNote String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedQuotations QuotationRequest[] @relation("QuotationAssignee")
+  issuedQuotations   Quotation[]        @relation("QuotationIssuer")
+  auditLogs          MedicalAuditLog[]
+  stockMovements     StockMovement[]
+  posSales           SalesOrder[]       @relation("PosOperator")
+  ownedTenders       Tender[]           @relation("TenderOwner")
+  tenderSubmissions  TenderSubmission[] @relation("TenderSubmitter")
+
+  @@index([role, isActive])
+  @@map("medical_staff")
+}
+
+/// An institution that buys: a hospital, a laboratory, a clinic, a university
+/// department. Individuals buy without one.
+///
+/// Institutions are the reason the quotation system exists. A laboratory does
+/// not add a centrifuge to a cart; it asks for a quotation, takes it to whoever
+/// signs, and comes back weeks later expecting the price to hold. Everything
+/// here exists to make that document correct and to let more than one person at
+/// the institution act on it.
+model Organisation {
+  id   String @id @default(cuid())
+  name String
+  slug String @unique
+
+  /// HOSPITAL | LABORATORY | CLINIC | PHARMACY | RESEARCH | ACADEMIC |
+  /// GOVERNMENT | NGO | DISTRIBUTOR | OTHER
+  kind String @default("LABORATORY")
+
+  /// What they do, in their words. Shown to the person pricing their quotation.
+  about        String @default("")
+  /// Business registration / TIN. Needed on a proforma invoice an institution
+  /// will submit to its own finance office.
+  registrationNo String @default("")
+  taxId          String @default("")
+
+  email   String @default("")
+  phone   String @default("")
+  website String @default("")
+
+  addressLine1 String @default("")
+  addressLine2 String @default("")
+  city         String @default("")
+  region       String @default("")
+  country      String @default("Ghana")
+  digitalAddress String @default("")
+
+  /// Whether this institution may be offered instalment terms at all, and how
+  /// much unpaid balance it may carry. Set by finance, not by the customer.
+  creditApproved  Boolean @default(false)
+  creditLimit     Decimal @default(0) @db.Decimal(14, 2)
+  /// Default payment terms offered to this institution, overriding the global
+  /// default on a new quotation. Blank means use the global default.
+  defaultPaymentTerms String @default("")
+
+  /// Set by an administrator after checking the institution is real. Nothing in
+  /// the storefront claims verification; this gates credit and nothing else.
+  isVerified Boolean  @default(false)
+  verifiedAt DateTime?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members           OrganisationMember[]
+  customers         MedicalCustomer[]
+  addresses         CustomerAddress[]
+  quotationRequests QuotationRequest[]
+  quotations        Quotation[]
+  salesOrders       SalesOrder[]
+  tenders           Tender[]
+  approvedProducts  ApprovedProduct[]
+  purchaseOrders    CustomerPurchaseOrder[]
+
+  @@index([kind, isActive])
+  @@map("medical_organisations")
+}
+
+/// Somebody's seat at an institution, and what they may do with it.
+///
+/// A laboratory technician may ask for a quotation; only the person holding the
+/// budget may accept one. Without this distinction an accepted quotation means
+/// nothing, because anyone who could see it could accept it.
+model OrganisationMember {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  customerId     String
+  customer       MedicalCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  /// ADMIN   — manages the institution's members and settles accounts.
+  /// BUYER   — may accept a quotation and place an order.
+  /// REQUESTER — may request a quotation, and nothing else.
+  /// VIEWER  — may read the institution's history.
+  role String @default("REQUESTER")
+
+  /// A ceiling on what this member may commit the institution to in one order,
+  /// in GH₵. Zero means no ceiling of their own — the institution's limit
+  /// applies. Enforced server-side at acceptance and at checkout.
+  approvalLimit Decimal @default(0) @db.Decimal(14, 2)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organisationId, customerId])
+  @@index([customerId])
+  @@map("medical_organisation_members")
+}
+
+/// A buyer. Backed by a Nickimart account; may belong to one or more
+/// institutions, or to none.
+model MedicalCustomer {
+  id     String @id @default(cuid())
+  /// Retail User.id. Plain column — see the note at the head of this file.
+  userId String @unique
+
+  /// Denormalised from the retail user so lists, search and documents do not
+  /// cross databases per row. Refreshed on sign-in and on profile save.
+  name  String @default("")
+  email String @default("")
+  phone String @default("")
+
+  /// INDIVIDUAL | HOSPITAL | LABORATORY | CLINIC | PHARMACY | RESEARCH |
+  /// ACADEMIC | GOVERNMENT | NGO | DISTRIBUTOR | OTHER
+  /// Their own description of themselves, asked once at registration. It
+  /// decides which fields the quotation form asks for and nothing else.
+  customerType String @default("INDIVIDUAL")
+
+  /// Their primary institution, when they have one. The full set of
+  /// institutions they may act for is in OrganisationMember; this is the one
+  /// pre-selected on a new request.
+  organisationId String?
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+
+  /// Profession or role, free text — "Chief Biomedical Scientist". Printed on a
+  /// quotation when supplied, because the person pricing it reads it.
+  jobTitle String @default("")
+
+  /// Whether they agreed to hear about new stock. Nothing is sent without it.
+  marketingOptIn Boolean @default(false)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships       OrganisationMember[]
+  addresses         CustomerAddress[]
+  quotationRequests QuotationRequest[]
+  quotations        Quotation[]
+  salesOrders       SalesOrder[]
+  wishlist          WishlistItem[]
+  supportRequests   SupportRequest[]
+  purchaseOrders    CustomerPurchaseOrder[]
+
+  @@index([customerType, isActive])
+  @@index([organisationId])
+  @@map("medical_customers")
+}
+
+/// A delivery or billing address. Belongs to a person, an institution, or both.
+model CustomerAddress {
+  id String @id @default(cuid())
+
+  customerId String?
+  customer   MedicalCustomer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  organisationId String?
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// What to call it in a list: "Main laboratory", "Stores entrance".
+  label String @default("")
+
+  contactName  String @default("")
+  contactPhone String @default("")
+
+  addressLine1   String @default("")
+  addressLine2   String @default("")
+  city           String @default("")
+  region         String @default("")
+  country        String @default("Ghana")
+  digitalAddress String @default("")
+  /// Where the gate is, which bell to press, which ward. Deliveries of cold
+  /// chain goods fail on exactly this.
+  deliveryNotes  String @default("")
+
+  isDefaultDelivery Boolean @default(false)
+  isDefaultBilling  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  salesOrdersDelivery SalesOrder[] @relation("DeliveryAddress")
+  salesOrdersBilling  SalesOrder[] @relation("BillingAddress")
+
+  @@index([customerId])
+  @@index([organisationId])
+  @@map("medical_customer_addresses")
+}
+
+// ===========================================================================
+// Catalogue
+// ===========================================================================
+
+/// A catalogue category. Nests one level or many; ordered by hand.
+model MedicalCategory {
+  id          String  @id @default(cuid())
+  slug        String  @unique
+  name        String
+  description String  @default("")
+  /// A lucide icon name, resolved through src/lib/medical/icons.ts. A string so
+  /// an administrator can change it without a deploy.
+  icon        String  @default("FlaskConical")
+  /// Shown on the category page header and in the sidebar hover card.
+  image       String?
+
+  parentId String?
+  parent   MedicalCategory?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children MedicalCategory[] @relation("CategoryTree")
+
+  /// Hand-set order within the parent. Gaps are deliberate: reordering writes
+  /// new positions rather than renumbering every sibling.
+  position Int     @default(0)
+  isActive Boolean @default(true)
+  /// Shown in the homepage sidebar. A catalogue has more categories than a
+  /// sidebar has room for.
+  showInSidebar Boolean @default(true)
+
+  metaTitle       String @default("")
+  metaDescription String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products MedicalProduct[]
+
+  @@index([parentId, position])
+  @@index([isActive, position])
+  @@map("medical_categories")
+}
+
+/// A manufacturer or brand. Separate from supplier: a customer may filter by
+/// Roche, and must never learn who Nickimart buys Roche from.
+model Manufacturer {
+  id          String  @id @default(cuid())
+  slug        String  @unique
+  name        String
+  country     String  @default("")
+  logo        String?
+  description String  @default("")
+  website     String  @default("")
+
+  isActive  Boolean  @default(true)
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products MedicalProduct[]
+
+  @@map("medical_manufacturers")
+}
+
+/// A catalogue item.
+///
+/// Public and private fields live in one row, which means no query on a
+/// customer-facing surface may select the whole row. src/lib/medical/catalogue.ts
+/// exports PUBLIC_PRODUCT_SELECT and every storefront read goes through it; the
+/// private columns are grouped below and marked, so the rule is visible to
+/// whoever edits this file next.
+model MedicalProduct {
+  id          String @id @default(cuid())
+  slug        String @unique
+  name        String
+  /// One line under the name in a card and at the top of the detail page.
+  summary     String @default("")
+  description String @default("")
+
+  categoryId String
+  category   MedicalCategory @relation(fields: [categoryId], references: [id])
+
+  manufacturerId String?
+  manufacturer   Manufacturer? @relation(fields: [manufacturerId], references: [id], onDelete: SetNull)
+  /// The manufacturer's own catalogue number. The single most useful field on
+  /// this whole model: a laboratory orders "Roche 04489357190", not "glucose
+  /// reagent". Indexed, and searched before the name.
+  catalogueNumber String @default("")
+  /// Nickimart's internal SKU.
+  sku             String @unique
+
+  /// How it is sold: "Pack of 100", "500 mL bottle", "Case of 10 × 1 L".
+  packSize String @default("")
+  /// The noun on the line of a quotation: pack, box, bottle, piece, case, kit.
+  unitOfSale String @default("unit")
+  /// How many individual items are in one unit of sale, when that is a sensible
+  /// number. Zero where it is not (a 500 mL bottle has no count).
+  unitsPerPack Int @default(0)
+
+  // --- Pricing (public) -----------------------------------------------------
+  /// The listed price of one unit of sale, outright, before any charge.
+  price         Decimal  @db.Decimal(14, 2)
+  /// A struck-through former price, when there is one. Null, never zero.
+  comparePrice  Decimal? @db.Decimal(14, 2)
+  currency      String   @default("GHS")
+  /// Fewest units one order may contain.
+  minimumOrderQuantity Int @default(1)
+
+  // --- PRIVATE. Never selected by a customer- or redistributor-facing query --
+  /// What Nickimart pays for one unit of sale, most recently. The running
+  /// history is in ProductCostHistory; this is the figure margin is computed
+  /// against and the default cost on a new purchase order line.
+  purchaseCost      Decimal @default(0) @db.Decimal(14, 2)
+  /// Weighted average cost across the batches currently in stock. Maintained by
+  /// goods-received postings; the basis for stock valuation and COGS.
+  averageCost       Decimal @default(0) @db.Decimal(14, 2)
+  /// The supplier this is normally bought from.
+  primarySupplierId String?
+  primarySupplier   Supplier? @relation(fields: [primarySupplierId], references: [id], onDelete: SetNull)
+  /// LOCAL | IMPORT | BOTH — how it is sourced. Drives lead-time defaults and
+  /// whether landed costs are asked for on a purchase order.
+  sourcingMode      String  @default("LOCAL")
+  /// Anything the buyer needs to know that no customer should see: the agent in
+  /// Guangzhou, the minimum the supplier will ship, the last price argument.
+  internalNotes     String  @default("")
+  // --- end private ----------------------------------------------------------
+
+  /// CHECKOUT | QUOTATION | BOTH. Whether a customer may buy this directly, must
+  /// ask for a quotation, or may choose. Changed by an administrator at any
+  /// time; nothing about it is compiled in.
+  purchaseMode String @default("BOTH")
+
+  // --- Stock ----------------------------------------------------------------
+  /// Units physically in the store. Never decremented directly — every change
+  /// goes through a StockMovement inside a transaction, so the row and the
+  /// movement log can never disagree.
+  stockOnHand  Int @default(0)
+  /// Units spoken for by an accepted quotation or an unfulfilled order.
+  /// Available = stockOnHand − stockReserved.
+  stockReserved Int @default(0)
+  /// Units on an open purchase order, not yet received.
+  stockOnOrder Int @default(0)
+  /// Below this, the console flags it for reordering.
+  reorderLevel Int @default(0)
+  /// How many to buy when it is reordered.
+  reorderQuantity Int @default(0)
+  /// Whether a customer may order more than is in stock. True for a catalogue
+  /// item always brought in to order; false for anything sold from the shelf.
+  allowBackorder Boolean @default(false)
+  /// Whether this item is tracked by batch and expiry at all. Reagents are;
+  /// a stainless steel forceps is not.
+  tracksBatches Boolean @default(false)
+
+  /// Working days from order to delivery, as shown to a customer. A range
+  /// because sourcing is a range; both ends shown when they differ.
+  leadTimeMinDays Int @default(2)
+  leadTimeMaxDays Int @default(7)
+
+  // --- Handling -------------------------------------------------------------
+  /// AMBIENT | COOL | REFRIGERATED | FROZEN | CONTROLLED
+  storageCondition String @default("AMBIENT")
+  /// "Store at 2–8 °C. Do not freeze." Printed on the delivery note.
+  handlingNotes    String @default("")
+  /// Whether moving it needs a cold chain. Shown on the product page, because a
+  /// customer in Tamale needs to know before they order.
+  requiresColdChain Boolean @default(false)
+  /// Dangerous goods class, blank when not applicable.
+  hazardClass       String @default("")
+
+  /// Whether a customer must show a licence or an institutional account before
+  /// this can be sold to them. Controlled substances and prescription devices.
+  restrictedSale Boolean @default(false)
+  /// What they must show, in words, for the person reviewing the order.
+  restrictionNote String @default("")
+
+  /// Technical specifications, as [{ label, value }]. JSON rather than a table
+  /// because they are read as a block, written as a block, and never queried.
+  specifications String @default("[]")
+  /// Analysers or methods this is verified to work with, as string[]. Only
+  /// what the manufacturer states — an unverified compatibility claim on a
+  /// reagent is how a laboratory loses a run.
+  compatibleWith String @default("[]")
+  /// Documents: [{ label, url, kind }] — insert, SDS, certificate of analysis.
+  documents      String @default("[]")
+
+  /// Search keywords an administrator adds: trade names, misspellings, the
+  /// local word for it. Appended to the search vector, never displayed.
+  searchTerms String @default("")
+
+  /// DRAFT | ACTIVE | OUT_OF_STOCK | DISCONTINUED | ARCHIVED.
+  /// Archived rather than deleted: a product that has been quoted or sold
+  /// cannot be removed without destroying the documents that reference it.
+  status String @default("DRAFT")
+
+  isFeatured Boolean @default(false)
+  /// Shown in the "new arrivals" rail until an administrator clears it.
+  isNewArrival Boolean @default(false)
+  /// Hand-set ordering within a category listing.
+  position Int @default(0)
+
+  metaTitle       String @default("")
+  metaDescription String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  images             MedicalProductImage[]
+  batches            StockBatch[]
+  stockMovements     StockMovement[]
+  quotationRequestItems QuotationRequestItem[]
+  quotationItems     QuotationItem[]
+  salesOrderItems    SalesOrderItem[]
+  purchaseOrderItems PurchaseOrderItem[]
+  supplierQuoteItems SupplierQuoteItem[]
+  costHistory        ProductCostHistory[]
+  wishlistedBy       WishlistItem[]
+  commissions        RedistributorCommission[]
+  tenderItems        TenderItem[]
+  tenderSubmissionItems TenderSubmissionItem[]
+  approvedFor        ApprovedProduct[]
+  customerPoItems    CustomerPurchaseOrderItem[]
+  sourcingItems      SourcingRequestItem[]
+
+  @@index([categoryId, status, position])
+  @@index([status, isFeatured])
+  @@index([catalogueNumber])
+  @@index([manufacturerId])
+  @@index([primarySupplierId])
+  @@map("medical_products")
+}
+
+model MedicalProductImage {
+  id        String @id @default(cuid())
+  productId String
+  product   MedicalProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  url      String
+  /// Describes the image for somebody who cannot see it. Required in the form;
+  /// a catalogue of unlabelled bottles is unusable with a screen reader.
+  alt      String @default("")
+  position Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([productId, position])
+  @@map("medical_product_images")
+}
+
+model WishlistItem {
+  id         String @id @default(cuid())
+  customerId String
+  customer   MedicalCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId  String
+  product    MedicalProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([customerId, productId])
+  @@map("medical_wishlist_items")
+}
+
+// ===========================================================================
+// Suppliers and purchasing
+// ===========================================================================
+
+/// Who Nickimart buys from. Entirely internal — no customer-facing query ever
+/// touches this table.
+model Supplier {
+  id   String @id @default(cuid())
+  code String @unique
+  name String
+
+  /// LOCAL | INTERNATIONAL
+  kind    String @default("LOCAL")
+  country String @default("Ghana")
+  /// The currency their prices are quoted in. Converted at the rate recorded on
+  /// each purchase order, never at today's rate.
+  currency String @default("GHS")
+
+  contactName  String @default("")
+  email        String @default("")
+  phone        String @default("")
+  website      String @default("")
+  addressLine1 String @default("")
+  city         String @default("")
+  region       String @default("")
+
+  /// Days from purchase order to goods at the Nickimart store.
+  leadTimeDays Int @default(14)
+  /// What they will not ship below, in their currency.
+  minimumOrderValue Decimal @default(0) @db.Decimal(14, 2)
+  /// Days of credit they extend. Zero means payment with order.
+  paymentTermsDays  Int @default(0)
+  /// Bank or momo details for settling invoices, free text.
+  paymentDetails    String @default("")
+
+  /// A buyer's note: reliability, who to call, what they are slow at.
+  notes String @default("")
+  /// 0–5, set by the buyer by hand. Not shown anywhere a customer can reach.
+  rating Int @default(0)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products        MedicalProduct[]
+  supplierQuotes  SupplierQuote[]
+  purchaseOrders  PurchaseOrder[]
+  invoices        SupplierInvoice[]
+  payments        SupplierPayment[]
+  batches         StockBatch[]
+  costHistory     ProductCostHistory[]
+
+  @@index([kind, isActive])
+  @@map("medical_suppliers")
+}
+
+/// A price a supplier has given, valid until it isn't.
+///
+/// The reason a quotation can sit in "awaiting supplier pricing": somebody has
+/// written to three suppliers and is waiting. Recording the replies here means
+/// the next quotation for the same item does not need the same three emails.
+model SupplierQuote {
+  id         String @id @default(cuid())
+  reference  String @unique
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  /// DRAFT | REQUESTED | RECEIVED | EXPIRED | SUPERSEDED
+  status String @default("REQUESTED")
+
+  requestedAt DateTime @default(now())
+  receivedAt  DateTime?
+  validUntil  DateTime?
+
+  currency     String  @default("GHS")
+  /// The rate used to convert this supplier's currency to GH₵, recorded at the
+  /// moment the quote was entered. A landed cost computed at today's rate and a
+  /// price quoted at last month's rate is how margin quietly disappears.
+  exchangeRate Decimal @default(1) @db.Decimal(14, 6)
+
+  // --- Everything between their gate and our shelf -------------------------
+  // Without these a "landed cost" comparison is a currency conversion wearing
+  // the wrong name: two offers at the same converted goods value can differ by
+  // a third once freight, duty and clearing are counted, and the cheaper unit
+  // price is routinely the dearer shelf.
+  //
+  // Freight, insurance and their other charges are in the supplier's own
+  // currency, because that is how they quote them.
+  freight      Decimal @default(0) @db.Decimal(14, 2)
+  insurance    Decimal @default(0) @db.Decimal(14, 2)
+  otherCharges Decimal @default(0) @db.Decimal(14, 2)
+  /// Import duty as a rate in basis points of the CIF value (20% → 2000), not
+  /// an amount: the amount depends on the goods value, and the goods value is
+  /// the thing the comparison varies.
+  dutyRateBp   Int     @default(0)
+  /// Clearing, handling and inland transport. In GH₵ — these are paid here, in
+  /// cedis, and running them through the supplier's exchange rate would be an
+  /// invented figure.
+  clearingGhs  Decimal @default(0) @db.Decimal(14, 2)
+  otherGhs     Decimal @default(0) @db.Decimal(14, 2)
+
+  notes       String @default("")
+  attachment  String @default("")
+
+  /// The sourcing round this was requested for. A quote that belongs to a
+  /// round can be compared against the other replies to the same round, which
+  /// is the only comparison worth making.
+  sourcingRequestId String?
+  sourcingRequest   SourcingRequest? @relation(fields: [sourcingRequestId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items          SupplierQuoteItem[]
+  purchaseOrders PurchaseOrder[]
+
+  @@index([supplierId, status])
+  @@index([sourcingRequestId])
+  @@map("medical_supplier_quotes")
+}
+
+model SupplierQuoteItem {
+  id              String @id @default(cuid())
+  supplierQuoteId String
+  supplierQuote   SupplierQuote @relation(fields: [supplierQuoteId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  /// What the supplier called it. Kept even when matched to a product, because
+  /// the supplier's wording is what the invoice will say.
+  description String
+  /// Their catalogue number, which is often not ours.
+  supplierSku String @default("")
+
+  quantity  Int     @default(1)
+  unitCost  Decimal @db.Decimal(14, 2)
+  /// In the supplier's currency. unitCost × exchangeRate gives GH₵.
+  leadTimeDays Int  @default(0)
+  notes     String  @default("")
+
+  @@index([supplierQuoteId])
+  @@index([productId])
+  @@map("medical_supplier_quote_items")
+}
+
+/// An order placed on a supplier.
+model PurchaseOrder {
+  id         String @id @default(cuid())
+  reference  String @unique
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+
+  /// The supplier quotation this order was placed against, where the buyer
+  /// chose one. What proves the price paid was the price compared — without it
+  /// a landed-cost comparison is a screen nobody can audit afterwards.
+  supplierQuoteId String?
+  supplierQuote   SupplierQuote? @relation(fields: [supplierQuoteId], references: [id], onDelete: SetNull)
+
+  /// DRAFT | SENT | CONFIRMED | PARTIALLY_RECEIVED | RECEIVED | CANCELLED
+  status String @default("DRAFT")
+
+  orderedAt       DateTime?
+  expectedAt      DateTime?
+  /// Set when the last outstanding line is received.
+  completedAt     DateTime?
+
+  currency     String  @default("GHS")
+  /// Locked at the moment the order is sent. Every figure on this order and
+  /// every cost it posts to inventory uses this rate and no other.
+  exchangeRate Decimal @default(1) @db.Decimal(14, 6)
+
+  /// Goods value, in the supplier's currency, before anything below.
+  subtotal Decimal @default(0) @db.Decimal(14, 2)
+
+  // --- Landed costs ---------------------------------------------------------
+  // Each has an estimate and a confirmed figure, because they arrive months
+  // apart and the difference between them is the difference between a planned
+  // margin and a real one. Reports that mix the two are reports nobody trusts.
+  shippingEstimate Decimal @default(0) @db.Decimal(14, 2)
+  shippingActual   Decimal @default(0) @db.Decimal(14, 2)
+  dutyEstimate     Decimal @default(0) @db.Decimal(14, 2)
+  dutyActual       Decimal @default(0) @db.Decimal(14, 2)
+  clearingEstimate Decimal @default(0) @db.Decimal(14, 2)
+  clearingActual   Decimal @default(0) @db.Decimal(14, 2)
+  otherEstimate    Decimal @default(0) @db.Decimal(14, 2)
+  otherActual      Decimal @default(0) @db.Decimal(14, 2)
+  /// True once every actual above has been entered and the order's landed cost
+  /// is final. Until then reports label this order's cost as estimated.
+  costsConfirmed   Boolean @default(false)
+
+  /// subtotal + landed costs, converted at exchangeRate. Written by the server
+  /// on every save so reports never recompute it from parts that have moved.
+  totalLandedGhs Decimal @default(0) @db.Decimal(14, 2)
+
+  notes       String @default("")
+  createdById String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items     PurchaseOrderItem[]
+  receipts  GoodsReceipt[]
+  invoices  SupplierInvoice[]
+
+  @@index([supplierId, status])
+  @@index([status, expectedAt])
+  @@index([supplierQuoteId])
+  @@map("medical_purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  description String
+  supplierSku String @default("")
+
+  quantity         Int     @default(1)
+  quantityReceived Int     @default(0)
+  unitCost         Decimal @db.Decimal(14, 2)
+  lineTotal        Decimal @default(0) @db.Decimal(14, 2)
+
+  /// This line's share of the order's landed costs, apportioned by value when
+  /// the order is costed. What actually lands in the batch's unit cost.
+  landedUnitCostGhs Decimal @default(0) @db.Decimal(14, 2)
+
+  notes String @default("")
+
+  /// What this line was bought for. Both are nullable because plenty is bought
+  /// to put on a shelf, and line-level because one supplier order serves
+  /// several customers — anything coarser cannot answer "whose goods are
+  /// these" when the delivery arrives short.
+  sourcingRequestItemId String?
+  sourcingRequestItem   SourcingRequestItem? @relation(fields: [sourcingRequestItemId], references: [id], onDelete: SetNull)
+  /// The customer line it covers, denormalised from the sourcing item so
+  /// fulfilment can find it without a second join.
+  salesOrderItemId      String?
+
+  receiptItems GoodsReceiptItem[]
+  invoiceItems SupplierInvoiceItem[]
+
+  @@index([purchaseOrderId])
+  @@index([productId])
+  @@index([sourcingRequestItemId])
+  @@index([salesOrderItemId])
+  @@map("medical_purchase_order_items")
+}
+
+/// Goods arriving. One purchase order may be received in several deliveries.
+model GoodsReceipt {
+  id              String @id @default(cuid())
+  reference       String @unique
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  receivedAt   DateTime @default(now())
+  receivedById String   @default("")
+  /// The supplier's delivery note or waybill number.
+  deliveryNote String   @default("")
+  notes        String   @default("")
+
+  createdAt DateTime @default(now())
+
+  items GoodsReceiptItem[]
+
+  @@index([purchaseOrderId])
+  @@map("medical_goods_receipts")
+}
+
+model GoodsReceiptItem {
+  id             String @id @default(cuid())
+  goodsReceiptId String
+  goodsReceipt   GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  purchaseOrderItemId String
+  purchaseOrderItem   PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id], onDelete: Cascade)
+
+  quantityAccepted Int @default(0)
+  /// Arrived broken, short-dated, or the wrong thing. Never enters stock;
+  /// recorded so the claim against the supplier has a number behind it.
+  quantityRejected Int @default(0)
+  rejectionReason  String @default("")
+
+  batchNumber String?
+  expiryDate  DateTime?
+
+  /// The batch this created, when it created one.
+  stockBatchId String?
+
+  @@index([goodsReceiptId])
+  @@map("medical_goods_receipt_items")
+}
+
+/// What a supplier has billed, and what is still owed on it.
+model SupplierInvoice {
+  id         String @id @default(cuid())
+  reference  String @unique
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+
+  /// Their invoice number, which is the one they will quote on the phone.
+  supplierReference String @default("")
+
+  /// DRAFT | AWAITING_PAYMENT | PARTIALLY_PAID | PAID | DISPUTED | CANCELLED
+  status String @default("AWAITING_PAYMENT")
+
+  issuedAt DateTime  @default(now())
+  dueAt    DateTime?
+
+  currency     String  @default("GHS")
+  exchangeRate Decimal @default(1) @db.Decimal(14, 6)
+  amount       Decimal @db.Decimal(14, 2)
+  amountGhs    Decimal @default(0) @db.Decimal(14, 2)
+  amountPaid   Decimal @default(0) @db.Decimal(14, 2)
+
+  notes      String @default("")
+  attachment String @default("")
+
+  /// Set when every line matches the order and the receipt, or when somebody
+  /// has signed off the differences. Nothing is paid until it is true.
+  isMatched     Boolean @default(false)
+  matchedById   String  @default("")
+  matchedAt     DateTime?
+  /// NONE | QUANTITY | PRICE | TAX | CHARGES | MULTIPLE | UNMATCHED
+  discrepancyKind String @default("NONE")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments SupplierPayment[]
+  items    SupplierInvoiceItem[]
+
+  @@index([supplierId, status])
+  @@index([status, dueAt])
+  @@map("medical_supplier_invoices")
+}
+
+model SupplierPayment {
+  id         String @id @default(cuid())
+  reference  String @unique
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+  supplierInvoiceId String?
+  supplierInvoice   SupplierInvoice? @relation(fields: [supplierInvoiceId], references: [id], onDelete: SetNull)
+
+  paidAt   DateTime @default(now())
+  /// BANK | MOMO | CASH | CARD | OTHER
+  method   String   @default("BANK")
+  currency String   @default("GHS")
+  exchangeRate Decimal @default(1) @db.Decimal(14, 6)
+  amount    Decimal @db.Decimal(14, 2)
+  amountGhs Decimal @default(0) @db.Decimal(14, 2)
+
+  note        String @default("")
+  recordedById String @default("")
+
+  createdAt DateTime @default(now())
+
+  @@index([supplierId])
+  @@index([supplierInvoiceId])
+  @@map("medical_supplier_payments")
+}
+
+/// What each product has cost over time, and from whom.
+///
+/// Written on every goods receipt. Margin on a sale made in March is computed
+/// against what the goods cost in March, not against what the same thing costs
+/// today — without this, a price rise retroactively rewrites last quarter's
+/// profit.
+model ProductCostHistory {
+  id        String @id @default(cuid())
+  productId String
+  product   MedicalProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  /// The landed cost of one unit of sale, in GH₵.
+  unitCost  Decimal  @db.Decimal(14, 2)
+  currency  String   @default("GHS")
+  exchangeRate Decimal @default(1) @db.Decimal(14, 6)
+  quantity  Int      @default(0)
+  /// GOODS_RECEIPT | MANUAL | OPENING_BALANCE
+  source    String   @default("GOODS_RECEIPT")
+  note      String   @default("")
+  recordedAt DateTime @default(now())
+
+  @@index([productId, recordedAt])
+  @@map("medical_product_cost_history")
+}
+
+// ===========================================================================
+// Inventory
+// ===========================================================================
+
+/// A batch of a product, with what it cost and when it expires.
+///
+/// Reagents are consumed oldest-first and a short-dated batch is a loss waiting
+/// to happen, so stock is held per batch rather than as one number. Products
+/// with tracksBatches = false get a single implicit batch and never look at it.
+model StockBatch {
+  id        String @id @default(cuid())
+  productId String
+  product   MedicalProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  batchNumber String @default("")
+  expiryDate  DateTime?
+
+  quantityReceived  Int @default(0)
+  quantityRemaining Int @default(0)
+
+  /// Landed cost of one unit in this batch. Stock valuation sums
+  /// quantityRemaining × unitCost across batches.
+  unitCost Decimal @default(0) @db.Decimal(14, 2)
+
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  /// Which goods receipt created it, for tracing a recall back to a delivery.
+  goodsReceiptItemId String?
+
+  receivedAt DateTime @default(now())
+  /// Pulled from sale for a reason: recalled, damaged, quarantined pending a
+  /// certificate. Quarantined stock is physically present and not sellable, so
+  /// it counts in valuation and not in availability.
+  isQuarantined    Boolean @default(false)
+  quarantineReason String  @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  movements StockMovement[]
+
+  @@index([productId, expiryDate])
+  @@index([productId, quantityRemaining])
+  @@map("medical_stock_batches")
+}
+
+/// Every change to stock, append-only.
+///
+/// Nothing anywhere writes MedicalProduct.stockOnHand on its own: a movement is
+/// inserted and the counter updated in the same transaction. The log is
+/// therefore always a complete explanation of the counter, which is the only
+/// way an inventory discrepancy can ever be investigated rather than argued
+/// about.
+model StockMovement {
+  id        String @id @default(cuid())
+  productId String
+  product   MedicalProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  batchId   String?
+  batch     StockBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  /// RECEIPT | SALE | POS_SALE | RESERVATION | RELEASE | DISPATCH | RETURN |
+  /// DAMAGE | EXPIRY | ADJUSTMENT | TRANSFER | OPENING
+  kind String
+
+  /// Signed. Positive adds to the figure this movement affects, negative takes
+  /// from it. A reservation moves units from available to reserved without
+  /// touching stockOnHand, so it carries a quantity of 0 and a reservedDelta.
+  quantity      Int @default(0)
+  reservedDelta Int @default(0)
+
+  /// What the counter read after this movement. Stored rather than derived so
+  /// the log can be read straight down without summing from the beginning, and
+  /// so a disagreement between log and counter is visible at the row it began.
+  balanceAfter Int @default(0)
+
+  /// What caused it: a sales order, a quotation, a goods receipt, a POS sale.
+  /// A loose pair rather than six nullable foreign keys — the referenced tables
+  /// have nothing else in common, and a movement must survive its cause being
+  /// archived.
+  sourceType String @default("")
+  sourceId   String @default("")
+
+  reason String @default("")
+  staffId String?
+  staff   MedicalStaff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([productId, createdAt])
+  @@index([sourceType, sourceId])
+  @@index([kind, createdAt])
+  @@map("medical_stock_movements")
+}
+
+// ===========================================================================
+// Quotations
+// ===========================================================================
+
+/// What the customer asked for.
+///
+/// Deliberately separate from the Quotation that answers it. The request is the
+/// customer's words and belongs to them; the quotation is Nickimart's offer and
+/// belongs to Nickimart. One request may be answered by several quotations
+/// (split by supplier, or re-priced after a decline), and a quotation revised
+/// three times must not rewrite what was originally asked for.
+model QuotationRequest {
+  id        String @id @default(cuid())
+  /// Human reference: QR-2026-0147. What the customer quotes on the phone.
+  reference String @unique
+
+  customerId String?
+  customer   MedicalCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  organisationId String?
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+
+  /// Captured on the form for a customer who has not signed in. A laboratory
+  /// manager will not make an account before finding out whether you stock the
+  /// thing, and a request lost at that gate is a sale lost at that gate.
+  contactName  String @default("")
+  contactEmail String @default("")
+  contactPhone String @default("")
+  institutionName String @default("")
+  /// INDIVIDUAL | HOSPITAL | LABORATORY | ... — as the requester described it.
+  institutionType String @default("")
+
+  /// NEW | UNDER_REVIEW | AWAITING_SUPPLIER | DRAFTING | SENT |
+  /// REVISION_REQUESTED | ACCEPTED | DECLINED | EXPIRED | CONVERTED | CANCELLED
+  /// The set is in src/lib/medical/quotation-status.ts along with which
+  /// transitions are legal and what each one's next action is.
+  status String @default("NEW")
+
+  assigneeId String?
+  assignee   MedicalStaff? @relation("QuotationAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  /// Where it came from: STOREFRONT | PHONE | EMAIL | WALK_IN | REDISTRIBUTOR.
+  source String @default("STOREFRONT")
+
+  /// When they need it. Not a promise, an input to pricing.
+  requiredBy DateTime?
+  /// Delivery town or facility, as free text at request time.
+  deliverTo  String @default("")
+  /// Anything they want to say. Often the most useful field on the form.
+  notes      String @default("")
+
+  /// A request for something not in the catalogue. The customer describes it;
+  /// procurement decides whether it can be sourced. Kept on the same model
+  /// because a request is usually a mix — four catalogue items and one thing
+  /// they could not find.
+  specialRequest String @default("")
+
+  /// Which redistributor, if any, sent this customer. Captured at request time
+  /// because attribution must survive the weeks between request and sale.
+  redistributorId String?
+  redistributor   Redistributor? @relation(fields: [redistributorId], references: [id], onDelete: SetNull)
+
+  /// The token a signed-out customer follows to read their own request without
+  /// an account. Long, random, and the only thing that authorises that read.
+  accessToken String @unique @default(cuid())
+
+  submittedAt DateTime @default(now())
+  closedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items      QuotationRequestItem[]
+  quotations Quotation[]
+  events     QuotationEvent[]
+
+  @@index([status, submittedAt])
+  @@index([customerId])
+  @@index([organisationId])
+  @@index([assigneeId, status])
+  @@map("medical_quotation_requests")
+}
+
+model QuotationRequestItem {
+  id        String @id @default(cuid())
+  requestId String
+  request   QuotationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  /// What they asked for, in their words. Always written, even when a product
+  /// matched — the catalogue name may change and the request must not.
+  description String
+  /// Their catalogue number, when they gave one.
+  catalogueNumber String @default("")
+  quantity    Int    @default(1)
+  unit        String @default("unit")
+  notes       String @default("")
+  position    Int    @default(0)
+
+  @@index([requestId, position])
+  @@index([productId])
+  @@map("medical_quotation_request_items")
+}
+
+/// A quotation: the commercial offer, at a version.
+///
+/// Issued versions are immutable. Editing an issued quotation creates the next
+/// version of the same quotation, with its own line items, its own totals and
+/// its own document. The customer holding version 2 and the console showing
+/// version 3 must both be able to read exactly what they are looking at —
+/// a quotation that silently changes under a customer who is still deciding is
+/// the single worst failure this system could have.
+model Quotation {
+  id        String @id @default(cuid())
+  /// QT-2026-0147. Shared by every version; the version number distinguishes
+  /// them, so a customer and a salesperson quoting it on the phone agree.
+  reference String
+  version   Int    @default(1)
+
+  requestId String?
+  request   QuotationRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+
+  customerId String?
+  customer   MedicalCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  organisationId String?
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+
+  /// QUOTATION | PROFORMA. The same editor, the same lines, the same totals,
+  /// two documents with different standing. A proforma states agreed terms and
+  /// is submitted to a finance office to release funds; it is not a receipt and
+  /// not a tax invoice, and the template says so on its face.
+  documentType String @default("QUOTATION")
+
+  /// DRAFT | ISSUED | SENT | VIEWED | ACCEPTED | DECLINED | EXPIRED |
+  /// SUPERSEDED | CONVERTED | CANCELLED
+  status String @default("DRAFT")
+
+  /// Frozen the moment the version is issued. Everything below this line is
+  /// read-only from then on, enforced in src/lib/medical/quotations.ts.
+  issuedAt   DateTime?
+  sentAt     DateTime?
+  firstViewedAt DateTime?
+  acceptedAt DateTime?
+  declinedAt DateTime?
+  declineReason String @default("")
+  validUntil DateTime?
+
+  issuedById String?
+  issuedBy   MedicalStaff? @relation("QuotationIssuer", fields: [issuedById], references: [id], onDelete: SetNull)
+
+  // --- The customer as the document prints them ----------------------------
+  // Copied, not joined. An institution that renames itself next year must not
+  // rename itself on a document issued this year.
+  billToName    String @default("")
+  billToContact String @default("")
+  billToEmail   String @default("")
+  billToPhone   String @default("")
+  billToAddress String @default("")
+  billToTaxId   String @default("")
+  deliverToAddress String @default("")
+
+  // --- Money. All server-computed; nothing here is ever posted by a browser --
+  currency String @default("GHS")
+  /// Sum of line totals after line discounts.
+  subtotal Decimal @default(0) @db.Decimal(14, 2)
+  /// A discount on the whole document, after line discounts.
+  /// PERCENT | AMOUNT | NONE
+  discountKind   String  @default("NONE")
+  discountValue  Decimal @default(0) @db.Decimal(14, 4)
+  discountAmount Decimal @default(0) @db.Decimal(14, 2)
+  deliveryCharge Decimal @default(0) @db.Decimal(14, 2)
+  handlingCharge Decimal @default(0) @db.Decimal(14, 2)
+  otherCharge    Decimal @default(0) @db.Decimal(14, 2)
+  otherChargeLabel String @default("")
+  /// A tax line, off by default. No rate is assumed: the business states its
+  /// VAT/NHIL position and an administrator sets it, or it stays at zero.
+  taxLabel  String  @default("")
+  taxRate   Decimal @default(0) @db.Decimal(7, 4)
+  taxAmount Decimal @default(0) @db.Decimal(14, 2)
+
+  /// The outright total, before any instalment uplift.
+  totalOutright Decimal @default(0) @db.Decimal(14, 2)
+
+  // --- Payment arrangement --------------------------------------------------
+  /// OUTRIGHT | INSTALMENT
+  paymentModel String @default("OUTRIGHT")
+  paymentPlanId String?
+  paymentPlan   PaymentPlan? @relation(fields: [paymentPlanId], references: [id], onDelete: SetNull)
+  /// The plan's uplift, copied here at issue. The plan may be re-rated or
+  /// withdrawn tomorrow; this quotation's arithmetic must not move.
+  planUpliftRate   Decimal @default(0) @db.Decimal(7, 4)
+  planUpliftAmount Decimal @default(0) @db.Decimal(14, 2)
+  planMonths       Int     @default(0)
+  planInstalments  Int     @default(0)
+  planFrequency    String  @default("")
+  depositRate      Decimal @default(0) @db.Decimal(7, 4)
+  depositAmount    Decimal @default(0) @db.Decimal(14, 2)
+
+  /// What is actually payable: totalOutright + planUpliftAmount.
+  /// The figure printed large at the foot of the document.
+  totalPayable Decimal @default(0) @db.Decimal(14, 2)
+
+  /// "50% on order, balance before dispatch". Free text, template-defaulted.
+  paymentTerms String @default("")
+  /// Working days, as stated on this document.
+  deliveryEstimate String @default("")
+  /// Shown above the signature block.
+  notes String @default("")
+  /// The long text at the foot.
+  termsAndConditions String @default("")
+
+  templateId String?
+  template   DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  /// The token the customer follows to read and accept this without an account.
+  accessToken String @unique @default(cuid())
+  /// The rendered PDF, once generated. Regenerated only if absent — a document
+  /// that has been sent must not re-render differently later.
+  pdfUrl String @default("")
+
+  /// The version this one replaced, and the reason given for replacing it.
+  supersedesId String?  @unique
+  supersedes   Quotation? @relation("QuotationRevision", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy Quotation? @relation("QuotationRevision")
+  revisionReason String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items         QuotationItem[]
+  schedule      InstalmentSchedule[]
+  salesOrders   SalesOrder[]
+  events        QuotationEvent[]
+  customerPurchaseOrders CustomerPurchaseOrder[]
+
+  @@unique([reference, version])
+  @@index([status, issuedAt])
+  @@index([customerId])
+  @@index([organisationId])
+  @@index([requestId])
+  @@index([documentType, status])
+  @@map("medical_quotations")
+}
+
+model QuotationItem {
+  id          String @id @default(cuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  /// What prints on the line. Editable, because the catalogue description is
+  /// written for a storefront and a quotation often needs the manufacturer's
+  /// exact wording, or a note about which pack size is being offered.
+  description String
+  catalogueNumber String @default("")
+  /// A second line under the description, for specifications or a condition.
+  detail String @default("")
+
+  quantity  Int     @default(1)
+  unit      String  @default("unit")
+  unitPrice Decimal @db.Decimal(14, 2)
+
+  /// PERCENT | AMOUNT | NONE
+  discountKind   String  @default("NONE")
+  discountValue  Decimal @default(0) @db.Decimal(14, 4)
+  discountAmount Decimal @default(0) @db.Decimal(14, 2)
+
+  /// quantity × unitPrice − discountAmount. Server-computed and stored, so a
+  /// reissued document never re-derives a total that has drifted.
+  lineTotal Decimal @default(0) @db.Decimal(14, 2)
+
+  /// The internal cost at the moment of issue, for margin reporting. Never
+  /// selected by any customer-facing query.
+  unitCostAtIssue Decimal @default(0) @db.Decimal(14, 2)
+
+  /// True for a line typed by hand rather than drawn from the catalogue —
+  /// installation, training, a part sourced to order.
+  isCustomLine Boolean @default(false)
+
+  position Int @default(0)
+
+  @@index([quotationId, position])
+  @@index([productId])
+  @@map("medical_quotation_items")
+}
+
+/// The audit trail of a request and its quotations: who did what, when.
+///
+/// Append-only. A quotation's commercial history is the thing a dispute turns
+/// on, and "the price was changed" with no name and no timestamp against it is
+/// not a record.
+model QuotationEvent {
+  id String @id @default(cuid())
+
+  requestId String?
+  request   QuotationRequest? @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  quotationId String?
+  quotation   Quotation? @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  /// SUBMITTED | ASSIGNED | STATUS_CHANGED | DRAFTED | ISSUED | SENT | VIEWED |
+  /// REVISED | ACCEPTED | DECLINED | EXPIRED | CONVERTED | NOTE | REMINDER_SENT
+  kind String
+
+  /// One line for the timeline: "Status changed from New to Under review".
+  summary String @default("")
+  /// Structured before/after, as JSON, for anything worth diffing.
+  detail  String @default("{}")
+
+  /// STAFF | CUSTOMER | SYSTEM
+  actorKind String @default("STAFF")
+  actorId   String @default("")
+  actorName String @default("")
+
+  createdAt DateTime @default(now())
+
+  @@index([requestId, createdAt])
+  @@index([quotationId, createdAt])
+  @@map("medical_quotation_events")
+}
+
+// ===========================================================================
+// Payment plans and instalments
+// ===========================================================================
+
+/// An instalment arrangement an administrator has configured.
+///
+/// Nothing about the ladder is compiled in. Durations, uplifts, deposits and
+/// eligibility are all rows, because they are commercial decisions that will
+/// change and must not need a deploy. The illustrative 3/6/12-month ladder in
+/// the brief is seed data, not a constant.
+model PaymentPlan {
+  id    String @id @default(cuid())
+  name  String
+  slug  String @unique
+  /// Shown to the customer under the name on a quotation.
+  description String @default("")
+
+  /// Months the balance is spread over. Zero for the outright plan.
+  months Int @default(0)
+  /// MONTHLY | FORTNIGHTLY | WEEKLY | CUSTOM
+  frequency String @default("MONTHLY")
+  /// How many payments after the deposit. Derived from months and frequency
+  /// for the standard plans, set by hand for a custom one.
+  instalmentCount Int @default(0)
+
+  /// The price increase, as a rate: 0.0500 is +5%. Applied to the outright
+  /// total after discounts and charges. Decimal, never a float — a 12-month
+  /// plan on a GH₵84,500 analyser must come to the same figure every time it
+  /// is computed.
+  upliftRate Decimal @default(0) @db.Decimal(7, 4)
+
+  /// The share of the adjusted total due before anything is dispatched.
+  depositRate Decimal @default(0) @db.Decimal(7, 4)
+  /// A floor under the deposit in GH₵, when a rate alone is not enough.
+  minimumDeposit Decimal @default(0) @db.Decimal(14, 2)
+
+  /// Eligibility. Below this order value the plan is not offered.
+  minimumOrderValue Decimal @default(0) @db.Decimal(14, 2)
+  /// Whether an individual may take it, or only an approved institution.
+  institutionsOnly  Boolean @default(true)
+  requiresCreditApproval Boolean @default(true)
+
+  /// Days after a due date before a payment is late.
+  graceDays Int @default(0)
+  /// A charge on a late instalment, as a rate of the instalment. Zero until the
+  /// business has cleared what it may charge; see docs/medical/REGULATORY.md.
+  lateFeeRate Decimal @default(0) @db.Decimal(7, 4)
+  lateFeePolicy String @default("")
+
+  /// A one-off administrative charge, where one is permitted.
+  adminFee Decimal @default(0) @db.Decimal(14, 2)
+
+  /// The terms line this plan writes onto a quotation by default.
+  termsText String @default("")
+
+  isActive Boolean @default(true)
+  position Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quotations  Quotation[]
+  salesOrders SalesOrder[]
+
+  @@index([isActive, position])
+  @@map("medical_payment_plans")
+}
+
+/// One dated instalment on a quotation or an order.
+///
+/// Generated when a plan is applied, and copied forward unchanged when the
+/// quotation converts to an order. The schedule the customer agreed to is the
+/// schedule they owe, whatever the plan's settings do afterwards.
+model InstalmentSchedule {
+  id String @id @default(cuid())
+
+  quotationId String?
+  quotation   Quotation? @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  salesOrderId String?
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+
+  /// 0 is the deposit; 1..n are the instalments.
+  sequence Int @default(0)
+  /// DEPOSIT | INSTALMENT | FINAL | ADMIN_FEE | LATE_FEE
+  kind     String @default("INSTALMENT")
+
+  dueDate DateTime
+  amount  Decimal @db.Decimal(14, 2)
+  /// Allocated from payments as they arrive, oldest due first.
+  amountPaid Decimal @default(0) @db.Decimal(14, 2)
+  /// amount − amountPaid, written on each allocation so a receivables query is
+  /// one indexed scan rather than a join and a sum per row.
+  balance Decimal @default(0) @db.Decimal(14, 2)
+
+  /// PENDING | PARTIAL | PAID | OVERDUE | WAIVED | CANCELLED
+  status String @default("PENDING")
+
+  paidAt DateTime?
+  /// Set by the overdue sweep, so "how late" is a stored fact rather than a
+  /// recomputation against a moving clock.
+  markedOverdueAt DateTime?
+  waivedReason String @default("")
+
+  note String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  allocations PaymentAllocation[]
+
+  @@index([salesOrderId, sequence])
+  @@index([quotationId, sequence])
+  @@index([status, dueDate])
+  @@map("medical_instalment_schedules")
+}
+
+// ===========================================================================
+// Orders, payments, fulfilment
+// ===========================================================================
+
+/// A sale. From the storefront, from an accepted quotation, or from the POS.
+///
+/// Payment state and fulfilment state are separate columns on purpose: an order
+/// can be fully paid and not yet picked, or dispatched on approved terms and
+/// not yet paid. Collapsing them into one status is how a warehouse ends up
+/// shipping against an unpaid order.
+model SalesOrder {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  /// STOREFRONT | QUOTATION | POS | PHONE
+  channel String @default("STOREFRONT")
+
+  customerId String?
+  customer   MedicalCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  organisationId String?
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+
+  /// A walk-in at the counter who is not in the system.
+  walkInName  String @default("")
+  walkInPhone String @default("")
+
+  /// The quotation this came from, when it came from one. Converting copies
+  /// lines, prices and schedule across rather than re-entering them, and this
+  /// is what proves the order's prices were the agreed ones.
+  quotationId String?
+  quotation   Quotation? @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+
+  /// PENDING | CONFIRMED | PROCESSING | PARTIALLY_DISPATCHED | DISPATCHED |
+  /// DELIVERED | COMPLETED | CANCELLED | REFUNDED
+  fulfilmentStatus String @default("PENDING")
+  /// UNPAID | DEPOSIT_PAID | PARTIALLY_PAID | PAID | REFUNDED | WRITTEN_OFF
+  paymentStatus    String @default("UNPAID")
+
+  placedAt     DateTime  @default(now())
+  confirmedAt  DateTime?
+  dispatchedAt DateTime?
+  deliveredAt  DateTime?
+  completedAt  DateTime?
+  cancelledAt  DateTime?
+  cancelReason String    @default("")
+
+  // --- Money. Copied from the quotation on conversion, computed otherwise ----
+  currency       String  @default("GHS")
+  subtotal       Decimal @default(0) @db.Decimal(14, 2)
+  discountAmount Decimal @default(0) @db.Decimal(14, 2)
+  deliveryCharge Decimal @default(0) @db.Decimal(14, 2)
+  handlingCharge Decimal @default(0) @db.Decimal(14, 2)
+  otherCharge    Decimal @default(0) @db.Decimal(14, 2)
+  taxAmount      Decimal @default(0) @db.Decimal(14, 2)
+  totalOutright  Decimal @default(0) @db.Decimal(14, 2)
+
+  paymentModel     String  @default("OUTRIGHT")
+  paymentPlanId    String?
+  paymentPlan      PaymentPlan? @relation(fields: [paymentPlanId], references: [id], onDelete: SetNull)
+  planUpliftAmount Decimal @default(0) @db.Decimal(14, 2)
+
+  /// What is owed in total, and what has been collected against it. Collected
+  /// is written by payment allocation and nowhere else.
+  totalPayable   Decimal @default(0) @db.Decimal(14, 2)
+  amountPaid     Decimal @default(0) @db.Decimal(14, 2)
+  amountRefunded Decimal @default(0) @db.Decimal(14, 2)
+  /// totalPayable − amountPaid + amountRefunded. Stored so the receivables
+  /// report does not recompute it per row.
+  balanceDue     Decimal @default(0) @db.Decimal(14, 2)
+
+  /// Cost of goods on this order, summed from the lines at dispatch. The basis
+  /// for gross profit. Never selected by a customer-facing query.
+  costOfGoods Decimal @default(0) @db.Decimal(14, 2)
+
+  deliveryAddressId String?
+  deliveryAddress   CustomerAddress? @relation("DeliveryAddress", fields: [deliveryAddressId], references: [id], onDelete: SetNull)
+  billingAddressId  String?
+  billingAddress    CustomerAddress? @relation("BillingAddress", fields: [billingAddressId], references: [id], onDelete: SetNull)
+  /// Frozen copy of the delivery address as printed on the delivery note.
+  deliverySnapshot  String @default("")
+
+  /// SELF_COLLECTION | COURIER | SUPPLIER_DIRECT
+  deliveryMethod String @default("COURIER")
+  trackingNote   String @default("")
+
+  /// A discount code applied at checkout.
+  promotionCode String @default("")
+
+  /// Who sold it, when it was sold across a counter.
+  posOperatorId String?
+  posOperator   MedicalStaff? @relation("PosOperator", fields: [posOperatorId], references: [id], onDelete: SetNull)
+
+  redistributorId String?
+  redistributor   Redistributor? @relation(fields: [redistributorId], references: [id], onDelete: SetNull)
+
+  customerNote String @default("")
+  internalNote String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items       SalesOrderItem[]
+  payments    Payment[]
+  refunds     Refund[]
+  schedule    InstalmentSchedule[]
+  commissions RedistributorCommission[]
+  customerPurchaseOrder CustomerPurchaseOrder?
+  sourcingRequests      SourcingRequest[]
+
+  @@index([fulfilmentStatus, placedAt])
+  @@index([paymentStatus, placedAt])
+  @@index([customerId])
+  @@index([organisationId])
+  @@index([quotationId])
+  @@index([redistributorId])
+  @@map("medical_sales_orders")
+}
+
+model SalesOrderItem {
+  id           String @id @default(cuid())
+  salesOrderId String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  /// Frozen at the moment of sale. A product renamed or repriced next month
+  /// must not rewrite this order.
+  description     String
+  catalogueNumber String @default("")
+  sku             String @default("")
+
+  quantity  Int     @default(1)
+  unit      String  @default("unit")
+  unitPrice Decimal @db.Decimal(14, 2)
+  discountAmount Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal Decimal @default(0) @db.Decimal(14, 2)
+
+  /// Unit cost at sale, for margin. Private.
+  unitCost Decimal @default(0) @db.Decimal(14, 2)
+
+  quantityReserved   Int @default(0)
+  quantityDispatched Int @default(0)
+  quantityReturned   Int @default(0)
+
+  /// Which batches this line was filled from, as [{ batchId, quantity }].
+  /// Needed to trace a recall to the customers who received that batch.
+  batchAllocation String @default("[]")
+
+  position Int @default(0)
+
+  @@index([salesOrderId, position])
+  @@index([productId])
+  @@map("medical_sales_order_items")
+}
+
+/// Money in.
+///
+/// Idempotent on providerReference: Paystack will deliver the same webhook more
+/// than once, and a second insert for one charge would both double the
+/// collections figure and pay a redistributor twice.
+model Payment {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  salesOrderId String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+
+  /// PAYSTACK | BANK | MOMO | CASH | CARD | CHEQUE | OTHER
+  method String @default("PAYSTACK")
+  /// PENDING | SUCCESSFUL | FAILED | REVERSED
+  status String @default("PENDING")
+
+  currency String  @default("GHS")
+  amount   Decimal @db.Decimal(14, 2)
+
+  /// The gateway's own reference. Unique where present — the idempotency key
+  /// for webhook replay.
+  providerReference String? @unique
+  /// The verification payload, kept for disputes.
+  providerPayload   String  @default("{}")
+
+  paidAt   DateTime?
+  /// Who keyed it in, for a payment taken at the counter or recorded by hand.
+  recordedById String @default("")
+  note        String  @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  allocations PaymentAllocation[]
+
+  @@index([salesOrderId, status])
+  @@index([status, paidAt])
+  @@map("medical_payments")
+}
+
+/// Which instalment a payment settled.
+///
+/// A payment is not always one instalment: a customer pays a round GH₵5,000
+/// against a deposit of GH₵4,200 and the balance runs into the first
+/// instalment. Without this table "what is still owed" is a guess.
+model PaymentAllocation {
+  id        String @id @default(cuid())
+  paymentId String
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  scheduleId String
+  schedule   InstalmentSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  amount Decimal @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+
+  @@unique([paymentId, scheduleId])
+  @@index([scheduleId])
+  @@map("medical_payment_allocations")
+}
+
+/// Money back out.
+model Refund {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  salesOrderId String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+
+  /// PENDING | APPROVED | PROCESSED | REJECTED
+  status String @default("PENDING")
+  /// RETURN | CANCELLATION | OVERPAYMENT | GOODWILL | ERROR
+  reasonKind String @default("RETURN")
+  reason     String @default("")
+
+  amount   Decimal @db.Decimal(14, 2)
+  currency String  @default("GHS")
+  method   String  @default("PAYSTACK")
+  providerReference String?
+
+  /// Whether the goods came back, and therefore whether stock was restored.
+  goodsReturned Boolean @default(false)
+  /// Whether the returned goods were resaleable. Damaged returns post to a
+  /// damage movement rather than back into available stock.
+  restocked     Boolean @default(false)
+
+  requestedById String @default("")
+  approvedById  String @default("")
+  approvedAt    DateTime?
+  processedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([salesOrderId, status])
+  @@map("medical_refunds")
+}
+
+// ===========================================================================
+// Finance
+// ===========================================================================
+
+/// The ledger. Every financial event, once.
+///
+/// Why this exists: without it, "revenue" gets counted when a quotation is
+/// accepted, again when the invoice is raised, and again when the money lands,
+/// and every report disagrees with every other one. One row per event, with the
+/// thing that caused it named, and reports are sums over this table rather than
+/// over whatever each screen happened to compute.
+///
+/// Append-only. A mistake is corrected by a reversing entry that points back at
+/// the entry it reverses, never by an update or a delete — the correction and
+/// the thing it corrects both stay readable.
+model FinancialTransaction {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  /// SALE_REVENUE | CASH_RECEIPT | REFUND | COGS | PURCHASE | SUPPLIER_PAYMENT |
+  /// EXPENSE | COMMISSION_ACCRUAL | COMMISSION_PAYOUT | STOCK_WRITE_OFF |
+  /// DISCOUNT | ADJUSTMENT
+  kind String
+
+  /// DEBIT | CREDIT, from the business's point of view. Kept explicit rather
+  /// than inferred from the sign, so a reversal reads as a reversal.
+  direction String @default("CREDIT")
+
+  amount   Decimal @db.Decimal(14, 2)
+  currency String  @default("GHS")
+
+  /// When it happened in the business, which is not when the row was written.
+  /// A payment recorded on Monday for a Friday transfer belongs to Friday.
+  occurredAt DateTime @default(now())
+
+  /// What caused it: SALES_ORDER | PAYMENT | REFUND | PURCHASE_ORDER |
+  /// SUPPLIER_INVOICE | SUPPLIER_PAYMENT | EXPENSE | COMMISSION | STOCK_MOVEMENT
+  sourceType String
+  sourceId   String
+
+  /// The entry this one reverses, when it is a correction.
+  reversesId String? @unique
+  reverses   FinancialTransaction? @relation("Reversal", fields: [reversesId], references: [id], onDelete: SetNull)
+  reversedBy FinancialTransaction? @relation("Reversal")
+
+  description String @default("")
+  recordedById String @default("")
+
+  createdAt DateTime @default(now())
+
+  @@index([kind, occurredAt])
+  @@index([sourceType, sourceId])
+  @@index([occurredAt])
+  @@map("medical_financial_transactions")
+}
+
+model ExpenseCategory {
+  id       String @id @default(cuid())
+  name     String
+  slug     String @unique
+  isActive Boolean @default(true)
+  position Int     @default(0)
+
+  expenses Expense[]
+
+  @@map("medical_expense_categories")
+}
+
+model Expense {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  categoryId String?
+  category   ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  description String
+  amount      Decimal @db.Decimal(14, 2)
+  currency    String  @default("GHS")
+
+  incurredAt DateTime @default(now())
+  /// BANK | MOMO | CASH | CARD | OTHER
+  method     String   @default("CASH")
+  payee      String   @default("")
+  receiptUrl String   @default("")
+
+  /// DRAFT | APPROVED | PAID | REJECTED
+  status String @default("PAID")
+
+  recordedById String @default("")
+  approvedById String @default("")
+  note         String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId, incurredAt])
+  @@index([status, incurredAt])
+  @@map("medical_expenses")
+}
+
+// ===========================================================================
+// Redistributors
+// ===========================================================================
+
+/// A redistributor: the medical business's name for what retail calls an
+/// affiliate. Same shape, same rules, different word and a different palette —
+/// the attribution, commission, ledger and team logic is ported from
+/// src/lib/affiliate-*.ts rather than reinvented.
+model Redistributor {
+  id     String @id @default(cuid())
+  /// Retail User.id.
+  userId String @unique
+  /// The slug in their referral link: /medicals?r=ama-kwarteng.
+  code   String @unique
+
+  name  String @default("")
+  email String @default("")
+  phone String @default("")
+
+  /// PENDING | APPROVED | SUSPENDED | REJECTED | CLOSED
+  status     String    @default("PENDING")
+  appliedAt  DateTime  @default(now())
+  approvedAt DateTime?
+  approvedById String  @default("")
+  statusNote String    @default("")
+
+  /// Their own storefront page: a heading, a blurb, a logo. One catalogue,
+  /// their presentation of it — not a separate shop.
+  storefrontTitle String @default("")
+  storefrontBio   String @default("")
+  storefrontLogo  String @default("")
+  /// Their saved flyer design, as JSON. Same shape as the retail flyer studio.
+  flyerDesign     String @default("{}")
+
+  /// Their commission rate, as a rate. Null falls back to the category rate and
+  /// then to the programme default in MedicalSetting.
+  commissionRate Decimal? @db.Decimal(7, 4)
+
+  /// Who recruited them, for the team tree.
+  parentId String?
+  parent   Redistributor?  @relation("RedistributorTeam", fields: [parentId], references: [id], onDelete: SetNull)
+  children Redistributor[] @relation("RedistributorTeam")
+
+  /// Running totals, maintained by the ledger rather than recomputed per view.
+  totalEarned    Decimal @default(0) @db.Decimal(14, 2)
+  totalPaidOut   Decimal @default(0) @db.Decimal(14, 2)
+  availableBalance Decimal @default(0) @db.Decimal(14, 2)
+  /// Earned but not yet eligible — the order is not paid, or the return window
+  /// is open.
+  pendingBalance Decimal @default(0) @db.Decimal(14, 2)
+
+  payoutMethod  String @default("")
+  payoutDetails String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  referrals         RedistributorReferral[]
+  commissions       RedistributorCommission[]
+  ledger            RedistributorLedgerEntry[]
+  payouts           RedistributorPayout[]
+  salesOrders       SalesOrder[]
+  quotationRequests QuotationRequest[]
+
+  @@index([status])
+  @@index([parentId])
+  @@map("medical_redistributors")
+}
+
+/// A customer attributed to a redistributor.
+///
+/// Attribution is captured when the referral link is followed and has to
+/// survive the gap between that click and a sale that may be a quotation and
+/// six weeks away. Recorded here at first touch; the sale reads it back.
+model RedistributorReferral {
+  id              String @id @default(cuid())
+  redistributorId String
+  redistributor   Redistributor @relation(fields: [redistributorId], references: [id], onDelete: Cascade)
+
+  /// The medical customer, once they have an account.
+  customerId String?
+  /// Before that: the anonymous visitor id from the referral cookie.
+  visitorKey String @default("")
+
+  /// The window within which a sale still counts as theirs.
+  firstSeenAt DateTime @default(now())
+  expiresAt   DateTime?
+
+  /// What they landed on.
+  landingPath String @default("")
+
+  createdAt DateTime @default(now())
+
+  @@unique([redistributorId, customerId])
+  @@index([customerId])
+  @@index([visitorKey])
+  @@map("medical_redistributor_referrals")
+}
+
+/// Commission earned on one order line.
+///
+/// Unique on (orderId, productId, redistributorId): the same line cannot earn
+/// twice however many times a webhook or a status sweep runs over it.
+model RedistributorCommission {
+  id              String @id @default(cuid())
+  redistributorId String
+  redistributor   Redistributor @relation(fields: [redistributorId], references: [id], onDelete: Cascade)
+
+  salesOrderId String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  productId    String?
+  product      MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  /// PENDING | ELIGIBLE | PAID | CANCELLED | REVERSED
+  /// Pending until the order is paid and past its return window; cancelled when
+  /// the order is cancelled; reversed when it is refunded after being paid out.
+  status String @default("PENDING")
+
+  /// What it was computed on and at what rate — stored, so a later rate change
+  /// cannot rewrite what was earned.
+  baseAmount Decimal @db.Decimal(14, 2)
+  rate       Decimal @db.Decimal(7, 4)
+  amount     Decimal @db.Decimal(14, 2)
+
+  /// TEAM commission earned on a recruit's sale, rather than one's own.
+  isTeamCommission Boolean @default(false)
+  /// The recruit whose sale earned it.
+  sourceRedistributorId String?
+
+  eligibleAt DateTime?
+  paidAt     DateTime?
+  cancelReason String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([salesOrderId, productId, redistributorId, isTeamCommission])
+  @@index([redistributorId, status])
+  @@index([status, eligibleAt])
+  @@map("medical_redistributor_commissions")
+}
+
+/// Append-only running balance. Every credit and debit against a
+/// redistributor's account, with the balance after it.
+model RedistributorLedgerEntry {
+  id              String @id @default(cuid())
+  redistributorId String
+  redistributor   Redistributor @relation(fields: [redistributorId], references: [id], onDelete: Cascade)
+
+  /// COMMISSION | TEAM_COMMISSION | PAYOUT | REVERSAL | ADJUSTMENT | BONUS
+  kind String
+
+  /// Signed: a credit is positive, a payout negative.
+  amount       Decimal @db.Decimal(14, 2)
+  balanceAfter Decimal @db.Decimal(14, 2)
+
+  sourceType String @default("")
+  sourceId   String @default("")
+  note       String @default("")
+
+  createdAt DateTime @default(now())
+
+  @@index([redistributorId, createdAt])
+  @@map("medical_redistributor_ledger")
+}
+
+model RedistributorPayout {
+  id              String @id @default(cuid())
+  reference       String @unique
+  redistributorId String
+  redistributor   Redistributor @relation(fields: [redistributorId], references: [id], onDelete: Cascade)
+
+  /// REQUESTED | APPROVED | PAID | REJECTED | CANCELLED
+  status String @default("REQUESTED")
+
+  amount Decimal @db.Decimal(14, 2)
+  method String  @default("")
+  details String @default("")
+
+  requestedAt DateTime  @default(now())
+  approvedAt  DateTime?
+  paidAt      DateTime?
+  approvedById String   @default("")
+  note        String    @default("")
+  providerReference String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([redistributorId, status])
+  @@index([status, requestedAt])
+  @@map("medical_redistributor_payouts")
+}
+
+// ===========================================================================
+// Content, documents, settings
+// ===========================================================================
+
+/// A saved look for a quotation or proforma: logo, colours, type, layout.
+///
+/// The same idea as the affiliate flyer studio, applied to a commercial
+/// document. A business sends the same document hundreds of times and will want
+/// to change the logo once, not on every one.
+model DocumentTemplate {
+  id   String @id @default(cuid())
+  name String
+  slug String @unique
+
+  /// QUOTATION | PROFORMA | INVOICE | RECEIPT | DELIVERY_NOTE
+  documentType String @default("QUOTATION")
+
+  /// The whole design, as JSON: colours, fonts, logo, header and footer blocks,
+  /// which columns the product table shows and in what order, margins. JSON
+  /// because it is read and written as one object by the designer and never
+  /// queried by its parts — the same reason the flyer design is JSON.
+  design String @default("{}")
+
+  /// Defaults this template writes onto a new document.
+  defaultPaymentTerms String @default("")
+  defaultNotes        String @default("")
+  defaultTerms        String @default("")
+  defaultValidityDays Int    @default(30)
+
+  /// "QT-{YYYY}-{0000}". Expanded by src/lib/medical/numbering.ts.
+  numberFormat String @default("QT-{YYYY}-{0000}")
+  dateFormat   String @default("d MMM yyyy")
+
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quotations        Quotation[]
+  tenderSubmissions TenderSubmission[]
+
+  @@index([documentType, isActive])
+  @@map("medical_document_templates")
+}
+
+/// The running counter behind each document reference.
+///
+/// A row per series per year, incremented inside the same transaction that
+/// creates the document. Deriving the next number from max(reference) races:
+/// two quotations drafted in the same second would both read the same maximum
+/// and both be numbered QT-2026-0148.
+model DocumentCounter {
+  id     String @id @default(cuid())
+  /// QUOTATION | PROFORMA | REQUEST | ORDER | PAYMENT | REFUND | PO | GRN |
+  /// SUPPLIER_INVOICE | SUPPLIER_PAYMENT | EXPENSE | PAYOUT | TRANSACTION
+  series String
+  year   Int
+  value  Int    @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([series, year])
+  @@map("medical_document_counters")
+}
+
+/// Homepage content an administrator controls: hero, banners, promotional
+/// strips, the rails and what goes in them.
+model HomepageBlock {
+  id   String @id @default(cuid())
+  /// HERO | BANNER | PRODUCT_RAIL | CATEGORY_GRID | PROMO | SUPPORT | RICH_TEXT
+  kind String
+  /// Where it sits, top to bottom.
+  position Int @default(0)
+
+  title    String @default("")
+  subtitle String @default("")
+  body     String @default("")
+
+  image     String @default("")
+  imageAlt  String @default("")
+  ctaLabel  String @default("")
+  ctaHref   String @default("")
+  secondaryCtaLabel String @default("")
+  secondaryCtaHref  String @default("")
+
+  /// For a product rail: FEATURED | NEW | CATEGORY | MANUAL, and what it points
+  /// at. Manual rails list product ids in `config`.
+  source   String @default("")
+  config   String @default("{}")
+
+  isActive Boolean @default(true)
+  /// Scheduling, for a promotion that runs to a date.
+  startsAt DateTime?
+  endsAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, position])
+  @@map("medical_homepage_blocks")
+}
+
+/// A discount code.
+model Promotion {
+  id   String @id @default(cuid())
+  code String @unique
+  name String @default("")
+
+  /// PERCENT | AMOUNT | FREE_DELIVERY
+  kind  String  @default("PERCENT")
+  value Decimal @default(0) @db.Decimal(14, 4)
+
+  minimumOrderValue Decimal @default(0) @db.Decimal(14, 2)
+  maximumDiscount   Decimal @default(0) @db.Decimal(14, 2)
+
+  /// Zero means unlimited.
+  usageLimit      Int @default(0)
+  usageCount      Int @default(0)
+  perCustomerLimit Int @default(0)
+
+  startsAt DateTime?
+  endsAt   DateTime?
+  isActive Boolean  @default(true)
+
+  /// Restrict to categories or products, as id arrays. Empty means everything.
+  categoryIds String @default("[]")
+  productIds  String @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, endsAt])
+  @@map("medical_promotions")
+}
+
+model SupportRequest {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  customerId String?
+  customer   MedicalCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  name    String @default("")
+  email   String @default("")
+  phone   String @default("")
+  subject String
+  message String
+
+  /// GENERAL | ORDER | QUOTATION | PRODUCT | DELIVERY | PAYMENT | COMPLAINT
+  topic  String @default("GENERAL")
+  /// OPEN | IN_PROGRESS | WAITING_CUSTOMER | RESOLVED | CLOSED
+  status String @default("OPEN")
+
+  /// The order or quotation it is about, when it is about one.
+  relatedType String @default("")
+  relatedId   String @default("")
+
+  assigneeId String?
+  resolution String @default("")
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([customerId])
+  @@map("medical_support_requests")
+}
+
+/// A message to a person, in the console or by email.
+model MedicalNotification {
+  id String @id @default(cuid())
+
+  /// STAFF | CUSTOMER | REDISTRIBUTOR
+  audience    String @default("STAFF")
+  /// The MedicalStaff / MedicalCustomer / Redistributor id. Blank means the
+  /// whole audience.
+  recipientId String @default("")
+
+  /// QUOTATION_REQUEST | QUOTATION_SENT | QUOTATION_ACCEPTED | ORDER_PLACED |
+  /// PAYMENT_RECEIVED | INSTALMENT_DUE | INSTALMENT_OVERDUE | LOW_STOCK |
+  /// EXPIRING_BATCH | PO_OVERDUE | PAYOUT_REQUESTED | SUPPORT_REQUEST
+  kind String
+
+  title String
+  body  String @default("")
+  href  String @default("")
+
+  readAt     DateTime?
+  emailSentAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([audience, recipientId, readAt])
+  @@index([kind, createdAt])
+  @@map("medical_notifications")
+}
+
+/// Who did what, across the console.
+///
+/// Separate from QuotationEvent, which is the commercial history of one
+/// document and is read by the people working it. This is the security record:
+/// every write to a price, a role, a payment or a stock figure, kept whether or
+/// not anybody ever looks at it.
+model MedicalAuditLog {
+  id String @id @default(cuid())
+
+  staffId String?
+  staff   MedicalStaff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  /// Kept as plain text too, so the record survives the staff row being removed.
+  actorName String @default("")
+  actorId   String @default("")
+
+  /// CREATE | UPDATE | DELETE | ISSUE | SEND | ACCEPT | CANCEL | APPROVE |
+  /// REJECT | LOGIN | EXPORT | ADJUST
+  action String
+  /// The model and row it happened to.
+  entity   String
+  entityId String @default("")
+
+  summary String @default("")
+  /// { before, after } for the fields that changed.
+  changes String @default("{}")
+
+  ipAddress String @default("")
+  userAgent String @default("")
+
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId, createdAt])
+  @@index([staffId, createdAt])
+  @@index([action, createdAt])
+  @@map("medical_audit_logs")
+}
+
+/// Key/value settings for the medical business. One row per setting so a change
+/// is one small write and the audit log shows exactly what moved.
+model MedicalSetting {
+  key       String   @id
+  value     String   @default("")
+  /// string | number | boolean | json — how src/lib/medical/settings.ts parses
+  /// the value.
+  valueType String   @default("string")
+  /// Which settings screen it belongs on.
+  group     String   @default("general")
+  label     String   @default("")
+  helpText  String   @default("")
+  updatedAt DateTime @updatedAt
+  updatedById String @default("")
+
+  @@index([group])
+  @@map("medical_settings")
+}
+
+// ===========================================================================
+// Tenders
+// ===========================================================================
+//
+// A hospital does not ring up and order a centrifuge. Twice a year it runs a
+// procurement exercise: it publishes a list of what it needs, suppliers submit
+// priced offers against that list by a deadline, and months later some of the
+// lines come back awarded and some do not. Everything below exists to hold
+// that shape.
+//
+// The shape it must hold, and the one most systems get wrong: a tender is not
+// won or lost. A tender of forty lines is won on eleven of them, lost on
+// twenty-six, and awarded at a reduced quantity on three — to three different
+// suppliers. So the outcome lives on the line, not on the tender, and the
+// tender's own status is a summary of its lines rather than a fact of its own.
+//
+// Nothing here creates a sale. An award is permission to supply at a price for
+// a period; the hospital still has to raise a purchase order against it, and
+// that is `CustomerPurchaseOrder`.
+
+/// A procurement exercise run by an institution.
+model Tender {
+  id        String @id @default(cuid())
+  /// Ours: TD-2026-0001. What our own people quote internally.
+  reference String @unique
+  /// Theirs. The number printed on the advertisement and on every document
+  /// they will send back — the one that actually matters on the phone.
+  tenderNumber String @default("")
+
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id])
+
+  title       String
+  description String @default("")
+
+  /// OPEN | RESTRICTED | FRAMEWORK | RENEWAL | DIRECT | RFQ
+  kind String @default("OPEN")
+  /// The institution's own naming for the round: "2026 First Half".
+  cycle String @default("")
+
+  // --- The date cycle -------------------------------------------------------
+  // Six dates, because six of them matter and a single "deadline" field is how
+  // a submission gets prepared against the advertisement date.
+  advertisedAt       DateTime?
+  /// The one that ends the business if it is missed.
+  submissionDeadline DateTime?
+  /// When bids are opened, which is often after the deadline and public.
+  opensAt            DateTime?
+  awardExpectedAt    DateTime?
+  /// The period an award covers once it lands.
+  contractStartAt    DateTime?
+  contractEndAt      DateTime?
+  /// When the next exercise is expected. The single most valuable field here:
+  /// it is what turns a one-off bid into a pipeline.
+  renewalDueAt       DateTime?
+
+  /// IDENTIFIED | PREPARING | SUBMITTED | UNDER_EVALUATION | AWARDED |
+  /// PARTIALLY_AWARDED | NOT_AWARDED | CANCELLED | EXPIRED | WITHDRAWN
+  /// Summarised from the line outcomes by src/lib/medical/tenders/status.ts
+  /// rather than typed in, so it cannot disagree with them.
+  status String @default("IDENTIFIED")
+
+  currency       String  @default("GHS")
+  /// What the whole exercise is thought to be worth, for pipeline reporting.
+  /// An estimate, and labelled as one everywhere it is shown.
+  estimatedValue Decimal @default(0) @db.Decimal(14, 2)
+
+  ownerId String?
+  owner   MedicalStaff? @relation("TenderOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  /// How it was found: ADVERTISEMENT | INVITATION | PORTAL | RELATIONSHIP.
+  sourcedVia String @default("")
+  /// Where the documents live, if they are behind a portal.
+  portalUrl  String @default("")
+  /// What it costs to bid: tender document fees, bid bonds.
+  bidCost    Decimal @default(0) @db.Decimal(14, 2)
+
+  notes         String @default("")
+  /// Never shown on any document. Who we are bidding against, what we think
+  /// the incumbent charges, where we can afford to go.
+  internalNotes String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items            TenderItem[]
+  submissions      TenderSubmission[]
+  documents        TenderDocument[]
+  events           TenderEvent[]
+  approvedProducts ApprovedProduct[]
+  customerPurchaseOrders CustomerPurchaseOrder[]
+  sourcingRequests SourcingRequest[]
+
+  @@index([organisationId, status])
+  @@index([status, submissionDeadline])
+  @@index([renewalDueAt])
+  @@map("medical_tenders")
+}
+
+/// One line of what the institution published, in their words.
+///
+/// Deliberately a record of *their* requirement, not of our offer. The two are
+/// different documents and they differ in ways that decide the award — they
+/// ask for a 500 mL pack and we offer 2 × 250 mL, they name three acceptable
+/// brands and we carry the second. Our side is `TenderSubmissionItem`.
+model TenderItem {
+  id       String @id @default(cuid())
+  tenderId String
+  tender   Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  /// Their line or lot number. Submissions are marked against it, so it has to
+  /// be kept exactly as published even when it is "3(b)(ii)".
+  lotNumber String @default("")
+  position  Int    @default(0)
+
+  description   String
+  specification String @default("")
+  /// Brands the institution will accept, as a JSON string[]. Empty means they
+  /// did not say, which is not the same as "any".
+  acceptableBrands String @default("[]")
+
+  quantity Int    @default(1)
+  unit     String @default("unit")
+
+  /// Shelf life they require on delivery. A reagent with four months left is a
+  /// rejected delivery, and this is the field that catches it before we bid.
+  minimumShelfLifeMonths Int @default(0)
+  /// Days from order to delivery, as required by them.
+  requiredDeliveryDays   Int @default(0)
+  /// Anything else on the line: "must include installation and training".
+  conditions String @default("")
+
+  /// Our catalogue match, where there is one. Nullable because half of a
+  /// published list is usually things we would have to source.
+  productId String?
+  product   MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submissionItems TenderSubmissionItem[]
+
+  @@index([tenderId, position])
+  @@index([productId])
+  @@map("medical_tender_items")
+}
+
+/// A document the institution requires with a submission, and whether we have
+/// it. A bid thrown out for a missing tax clearance certificate is a bid that
+/// cost the same to prepare as one that was read.
+model TenderDocument {
+  id       String @id @default(cuid())
+  tenderId String
+  tender   Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  label      String
+  isRequired Boolean @default(true)
+  /// Where our copy lives, once it has been attached.
+  fileUrl    String  @default("")
+  /// Certificates expire. A tax clearance that lapses the week before a
+  /// deadline is the most common reason a prepared bid is not submitted.
+  expiresAt  DateTime?
+  isProvided Boolean @default(false)
+  note       String  @default("")
+  position   Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenderId, position])
+  @@map("medical_tender_documents")
+}
+
+/// What we submitted, at a version.
+///
+/// Versioned for the same reason quotations are: a resubmission after a
+/// clarification is a different offer, and the one that was evaluated has to
+/// stay readable exactly as it was sent.
+model TenderSubmission {
+  id        String @id @default(cuid())
+  reference String
+  version   Int    @default(1)
+
+  tenderId String
+  tender   Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  /// DRAFT | SUBMITTED | ACKNOWLEDGED | UNDER_EVALUATION | CLOSED |
+  /// WITHDRAWN | SUPERSEDED
+  status String @default("DRAFT")
+
+  submittedAt   DateTime?
+  submittedById String?
+  submittedBy   MedicalStaff? @relation("TenderSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  /// PORTAL | EMAIL | HAND_DELIVERY | COURIER
+  method        String @default("HAND_DELIVERY")
+  /// Their acknowledgement: a receipt number, a portal confirmation.
+  receiptReference String @default("")
+
+  currency String  @default("GHS")
+  /// Sum of the lines we actually bid, server-computed. No-bid lines
+  /// contribute nothing, which is why this is not derivable from the tender.
+  totalOffered Decimal @default(0) @db.Decimal(14, 2)
+  /// What those lines cost us at the time of bidding. Private, and the only
+  /// way to answer "did we win it at a price we can supply at".
+  totalCostAtBid Decimal @default(0) @db.Decimal(14, 2)
+
+  /// How long our prices stand. Institutions evaluate for months.
+  validUntil     DateTime?
+  deliveryTerms  String @default("")
+  paymentTerms   String @default("")
+  /// The letter on top of the schedule.
+  coverLetter    String @default("")
+  notes          String @default("")
+
+  templateId String?
+  template   DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  pdfUrl     String @default("")
+
+  /// The submission this replaces, when it is a resubmission.
+  supersedesId String? @unique
+  supersedes   TenderSubmission?  @relation("SubmissionRevision", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy TenderSubmission?  @relation("SubmissionRevision")
+  revisionReason String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items TenderSubmissionItem[]
+
+  @@unique([reference, version])
+  @@index([tenderId, status])
+  @@map("medical_tender_submissions")
+}
+
+/// One line we offered, and what became of it.
+///
+/// The outcome is here and nowhere else. `awardedQuantity` below the quantity
+/// offered is a partial award, which is ordinary — an institution splits a
+/// line across two suppliers to keep both of them honest, and a system that
+/// can only record "won" or "lost" records that as a loss.
+model TenderSubmissionItem {
+  id           String @id @default(cuid())
+  submissionId String
+  submission   TenderSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  tenderItemId String
+  tenderItem   TenderItem @relation(fields: [tenderItemId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  // --- What we offered ------------------------------------------------------
+  offeredDescription   String
+  offeredBrand         String @default("")
+  offeredSpecification String @default("")
+  /// Where our offer differs from what they asked for, stated plainly. An
+  /// undeclared deviation found at evaluation disqualifies the whole bid.
+  deviationNote        String @default("")
+
+  quantity  Int     @default(1)
+  unit      String  @default("unit")
+  unitPrice Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal Decimal @default(0) @db.Decimal(14, 2)
+
+  leadTimeDays    Int @default(0)
+  shelfLifeMonths Int @default(0)
+
+  /// PRIVATE. Our cost per unit when the bid went in, so margin on an award is
+  /// measured against what it cost then and not what it costs now.
+  unitCostAtBid Decimal @default(0) @db.Decimal(14, 2)
+
+  /// A line we chose not to bid. Recorded rather than omitted: "we did not
+  /// offer it" and "we offered and lost" are different facts, and only one of
+  /// them is a reason to change anything next time.
+  isNoBid     Boolean @default(false)
+  noBidReason String  @default("")
+
+  // --- What came back -------------------------------------------------------
+  /// PENDING | AWARDED | PARTIALLY_AWARDED | NOT_AWARDED | WITHDRAWN |
+  /// CANCELLED
+  outcome          String  @default("PENDING")
+  awardedQuantity  Int     @default(0)
+  /// The price they awarded at, which is not always the price we offered.
+  awardedUnitPrice Decimal @default(0) @db.Decimal(14, 2)
+  awardedAt        DateTime?
+  /// Who took it, where we know. Worth more than the loss itself.
+  awardedToOther   String  @default("")
+  outcomeNote      String  @default("")
+
+  position Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  approvedProducts ApprovedProduct[]
+
+  @@index([submissionId, position])
+  @@index([tenderItemId])
+  @@index([outcome])
+  @@map("medical_tender_submission_items")
+}
+
+/// The timeline of one tender. Append-only, same reasoning as QuotationEvent:
+/// "the deadline moved" with no name and no timestamp is not a record.
+model TenderEvent {
+  id       String @id @default(cuid())
+  tenderId String
+  tender   Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  /// CREATED | STATUS_CHANGED | DATE_CHANGED | ITEM_ADDED | SUBMITTED |
+  /// ACKNOWLEDGED | AWARD_RECORDED | DOCUMENT_ADDED | NOTE | REMINDER_SENT
+  kind    String
+  summary String @default("")
+  detail  String @default("{}")
+
+  actorId   String @default("")
+  actorName String @default("")
+
+  createdAt DateTime @default(now())
+
+  @@index([tenderId, createdAt])
+  @@map("medical_tender_events")
+}
+
+/// What we are approved to supply to an institution, at what price, until when.
+///
+/// The register the whole tender section exists to produce. An award is not a
+/// sale and not an order — it is permission, with a price and a period on it,
+/// and the question it answers is the one a salesperson asks every day: "can
+/// we supply this to Korle Bu, and at what price?"
+///
+/// Rows also arrive from outside a tender: a negotiated price list, a framework
+/// agreement. Hence `sourceKind`.
+model ApprovedProduct {
+  id String @id @default(cuid())
+
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  /// Frozen description. The catalogue name may change; what we were approved
+  /// to supply may not.
+  description String
+
+  /// TENDER | FRAMEWORK | NEGOTIATED | PRICE_LIST
+  sourceKind String @default("TENDER")
+  tenderId   String?
+  tender     Tender? @relation(fields: [tenderId], references: [id], onDelete: SetNull)
+  submissionItemId String?
+  submissionItem   TenderSubmissionItem? @relation(fields: [submissionItemId], references: [id], onDelete: SetNull)
+
+  unitPrice Decimal @db.Decimal(14, 2)
+  currency  String  @default("GHS")
+  unit      String  @default("unit")
+
+  /// The ceiling the award covers, and how much of it has been drawn down by
+  /// orders placed against it. A framework for 1,000 boxes is exhausted at
+  /// 1,000 boxes, and quoting the 1,001st at the awarded price is a loss.
+  quantityAwarded Int @default(0)
+  quantityDrawn   Int @default(0)
+
+  minimumOrderQuantity Int @default(1)
+  leadTimeDays         Int @default(0)
+  paymentTerms         String @default("")
+  deliveryTerms        String @default("")
+
+  validFrom  DateTime  @default(now())
+  validUntil DateTime?
+
+  /// ACTIVE | EXPIRED | EXHAUSTED | SUSPENDED | SUPERSEDED | CANCELLED
+  /// Derived on read from the dates and the drawdown as well as stored, so a
+  /// row that lapsed overnight does not read as live until somebody runs a job.
+  status String @default("ACTIVE")
+  notes  String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organisationId, status])
+  @@index([productId, status])
+  @@index([validUntil])
+  @@map("medical_approved_products")
+}
+
+// ===========================================================================
+// The institution's purchase order — to us
+// ===========================================================================
+
+/// A purchase order a hospital sends us.
+///
+/// Separate from `PurchaseOrder`, which is the one *we* send a supplier. They
+/// are opposite ends of the business and sharing a table would make every
+/// query ambiguous and every total wrong. The two meet only through
+/// `SourcingRequest`, which is where "a customer wants this" becomes "we must
+/// buy this".
+///
+/// It is a document we receive, so most of what matters is a faithful record
+/// of what it says — their number above all, because every delivery note,
+/// invoice and payment they issue will quote it and nothing else.
+model CustomerPurchaseOrder {
+  id        String @id @default(cuid())
+  /// Ours, for filing: CPO-2026-0001.
+  reference String @unique
+  /// Theirs. Quoted on every document that follows; indexed because looking it
+  /// up by their number is how every telephone call about it starts.
+  customerReference String @default("")
+
+  organisationId String?
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+  customerId     String?
+  customer       MedicalCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  /// The quotation it accepts, where it came from one.
+  quotationId String?
+  quotation   Quotation? @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  /// The award it is raised under, where it is tender business.
+  tenderId    String?
+  tender      Tender? @relation(fields: [tenderId], references: [id], onDelete: SetNull)
+  /// The order it produced. Set on acceptance, never before — a purchase order
+  /// that has been received is not yet an order we have agreed to fulfil.
+  salesOrderId String? @unique
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+
+  /// RECEIVED | UNDER_REVIEW | ACCEPTED | PARTIALLY_ACCEPTED | REJECTED |
+  /// CANCELLED | SUPERSEDED
+  status String @default("RECEIVED")
+
+  receivedAt         DateTime  @default(now())
+  /// How it arrived, because a scanned PDF and a portal entry are audited
+  /// differently.
+  receivedVia        String    @default("EMAIL")
+  expectedDeliveryAt DateTime?
+
+  currency   String  @default("GHS")
+  /// What their document says it is worth. Compared against our own total on
+  /// acceptance; a mismatch is the thing to catch before anything ships.
+  totalValue Decimal @default(0) @db.Decimal(14, 2)
+
+  paymentTerms String @default("")
+  deliveryTo   String @default("")
+  notes        String @default("")
+  /// A scan of the document itself. The thing finance will ask for.
+  documentUrl  String @default("")
+
+  reviewedById String?
+  reviewedAt   DateTime?
+  rejectionReason String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items CustomerPurchaseOrderItem[]
+
+  @@index([organisationId, status])
+  @@index([customerReference])
+  @@index([status, receivedAt])
+  @@map("medical_customer_purchase_orders")
+}
+
+model CustomerPurchaseOrderItem {
+  id        String @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   CustomerPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  /// Their wording and their line number, kept as written.
+  lineReference String @default("")
+  description   String
+
+  quantity  Int     @default(1)
+  unit      String  @default("unit")
+  unitPrice Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal Decimal @default(0) @db.Decimal(14, 2)
+
+  /// Accepted on review. A hospital routinely orders three of the five lines
+  /// quoted, at a quantity it decided itself — so acceptance is per line and
+  /// per quantity, not a yes to the document.
+  acceptedQuantity Int    @default(0)
+  isAccepted       Boolean @default(false)
+  rejectionReason  String @default("")
+
+  /// The approved-register row this line is priced under, where it is tender
+  /// business. What proves the price charged was the price agreed.
+  approvedProductId String?
+
+  position Int @default(0)
+
+  @@index([purchaseOrderId, position])
+  @@index([productId])
+  @@map("medical_customer_purchase_order_items")
+}
+
+// ===========================================================================
+// Sourcing — the bridge between a customer order and a supplier order
+// ===========================================================================
+
+/// "We need to buy these things."
+///
+/// The stage between a confirmed customer order we cannot fill from stock and
+/// a purchase order on a supplier. It exists rather than going straight to a
+/// purchase order for one reason: the things that should be bought together
+/// are not the things that were sold together. Four customer orders short of
+/// the same reagent is one supplier order, and the only way to see that is to
+/// pool the shortfalls somewhere first.
+///
+/// It is also where supplier quotations are gathered and compared, which is
+/// why `SupplierQuote` points back at it.
+model SourcingRequest {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  /// CUSTOMER_ORDER | STOCK_REPLENISHMENT | TENDER | SAMPLE | QUOTATION
+  reason String @default("CUSTOMER_ORDER")
+
+  /// What triggered it, where one thing did.
+  salesOrderId String?
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  tenderId     String?
+  tender       Tender? @relation(fields: [tenderId], references: [id], onDelete: SetNull)
+
+  /// OPEN | QUOTING | ORDERED | PARTIALLY_RECEIVED | FULFILLED | CANCELLED
+  status String @default("OPEN")
+
+  /// The date the customer was promised, carried through so the buyer can see
+  /// what they are working against without opening the order.
+  neededBy DateTime?
+  /// LOW | NORMAL | HIGH | URGENT
+  priority String @default("NORMAL")
+
+  notes       String @default("")
+  createdById String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items          SourcingRequestItem[]
+  supplierQuotes SupplierQuote[]
+
+  @@index([status, neededBy])
+  @@index([salesOrderId])
+  @@map("medical_sourcing_requests")
+}
+
+model SourcingRequestItem {
+  id                String @id @default(cuid())
+  sourcingRequestId String
+  sourcingRequest   SourcingRequest @relation(fields: [sourcingRequestId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   MedicalProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  description String
+
+  quantity Int @default(1)
+  unit     String @default("unit")
+
+  /// The exact customer line this covers, where it covers one. Line-level
+  /// rather than order-level because one supplier order serves several
+  /// customers and one customer order needs several suppliers — anything
+  /// coarser cannot answer "whose goods are these" when the delivery arrives.
+  salesOrderItemId String?
+
+  /// How much of it is now on a purchase order, and how much has arrived.
+  quantityOrdered  Int @default(0)
+  quantityReceived Int @default(0)
+
+  /// OPEN | QUOTING | ORDERED | PARTIALLY_RECEIVED | RECEIVED | CANCELLED
+  status String @default("OPEN")
+  notes  String @default("")
+
+  position Int @default(0)
+
+  purchaseOrderItems PurchaseOrderItem[]
+
+  @@index([sourcingRequestId, position])
+  @@index([productId, status])
+  @@map("medical_sourcing_request_items")
+}
+
+// ===========================================================================
+// Supplier invoice lines
+// ===========================================================================
+
+/// A line on a supplier's invoice, against the line we ordered.
+///
+/// The three-way match. What was ordered, what was accepted at the door, and
+/// what has been billed are three different numbers, and the gap between them
+/// is where money is lost quietly: billed for 100 when 94 were accepted, at a
+/// unit price 3% above the purchase order, with a delivery charge nobody
+/// agreed. Holding the invoiced figures beside the ordered and accepted ones
+/// is what makes that a report instead of an argument.
+model SupplierInvoiceItem {
+  id                String @id @default(cuid())
+  supplierInvoiceId String
+  supplierInvoice   SupplierInvoice @relation(fields: [supplierInvoiceId], references: [id], onDelete: Cascade)
+
+  purchaseOrderItemId String?
+  purchaseOrderItem   PurchaseOrderItem? @relation(fields: [purchaseOrderItemId], references: [id], onDelete: SetNull)
+
+  /// As the supplier worded it on their invoice.
+  description String
+  supplierSku String @default("")
+
+  quantityInvoiced Int     @default(0)
+  unitPrice        Decimal @default(0) @db.Decimal(14, 2)
+  taxAmount        Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal        Decimal @default(0) @db.Decimal(14, 2)
+
+  /// Snapshots taken when the invoice is matched, so the comparison on the
+  /// screen is the comparison that was made — a later receipt against the same
+  /// order must not silently change what a reviewed invoice appeared to say.
+  quantityOrdered  Int     @default(0)
+  quantityAccepted Int     @default(0)
+  unitCostOrdered  Decimal @default(0) @db.Decimal(14, 2)
+
+  /// NONE | QUANTITY | PRICE | TAX | BOTH | UNMATCHED
+  discrepancy     String @default("NONE")
+  discrepancyNote String @default("")
+  /// Accepted despite a discrepancy, by somebody, for a reason.
+  isResolved      Boolean @default(false)
+  resolvedById    String  @default("")
+  resolutionNote  String  @default("")
+
+  position Int @default(0)
+
+  @@index([supplierInvoiceId, position])
+  @@index([purchaseOrderItemId])
+  @@map("medical_supplier_invoice_items")
+}
