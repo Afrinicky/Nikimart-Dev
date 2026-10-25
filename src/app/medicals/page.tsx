@@ -10,6 +10,7 @@ import { ProductCard } from "@/components/medical/product/ProductCard";
 import { SectionHead } from "@/components/medical/ui/SectionHead";
 import { MedicalButtonLink } from "@/components/medical/ui/MedicalButton";
 import { getCategoryTree } from "@/lib/medical/categories";
+import { catalogueGridClass } from "@/lib/medical/catalogue-grid";
 import { blockOfKind, getHomepageBlocks } from "@/lib/medical/homepage";
 import {
   getFeaturedProducts,
@@ -56,7 +57,7 @@ export default async function MedicalHomePage() {
           navigation rather than decoration, so it is a <nav> and it is the
           same tree the header's menu shows. */}
       <section className="mx-auto max-w-[80rem] px-4 pt-6 sm:px-6 lg:px-8 lg:pt-8">
-        <div className="lg:grid lg:grid-cols-[15.5rem_1fr] lg:items-start lg:gap-7">
+        <div className={catalogueGridClass(sidebarCategories.length > 0, "lg:gap-7")}>
           <CategorySidebar categories={sidebarCategories} className="hidden lg:block" />
           <HomeHero block={blockOfKind(blocks, "HERO")} />
         </div>

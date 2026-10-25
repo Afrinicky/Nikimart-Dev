@@ -33,6 +33,34 @@ export const QUOTATION_STATUSES = [
 export type QuotationStatus = (typeof QUOTATION_STATUSES)[number];
 
 /**
+ * The statuses a *request* moves through — the question, not the answer.
+ *
+ * A separate set from the one above, because a request and a quotation are
+ * different records with different lives. Here rather than inside an action
+ * module so that the console's vocabulary, the customer's vocabulary and the
+ * validation that rejects an unknown status all read from one list.
+ */
+export const REQUEST_STATUSES = [
+  "NEW",
+  "UNDER_REVIEW",
+  "AWAITING_SUPPLIER",
+  "DRAFTING",
+  "SENT",
+  "REVISION_REQUESTED",
+  "ACCEPTED",
+  "DECLINED",
+  "EXPIRED",
+  "CONVERTED",
+  "CANCELLED",
+] as const;
+
+export type RequestStatus = (typeof REQUEST_STATUSES)[number];
+
+export function isRequestStatus(value: unknown): value is RequestStatus {
+  return typeof value === "string" && (REQUEST_STATUSES as readonly string[]).includes(value);
+}
+
+/**
  * The things that can be done to a quotation.
  *
  * `EDIT` covers changing lines, prices and terms — everything the draft editor

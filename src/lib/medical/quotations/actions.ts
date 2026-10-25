@@ -16,7 +16,12 @@ import {
   toPesewas,
 } from "@/lib/medical/money";
 import { priceDocument, type DiscountKind, type LineInput } from "@/lib/medical/quotations/pricing";
-import { can, effectiveStatus, isQuotationStatus } from "@/lib/medical/quotations/status";
+import {
+  can,
+  effectiveStatus,
+  isQuotationStatus,
+  isRequestStatus,
+} from "@/lib/medical/quotations/status";
 
 /**
  * Everything that writes on the quotation side.
@@ -53,20 +58,6 @@ function failed(error: unknown, fallback: string): ActionResult {
   if (error instanceof Error) return { ok: false, error: error.message };
   return { ok: false, error: fallback };
 }
-
-const REQUEST_STATUSES = [
-  "NEW",
-  "UNDER_REVIEW",
-  "AWAITING_SUPPLIER",
-  "DRAFTING",
-  "SENT",
-  "REVISION_REQUESTED",
-  "ACCEPTED",
-  "DECLINED",
-  "EXPIRED",
-  "CONVERTED",
-  "CANCELLED",
-];
 
 /** A timeline entry, written in the same transaction as what it describes. */
 async function note(
@@ -155,7 +146,7 @@ export async function setRequestStatus(form: FormData): Promise<ActionResult> {
     const status = text(form, "status");
     const why = text(form, "why");
 
-    if (!REQUEST_STATUSES.includes(status)) return { ok: false, error: "Choose a status." };
+    if (!isRequestStatus(status)) return { ok: false, error: "Choose a status." };
 
     await medicalDb.$transaction(async (tx) => {
       const request = await tx.quotationRequest.findUniqueOrThrow({ where: { id } });

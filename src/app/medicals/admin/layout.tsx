@@ -27,7 +27,7 @@ export default async function MedicalAdminLayout({
   // page checks its own section separately through requireMedicalStaff, so a
   // page added without a guard is not silently open to every staff member.
   const staff = await medicalStaff();
-  if (!staff) redirect("/login?next=/medicals/admin");
+  if (!staff) redirect("/login?callbackUrl=%2Fmedicals%2Fadmin");
 
   return (
     <MedicalAdminShell role={staff.role} name={staff.name}>

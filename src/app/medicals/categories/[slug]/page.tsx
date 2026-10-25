@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CategorySidebar } from "@/components/medical/layout/CategorySidebar";
+import { catalogueGridClass } from "@/lib/medical/catalogue-grid";
 import { Breadcrumbs } from "@/components/medical/ui/Breadcrumbs";
 import { ProductGrid } from "@/components/medical/product/ProductGrid";
 import { CatalogueToolbar } from "@/components/medical/product/CatalogueToolbar";
@@ -73,7 +74,7 @@ export default async function CategoryPage({
         ]}
       />
 
-      <div className="mt-6 lg:grid lg:grid-cols-[15.5rem_1fr] lg:items-start lg:gap-8">
+      <div className={`mt-6 ${catalogueGridClass(sidebarCategories.length > 0, "lg:gap-8")}`}>
         <CategorySidebar
           categories={sidebarCategories}
           activeSlug={category.slug}
