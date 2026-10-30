@@ -10,6 +10,32 @@ It covers two jobs that are the same job:
 - splitting a business onto a project of its own, so that one running out of
   compute cannot take the other two down with it.
 
+## The job in front of us: retail only
+
+Only `DATABASE_URL` moves. `DATA_DATABASE_URL` and `MEDICAL_DATABASE_URL` are
+left exactly as they are, and the bundle and medical businesses carry on
+against whatever database they are already using. Splitting those two onto
+projects of their own is a later piece of work, and the section at the bottom
+is what it will need.
+
+One thing to establish on the day, before anything else:
+
+```sh
+psql "$OLD_RETAIL" -tAc "SELECT to_regclass('public.\"DataAgent\"')"
+```
+
+If that answers with a table name, the bundle tables are living *inside* the
+retail database — `DATA_DATABASE_URL` is unset, and `src/lib/data-db.ts` has
+been falling back to `DATABASE_URL` all along. They will then travel to the
+new project along with everything else, which is what has to happen anyway:
+the old project is the one that ran out of compute. Say so in the handover
+rather than reporting that the bundle database was left untouched.
+
+If it answers empty, the bundle business is already on a project of its own
+and this move genuinely does not touch it.
+
+The procedure is the same either way. Nothing below needs to change.
+
 ## Before you start
 
 **The source has to be awake.** A suspended Neon compute refuses connections,
@@ -90,15 +116,28 @@ reads its own URL, and the data-bundle client falls back to `DATABASE_URL`
 when `DATA_DATABASE_URL` is unset, so the split is one environment variable
 plus a copy — not a deploy that has to land everywhere at once.
 
-For a business whose tables are *already* in the retail database, use
-`scripts/copy-data-db.mjs` instead of this one: it copies the data-bundle
-tables only, in dependency order, leaving the retail tables where they are.
-`scripts/clone-database.mjs` copies a whole database and is the wrong tool for
-carving one up.
+For a business whose tables are *already* in the retail database there was
+`scripts/copy-data-db.mjs`, which copies the data-bundle tables only, in
+dependency order. **It currently refuses to run, and it is right to.** Its
+table list was written when the bundle schema had 11 tables; the schema now
+has 35. A table missing from that list is not copied and nothing complains —
+so the script would have reported a clean copy while leaving behind every
+messenger conversation, every reward redemption, every agent point and wallet
+top-up, each agent's referral and waiver figures, and every application's
+password.
 
-Afterwards the old tables are still sitting in the retail database. Dropping
-them is a separate decision, made once you are satisfied the new project is
-the one being read.
+`node scripts/copy-data-db.mjs --check` reports the drift and copies nothing.
+Before the split, either bring that list back in line with
+`prisma/data/schema.prisma` — and check the columns too, five of the eleven
+listed tables are also missing columns — or take the safer route and invert
+the problem: clone the whole retail database into the new project with
+`scripts/clone-database.mjs`, then drop the tables that do not belong there.
+A table you forget to drop is a harmless duplicate; a table you forget to copy
+is gone.
+
+Either way the old tables are still sitting in the retail database afterwards.
+Dropping them is a separate decision, made once you are satisfied the new
+project is the one being read.
 
 ## Why this keeps happening
 
