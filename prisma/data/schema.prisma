@@ -1643,3 +1643,25 @@ model DataUser {
   @@index([phone])
   @@index([role])
 }
+
+/**
+ * Fixed-window rate limiting, for this database.
+ *
+ * The twin of the mall's `RateLimit`, and separate for the reason everything
+ * here is separate: the bundle sign-in must not need the mall to be reachable.
+ * Pointing it at the mall's table would have left the agent console with no
+ * brute-force protection at exactly the moment the mall is down — which is the
+ * moment somebody is most likely to be probing it.
+ *
+ * Counters live in Postgres rather than in the process because the app runs
+ * serverless: a process-local Map is per-instance, so "8 attempts" is really
+ * "8 per warm lambda" and traffic spread across instances gets as many
+ * multiples as the platform cares to start.
+ */
+model DataRateLimit {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
+
+  @@index([resetAt])
+}
