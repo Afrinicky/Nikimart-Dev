@@ -1,14 +1,14 @@
 "use server";
 
 import { revalidatePath, updateTag } from "next/cache";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { runDataBackup } from "@/lib/data-bundles/backup";
 import { DATA_SETTINGS_TAG, getDataSettings, saveDataSettings } from "@/lib/data-bundles/settings";
 
 /**
  * The "Create Full Backup" button's action.
  *
- * `requireAdmin` reads the caller's role out of the database rather than off
+ * `requireDataAdminAction` reads the caller's role out of the database rather than off
  * the session token, so an account demoted since it signed in cannot take a
  * copy of the entire business on the way out. It throws for a non-admin and
  * redirects a signed-out caller; both are turned into a plain message here,
@@ -33,7 +33,7 @@ export async function createDataBackup(
 ): Promise<BackupActionState> {
   let admin;
   try {
-    admin = await requireAdmin();
+    admin = await requireDataAdminAction();
   } catch {
     return { error: "Only an administrator may create a backup." };
   }
@@ -84,7 +84,7 @@ export async function updateBackupSchedule(
   formData: FormData,
 ): Promise<BackupScheduleState> {
   try {
-    await requireAdmin();
+    await requireDataAdminAction();
   } catch {
     return { error: "Only an administrator may change the backup schedule." };
   }

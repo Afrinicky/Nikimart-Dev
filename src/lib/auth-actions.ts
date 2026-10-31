@@ -14,12 +14,44 @@ import { medicalHomeForUser } from "@/lib/medical/home";
 import { clearRateLimit, rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { challengeState, issueChallenge } from "@/lib/two-factor";
 import { usableChannel, type TwoFactorChannel } from "@/lib/two-factor-rules";
+import {
+  ACCOUNT_UNAVAILABLE,
+  WRONG_CODE,
+  WRONG_CREDENTIALS,
+  signInFailureMessage,
+} from "@/lib/auth-failure";
+import { DB_UNIQUE_VIOLATION, describeDbError } from "@/lib/db-errors";
 
 /** Best-effort client IP, for rate-limiting keys. */
 async function clientIp(): Promise<string> {
   const h = await headers();
   const forwarded = h.get("x-forwarded-for");
   return forwarded?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
+}
+
+/**
+ * Run one database call that a form depends on, and survive it failing.
+ *
+ * Every unguarded query in a sign-in or sign-up action is a way for the
+ * database to replace the form with the error boundary: a Neon instance
+ * waking up, a pool timeout, a connection refused, and the person is looking
+ * at "Something went wrong" on the one page they would have used to get back
+ * in. There is nothing for them to do there and no way forward from it.
+ *
+ * So the failure comes back as a value, is written to the server log where it
+ * belongs, and the caller turns it into a sentence in the form that says to
+ * try again — which, unlike the error page, is true and is actionable.
+ */
+async function dbCall<T>(
+  what: string,
+  run: () => Promise<T>,
+): Promise<{ ok: true; value: T } | { ok: false }> {
+  try {
+    return { ok: true, value: await run() };
+  } catch (error) {
+    console.error(`[auth] ${what} failed:`, error);
+    return { ok: false };
+  }
 }
 
 export type AuthFormState = {
@@ -160,8 +192,11 @@ export async function registerAction(
   }
 
   const email = parsed.data.email.toLowerCase();
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
+  const existing = await dbCall("the duplicate-email check", () =>
+    prisma.user.findUnique({ where: { email } }),
+  );
+  if (!existing.ok) return { error: ACCOUNT_UNAVAILABLE, values };
+  if (existing.value) {
     return {
       error: "An account with that email already exists.",
       fieldErrors: { email: "Email already registered." },
@@ -170,29 +205,48 @@ export async function registerAction(
   }
 
   // Only honour a preferred pickup that actually exists (avoid an FK error).
+  // Best-effort, though: an unreachable pickup table is not a reason to refuse
+  // somebody an account, and the preference can be set again later.
   let preferredPickupId: string | null = null;
   if (parsed.data.preferredPickupId) {
-    const pp = await prisma.pickupPoint.findFirst({
-      where: { id: parsed.data.preferredPickupId, isActive: true },
-      select: { id: true },
-    });
-    preferredPickupId = pp?.id ?? null;
+    const pp = await dbCall("the pickup-point check", () =>
+      prisma.pickupPoint.findFirst({
+        where: { id: parsed.data.preferredPickupId, isActive: true },
+        select: { id: true },
+      }),
+    );
+    preferredPickupId = pp.ok ? (pp.value?.id ?? null) : null;
   }
 
   const callbackUrl = safeCallback(formData.get("callbackUrl")) ?? "/account";
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
-  await prisma.user.create({
-    data: {
-      name: parsed.data.name,
-      email,
-      phone: parsed.data.phone ?? null,
-      passwordHash,
-      role: "CUSTOMER",
-      termsAcceptedAt: new Date(),
-      address: parsed.data.address ?? null,
-      preferredPickupId,
-    },
-  });
+  try {
+    await prisma.user.create({
+      data: {
+        name: parsed.data.name,
+        email,
+        phone: parsed.data.phone ?? null,
+        passwordHash,
+        role: "CUSTOMER",
+        termsAcceptedAt: new Date(),
+        address: parsed.data.address ?? null,
+        preferredPickupId,
+      },
+    });
+  } catch (error) {
+    // Email is the only unique column on the account, so a uniqueness failure
+    // here is the duplicate the check above lost a race to — the one failure
+    // the person can do something about.
+    if (describeDbError(error).code === DB_UNIQUE_VIOLATION) {
+      return {
+        error: "An account with that email already exists.",
+        fieldErrors: { email: "Email already registered." },
+        values,
+      };
+    }
+    console.error("[auth] could not create the account:", error);
+    return { error: ACCOUNT_UNAVAILABLE, values };
+  }
 
   try {
     await signIn("credentials", {
@@ -246,7 +300,12 @@ export async function loginAction(
     return { error: `Too many sign-in attempts. Please try again in ${retryAfterLabel(wait)}.`, values };
   }
 
-  const user = await findUserByIdentifier(identifier);
+  // The first query of the sign-in. Thrown, it used to take the whole page
+  // down — the admin console's own sign-in form answering a correct password
+  // with "Something went wrong" and a reference number.
+  const lookup = await dbCall("sign-in lookup", () => findUserByIdentifier(identifier));
+  if (!lookup.ok) return { error: ACCOUNT_UNAVAILABLE, values };
+  const user = lookup.value;
   const redirectTo = safeCallback(formData.get("callbackUrl")) ?? (await homeForUser(user));
 
   // An account with a second step gets its password checked here rather than
@@ -255,13 +314,19 @@ export async function loginAction(
   // step is not something a sign-in form should disclose.
   if (user?.twoFactorEnabled && user.passwordHash) {
     if (!(await bcrypt.compare(parsed.data.password, user.passwordHash))) {
-      return { error: "Invalid email or password.", values };
+      return { error: WRONG_CREDENTIALS, values };
     }
     const channel = usableChannel(user, user.twoFactorChannel);
-    const challenge = await issueChallenge(user, "SIGN_IN", channel);
+    // Writing the challenge down is the step that can fail. It must not fail
+    // as a crash: the password was right, and the person is entitled to be
+    // told that the code could not be sent rather than shown an error page.
+    const challenge = await dbCall("issuing a sign-in code", () =>
+      issueChallenge(user, "SIGN_IN", channel),
+    );
+    if (!challenge.ok) return { error: ACCOUNT_UNAVAILABLE, values };
     // The password was right, so the guessing counters have done their job.
     await clearRateLimit(accountKey);
-    return { values, twoFactor: challenge };
+    return { values, twoFactor: challenge.value };
   }
 
   try {
@@ -272,7 +337,14 @@ export async function loginAction(
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return { error: "Invalid email or password.", values };
+      // Not every AuthError is a bad password: the provider's `authorize`
+      // does its own database work, and anything it throws arrives here
+      // wrapped as a different type. Reporting that as a bad password sends
+      // somebody to reset a password that was never the problem.
+      if (error.type !== "CredentialsSignin") {
+        console.error("[auth] sign-in failed before the password could be judged:", error);
+      }
+      return { error: signInFailureMessage(error.type, WRONG_CREDENTIALS), values };
     }
     // signIn throws NEXT_REDIRECT on success — the attempt worked, so clear the
     // counters before re-throwing so navigation still happens.
@@ -326,7 +398,15 @@ export async function verifyTwoFactorAction(
     await signIn("two-factor", { challengeId, code, redirectTo });
   } catch (error) {
     if (error instanceof AuthError) {
-      return { ...again, error: "Incorrect code.", fieldErrors: { code: "Incorrect." } };
+      // The same distinction the password step makes: a code Auth.js rejected
+      // is wrong, but a code it never got to check is an outage, and saying
+      // "incorrect" to somebody holding a correct code costs them one of the
+      // five attempts they are allowed.
+      if (error.type !== "CredentialsSignin") {
+        console.error("[auth] the code could not be checked:", error);
+        return { ...again, error: ACCOUNT_UNAVAILABLE };
+      }
+      return { ...again, error: WRONG_CODE, fieldErrors: { code: "Incorrect." } };
     }
     throw error; // NEXT_REDIRECT — the code was right
   }

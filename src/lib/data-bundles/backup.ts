@@ -264,7 +264,7 @@ type RawClient = {
  * Take a full snapshot of the Data Bundles database and store it.
  *
  * The caller is responsible for authorisation — `createDataBackup` in
- * backup-actions.ts is the only entry point and it starts with `requireAdmin`.
+ * backup-actions.ts is the only entry point and it starts with `requireDataAdminAction`.
  */
 export async function runDataBackup(options: {
   kind?: string;

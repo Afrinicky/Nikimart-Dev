@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { getAgentUser } from "@/lib/data-bundles/user-link";
@@ -31,7 +31,7 @@ export async function scheduleSession(
   _prev: SessionState,
   fd: FormData,
 ): Promise<SessionState> {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) return { error: "You don't have an agent account." };
 
@@ -71,7 +71,7 @@ export async function scheduleSession(
 
 /** Open the room. Only the host can, and only once. */
 export async function openSession(fd: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   const id = String(fd.get("id") ?? "").trim();
   if (!agent || !id) return;
@@ -116,7 +116,7 @@ export async function endSession(
   _prev: SessionState,
   fd: FormData,
 ): Promise<SessionState> {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) return { error: "You don't have an agent account." };
 
@@ -170,7 +170,7 @@ export async function endSession(
  * attendance rather than two.
  */
 export async function markAttendance(sessionId: string): Promise<void> {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent || !sessionId) return;
 
@@ -190,7 +190,7 @@ export async function markAttendance(sessionId: string): Promise<void> {
 
 /** Who the signed-in agent is, for the name on their messages. */
 export async function chatIdentity(): Promise<{ agentId: string; name: string } | null> {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) return null;
   const owner = await getAgentUser(agent.userId);

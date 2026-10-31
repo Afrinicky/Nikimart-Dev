@@ -5,8 +5,7 @@ import { after } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
-import { prisma } from "@/lib/prisma";
-import { requireUser, type SessionUser } from "@/lib/session";
+import { requireDataUser, type DataSessionUser } from "@/lib/data-bundles/session";
 import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { callbackOrigin, siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
@@ -58,11 +57,11 @@ export type ActionResult = { ok: true; message?: string } | { ok: false; error: 
 
 /** The caller's agent account, or an error result to hand straight back. */
 type CurrentAgent =
-  | { agent: AgentAccount; user: SessionUser; error: null }
-  | { agent: null; user: SessionUser; error: string };
+  | { agent: AgentAccount; user: DataSessionUser; error: null }
+  | { agent: null; user: DataSessionUser; error: string };
 
 async function currentAgent(): Promise<CurrentAgent> {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) return { agent: null, user, error: "You don't have an agent account yet." };
   if (agent.status !== "active") {
@@ -113,7 +112,7 @@ export async function updateAgentProfile(input: {
 
   const email = parsed.data.email.toLowerCase();
 
-  const account = await prisma.user
+  const account = await dataDb.dataUser
     .findUnique({ where: { id: user.id }, select: { email: true, passwordHash: true } })
     .catch(() => null);
   if (!account) return { ok: false, error: "Couldn't load your account. Please try again." };
@@ -129,7 +128,7 @@ export async function updateAgentProfile(input: {
         (await bcrypt.compare(input.currentPassword ?? "", account.passwordHash));
       if (!ok) return { ok: false, error: "Enter your current password to change your email." };
     }
-    const taken = await prisma.user
+    const taken = await dataDb.dataUser
       .findUnique({ where: { email }, select: { id: true } })
       .catch(() => null);
     if (taken && taken.id !== user.id) {
@@ -138,7 +137,7 @@ export async function updateAgentProfile(input: {
   }
 
   try {
-    await prisma.user.update({
+    await dataDb.dataUser.update({
       where: { id: user.id },
       data: { name: parsed.data.name, phone: phone.local, email },
     });
@@ -181,7 +180,7 @@ export async function changeAgentPassword(input: {
     };
   }
 
-  const account = await prisma.user
+  const account = await dataDb.dataUser
     .findUnique({ where: { id: user.id }, select: { passwordHash: true } })
     .catch(() => null);
   if (!account) return { ok: false, error: "Couldn't load your account. Please try again." };
@@ -195,9 +194,14 @@ export async function changeAgentPassword(input: {
   }
 
   try {
-    await prisma.user.update({
+    await dataDb.dataUser.update({
       where: { id: user.id },
-      data: { passwordHash: await bcrypt.hash(input.newPassword, 10) },
+      data: {
+        passwordHash: await bcrypt.hash(input.newPassword, 10),
+        // Diverged from the copied one on purpose: the mall has never heard of
+        // this password, and copy-logins.mjs --refresh must not undo it.
+        passwordChangedAt: new Date(),
+      },
     });
   } catch {
     return { ok: false, error: "Couldn't change your password. Please try again." };
@@ -623,7 +627,7 @@ const callbackSchema = z.object({
 });
 
 export async function requestCallback(input: z.infer<typeof callbackSchema>): Promise<ActionResult> {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
 
   const parsed = callbackSchema.safeParse(input);

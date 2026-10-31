@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { cancelAndRefundOrder, type RefundOutcome } from "@/lib/data-bundles/refunds";
 
@@ -19,7 +19,7 @@ export async function cancelOrderAction(orderId: string): Promise<RefundOutcome>
   const id = String(orderId ?? "").trim();
   if (!id) return { ok: false, error: "That order no longer exists." };
 
-  const user = await requireUser();
+  const user = await requireDataUser();
 
   if (user.role === "ADMIN") {
     const result = await cancelAndRefundOrder(id, { by: "admin" });

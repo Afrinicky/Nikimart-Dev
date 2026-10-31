@@ -5,10 +5,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { dataDb } from "@/lib/data-db";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction, dataUserOrNull } from "@/lib/data-bundles/session";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { notify } from "@/lib/notifications";
 import { notifyTemplate, smsTemplate } from "@/lib/messages";
@@ -258,12 +256,16 @@ export async function applyToBeAgent(
 
   if (!termsAccepted(fd)) return { termsError: TERMS_REQUIRED_MESSAGE };
 
-  // Somebody already signed in keeps the account they have: they are adding a
-  // storefront to it, not opening a second one. The form doesn't ask them for a
-  // password, so there is none to check here either.
-  const session = await auth();
-  const existingUser = session?.user?.id
-    ? { id: session.user.id, email: (session.user.email ?? "").toLowerCase() }
+  // Somebody already signed in to this business keeps the account they have:
+  // they are adding a storefront to it, not opening a second one. The form
+  // doesn't ask them for a password, so there is none to check here either.
+  //
+  // Read from the bundle session, not the mall's. Applying to sell bundles is
+  // not something that should require a mall account, or notice whether the
+  // mall is reachable at all.
+  const signedIn = await dataUserOrNull();
+  const existingUser = signedIn
+    ? { id: signedIn.id, email: (signedIn.email ?? "").toLowerCase() }
     : null;
 
   const parsed = applySchema.safeParse({
@@ -372,7 +374,7 @@ export async function applyToBeAgent(
     // public form by typing a new password for it. Sign in first; the form
     // then adds a storefront to that account and never asks for one.
     if (!existingUser && userId) {
-      const account = await prisma.user
+      const account = await dataDb.dataUser
         .findUnique({ where: { id: userId }, select: { passwordHash: true } })
         .catch(() => null);
       if (account?.passwordHash) {
@@ -495,7 +497,7 @@ async function notifyAdminsOfApplication(
     dedupeKey: `APPLICATION:${id}`,
   });
   try {
-    const admins = await prisma.user.findMany({
+    const admins = await dataDb.dataUser.findMany({
       where: { role: "ADMIN" },
       select: { phone: true, email: true },
     });
@@ -545,7 +547,7 @@ export async function approveApplication(
   _prev: ApplyState,
   fd: FormData,
 ): Promise<ApplyState> {
-  const admin = await requireAdmin();
+  const admin = await requireDataAdminAction();
   const id = String(fd.get("id") ?? "").trim();
   if (!id) return { error: "Missing application." };
 
@@ -610,26 +612,31 @@ export async function approveApplication(
     // already existed and already had one keeps it: nothing on a public form
     // proves the applicant owns that email, so approving an application can
     // never rewrite a password somebody else signs in with.
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await dataDb.dataUser.findUnique({ where: { email } });
     const user =
       existing ??
-      (await prisma.user.create({
+      (await dataDb.dataUser.create({
         data: {
           email,
           name: application.fullName,
           phone: application.phone,
-          role: "CUSTOMER",
+          // An approved applicant is an agent of this business. They are not a
+          // mall customer and no mall account is created for them: if they
+          // ever want to shop the mall they register there like anybody else.
+          role: "AGENT",
           passwordHash: application.passwordHash,
           // A password Nickimart generated and texted them is a way in once,
           // not a password: the console asks for a new one before it shows
           // them anything.
           mustChangePassword: application.passwordIsTemporary,
-          termsAcceptedAt: application.termsAcceptedAt ?? new Date(),
+          // Consent stays on the application row, which is where it was given
+          // and where the wording they agreed to is recorded. Copying it onto
+          // the account would be a second, weaker record of the same fact.
         },
       }));
 
     if (existing && !existing.passwordHash && application.passwordHash) {
-      await prisma.user.update({
+      await dataDb.dataUser.update({
         where: { id: existing.id },
         data: {
           passwordHash: application.passwordHash,
@@ -845,7 +852,7 @@ export async function rejectApplication(
   _prev: ApplyState,
   fd: FormData,
 ): Promise<ApplyState> {
-  const admin = await requireAdmin();
+  const admin = await requireDataAdminAction();
   const id = String(fd.get("id") ?? "").trim();
   const reason = String(fd.get("adminNote") ?? "").trim();
   if (!id) return { error: "Missing application." };
@@ -972,13 +979,13 @@ export async function completeAgentSetup(
     // goes first: it is the half that matters, and a store that kept its
     // provisional name is a rename away from right, while a named store nobody
     // can sign in to is a support ticket.
-    const user = await prisma.user.findUniqueOrThrow({
+    const user = await dataDb.dataUser.findUniqueOrThrow({
       where: { id: agent.userId },
       select: { passwordHash: true },
     });
     hadPassword = Boolean(user.passwordHash);
     if (!hadPassword) {
-      await prisma.user.update({
+      await dataDb.dataUser.update({
         where: { id: agent.userId },
         data: { passwordHash, name: application.fullName, phone: application.phone },
       });

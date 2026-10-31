@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { dataDb } from "@/lib/data-db";
 import {
@@ -29,7 +29,7 @@ const sourceLabel = (s: string) =>
 export async function GET(req: Request) {
   let agentId: string;
   try {
-    const user = await requireUser();
+    const user = await requireDataUser();
     const agent = await getAgentForUser(user.id);
     if (!agent) return NextResponse.json({ error: "Not an agent" }, { status: 403 });
     agentId = agent.id;

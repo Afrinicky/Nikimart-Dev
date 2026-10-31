@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ShoppingBag } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { AdminTopup, type AdminBundle } from "@/components/admin/AdminTopup";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { getActiveBundles } from "@/lib/data-bundles/catalog";
 
 export const metadata: Metadata = { title: "Buy data — Admin — Nickimart" };
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * mean the house paying its own markup.
  */
 export default async function AdminTopupPage() {
-  await requireAdmin();
+  await requireDataAdminAction();
   const bundles = await getActiveBundles();
 
   const rows: AdminBundle[] = bundles

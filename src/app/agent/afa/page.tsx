@@ -4,7 +4,7 @@ import { BadgeCheck } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { AgentPageHeading, Card, EmptyRow, TableScroll, StatusPill, formatWhen } from "@/components/agent/AgentUi";
 import { AfaForm } from "@/components/data/AfaForm";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { dataDb } from "@/lib/data-db";
 import { formatMoney } from "@/lib/format";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
  * they earn on them exactly as on a bundle.
  */
 export default async function AgentAfaPage() {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 

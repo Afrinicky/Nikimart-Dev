@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import {
   reconcileDataOrder,
   reconcileMessage,
@@ -33,7 +33,7 @@ function refresh(): void {
 
 /** Ask Paystack about this order again, and settle it if the money is there. */
 export async function recheckOrderPaymentAdmin(reference: string): Promise<PaymentActionResult> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const outcome = await reconcileDataOrder(String(reference ?? ""), { force: true });
   const message = reconcileMessage(outcome);
   const ok = outcome.state === "settled" || outcome.state === "already-paid";
@@ -49,7 +49,7 @@ export async function recheckOrderPaymentAdmin(reference: string): Promise<Payme
  * admin who made it is stamped on the order.
  */
 export async function settleOrderPaymentAdmin(orderId: string): Promise<PaymentActionResult> {
-  const admin = await requireAdmin();
+  const admin = await requireDataAdminAction();
   const who = admin.name || admin.email || admin.id;
   const result = await settleOrderByHand(String(orderId ?? ""), who);
   if (result.ok) refresh();
@@ -62,7 +62,7 @@ export async function decidePaymentClaimAdmin(
   decision: "confirm" | "reject",
   reason: string,
 ): Promise<PaymentActionResult> {
-  const admin = await requireAdmin();
+  const admin = await requireDataAdminAction();
   const who = admin.name || admin.email || admin.id;
 
   const result =
@@ -82,7 +82,7 @@ export async function decidePaymentClaimAdmin(
  * money on a second one. The card asks before it gets here.
  */
 export async function reorderFailedOrderAdmin(orderId: string): Promise<PaymentActionResult> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const result = await reorderFailedOrder(String(orderId ?? ""));
   if (result.ok) refresh();
   return { ok: result.ok, message: result.message };

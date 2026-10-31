@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
-import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { formatMoney } from "@/lib/format";
 import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
@@ -77,7 +76,7 @@ export async function registerSubAgent(
   _prev: SubAgentState,
   fd: FormData,
 ): Promise<SubAgentState> {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) return { error: "You don't have an agent account." };
   if (agent.status !== "active") {
@@ -116,7 +115,7 @@ export async function registerSubAgent(
   if (slug.state !== "free") return { error: "Enter the store name they want." };
 
   // Somebody already trading, or already waiting, is not a new recruit.
-  const existingUserId = await prisma.user
+  const existingUserId = await dataDb.dataUser
     .findUnique({ where: { email }, select: { id: true } })
     .then((u) => u?.id ?? null)
     .catch(() => null);

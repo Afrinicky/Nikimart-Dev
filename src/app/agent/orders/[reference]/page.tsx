@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CreditCard, Package, Phone } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { Card, PaymentPill, SourcePill, StatusPill, formatWhen } from "@/components/agent/AgentUi";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { dataDb } from "@/lib/data-db";
 import { formatMoney } from "@/lib/format";
 import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
@@ -28,7 +28,7 @@ export default async function AgentOrderDetailPage({
 }: {
   params: Promise<{ reference: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 

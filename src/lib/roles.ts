@@ -32,10 +32,11 @@ export const ROLE_HOME: Record<Role, string> = {
  */
 export const DASHBOARD_ACCESS: Record<string, Role[]> = {
   "/account": ["CUSTOMER", "SELLER", "ADMIN", "FREIGHT", "PICKUP"],
-  // The agent platform is gated by membership, not by role: any signed-in user
-  // may hold a DataAgent account alongside whatever else they are. Middleware
-  // only enforces "signed in" here; /agent/layout.tsx redirects anyone without
-  // an agent account to the recruitment page.
+  // The agent platform is no longer gated by a mall role at all: it has its
+  // own accounts in its own database, and src/app/agent/layout.tsx guards it
+  // with those. The entry is kept only so `canAccess` still answers true for
+  // the path rather than falling through to a role check that would be about
+  // the wrong business entirely.
   "/agent": ["CUSTOMER", "SELLER", "ADMIN", "FREIGHT", "PICKUP"],
   "/seller": ["SELLER", "ADMIN"],
   "/admin": ["ADMIN"],

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { dataDb } from "@/lib/data-db";
 import {
   DATA_STATUS_LABELS,
@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: Request) {
   try {
-    await requireAdmin();
+    await requireDataAdminAction();
   } catch {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

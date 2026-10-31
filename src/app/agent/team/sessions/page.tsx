@@ -5,7 +5,7 @@ import { ActionLink } from "@/components/ui/motion";
 import { Card, formatWhen } from "@/components/agent/AgentUi";
 import { TeamShell } from "@/components/agent/TeamShell";
 import { SessionScheduler } from "@/components/agent/SessionScheduler";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { isChatConfigured } from "@/lib/chat/ably";
 import { openSession } from "@/lib/data-bundles/team/session-actions";
@@ -35,7 +35,7 @@ const LABELS: Record<string, string> = {
  * who does both sees both without choosing a mode.
  */
 export default async function TeamSessionsPage() {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 

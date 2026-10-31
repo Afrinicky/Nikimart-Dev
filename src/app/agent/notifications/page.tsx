@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Bell, Pin } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { AgentPageHeading, EmptyRow, formatWhen } from "@/components/agent/AgentUi";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { getAgentForUser, getAnnouncements } from "@/lib/data-bundles/agents";
 import { cn } from "@/lib/cn";
 
@@ -17,7 +17,7 @@ const TONES: Record<string, string> = {
 };
 
 export default async function AgentNotificationsPage() {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 

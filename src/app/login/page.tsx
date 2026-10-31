@@ -18,7 +18,16 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ callbackUrl?: string }>;
 }) {
-  const session = await auth();
+  // The way back in must not be the thing that breaks. Reading the session
+  // touches the database, and a read that throws replaced this page with
+  // "Something went wrong" — a dead end on the one screen whose entire job is
+  // to let somebody through. A session that cannot be read is treated as no
+  // session: it costs an already-signed-in visitor a redirect they can make
+  // themselves, and it costs everybody else nothing.
+  const session = await auth().catch((error: unknown) => {
+    console.error("[auth] could not read the session on /login:", error);
+    return null;
+  });
   const { callbackUrl } = await searchParams;
   const cb = callbackUrl && callbackUrl.startsWith("/") && !callbackUrl.startsWith("//") ? callbackUrl : undefined;
   if (session?.user) {

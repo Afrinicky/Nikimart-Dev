@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { clampPercent } from "@/lib/data-bundles/referral-rules";
 import {
   createAgentInvite,
@@ -26,7 +26,7 @@ function str(fd: FormData, key: string): string {
 }
 
 export async function issueInvite(_prev: InviteState, fd: FormData): Promise<InviteState> {
-  const admin = await requireAdmin();
+  const admin = await requireDataAdminAction();
 
   const label = str(fd, "label").slice(0, 80);
   if (label.length < 2) return { error: "Give the link a name, so you know what it was for." };
@@ -108,14 +108,14 @@ export async function issueInvite(_prev: InviteState, fd: FormData): Promise<Inv
 }
 
 export async function toggleInvite(fd: FormData): Promise<void> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const id = str(fd, "id");
   if (id) await setAgentInviteActive(id, str(fd, "active") === "on");
   revalidatePath("/admin/data/agents/invites");
 }
 
 export async function removeInvite(fd: FormData): Promise<void> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const id = str(fd, "id");
   if (id) await deleteAgentInvite(id);
   revalidatePath("/admin/data/agents/invites");

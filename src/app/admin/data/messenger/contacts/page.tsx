@@ -5,7 +5,7 @@ import { ContactsPanel } from "@/components/admin/messenger/ContactsPanel";
 import { ANNOUNCEMENT_MODULE_TABS } from "@/lib/announcement-module";
 import { unreadNotificationCount } from "@/lib/data-bundles/notifications";
 import { loadContacts } from "@/lib/messenger-page";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 
 export const metadata: Metadata = { title: "Contacts — Messenger — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export default async function DataMessengerContactsPage({
 }: {
   searchParams: Promise<{ q?: string; tag?: string; archived?: string }>;
 }) {
-  await requireAdmin();
+  await requireDataAdminAction();
   const params = await searchParams;
   const filter = {
     query: (params.q ?? "").trim(),

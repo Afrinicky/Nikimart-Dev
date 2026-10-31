@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { takeDirectBackup } from "@/lib/data-bundles/backup";
 import { BACKUP_CONTENT_TYPE } from "@/lib/data-bundles/backup-format";
 
@@ -19,7 +19,7 @@ export const maxDuration = 300;
  * machine, which is a perfectly good recovery plan and the only one that
  * depends on nothing but this request.
  *
- * Same guard as the stored download: `requireAdmin` re-reads the role from the
+ * Same guard as the stored download: `requireDataAdminAction` re-reads the role from the
  * database, and the response is uncacheable, because a shared cache holding a
  * copy of the whole business is its own breach.
  */
@@ -33,9 +33,9 @@ const NO_STORE = {
 export async function GET() {
   let admin;
   try {
-    admin = await requireAdmin();
+    admin = await requireDataAdminAction();
   } catch {
-    // `requireAdmin` redirects a signed-out caller, which is useless to a
+    // `requireDataAdminAction` redirects a signed-out caller, which is useless to a
     // download, so the redirect becomes a 403 like everywhere else here.
     return NextResponse.json({ error: "Forbidden" }, { status: 403, headers: NO_STORE });
   }

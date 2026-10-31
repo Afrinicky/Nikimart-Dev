@@ -19,7 +19,7 @@ import { StoreOpenToggle } from "@/components/agent/StoreOpenToggle";
 import { PricingTable } from "@/components/agent/PricingTable";
 import { AfaPricingForm } from "@/components/agent/AfaPricingForm";
 import { FlyerStudio } from "@/components/agent/FlyerStudio";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
@@ -60,7 +60,7 @@ export default async function AgentStorePage({
 }: {
   searchParams: Promise<{ tab?: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 

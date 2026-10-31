@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { PanelHeading } from "@/components/admin/ModuleHeader";
 import { RegisterAgentForm } from "@/components/admin/RegisterAgentForm";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 
 export const metadata: Metadata = { title: "Register an agent — Admin — Nickimart" };
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  * approval the queue uses, and comes back with a setup link to hand over.
  */
 export default async function AdminRegisterAgentPage() {
-  await requireAdmin();
+  await requireDataAdminAction();
   const config = await getAgentProgramConfig();
 
   return (

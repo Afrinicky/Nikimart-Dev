@@ -5,8 +5,8 @@ import { AgentPageHeading, Card, formatWhen } from "@/components/agent/AgentUi";
 import { AgentPasswordForm, AgentProfileForm } from "@/components/agent/AgentProfileForm";
 import { CopyChip } from "@/components/agent/AgentCode";
 import { TwoFactorSettings } from "@/components/auth/TwoFactorSettings";
-import { requireUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
+import { requireDataUser } from "@/lib/data-bundles/session";
+import { dataDb } from "@/lib/data-db";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { cn } from "@/lib/cn";
 
@@ -14,11 +14,11 @@ export const metadata: Metadata = { title: "Settings — Agent — Nickimart" };
 export const dynamic = "force-dynamic";
 
 export default async function AgentSettingsPage() {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 
-  const profile = await prisma.user
+  const profile = await dataDb.dataUser
     .findUnique({
       where: { id: user.id },
       select: {

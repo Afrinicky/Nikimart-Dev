@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Check, Clock } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { AgentPageHeading } from "@/components/agent/AgentUi";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { isRegistrationReference } from "@/lib/data-bundles/reference";
 import { verifyAndSettleApplicationFee } from "@/lib/data-bundles/registration-fee";
@@ -24,7 +24,7 @@ export default async function TeamPaymentVerifyPage({
 }: {
   searchParams: Promise<{ reference?: string; trxref?: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 

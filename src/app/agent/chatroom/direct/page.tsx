@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { AgentChatroomShell } from "@/components/agent/AgentChatroomShell";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { StartDirect } from "@/components/chat/StartDirect";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { getTeamScope } from "@/lib/data-bundles/team/hierarchy";
 import { dataDb } from "@/lib/data-db";
@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
  * platform — that is a way to be messaged by strangers.
  */
 export default async function AgentDirectPage() {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
   const viewer = await currentViewer();

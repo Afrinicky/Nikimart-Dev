@@ -12,7 +12,7 @@ import { DataBackupPanel } from "@/components/admin/DataBackupPanel";
 import { DataBackupHistory } from "@/components/admin/DataBackupHistory";
 import { DataBackupScheduleForm } from "@/components/admin/DataBackupScheduleForm";
 import { DataRestorePanel } from "@/components/admin/DataRestorePanel";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { getBackupOverview, listDataBackups } from "@/lib/data-bundles/backup";
 import { listDataRestores, type RestoreSummary } from "@/lib/data-bundles/restore";
 import { getAutoBackupStatus } from "@/lib/data-bundles/backup-schedule";
@@ -31,9 +31,9 @@ export const dynamic = "force-dynamic";
  * itself as well — one guard is a configuration away from being the wrong one.
  *
  * That third check is defence in depth and has to behave like it. It used to
- * catch everything `requireAdmin` can throw and send the caller to /admin, the
+ * catch everything `requireDataAdminAction` can throw and send the caller to /admin, the
  * retail console. Two things were wrong with that. A signed-out caller is
- * moved on by `requireUser` throwing NEXT_REDIRECT at /login, and catching
+ * moved on by `requireDataUser` throwing NEXT_REDIRECT at /login, and catching
  * that swallows the redirect rather than following it. And any disagreement at
  * all between this check and the two that have already passed — the middleware
  * and the console frame — silently teleported an admin out of the Backups tab
@@ -45,7 +45,7 @@ export const dynamic = "force-dynamic";
  * own database and is not read, listed or counted anywhere here.
  */
 export default async function DataBackupsPage() {
-  await requireAdmin();
+  await requireDataAdminAction();
 
   const [overview, history, restores, schedule] = await Promise.all([
     getBackupOverview(),

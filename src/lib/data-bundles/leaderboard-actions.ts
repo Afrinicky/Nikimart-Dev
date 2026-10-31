@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
-import { requireAdmin, requireUser } from "@/lib/session";
+import { requireDataAdminAction, requireDataUser } from "@/lib/data-bundles/session";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { formatMoney } from "@/lib/format";
 import { bundleLabel, isNetwork, networkLabel } from "@/lib/data-bundles/networks";
@@ -49,7 +49,7 @@ const redeemSchema = z.object({
 });
 
 export async function redeemReward(input: z.infer<typeof redeemSchema>): Promise<RewardResult> {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) return { ok: false, error: "You don't have an agent account yet." };
   if (agent.status !== "active") {
@@ -161,7 +161,7 @@ export async function saveRewardTier(
   _prev: RewardAdminState,
   fd: FormData,
 ): Promise<RewardAdminState> {
-  await requireAdmin();
+  await requireDataAdminAction();
 
   const id = str(fd, "id");
   const label = str(fd, "label");
@@ -208,7 +208,7 @@ export async function saveRewardTier(
 
 /** Take a reward off the shelf, or put it back. */
 export async function setRewardTierActive(fd: FormData): Promise<void> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const id = str(fd, "id");
   if (!id) return;
   await dataDb.dataRewardTier
@@ -224,7 +224,7 @@ export async function setRewardTierActive(fd: FormData): Promise<void> {
  * an agent's history still reads correctly after the reward is gone.
  */
 export async function deleteRewardTier(fd: FormData): Promise<void> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const id = str(fd, "id");
   if (!id) return;
   await dataDb.dataRewardTier.delete({ where: { id } }).catch(() => {});
@@ -244,7 +244,7 @@ export async function deleteRewardTier(fd: FormData): Promise<void> {
  * did. Either way the points were already spent when it was claimed.
  */
 export async function fulfilRedemption(fd: FormData): Promise<void> {
-  const admin = await requireAdmin();
+  const admin = await requireDataAdminAction();
   const id = str(fd, "id");
   if (!id) return;
 
@@ -292,7 +292,7 @@ export async function fulfilRedemption(fd: FormData): Promise<void> {
 
 /** Turn a redemption down, and give the points back. */
 export async function rejectRedemption(fd: FormData): Promise<void> {
-  const admin = await requireAdmin();
+  const admin = await requireDataAdminAction();
   const id = str(fd, "id");
   if (!id) return;
 

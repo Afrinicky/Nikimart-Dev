@@ -6,7 +6,7 @@ import { AgentPageHeading, Card, EmptyRow, TableScroll, formatWhen } from "@/com
 import { WithdrawPanel } from "@/components/agent/WithdrawPanel";
 import { TopupWalletPanel } from "@/components/agent/TopupWalletPanel";
 import { PendingTopups } from "@/components/agent/PendingTopups";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { formatMoney } from "@/lib/format";
 import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import { pendingTopupsFor } from "@/lib/data-bundles/wallet";
@@ -60,7 +60,7 @@ export default async function AgentWalletPage({
   searchParams: Promise<{ topup?: string; fee?: string }>;
 }) {
   const params = await searchParams;
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 

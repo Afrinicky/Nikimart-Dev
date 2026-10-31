@@ -5,7 +5,7 @@ import { ActionLink } from "@/components/ui/motion";
 import { AgentPageHeading, Card, formatWhen } from "@/components/agent/AgentUi";
 import { SessionRoom } from "@/components/agent/SessionRoom";
 import { LiveChat } from "@/components/chat/LiveChat";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { getAgentUser } from "@/lib/data-bundles/user-link";
 import { openSession } from "@/lib/data-bundles/team/session-actions";
@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
  * even if a link is shared.
  */
 export default async function SessionPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 

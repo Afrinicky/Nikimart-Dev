@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { listAnnouncements } from "@/lib/data-bundles/announcements";
 import {
   announcementStatus,
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 /** Every announcement the filters matched, with its status worked out. */
 export async function GET(req: Request) {
   try {
-    await requireAdmin();
+    await requireDataAdminAction();
   } catch {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

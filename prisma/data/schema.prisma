@@ -367,6 +367,7 @@ model DataAgent {
   // --- Referral -------------------------------------------------------------
   /**
    * /**
+   * /**
    * The registration waiver *this agent's own recruits* receive, as a
    * percentage of the fee. Null means "use the programme default"; 100 is a
    * full waiver, and whether that still pays a joining reward is the admin's
@@ -415,6 +416,7 @@ model DataAgent {
 
   // --- Leaderboard points ---------------------------------------------------
   /**
+   * /**
    * /**
    * Points in hand, moved only by writing a DataAgentPoint row — the same rule
    * the cedi balance follows, so the two can always be reconciled against each
@@ -488,6 +490,7 @@ model DataAgentLedger {
 
   // --- Referral and team earnings ------------------------------------------
   /**
+   * /**
    * /**
    * The agent whose activity produced this entry: the recruit whose
    * registration fee was paid, or the downline agent who made the sale. Null on
@@ -846,6 +849,7 @@ model DataAgentApplication {
   // --- What the applicant set for themselves --------------------------------
   /**
    * /**
+   * /**
    * The password they chose on the signup form, hashed. It is moved onto the
    * Nickimart user account at approval and cleared here at the same moment, so
    * a hash never outlives the application it was collected on.
@@ -871,6 +875,7 @@ model DataAgentApplication {
 
   // --- The registration fee, paid before anybody reviews this ---------------
   /**
+   * /**
    * /**
    * What this applicant was quoted, after any referral waiver. Held on the
    * application because it is what they actually paid, and the programme fee
@@ -1564,4 +1569,103 @@ model DataMessengerMessage {
   @@index([contactId, createdAt])
   @@index([batchId])
   @@index([createdAt])
+}
+
+/**
+ * The people who sign in to the bundle business.
+ * Identity used to be the one thing that crossed the line: an agent signed in
+ * with a Nickimart mall account, so every agent console page needed the retail
+ * database to be up. In October the retail project ran out of its monthly Neon
+ * compute allowance and was suspended, and agents could not sign in — while
+ * every bundle, order, ledger row and storefront in *this* database stayed
+ * perfectly healthy. A business that cannot be worked because a different
+ * business is down is not a separate business.
+ * So the logins come here too. These rows are copied from the retail `User`
+ * table by scripts/copy-logins.mjs, once, for the people who actually work in
+ * this business: everybody with a `DataAgent` row, and the admins who run the
+ * console. They are copies, not moves — retail keeps its own.
+ * `id` is the same cuid the retail account has. That is deliberate and it is
+ * the reason this is a copy rather than a rebuild: `DataAgent.userId`,
+ * `DataOrder.userId` and the ledger all hold retail `User.id` values as plain
+ * columns, and keeping the ids means every one of those references keeps
+ * resolving with nothing to re-key.
+ * `passwordHash` carries across unchanged. Bcrypt hashes are self-contained —
+ * cost and salt live inside the string — so the same password a person already
+ * knows goes on working here. Nobody is reset and nobody has to claim anything.
+ * After the copy the two drift apart, on purpose. A password changed in the
+ * agent console is written here and not to retail, and `passwordChangedAt`
+ * records that this row has its own mind now, so a re-run of the copy knows
+ * to leave it alone. Somebody who is both an agent and a mall customer holds
+ * two accounts that start identical and need not stay that way.
+ */
+model DataUser {
+  /// For a copied account, the retail `User.id` it came from — passed in
+  /// explicitly by scripts/copy-logins.mjs and never regenerated, because
+  /// `DataAgent.userId` and the ledger resolve against it. For an account
+  /// born here, such as an applicant approved in the console, there is no
+  /// retail row to inherit from and a fresh cuid is minted.
+  id String @id @default(cuid())
+
+  name  String?
+  /// Unique here as it is there, so a copy cannot land twice.
+  email String  @unique
+  phone String?
+  image String?
+
+  /// Bcrypt, copied verbatim. Null means an account that cannot sign in yet.
+  passwordHash String?
+
+  /// AGENT | ADMIN. The bundle business's own roles, not the mall's — a mall
+  /// SELLER or FREIGHT who happens to run a store is simply an AGENT here.
+  role String @default("AGENT")
+
+  /// A password that arrived by text is a way in, not a password: the console
+  /// opens nothing until it has been replaced. Copied from retail.
+  mustChangePassword Boolean @default(false)
+
+  twoFactorEnabled Boolean @default(false)
+  /// email | sms
+  twoFactorChannel String  @default("email")
+
+  /// The one sign-in this account currently holds, the same rule the mall
+  /// applies: a fresh id is minted on each sign-in and stamped into the token,
+  /// so a token carrying any other id belonged to a session since superseded.
+  /// Null means signed out everywhere.
+  activeSessionId String?
+  activeSessionAt DateTime?
+
+  /// When this row was copied in. Provenance, and the marker that says this
+  /// account began life as a mall account rather than being created here.
+  copiedAt          DateTime?
+  /// When the password was last changed *on this side*. Null means it is still
+  /// the copied one, which is what makes a re-run of the copy safe.
+  passwordChangedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([phone])
+  @@index([role])
+}
+
+/**
+ * Fixed-window rate limiting, for this database.
+ *
+ * The twin of the mall's `RateLimit`, and separate for the reason everything
+ * here is separate: the bundle sign-in must not need the mall to be reachable.
+ * Pointing it at the mall's table would have left the agent console with no
+ * brute-force protection at exactly the moment the mall is down — which is the
+ * moment somebody is most likely to be probing it.
+ *
+ * Counters live in Postgres rather than in the process because the app runs
+ * serverless: a process-local Map is per-instance, so "8 attempts" is really
+ * "8 per warm lambda" and traffic spread across instances gets as many
+ * multiples as the platform cares to start.
+ */
+model DataRateLimit {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
+
+  @@index([resetAt])
 }

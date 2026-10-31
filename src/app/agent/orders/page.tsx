@@ -15,7 +15,7 @@ import { OrderActions, type OrderView } from "@/components/data/OrderActions";
 import { OrderFilters } from "@/components/data/OrderFilters";
 import { OrderPager } from "@/components/data/OrderPager";
 import { LiveOrders } from "@/components/data/LiveOrders";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { formatMoney } from "@/lib/format";
 import { bundleLabel } from "@/lib/data-bundles/networks";
 import {
@@ -46,7 +46,7 @@ export default async function AgentOrdersPage({
     per?: string;
   }>;
 }) {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 

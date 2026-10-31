@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { memberLevelFor } from "@/lib/data-bundles/team/hierarchy";
@@ -29,7 +29,7 @@ export async function postToTeam(
   _prev: TeamActionState,
   fd: FormData,
 ): Promise<TeamActionState> {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) return { error: "You don't have an agent account." };
 
@@ -62,7 +62,7 @@ export async function postToTeam(
 
 /** Take one down. Only the leader who wrote it can. */
 export async function deleteTeamPost(fd: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   const id = String(fd.get("id") ?? "").trim();
   if (!agent || !id) return;
@@ -87,7 +87,7 @@ export async function addMemberNote(
   _prev: TeamActionState,
   fd: FormData,
 ): Promise<TeamActionState> {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) return { error: "You don't have an agent account." };
 
@@ -115,7 +115,7 @@ export async function addMemberNote(
 
 /** Remove a note. Only its author can. */
 export async function deleteMemberNote(fd: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   const id = String(fd.get("id") ?? "").trim();
   const memberId = String(fd.get("memberId") ?? "").trim();

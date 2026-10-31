@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { RoomView } from "@/components/chat/RoomView";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { conversationAccess, getMembers, getMessages } from "@/lib/chat/conversations";
 import { currentViewer } from "@/lib/chat/viewer";
@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Conversation — Agent — Nickimart
 export const dynamic = "force-dynamic";
 
 export default async function AgentRoomPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireUser();
+  const user = await requireDataUser();
   if (!(await getAgentForUser(user.id))) redirect("/become-an-agent");
   const viewer = await currentViewer();
   if (!viewer) redirect("/agent");

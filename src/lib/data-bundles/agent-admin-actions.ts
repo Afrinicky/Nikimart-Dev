@@ -4,9 +4,8 @@ import { createHash, randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
 import { dataDb } from "@/lib/data-db";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { formatMoney } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
@@ -29,7 +28,7 @@ import {
  * Admin actions for the agent programme: suspend an agent, correct a
  * balance, process a MoMo withdrawal, publish an announcement.
  *
- * Every one guards with `requireAdmin()` — these move real money — and every
+ * Every one guards with `requireDataAdminAction()` — these move real money — and every
  * balance change goes through `postLedgerEntry`, so an adjustment is as
  * auditable as a commission.
  */
@@ -74,7 +73,7 @@ function revalidateAgents(agentId?: string) {
  * history but their storefront closes and they stop earning on new deliveries.
  */
 export async function setAgentStatus(fd: FormData): Promise<void> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const id = str(fd, "agentId");
   const status = str(fd, "status");
   if (!id || !["active", "suspended"].includes(status)) return;
@@ -113,7 +112,7 @@ export async function adjustAgentBalance(
   _prev: AgentAdminState,
   fd: FormData,
 ): Promise<AgentAdminState> {
-  await requireAdmin();
+  await requireDataAdminAction();
 
   const agentId = str(fd, "agentId");
   if (!agentId) return { error: "Missing agent." };
@@ -170,7 +169,7 @@ export async function reconcileTopup(
   _prev: AgentAdminState,
   fd: FormData,
 ): Promise<AgentAdminState> {
-  await requireAdmin();
+  await requireDataAdminAction();
 
   const reference = str(fd, "reference");
   if (!reference) return { error: "Paste the Paystack reference (NT-…)." };
@@ -195,7 +194,7 @@ export async function reconcileTopup(
  * requested it, so this only records that the MoMo transfer was actually made.
  */
 export async function processWithdrawal(fd: FormData): Promise<void> {
-  const admin = await requireAdmin();
+  const admin = await requireDataAdminAction();
   const id = str(fd, "withdrawalId");
   if (!id) return;
 
@@ -267,7 +266,7 @@ export async function updateWithdrawalAmount(
   _prev: AgentAdminState,
   fd: FormData,
 ): Promise<AgentAdminState> {
-  const admin = await requireAdmin();
+  const admin = await requireDataAdminAction();
   const id = str(fd, "withdrawalId");
   if (!id) return { error: "Missing withdrawal." };
 
@@ -369,7 +368,7 @@ export async function updateWithdrawalAmount(
  * on the agent's wallet.
  */
 export async function rejectWithdrawal(fd: FormData): Promise<void> {
-  const admin = await requireAdmin();
+  const admin = await requireDataAdminAction();
   const id = str(fd, "withdrawalId");
   if (!id) return;
 
@@ -415,7 +414,7 @@ export async function rejectWithdrawal(fd: FormData): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function resolveSupportRequest(fd: FormData): Promise<void> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const id = str(fd, "id");
   if (!id) return;
   try {
@@ -442,7 +441,7 @@ export async function resolveSupportRequest(fd: FormData): Promise<void> {
  * way out was a database edit. This is that second chance.
  */
 export async function reissueSetupLink(fd: FormData): Promise<AgentAdminState> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const agentId = str(fd, "agentId");
   if (!agentId) return { error: "Missing agent." };
 
@@ -521,7 +520,7 @@ export async function setAgentReferrer(
   _prev: AgentAdminState,
   fd: FormData,
 ): Promise<AgentAdminState> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const agentId = str(fd, "agentId");
   const code = str(fd, "referralCode").toUpperCase();
   if (!agentId) return { error: "Missing agent." };
@@ -575,7 +574,7 @@ export async function setAgentRecruitPaymentMode(
   _prev: AgentAdminState,
   fd: FormData,
 ): Promise<AgentAdminState> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const agentId = str(fd, "agentId");
   if (!agentId) return { error: "Missing agent." };
 
@@ -629,7 +628,7 @@ export async function setAgentReferralWaiver(
   _prev: AgentAdminState,
   fd: FormData,
 ): Promise<AgentAdminState> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const agentId = str(fd, "agentId");
   if (!agentId) return { error: "Missing agent." };
 
@@ -717,7 +716,7 @@ export async function updateAgentDetails(
   _prev: AgentAdminState,
   fd: FormData,
 ): Promise<AgentAdminState> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const agentId = str(fd, "agentId");
   if (!agentId) return { error: "Missing agent." };
 
@@ -808,7 +807,7 @@ export async function updateAgentDetails(
     // The person behind the store, edited here so an admin does not have to go
     // hunting for them under Users for a phone number.
     if (data.ownerName || ownerPhone) {
-      await prisma.user.update({
+      await dataDb.dataUser.update({
         where: { id: agent.userId },
         data: {
           ...(data.ownerName ? { name: data.ownerName } : {}),
@@ -838,7 +837,7 @@ export async function updateAgentDetails(
  * off somebody's money, which is not a thing a delete button should do.
  */
 export async function deleteAgent(_prev: AgentAdminState, fd: FormData): Promise<AgentAdminState> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const agentId = str(fd, "agentId");
   if (!agentId) return { error: "Missing agent." };
 

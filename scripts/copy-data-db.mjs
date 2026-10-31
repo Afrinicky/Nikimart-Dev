@@ -23,6 +23,11 @@
  * referred by one created after them.
  */
 
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
 const DRY_RUN = process.argv.includes("--dry-run");
 
 const log = (msg) => process.stdout.write(`[copy-data] ${msg}\n`);
@@ -132,6 +137,72 @@ const INHERITED_SETTING_KEYS = [
   "agentAgentMarkupPercent", "agentSupportPhone", "agentSupportWhatsapp",
   "agentWhatsappGroup", "agentPitch",
 ];
+
+/**
+ * Is the list above still the whole truth?
+ *
+ * This script enumerates its tables and their columns by hand, and the comment
+ * on TABLES claims that listing columns explicitly makes a schema change "fail
+ * loudly here instead of copying half a row". It does not. A table missing
+ * from the list is not copied and nothing complains; a column missing from a
+ * table's list arrives at the destination as its default and nothing complains
+ * about that either. The failure is silent, and what it loses is rows.
+ *
+ * It had already happened. The list was written against 11 tables; the schema
+ * now has 35. Running this as it stood would have reported a clean copy and
+ * left behind every messenger conversation, every reward redemption, every
+ * agent point and wallet top-up, along with each agent's referral and waiver
+ * figures and every application's password.
+ *
+ * So the claim is now enforced instead of asserted. The schema is the source
+ * of truth, this compares itself against it, and a mismatch stops the run
+ * before it can copy anything. Fix the list, or copy the whole database with
+ * scripts/clone-database.mjs and drop what does not belong.
+ *
+ *     node scripts/copy-data-db.mjs --check   # report drift, copy nothing
+ */
+async function assertNoSchemaDrift() {
+  const schemaPath = path.join(ROOT, "prisma", "data", "schema.prisma");
+  let declaredTables;
+  try {
+    ({ tablesIn: declaredTables } = await import("./prisma-tables.mjs"));
+  } catch (err) {
+    fail("could not read scripts/prisma-tables.mjs — cannot check for drift.", err);
+  }
+
+  const inSchema = declaredTables(schemaPath);
+  const listed = TABLES.map((t) => t.name);
+  const missing = inSchema.filter((t) => !listed.includes(t));
+  const unknown = listed.filter((t) => !inSchema.includes(t));
+
+  if (missing.length === 0 && unknown.length === 0) return;
+
+  process.stderr.write(
+    `\n[copy-data] this script is out of date and would lose data.\n\n` +
+      `  prisma/data/schema.prisma defines ${inSchema.length} tables; this script copies ${listed.length}.\n\n`,
+  );
+  if (missing.length) {
+    process.stderr.write(`  Never copied (${missing.length}):\n`);
+    for (const t of missing) process.stderr.write(`    - ${t}\n`);
+  }
+  if (unknown.length) {
+    process.stderr.write(`\n  Listed here but not in the schema (${unknown.length}):\n`);
+    for (const t of unknown) process.stderr.write(`    - ${t}\n`);
+  }
+  process.stderr.write(
+    `\n  Columns are not checked here — the table list is already wrong, and a\n` +
+      `  column-level check against a database this script has not connected to\n` +
+      `  yet would only tell you the same thing twice.\n\n` +
+      `  Nothing has been copied.\n`,
+  );
+  process.exit(1);
+}
+
+await assertNoSchemaDrift();
+if (process.argv.includes("--check")) {
+  log("the table list matches prisma/data/schema.prisma.");
+  process.exit(0);
+}
 
 const { PrismaClient } = await import("@prisma/client");
 const source = new PrismaClient({ datasourceUrl: SOURCE_URL });

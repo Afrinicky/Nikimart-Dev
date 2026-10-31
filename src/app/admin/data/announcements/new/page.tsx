@@ -3,13 +3,13 @@ import { ArrowLeft } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { AnnouncementComposer } from "@/components/admin/AnnouncementComposer";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 
 export const metadata: Metadata = { title: "New announcement — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
 
 export default async function NewDataAnnouncementPage() {
-  await requireAdmin();
+  await requireDataAdminAction();
   return (
     <Container className="py-8">
       <ActionLink

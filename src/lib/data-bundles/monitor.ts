@@ -1,5 +1,4 @@
 import "server-only";
-import { prisma } from "@/lib/prisma";
 import { dataDb } from "@/lib/data-db";
 import { notify, type Recipient } from "@/lib/notifications";
 import { formatPrice } from "@/lib/format";
@@ -66,7 +65,7 @@ export interface SweepResult {
 
 async function adminRecipients(): Promise<Recipient[]> {
   try {
-    return await prisma.user.findMany({
+    return await dataDb.dataUser.findMany({
       where: { role: "ADMIN" },
       select: { name: true, phone: true, email: true },
     });
