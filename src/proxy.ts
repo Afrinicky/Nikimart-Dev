@@ -7,6 +7,16 @@ const { auth } = NextAuth(authConfig);
 
 export default auth((req) => {
   const { pathname, origin } = req.nextUrl;
+
+  // The bundle admin console answers to its own database, and this runs on the
+  // edge where that database cannot be read. Checking a mall session here
+  // would mean an administrator needed one to open a console the mall knows
+  // nothing about — the same coupling that was taken off /agent. It guards
+  // itself in src/app/admin/data/layout.tsx, which reads DataUser.
+  if (pathname === "/admin/data" || pathname.startsWith("/admin/data/")) {
+    return NextResponse.next();
+  }
+
   const match = dashboardFor(pathname);
 
   // Only dashboard routes are gated (see matcher below).
