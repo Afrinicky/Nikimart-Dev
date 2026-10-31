@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
-import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { formatMoney } from "@/lib/format";
 import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
@@ -69,7 +68,7 @@ export async function adminRegisterAgent(
   _prev: AdminAgentState,
   fd: FormData,
 ): Promise<AdminAgentState> {
-  await requireAdmin();
+  await requireDataAdminAction();
 
   const parsed = schema.safeParse({
     firstName: str(fd, "firstName"),
@@ -94,7 +93,7 @@ export async function adminRegisterAgent(
   if (slug.state !== "free") return { error: "Enter the store name." };
 
   // Somebody already trading is not somebody to register again.
-  const existingUserId = await prisma.user
+  const existingUserId = await dataDb.dataUser
     .findUnique({ where: { email }, select: { id: true } })
     .then((u) => u?.id ?? null)
     .catch(() => null);

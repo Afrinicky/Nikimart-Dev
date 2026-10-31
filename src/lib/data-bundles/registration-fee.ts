@@ -1,5 +1,4 @@
 import "server-only";
-import { prisma } from "@/lib/prisma";
 import { dataDb } from "@/lib/data-db";
 import { notify } from "@/lib/notifications";
 import { initializeTransaction, isPaymentConfigured, toPesewas, verifyTransaction } from "@/lib/payments";
@@ -371,7 +370,7 @@ async function notifyAdminsOfPayment(
     dedupeKey: `REGISTRATION:${id}`,
   });
   try {
-    const admins = await prisma.user.findMany({
+    const admins = await dataDb.dataUser.findMany({
       where: { role: "ADMIN" },
       select: { phone: true, email: true },
     });

@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
-import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+import { dataDb } from "@/lib/data-db";
+import { requireDataUser } from "@/lib/data-bundles/session";
+import { retryAfterLabel } from "@/lib/rate-limit";
+import { dataRateLimit } from "@/lib/data-bundles/rate-limit";
 
 /**
  * Replacing a password somebody else chose for you.
@@ -37,7 +38,7 @@ export async function setNewPassword(
   _prev: NewPasswordState,
   fd: FormData,
 ): Promise<NewPasswordState> {
-  const user = await requireUser();
+  const user = await requireDataUser();
 
   const parsed = schema.safeParse({
     password: String(fd.get("password") ?? ""),
@@ -47,12 +48,12 @@ export async function setNewPassword(
     return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
   }
 
-  const limit = await rateLimit(`new-password:${user.id}`, 10, 15 * 60_000);
+  const limit = await dataRateLimit(`new-password:${user.id}`, 10, 15 * 60_000);
   if (!limit.ok) {
     return { error: `Too many attempts. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }
 
-  const account = await prisma.user
+  const account = await dataDb.dataUser
     .findUnique({ where: { id: user.id }, select: { passwordHash: true } })
     .catch(() => null);
   if (!account) return { error: "Couldn't find your account." };
@@ -63,11 +64,15 @@ export async function setNewPassword(
   }
 
   try {
-    await prisma.user.update({
+    await dataDb.dataUser.update({
       where: { id: user.id },
       data: {
         passwordHash: await bcrypt.hash(parsed.data.password, 10),
         mustChangePassword: false,
+        // This account has its own password now, and the mall has never heard
+        // of it. The stamp is what tells scripts/copy-logins.mjs --refresh to
+        // leave this row alone rather than overwrite it with the copied one.
+        passwordChangedAt: new Date(),
       },
     });
   } catch {

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { isBackupId } from "@/lib/data-bundles/backup-format";
 import {
   RESTORE_CONFIRMATION,
@@ -46,7 +46,7 @@ export interface RestoreRunState {
 
 async function admin() {
   try {
-    return await requireAdmin();
+    return await requireDataAdminAction();
   } catch {
     return null;
   }

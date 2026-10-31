@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { getTransactions } from "@/lib/data-bundles/transactions";
 import { kindLabel, transactionRange } from "@/lib/transaction-kinds";
 import { workbookResponse, type Sheet } from "@/lib/xlsx";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: Request) {
   try {
-    await requireAdmin();
+    await requireDataAdminAction();
   } catch {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

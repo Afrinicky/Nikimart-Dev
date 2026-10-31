@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AgentPageHeading } from "@/components/agent/AgentUi";
 import { SupportTabs } from "@/components/agent/SupportTabs";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 
@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Support — Agent — Nickimart" };
 export const dynamic = "force-dynamic";
 
 export default async function AgentSupportPage() {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { applyAuditFix, isAuditFix } from "@/lib/data-bundles/audit";
 import {
   addProviderEntry,
@@ -13,7 +13,7 @@ import {
  * The write side of the audit, and of the movements it asks an administrator
  * to declare.
  *
- * `requireAdmin` reads the role from the database rather than off the session
+ * `requireDataAdminAction` reads the role from the database rather than off the session
  * token, so an account demoted since it signed in cannot correct the books on
  * the way out. Its rejection is turned into a message here, because a server
  * action's throw reaches the browser as an opaque error and tells the admin
@@ -47,7 +47,7 @@ export async function applyCorrection(
 ): Promise<AuditActionState> {
   let admin;
   try {
-    admin = await requireAdmin();
+    admin = await requireDataAdminAction();
   } catch {
     return { error: "Only an administrator may correct the books." };
   }
@@ -76,7 +76,7 @@ export async function recordProviderEntry(
 ): Promise<ProviderEntryState> {
   let admin;
   try {
-    admin = await requireAdmin();
+    admin = await requireDataAdminAction();
   } catch {
     return { error: "Only an administrator may record a movement." };
   }
@@ -122,7 +122,7 @@ export async function deleteProviderEntry(
   formData: FormData,
 ): Promise<ProviderEntryState> {
   try {
-    await requireAdmin();
+    await requireDataAdminAction();
   } catch {
     return { error: "Only an administrator may remove a movement." };
   }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { FileSpreadsheet, FileText, Info } from "lucide-react";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { DATA_EXPORT_LIST } from "@/lib/data-bundles/exports";
 
 export const metadata: Metadata = { title: "Export — Data Store Settings — Admin — Nickimart" };
@@ -26,7 +26,7 @@ export default async function DataExportPage() {
   // this check disagreed with the console frame above it, and swallowed the
   // NEXT_REDIRECT that is how a signed-out caller reaches /login. See the note
   // on the Backups tab.
-  await requireAdmin();
+  await requireDataAdminAction();
 
   return (
     <div className="space-y-6">

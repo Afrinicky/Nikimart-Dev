@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { UserPlus } from "lucide-react";
 import { AgentPageHeading } from "@/components/agent/AgentUi";
 import { SubAgentForm } from "@/components/agent/SubAgentForm";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { getReferralConfig } from "@/lib/data-bundles/settings";
 import { quoteRegistrationFee, recruitPaymentRule } from "@/lib/data-bundles/referrals";
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 /** Recruiting somebody without leaving the console. */
 export default async function AddSubAgentPage() {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 

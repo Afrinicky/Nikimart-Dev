@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { after } from "next/server";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
-import { auth } from "@/lib/auth";
+import { dataUserOrNull } from "@/lib/data-bundles/session";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { initializeTransaction, isPaymentConfigured, toPesewas } from "@/lib/payments";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
@@ -129,8 +129,14 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
       })
     : { teamAgentId: null, teamCommission: 0 };
 
-  const session = await auth();
-  const userId = session?.user?.id ?? null;
+  // Who placed it, if anybody — and read from this business's own session,
+  // not the mall's. A customer buying a bundle never registers for anything:
+  // they type a phone number, pay, and the bundle lands. So this is null for
+  // very nearly every order, and set only when an agent buys through their own
+  // console. Reading the mall's session here was the last thing on the
+  // storefront that needed the retail database to be reachable.
+  const buyer = await dataUserOrNull();
+  const userId = buyer?.id ?? null;
   const buyerEmail = data.buyerEmail?.trim() || null;
 
   const collectPayment = isPaymentConfigured("data");
@@ -267,7 +273,7 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
     };
   }
 
-  const session = await auth();
+  const buyer = await dataUserOrNull();
   const collectPayment = isPaymentConfigured("data");
 
   // An agent may charge their own AFA price; the difference over Nickimart's is
@@ -303,7 +309,7 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
           town: data.town,
           occupation: data.occupation,
           price,
-          userId: session?.user?.id ?? null,
+          userId: buyer?.id ?? null,
           agentId: agent?.id ?? null,
           source: agent ? "STOREFRONT" : "WEB",
           agentCost: agent ? config.afaPrice : 0,

@@ -3,7 +3,7 @@
 import { after } from "next/server";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { callbackOrigin } from "@/lib/site";
 import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { initializeTransaction, isPaymentConfigured, toPesewas } from "@/lib/payments";
@@ -38,7 +38,7 @@ export type AdminBuyResult =
   | { ok: false; error: string };
 
 export async function adminBuyBundle(input: z.infer<typeof buySchema>): Promise<AdminBuyResult> {
-  const admin = await requireAdmin();
+  const admin = await requireDataAdminAction();
 
   const parsed = buySchema.safeParse(input);
   if (!parsed.success) {

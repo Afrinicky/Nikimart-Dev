@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { dataDb } from "@/lib/data-db";
 import {
   BACKUP_CONTENT_TYPE,
@@ -46,7 +46,7 @@ function maxUploadBytes(): number {
 export async function POST(req: Request) {
   let admin;
   try {
-    admin = await requireAdmin();
+    admin = await requireDataAdminAction();
   } catch {
     return problem(403, "Forbidden");
   }

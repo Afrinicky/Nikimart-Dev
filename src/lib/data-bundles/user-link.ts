@@ -1,18 +1,22 @@
 import "server-only";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 
 /**
- * Joining an agent to the person behind it, across two databases.
+ * Joining an agent to the person behind it.
  *
- * `DataAgent.userId` points at a `User.id` in the retail database, which
- * Postgres cannot follow — so what used to be `include: { user: … }` is two
- * queries instead of one. Everything here does that second hop, and does it
- * once for a whole page of rows rather than once per row: a roster of fifty
- * agents costs one extra query, not fifty.
+ * This used to be the one thing that crossed the line: `DataAgent.userId` held
+ * a `User.id` in the *retail* database, which Postgres cannot follow, so every
+ * roster in the console paid a hop into the mall — and lost the names entirely
+ * whenever the mall was unreachable, which is how a bundle console ended up
+ * showing a page of blanks during a retail outage.
  *
- * A user that has gone missing (deleted on the retail side) resolves to null
- * rather than throwing. An agent whose person no longer exists is a support
- * problem, not a reason for the console to stop rendering.
+ * It no longer crosses. The ids are unchanged, because `DataUser` was copied
+ * keeping them, so `DataAgent.userId` resolves against a table in this same
+ * database and the join is local. Still two queries rather than an `include`,
+ * because the column is deliberately not a foreign key — the shape is kept so
+ * that nothing which used it had to change, and so that an agent whose login
+ * has not been copied yet resolves to null rather than throwing. An agent
+ * without a person is a support problem, not a reason to stop rendering.
  */
 
 /** The fields any screen needs about the person behind an agent. */
@@ -22,7 +26,7 @@ export interface AgentUser {
   email: string;
   phone: string | null;
   /**
-   * Whether they have ever been able to sign in. The hash itself is read here
+   * Whether they can sign in to this business. The hash itself is read here
    * and reduced to a boolean immediately — it never leaves this module.
    */
   canSignIn: boolean;
@@ -33,7 +37,7 @@ export async function getAgentUsers(userIds: string[]): Promise<Map<string, Agen
   const ids = [...new Set(userIds.filter(Boolean))];
   if (ids.length === 0) return new Map();
   try {
-    const rows = await prisma.user.findMany({
+    const rows = await dataDb.dataUser.findMany({
       where: { id: { in: ids } },
       select: { id: true, name: true, email: true, phone: true, passwordHash: true },
     });
@@ -66,12 +70,12 @@ export async function withAgentUsers<T extends { userId: string }>(
 }
 
 /**
- * The retail user id for an email address, for the one query that used to run
- * the other way round (`where: { user: { email } }`).
+ * The user id for an email address, for the one query that used to run the
+ * other way round (`where: { user: { email } }`).
  */
 export async function userIdForEmail(email: string): Promise<string | null> {
   try {
-    const user = await prisma.user.findUnique({
+    const user = await dataDb.dataUser.findUnique({
       where: { email: email.toLowerCase() },
       select: { id: true },
     });

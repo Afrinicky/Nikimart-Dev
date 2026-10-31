@@ -3,7 +3,7 @@
 import { revalidatePath, updateTag } from "next/cache";
 import { dataDb } from "@/lib/data-db";
 import { BUNDLES_TAG } from "@/lib/data-bundles/catalog";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { isNetwork, type Network } from "@/lib/data-bundles/networks";
 import { dispatchDataOrder, refreshDataOrder, dispatchAfaRegistration } from "@/lib/data-bundles/fulfillment";
 import { runDataBundleSweep } from "@/lib/data-bundles/monitor";
@@ -15,7 +15,7 @@ import { voidTeamCommission } from "@/lib/data-bundles/referrals";
 
 /**
  * Admin console actions for the data bundle storefront. Every one of these
- * guards with `requireAdmin()` — they set retail prices and spend the agent
+ * guards with `requireDataAdminAction()` — they set retail prices and spend the agent
  * wallet, so a stale session must never reach them.
  */
 
@@ -62,7 +62,7 @@ export async function saveBundlePrices(
   _prev: DataAdminState,
   fd: FormData,
 ): Promise<DataAdminState> {
-  await requireAdmin();
+  await requireDataAdminAction();
 
   const ids = fd.getAll("bundleId").map(String).filter(Boolean);
   if (ids.length === 0) return { error: "Nothing to save." };
@@ -161,7 +161,7 @@ export async function refreshBundleCosts(
   _prev: DataAdminState,
   fd: FormData,
 ): Promise<DataAdminState> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const result = await syncBundleCosts({ source: normalisePriceSource(str(fd, "source")) });
   if (!result.ok) return { error: result.message };
   if (result.updated > 0) revalidateAll();
@@ -173,7 +173,7 @@ export async function createBundle(
   _prev: DataAdminState,
   fd: FormData,
 ): Promise<DataAdminState> {
-  await requireAdmin();
+  await requireDataAdminAction();
 
   const network = str(fd, "network");
   if (!isNetwork(network)) return { error: "Choose a network." };
@@ -218,7 +218,7 @@ export async function createBundle(
 }
 
 export async function deleteBundle(fd: FormData): Promise<void> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const id = str(fd, "id");
   if (!id) return;
   try {
@@ -236,7 +236,7 @@ export async function deleteBundle(fd: FormData): Promise<void> {
  * being zeroed.
  */
 export async function applyMarkup(_prev: DataAdminState, fd: FormData): Promise<DataAdminState> {
-  await requireAdmin();
+  await requireDataAdminAction();
 
   const network = str(fd, "network");
   if (!isNetwork(network)) return { error: "Choose a network." };
@@ -292,7 +292,7 @@ export async function applyMarkup(_prev: DataAdminState, fd: FormData): Promise<
 
 /** Send a paid order to the provider again after a failed dispatch. */
 export async function retryDataOrder(fd: FormData): Promise<void> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const id = str(fd, "id");
   if (id) await dispatchDataOrder(id);
   revalidatePath("/admin/data/orders");
@@ -300,7 +300,7 @@ export async function retryDataOrder(fd: FormData): Promise<void> {
 
 /** Ask the provider for an order's current status and apply it. */
 export async function refreshDataOrderStatus(fd: FormData): Promise<void> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const id = str(fd, "id");
   if (id) await refreshDataOrder(id);
   revalidatePath("/admin/data/orders");
@@ -317,7 +317,7 @@ export async function refreshDataOrderStatus(fd: FormData): Promise<void> {
  * not pay anybody.
  */
 export async function markDataOrderRefunded(fd: FormData): Promise<void> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const id = str(fd, "id");
   if (!id) return;
   const refunded = await dataDb.dataOrder
@@ -334,7 +334,7 @@ export async function markDataOrderRefunded(fd: FormData): Promise<void> {
 }
 
 export async function retryAfaRegistration(fd: FormData): Promise<void> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const id = str(fd, "id");
   if (id) await dispatchAfaRegistration(id);
   revalidatePath("/admin/data/afa");
@@ -349,7 +349,7 @@ export async function retryAfaRegistration(fd: FormData): Promise<void> {
  * top-up is what keeps it from being netted off against the day's orders.
  */
 export async function recordProviderReading(): Promise<void> {
-  await requireAdmin();
+  await requireDataAdminAction();
   await captureProviderBalance();
   revalidatePath("/admin/data/transactions/topups");
   revalidatePath("/admin/data");
@@ -361,7 +361,7 @@ export async function recordProviderReading(): Promise<void> {
  * tomorrow for stalled orders to be re-driven.
  */
 export async function sweepDataOrders(): Promise<void> {
-  await requireAdmin();
+  await requireDataAdminAction();
   await runDataBundleSweep();
   revalidatePath("/admin/data");
   revalidatePath("/admin/data/orders");

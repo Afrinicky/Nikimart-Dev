@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { workbookResponse } from "@/lib/xlsx";
 import { CONTACT_COLUMNS, contactRows } from "@/lib/messenger";
 
@@ -12,12 +12,12 @@ export const dynamic = "force-dynamic";
  * In the same column order the importer reads, so an export is a round trip:
  * download it, fix the forty numbers that changed, upload it back. A contact
  * list is people's phone numbers, so the admin check is not optional — and
- * `requireAdmin` redirects rather than throws, which is no use to a download,
+ * `requireDataAdminAction` redirects rather than throws, which is no use to a download,
  * hence the 403.
  */
 export async function GET() {
   try {
-    await requireAdmin();
+    await requireDataAdminAction();
   } catch {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { verifyTransaction } from "@/lib/payments";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import {
   dataPaymentCovers,
   isDataReference,
@@ -22,7 +22,7 @@ export default async function AdminTopupVerifyPage({
 }: {
   searchParams: Promise<{ reference?: string; trxref?: string }>;
 }) {
-  await requireAdmin();
+  await requireDataAdminAction();
 
   const params = await searchParams;
   const reference = (params.reference || params.trxref || "").trim();

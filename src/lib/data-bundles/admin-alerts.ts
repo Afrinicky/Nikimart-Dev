@@ -1,5 +1,5 @@
 import "server-only";
-import { prisma } from "@/lib/prisma";
+import { dataDb } from "@/lib/data-db";
 import { notifyTemplate } from "@/lib/messages";
 
 /**
@@ -18,7 +18,7 @@ export async function notifyAdmins(
   vars: Record<string, string | number> = {},
 ): Promise<void> {
   try {
-    const admins = await prisma.user.findMany({
+    const admins = await dataDb.dataUser.findMany({
       where: { role: "ADMIN" },
       select: { phone: true, email: true },
     });

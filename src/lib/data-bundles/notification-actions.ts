@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { dataDb } from "@/lib/data-db";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 
 /**
  * Marking notifications dealt with.
@@ -22,7 +22,7 @@ function revalidateNotifications() {
 
 /** Mark one read — what opening the thing it points at does. */
 export async function markNotificationRead(fd: FormData): Promise<void> {
-  const admin = await requireAdmin();
+  const admin = await requireDataAdminAction();
   const id = String(fd.get("id") ?? "").trim();
   if (!id) return;
   try {
@@ -44,7 +44,7 @@ export async function markNotificationRead(fd: FormData): Promise<void> {
  * it is opened, which loses a notice to a glance on the way to something else.
  */
 export async function openNotification(fd: FormData): Promise<void> {
-  const admin = await requireAdmin();
+  const admin = await requireDataAdminAction();
   const id = String(fd.get("id") ?? "").trim();
   if (!id) return;
 
@@ -70,7 +70,7 @@ export async function openNotification(fd: FormData): Promise<void> {
 
 /** Put one back in the queue, for something read and not actually dealt with. */
 export async function markNotificationUnread(fd: FormData): Promise<void> {
-  await requireAdmin();
+  await requireDataAdminAction();
   const id = String(fd.get("id") ?? "").trim();
   if (!id) return;
   try {
@@ -86,7 +86,7 @@ export async function markNotificationUnread(fd: FormData): Promise<void> {
 
 /** Clear the queue. */
 export async function markAllNotificationsRead(): Promise<void> {
-  const admin = await requireAdmin();
+  const admin = await requireDataAdminAction();
   try {
     await dataDb.dataNotification.updateMany({
       where: { readAt: null },

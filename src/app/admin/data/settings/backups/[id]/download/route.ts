@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { readDataBackup } from "@/lib/data-bundles/backup";
 import { BACKUP_CONTENT_TYPE, isBackupId } from "@/lib/data-bundles/backup-format";
 
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  * ledger row and every password hash in it — so this is the most sensitive
  * route in the console and it is written defensively:
  *
- *   - `requireAdmin` re-reads the role from the database. It redirects a
+ *   - `requireDataAdminAction` re-reads the role from the database. It redirects a
  *     signed-out caller, which is useless to a download, so the redirect is
  *     caught and turned into a 403.
  *   - The id is validated against the backup-id pattern before it is used for
@@ -38,7 +38,7 @@ function problem(status: number, error: string) {
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin();
+    await requireDataAdminAction();
   } catch {
     return problem(403, "Forbidden");
   }

@@ -3,8 +3,8 @@ import { Container } from "@/components/ui/Container";
 import { AgentShell } from "@/components/agent/AgentShell";
 import { NewPasswordForm } from "@/components/agent/NewPasswordForm";
 import { RegistrationFeePanel } from "@/components/agent/RegistrationFeePanel";
-import { requireUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
+import { requireDataUser } from "@/lib/data-bundles/session";
+import { dataDb } from "@/lib/data-db";
 import { getAgentForUser, getAnnouncements } from "@/lib/data-bundles/agents";
 import { getWorkspaces } from "@/lib/workspaces";
 import { getDataStoreConfig, getLeaderboardConfig } from "@/lib/data-bundles/settings";
@@ -30,7 +30,7 @@ export default async function AgentLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const [agent, store, leaderboard, notices, account, workspaces] = await Promise.all([
     getAgentForUser(user.id),
     getDataStoreConfig(),
@@ -38,7 +38,7 @@ export default async function AgentLayout({
     getAnnouncements(10),
     // Only ever true for somebody registered by another agent: they were sent
     // a working password rather than asked to choose one.
-    prisma.user
+    dataDb.dataUser
       .findUnique({ where: { id: user.id }, select: { mustChangePassword: true } })
       .catch(() => null),
     // The other consoles this person holds, for the switcher in the sidebar.

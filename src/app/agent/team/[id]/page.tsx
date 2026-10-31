@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { ActionLink } from "@/components/ui/motion";
 import { AgentPageHeading, Card, formatWhen } from "@/components/agent/AgentUi";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { formatMoney } from "@/lib/format";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { resolveWindow } from "@/lib/data-bundles/overview-window";
@@ -69,7 +69,7 @@ export default async function TeamMemberPage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<{ days?: string; from?: string; to?: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 

@@ -34,7 +34,13 @@ export default auth((req) => {
 export const config = {
   matcher: [
     "/account/:path*",
-    "/agent/:path*",
+    // Not /agent. The bundle business signs its own people in now, against
+    // its own database, and this runs on the edge where that database cannot
+    // be read. Gating it here would have meant an agent needed a *mall*
+    // session to reach a console the mall knows nothing about — which is
+    // exactly the coupling that left every agent locked out when the retail
+    // project ran out of compute. The guard lives in src/app/agent/layout.tsx,
+    // which reads DataUser and sends anybody without a session to /agent-login.
     "/seller/:path*",
     "/admin/:path*",
     "/freight/:path*",

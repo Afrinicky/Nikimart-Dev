@@ -4,7 +4,7 @@ import { Coins, Gift, History, Trophy } from "lucide-react";
 import { AgentPageHeading, Card, EmptyRow, formatWhen } from "@/components/agent/AgentUi";
 import { BoardCard } from "@/components/agent/LeaderboardUi";
 import { RewardsPanel, type RewardTierView } from "@/components/agent/RewardsPanel";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { formatMoney } from "@/lib/format";
 import { bundleLabel, networkLabel } from "@/lib/data-bundles/networks";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
@@ -35,7 +35,7 @@ const REDEMPTION_TONES: Record<string, string> = {
  * for. Splitting them up would turn a story into a menu.
  */
 export default async function AgentLeaderboardPage() {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 

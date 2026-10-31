@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath, updateTag } from "next/cache";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import {
   DATA_SETTINGS_TAG,
   getDataSettings,
@@ -58,7 +58,7 @@ export async function updateDeveloperSettings(
   _prev: DeveloperSettingsState,
   fd: FormData,
 ): Promise<DeveloperSettingsState> {
-  await requireAdmin();
+  await requireDataAdminAction();
 
   const entries: Record<string, string> = {};
   let notice: string | undefined;
@@ -163,7 +163,7 @@ export async function testCarrierConnection(
   _prev: DeveloperSettingsState,
   fd: FormData,
 ): Promise<DeveloperSettingsState> {
-  await requireAdmin();
+  await requireDataAdminAction();
 
   const carrierId = str(fd, "carrierId");
   const entry = carrierCatalogById(carrierId);

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { DoorOpen } from "lucide-react";
 import { AgentChatroomShell } from "@/components/agent/AgentChatroomShell";
 import { formatWhen } from "@/components/agent/AgentUi";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { getPendingRequests } from "@/lib/chat/conversations";
 import { decideRequest } from "@/lib/chat/actions";
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 /** Who is waiting to be let into a room this agent runs. */
 export default async function AgentRequestsPage() {
-  const user = await requireUser();
+  const user = await requireDataUser();
   if (!(await getAgentForUser(user.id))) redirect("/become-an-agent");
   const viewer = await currentViewer();
   if (!viewer) redirect("/agent");

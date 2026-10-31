@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath, updateTag } from "next/cache";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { DATA_SETTINGS_DEFAULTS, DATA_SETTINGS_TAG, saveDataSettings } from "@/lib/data-bundles/settings";
 import { LEADERBOARD_TAG } from "@/lib/data-bundles/leaderboard";
 
@@ -61,7 +61,7 @@ export async function updateDataSettings(
   _prev: DataSettingsState,
   fd: FormData,
 ): Promise<DataSettingsState> {
-  await requireAdmin();
+  await requireDataAdminAction();
 
   for (const [key, label] of NON_NEGATIVE) {
     if (!fd.has(key)) continue;

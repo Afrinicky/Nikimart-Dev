@@ -1599,8 +1599,12 @@ model DataMessengerMessage {
  * two accounts that start identical and need not stay that way.
  */
 model DataUser {
-  /// The retail `User.id` this was copied from. Never regenerated.
-  id String @id
+  /// For a copied account, the retail `User.id` it came from — passed in
+  /// explicitly by scripts/copy-logins.mjs and never regenerated, because
+  /// `DataAgent.userId` and the ledger resolve against it. For an account
+  /// born here, such as an applicant approved in the console, there is no
+  /// retail row to inherit from and a fresh cuid is minted.
+  id String @id @default(cuid())
 
   name  String?
   /// Unique here as it is there, so a copy cannot land twice.

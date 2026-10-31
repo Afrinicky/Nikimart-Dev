@@ -1,6 +1,6 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/session";
+import { requireDataUser } from "@/lib/data-bundles/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { resolveWindow, dayKey, type OverviewWindow } from "@/lib/data-bundles/overview-window";
 import type { AgentAccount } from "@/lib/data-bundles/agents";
@@ -24,7 +24,7 @@ export interface TeamPageContext {
 export async function teamPageContext(
   searchParams?: Promise<{ days?: string; from?: string; to?: string }>,
 ): Promise<TeamPageContext> {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 

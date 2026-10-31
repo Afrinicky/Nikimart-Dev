@@ -6,7 +6,7 @@ import { ChatView } from "@/components/admin/messenger/ChatView";
 import { ANNOUNCEMENT_MODULE_TABS } from "@/lib/announcement-module";
 import { unreadNotificationCount } from "@/lib/data-bundles/notifications";
 import { loadChats } from "@/lib/messenger-page";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 
 export const metadata: Metadata = { title: "Messenger — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export default async function DataMessengerPage({
 }: {
   searchParams: Promise<{ c?: string }>;
 }) {
-  await requireAdmin();
+  await requireDataAdminAction();
   const { c } = await searchParams;
   const [data, unread] = await Promise.all([loadChats("data", c), unreadNotificationCount()]);
 

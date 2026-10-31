@@ -8,7 +8,7 @@ import { unreadNotificationCount } from "@/lib/data-bundles/notifications";
 import { broadcastAudiences } from "@/lib/broadcasts";
 import { broadcastHistory } from "@/lib/messenger-broadcast";
 import { listContacts, listTags } from "@/lib/messenger";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 
 export const metadata: Metadata = { title: "Broadcast — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
  * screen it was sent from.
  */
 export default async function AdminDataBroadcastsPage() {
-  await requireAdmin();
+  await requireDataAdminAction();
   const [history, groups, { contacts }, unread] = await Promise.all([
     broadcastHistory("data"),
     listTags("data"),

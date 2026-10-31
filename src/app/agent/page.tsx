@@ -18,8 +18,8 @@ import { QuickActions } from "@/components/agent/QuickActions";
 import { AgentTour } from "@/components/agent/AgentTour";
 import { AgentAlerts, type AgentAlert } from "@/components/agent/AgentAlerts";
 import { BoardCard } from "@/components/agent/LeaderboardUi";
-import { requireUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
+import { requireDataUser } from "@/lib/data-bundles/session";
+import { dataDb } from "@/lib/data-db";
 import { siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
 import {
@@ -89,7 +89,7 @@ export default async function AgentDashboardPage({
 }: {
   searchParams?: Promise<{ days?: string; from?: string; to?: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requireDataUser();
   const agent = await getAgentForUser(user.id);
   if (!agent) redirect("/become-an-agent");
 
@@ -126,7 +126,7 @@ export default async function AgentDashboardPage({
   // What the strip has to say today. A list rather than a banner, because the
   // next thing worth saying should be a row added here.
   const [security, fromLeader] = await Promise.all([
-    prisma.user
+    dataDb.dataUser
       .findUnique({ where: { id: user.id }, select: { twoFactorEnabled: true } })
       .catch(() => null),
     getPostsForMember(agent.id, 1),

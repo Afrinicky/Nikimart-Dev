@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/session";
+import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { buildDataExport, isDataExportDataset } from "@/lib/data-bundles/exports";
 import { workbookResponse } from "@/lib/xlsx";
 import { csvResponse } from "@/lib/data-bundles/csv";
@@ -14,7 +14,7 @@ export const maxDuration = 120;
  *
  * These workbooks carry agent contact details, payout accounts and the whole
  * commission ledger, so the admin check is not a formality — and because
- * `requireAdmin` redirects rather than throws for a signed-out visitor, which
+ * `requireDataAdminAction` redirects rather than throws for a signed-out visitor, which
  * is useless to a download, the redirect is caught and turned into a 403.
  *
  * `?format=csv` returns one sheet rather than the workbook, and `?sheet=`
@@ -27,7 +27,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ dataset:
   }
 
   try {
-    await requireAdmin();
+    await requireDataAdminAction();
   } catch {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
