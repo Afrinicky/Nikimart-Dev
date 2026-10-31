@@ -190,14 +190,77 @@ async function migrateTarget({ name, dir, url, lockId }) {
   }
 }
 
+/**
+ * Did this fail because the server never answered?
+ *
+ * There are two very different ways a target can fail, and until now they were
+ * treated the same. A migration that *errored* — bad SQL, a conflict, a column
+ * that is already there — means the schema is not what the code expects, and
+ * stopping the build is the only safe answer. A database that could not be
+ * *reached* says nothing about the schema at all. It says the server is asleep.
+ *
+ * The patterns are the ones src/lib/medical/db-failure.ts classifies as
+ * "unreachable"; they are repeated here rather than imported because that
+ * module is TypeScript and this script runs under plain node, before anything
+ * has been compiled.
+ */
+function isUnreachable(err) {
+  const message = err instanceof Error ? err.message : String(err);
+  return /can't reach database server|\bP1001\b|\bP1002\b|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|connection refused|timed out|terminating connection|connection closed|server has closed the connection/i.test(
+    message,
+  );
+}
+
+/**
+ * Targets the deployer has decided may be unreachable, by name.
+ *
+ * Off unless it is set, and it has to be set deliberately, because what it
+ * buys is the right to ship without having checked that target's schema.
+ *
+ *     MIGRATE_SKIP_UNREACHABLE=retail
+ *
+ * It exists because of the week this was written. The retail project ran out
+ * of its monthly Neon compute allowance and was suspended, and the build
+ * stopped on it — which meant that the work making the bundle business
+ * independent of retail could not be deployed *because retail was down*. A
+ * split that cannot ship while the other half is down is not a split.
+ *
+ * It only ever applies to a target that did not answer. A migration that runs
+ * and fails still stops the build, whatever this is set to, because that is
+ * the case the stop was written for.
+ *
+ * Two things to be clear-eyed about before setting it: that target's pending
+ * migrations are not applied, and nothing will apply them until the next
+ * deploy after it comes back. So it is safe when the branch adds no migrations
+ * for that target, and a deliberate risk when it does.
+ */
+const SKIPPABLE = (process.env.MIGRATE_SKIP_UNREACHABLE ?? "")
+  .split(",")
+  .map((n) => n.trim().toLowerCase())
+  .filter(Boolean);
+
 // One target at a time, retail first. The data migrations fall back to the
 // retail database when the split hasn't happened yet, and running them in
 // parallel against the same database would have two connections taking two
 // locks and creating the same table.
-try {
-  for (const target of TARGETS) {
+let skipped = 0;
+for (const target of TARGETS) {
+  try {
     await migrateTarget(target);
+  } catch (err) {
+    if (SKIPPABLE.includes(target.name) && isUnreachable(err)) {
+      skipped++;
+      log("");
+      log(`WARNING: ${target.name} did not answer, and MIGRATE_SKIP_UNREACHABLE allows it.`);
+      log(`         Its migrations have NOT been applied and have NOT been checked.`);
+      log(`         Deploy again once ${target.name} is reachable, or its schema stays behind.`);
+      log("");
+      continue;
+    }
+    fail("migration failed — the build is stopping so a broken deploy can't ship.", err);
   }
-} catch (err) {
-  fail("migration failed — the build is stopping so a broken deploy can't ship.", err);
+}
+
+if (skipped > 0) {
+  log(`${skipped} target(s) skipped while unreachable. The build continues.`);
 }
