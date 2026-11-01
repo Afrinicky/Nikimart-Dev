@@ -1,4 +1,5 @@
 "use server";
+import { mirrorPasswordToRetail } from "@/lib/data-bundles/password-mirror";
 
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
@@ -63,11 +64,13 @@ export async function setNewPassword(
     return { error: "Choose a different password from the one you were sent." };
   }
 
+  const newHash = await bcrypt.hash(parsed.data.password, 10);
+
   try {
     await dataDb.dataUser.update({
       where: { id: user.id },
       data: {
-        passwordHash: await bcrypt.hash(parsed.data.password, 10),
+        passwordHash: newHash,
         mustChangePassword: false,
         // The issued password this replaces went out by text and through an
         // inbox, and two people know it. Any session opened with it ends here,
@@ -83,15 +86,23 @@ export async function setNewPassword(
         lockoutStage: 0,
         lockedUntil: null,
         lockedAt: null,
-        // This account has its own password now, and the mall has never heard
-        // of it. The stamp is what tells scripts/copy-logins.mjs --refresh to
-        // leave this row alone rather than overwrite it with the copied one.
+        // This account chose its own password. The stamp is what tells
+        // scripts/copy-logins.mjs --refresh to leave this row alone rather
+        // than overwrite it from the mall — still true now that the change is
+        // mirrored the other way, because the mall is no longer the source.
         passwordChangedAt: new Date(),
       },
     });
   } catch {
     return { error: "Couldn't save your new password. Please try again." };
   }
+
+
+  // And the mall, for somebody who holds both accounts. Changing a password
+  // once should change their password, not half of it. Deliberately after the
+  // bundle write and deliberately unable to fail it: the mall being away is
+  // the situation this whole split exists for.
+  await mirrorPasswordToRetail(user.id, user.email ?? "", newHash);
 
   revalidatePath("/agent");
   return { ok: true, message: "Password changed. You're all set." };

@@ -1,4 +1,5 @@
 "use server";
+import { mirrorPasswordToRetail } from "@/lib/data-bundles/password-mirror";
 import { dataRateLimit } from "@/lib/data-bundles/rate-limit";
 
 import { revalidatePath } from "next/cache";
@@ -194,13 +195,15 @@ export async function changeAgentPassword(input: {
     if (!ok) return { ok: false, error: "That isn't your current password." };
   }
 
+  const newHash = await bcrypt.hash(input.newPassword, 10);
+
   try {
     await dataDb.dataUser.update({
       where: { id: user.id },
       data: {
-        passwordHash: await bcrypt.hash(input.newPassword, 10),
-        // Diverged from the copied one on purpose: the mall has never heard of
-        // this password, and copy-logins.mjs --refresh must not undo it.
+        passwordHash: newHash,
+        // This account chose its own password, so copy-logins.mjs --refresh
+        // must not overwrite it from the mall.
         passwordChangedAt: new Date(),
         // And every session the account holds ends with the old password.
         // Somebody changing their password because they think someone else
@@ -220,6 +223,11 @@ export async function changeAgentPassword(input: {
   } catch {
     return { ok: false, error: "Couldn't change your password. Please try again." };
   }
+
+  // And the mall, for somebody who holds both accounts. Changing a password
+  // once should change their password, not half of it. After the bundle write
+  // and unable to fail it: the mall being away is what the split is for.
+  await mirrorPasswordToRetail(user.id, user.email ?? "", newHash);
 
   return { ok: true, message: "Your password has been changed." };
 }

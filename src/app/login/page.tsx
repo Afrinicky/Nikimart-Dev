@@ -5,7 +5,6 @@ import { SignInModeTabs } from "@/components/auth/SignInModeTabs";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { auth } from "@/lib/auth";
 import { isRole, ROLE_HOME } from "@/lib/roles";
-import { isAgentUser } from "@/lib/data-bundles/agents";
 import { medicalHomeForUser } from "@/lib/medical/home";
 
 export const metadata: Metadata = {
@@ -37,10 +36,11 @@ export default async function LoginPage({
     // The same order loginAction uses, so arriving here already signed in ends
     // up where signing in would have put you: medical staff in the medical
     // console, an agent in theirs, everybody else at their role's home.
+    // Same rule as loginAction, and the agent console is deliberately not in
+    // it: a mall session cannot open /agent, so offering it is a bounce.
     const home =
       role === "CUSTOMER" && session.user.id
-        ? ((await medicalHomeForUser(session.user.id)) ??
-          ((await isAgentUser(session.user.id)) ? "/agent" : ROLE_HOME[role]))
+        ? ((await medicalHomeForUser(session.user.id)) ?? ROLE_HOME[role])
         : ROLE_HOME[role];
     redirect(cb ?? home);
   }
