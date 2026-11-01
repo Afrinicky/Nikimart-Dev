@@ -14,6 +14,9 @@
  *       node scripts/copy-logins.mjs             # insert the missing ones
  *       node scripts/copy-logins.mjs --refresh   # also re-copy unchanged rows
  *
+ * Or, with no machine to run it from, set COPY_LOGINS_ON_BUILD in the
+ * deployment environment and let the build do it — see `--if-enabled` below.
+ *
  * Who is copied: everybody holding a `DataAgent` row — that list comes from
  * the bundle database, which does not need retail to be reachable — and every
  * retail `User` whose role is ADMIN, because the bundle console is theirs to
@@ -46,6 +49,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const REFRESH = process.argv.includes("--refresh");
+const IF_ENABLED = process.argv.includes("--if-enabled");
 
 const log = (msg) => process.stdout.write(`[copy-logins] ${msg}\n`);
 
@@ -53,6 +57,36 @@ function fail(msg, err) {
   process.stderr.write(`\n[copy-logins] ${msg}\n`);
   if (err) process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
   process.exit(1);
+}
+
+/**
+ * Running the copy from the build, for a deployment with no machine behind it.
+ *
+ * `--if-enabled` makes this a no-op unless COPY_LOGINS_ON_BUILD is set, which
+ * is what lets it sit in the build command harmlessly. The reason to want it
+ * there: the credentials for both databases are already in the deployment
+ * environment, and nobody has to copy them anywhere else — not onto a laptop,
+ * not into a second service — to do a one-time migration of who can sign in.
+ *
+ * It also fixes the ordering problem by hand. Run as three separate steps, the
+ * deploy that introduces /agent-login can land before the logins exist, and
+ * every agent is locked out in between. In the build, the chain is
+ * migrate (which creates DataUser) → this (which fills it) → next build, so
+ * the deploy that brings the new sign-in also brings the accounts it needs.
+ *
+ * Leave it set and it runs on every deploy, which is safe: an account already
+ * here is left alone, so later builds insert nothing. Unset it once the
+ * cutover is done, because a build step that never does anything is one more
+ * thing to explain to whoever reads this next.
+ */
+function enabledOnBuild() {
+  const v = (process.env.COPY_LOGINS_ON_BUILD ?? "").trim().toLowerCase();
+  return v !== "" && v !== "0" && v !== "false" && v !== "no";
+}
+
+if (IF_ENABLED && !enabledOnBuild()) {
+  log("COPY_LOGINS_ON_BUILD is not set — not copying logins. (This is the default.)");
+  process.exit(0);
 }
 
 const RETAIL_URL = process.env.DATABASE_URL;

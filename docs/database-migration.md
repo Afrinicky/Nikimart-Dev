@@ -139,6 +139,39 @@ Either way the old tables are still sitting in the retail database afterwards.
 Dropping them is a separate decision, made once you are satisfied the new
 project is the one being read.
 
+## Moving the logins when there is no machine to run it from
+
+`scripts/copy-logins.mjs` copies the retail accounts of the people who work in
+the bundle business — everybody with a `DataAgent` row, and the admins — into
+`DataUser`, so that signing in stops needing the mall. Bcrypt hashes carry
+across verbatim, so nobody is reset.
+
+Normally you run it with both URLs in your shell. With no checkout to run it
+from, the deployment already holds both: set
+
+    COPY_LOGINS_ON_BUILD=1
+
+in the deployment environment and the build does it, because the build command
+now ends with `node scripts/copy-logins.mjs --if-enabled`, which is a no-op
+without that variable.
+
+Doing it there also fixes an ordering trap. As three separate steps, the deploy
+that introduces `/agent-login` can land *before* the logins exist, and every
+agent is locked out in between. In the build the chain is migrate — which
+creates `DataUser` — then the copy, then `next build`, so the deploy that
+brings the new sign-in also brings the accounts it needs.
+
+It is safe to leave set: an account already there is left alone, so every later
+build inserts nothing. Unset it once the cutover is done, because a build step
+that never does anything is one more thing to explain to whoever reads this
+next. Check it landed with:
+
+    DATA_DATABASE_URL=… npm run db:login-status
+
+`stranded (no login yet)` must be `0`. Anything else is an agent who cannot
+sign in — usually one whose retail account was deleted, which the copy names
+rather than skipping silently.
+
 ## Why this keeps happening
 
 The Neon Free plan gives **100 compute-hours per project per month**, and a
