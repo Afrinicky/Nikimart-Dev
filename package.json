@@ -18,6 +18,7 @@
     "db:copy-data": "node scripts/copy-data-db.mjs",
     "db:clone": "node scripts/clone-database.mjs",
     "db:copy-logins": "node scripts/copy-logins.mjs",
+    "db:login-status": "NODE_OPTIONS=--conditions=react-server tsx scripts/data-login-status.ts",
     "medical:seed": "tsx prisma/medical/seed.ts",
     "medical:migrate": "node scripts/migrate.mjs",
     "medical:check": "NODE_OPTIONS=--conditions=react-server tsx scripts/medical-workflow-check.ts",
