@@ -1,4 +1,6 @@
 "use server";
+import { DB_UNIQUE_VIOLATION, describeDbError } from "@/lib/db-errors";
+import bcrypt from "bcryptjs";
 import { liftLock } from "@/lib/data-bundles/lockout";
 
 import { createHash, randomBytes } from "crypto";
@@ -97,6 +99,99 @@ export async function setAgentStatus(fd: FormData): Promise<void> {
     }
   } catch {
     // Agent gone, or tables not migrated — nothing to undo.
+  }
+}
+
+/**
+ * The account behind an agent: email, password, lock, second step.
+ *
+ * This used to be a link to /admin/users/<id> — the *mall's* user editor —
+ * which after the split edits a different database entirely. An administrator
+ * resetting an agent's password there set a password the agent console never
+ * reads, and reported success. So the account is edited here, against the
+ * table the bundle sign-in actually consults.
+ */
+export async function updateAgentAccount(
+  _prev: AgentAdminState,
+  fd: FormData,
+): Promise<AgentAdminState> {
+  await requireDataAdminAction();
+  const userId = str(fd, "userId");
+  if (!userId) return { error: "That account no longer exists." };
+
+  const email = str(fd, "email").toLowerCase();
+  const phone = str(fd, "phone");
+  const password = str(fd, "password");
+
+  if (!email.includes("@")) return { error: "Enter a valid email address." };
+  if (password && password.length < 8) {
+    return { error: "A new password must be at least 8 characters." };
+  }
+
+  try {
+    await dataDb.dataUser.update({
+      where: { id: userId },
+      data: {
+        email,
+        phone: phone || null,
+        ...(password
+          ? {
+              passwordHash: await bcrypt.hash(password, 10),
+              // The same rules a self-service change follows: the account now
+              // has its own password, every session it held ends, and the
+              // sign-in lock lifts — an admin setting a password is deciding
+              // the person is who they say they are.
+              passwordChangedAt: new Date(),
+              mustChangePassword: false,
+              activeSessionId: null,
+              activeSessionAt: null,
+              failedLoginCount: 0,
+              lockoutStage: 0,
+              lockedUntil: null,
+              lockedAt: null,
+            }
+          : {}),
+      },
+    });
+  } catch (thrown) {
+    if (describeDbError(thrown).code === DB_UNIQUE_VIOLATION) {
+      return { error: "Another account already uses that email address." };
+    }
+    console.error("[data-admin] agent account write failed", thrown);
+    return { error: "Couldn't save the account. Please try again." };
+  }
+
+  revalidatePath("/admin/data/agents");
+  return {
+    ok: true,
+    message: password
+      ? "Account saved. The new password works now and they have been signed out everywhere."
+      : "Account saved.",
+  };
+}
+
+/**
+ * Turn the second step off for somebody who cannot receive the code.
+ *
+ * The lost-phone case. Switching it off is a decision an administrator makes
+ * knowingly, so it is its own button rather than a checkbox on a form that
+ * might be saved without reading.
+ */
+export async function clearAgentTwoFactor(fd: FormData): Promise<void> {
+  await requireDataAdminAction();
+  const userId = str(fd, "userId");
+  if (!userId) return;
+  try {
+    await dataDb.dataUser.update({
+      where: { id: userId },
+      data: { twoFactorEnabled: false },
+    });
+    await dataDb.dataTwoFactorChallenge
+      .deleteMany({ where: { userId, consumedAt: null } })
+      .catch(() => undefined);
+    revalidatePath("/admin/data/agents");
+  } catch {
+    // Account gone, or tables not migrated — nothing to undo.
   }
 }
 

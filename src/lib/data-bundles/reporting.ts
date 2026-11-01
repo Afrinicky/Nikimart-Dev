@@ -178,6 +178,16 @@ export async function getDataOrders(opts: {
    * that agent's admin window. Left out, the page is the whole storefront.
    */
   agentId?: string;
+  /**
+   * Only orders a buyer has disputed and nobody has ruled on yet.
+   *
+   * The overview says "1 buyer says they were debited for an order that reads
+   * unpaid" and links here. It used to link to every awaiting-payment order,
+   * which on a busy month is ninety-nine of them with no way to tell which one
+   * the sentence was about — the admin arrived at the right page and still
+   * could not act. This is what makes that link land on the order itself.
+   */
+  claimsOnly?: boolean;
 }): Promise<OrderPage> {
   const page = Math.max(1, opts.page ?? 1);
   const perPage = opts.perPage && opts.perPage > 0 ? opts.perPage : ORDERS_PER_PAGE;
@@ -188,6 +198,9 @@ export async function getDataOrders(opts: {
     ...orderStatusWhere(opts.status),
     ...orderNetworkWhere(opts.network),
     ...orderSearchWhere(query),
+    // A relation filter rather than a second round trip: "has at least one
+    // claim still waiting on a decision".
+    ...(opts.claimsOnly ? { claims: { some: { status: "pending" } } } : {}),
   };
 
   try {

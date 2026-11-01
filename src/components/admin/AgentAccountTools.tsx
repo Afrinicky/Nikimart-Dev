@@ -6,8 +6,11 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/ui/motion";
 import { CopyChip } from "@/components/agent/AgentCode";
 import {
+  clearAgentTwoFactor,
   deleteAgent,
   reissueSetupLink,
+  unlockAgentAccount,
+  updateAgentAccount,
   updateAgentDetails,
   type AgentAdminState,
 } from "@/lib/data-bundles/agent-admin-actions";
@@ -116,6 +119,20 @@ export function AgentAccountTools({
     ownerName: string;
     ownerPhone: string;
     userId: string;
+    /** The sign-in account behind the storefront, in this database. */
+    account?: {
+      email: string;
+      phone: string;
+      twoFactorEnabled: boolean;
+      /** 0 none · 1 a minute · 2 half an hour · 3 held for an admin. */
+      lockoutStage: number;
+      /**
+       * Whether a timed lock was still running when the page was built.
+       * Decided on the server: reading the clock during render is impure, and
+       * a lock that lifts while somebody reads the screen is not worth it.
+       */
+      lockedNow: boolean;
+    };
   };
 }) {
   const [editing, setEditing] = useState(false);
@@ -230,16 +247,13 @@ export function AgentAccountTools({
               >
                 Save details
               </SubmitButton>
-              {initial.userId ? (
-                <a
-                  href={`/admin/users/${initial.userId}`}
-                  className="niki-focus text-sm font-semibold text-niki-ink/60 underline underline-offset-2 hover:text-niki-orange"
-                >
-                  Email, role &amp; password →
-                </a>
-              ) : null}
+
             </div>
           </form>
+        ) : null}
+
+        {initial.userId && initial.account ? (
+          <AgentSignInAccount agentId={agentId} userId={initial.userId} account={initial.account} />
         ) : null}
 
         {confirming ? (
@@ -272,6 +286,147 @@ export function AgentAccountTools({
           </form>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The sign-in account behind a storefront.
+ *
+ * Everything an administrator used to leave this console for: the address they
+ * sign in with, a new password, and the two switches that get somebody back in
+ * when the system has shut them out — the escalating sign-in lock, and a
+ * second step going to a phone they no longer have.
+ *
+ * All of it writes `DataUser`, in the bundle database. The link this replaces
+ * went to the mall's user editor, which since the split is a different table
+ * in a different database: a password set there was a password the agent
+ * console never read, and nothing said so.
+ */
+function AgentSignInAccount({
+  agentId,
+  userId,
+  account,
+}: {
+  agentId: string;
+  userId: string;
+  account: {
+    email: string;
+    phone: string;
+    twoFactorEnabled: boolean;
+    lockoutStage: number;
+    lockedNow: boolean;
+  };
+}) {
+  const [open, setOpen] = useState(false);
+  const [state, save] = useActionState<AgentAdminState, FormData>(updateAgentAccount, {});
+
+  const held = account.lockoutStage >= 3;
+  const locked = held || account.lockedNow;
+
+  return (
+    <div className="mt-4 border-t border-niki-edge pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <KeyRound className="h-4 w-4 text-niki-ink/45" />
+          <p className="text-sm font-semibold text-niki-ink">Sign-in account</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="niki-focus text-sm font-semibold text-niki-orange hover:underline"
+        >
+          {open ? "Close" : "Manage"}
+        </button>
+      </div>
+
+      {locked ? (
+        <form action={unlockAgentAccount} className="mt-3 rounded-xl bg-niki-danger/5 p-4 ring-1 ring-niki-danger/25">
+          <input type="hidden" name="agentId" value={agentId} />
+          <p className="text-sm text-niki-ink/80">
+            <span className="font-semibold text-niki-ink">
+              {held ? "Locked out." : "Temporarily locked."}
+            </span>{" "}
+            {held
+              ? "Too many failed sign-ins. Waiting will not clear this one — unlock it, or set a new password below."
+              : "Too many failed sign-ins. It lifts on its own shortly, or you can lift it now."}
+          </p>
+          <SubmitButton
+            pendingLabel="Unlocking…"
+            className="mt-3 rounded-lg bg-niki-ink px-4 py-2 text-xs font-bold text-white hover:bg-niki-black"
+          >
+            Unlock this account
+          </SubmitButton>
+        </form>
+      ) : null}
+
+      {open ? (
+        <form action={save} className="animate-fade-up mt-3 space-y-4">
+          <input type="hidden" name="userId" value={userId} />
+          <Notice state={state} />
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Email they sign in with" htmlFor={`ae-${agentId}`}>
+              <input
+                id={`ae-${agentId}`}
+                name="email"
+                type="email"
+                defaultValue={account.email}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Phone they sign in with" htmlFor={`ap-${agentId}`}>
+              <input
+                id={`ap-${agentId}`}
+                name="phone"
+                inputMode="tel"
+                defaultValue={account.phone}
+                placeholder="0241234567"
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          <Field
+            label="New password"
+            htmlFor={`aw-${agentId}`}
+            hint="Leave blank to keep the current one. Setting one signs them out everywhere and lifts any lock."
+          >
+            <input
+              id={`aw-${agentId}`}
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              placeholder="••••••••"
+              className={inputClass}
+            />
+          </Field>
+
+          <SubmitButton
+            pendingLabel="Saving…"
+            icon={<Save className="h-4 w-4" />}
+            className="rounded-xl bg-niki-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-niki-orange-light"
+          >
+            Save account
+          </SubmitButton>
+        </form>
+      ) : null}
+
+      {open && account.twoFactorEnabled ? (
+        <form action={clearAgentTwoFactor} className="mt-3 rounded-xl bg-niki-surface p-4">
+          <input type="hidden" name="userId" value={userId} />
+          <p className="text-sm text-niki-ink/75">
+            <span className="font-semibold text-niki-ink">Two-step verification is on.</span> If
+            they have lost the phone or inbox the codes go to, switching it off is the way back in.
+          </p>
+          <SubmitButton
+            pendingLabel="Switching off…"
+            className="mt-3 rounded-lg bg-white px-4 py-2 text-xs font-bold text-niki-ink ring-1 ring-niki-edge-strong hover:bg-niki-black/5"
+          >
+            Switch off two-step verification
+          </SubmitButton>
+        </form>
+      ) : null}
     </div>
   );
 }

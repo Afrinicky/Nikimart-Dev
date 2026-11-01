@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Container } from "@/components/ui/Container";
@@ -45,6 +46,8 @@ export default async function AdminDataOrdersPage({
     q?: string;
     page?: string;
     per?: string;
+    /** "open" narrows to orders a buyer has disputed. See the overview banner. */
+    claims?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -53,6 +56,7 @@ export default async function AdminDataOrdersPage({
     ? params.network!
     : "all";
   const query = (params.q ?? "").trim();
+  const claimsOnly = params.claims === "open";
   const perPage = perPageFrom(params.per, 25);
   const page = Math.max(1, Number(params.page) || 1);
 
@@ -72,6 +76,7 @@ export default async function AdminDataOrdersPage({
     query,
     page,
     perPage,
+    claimsOnly,
   });
   const pageCount = Math.max(1, Math.ceil(total / perPage));
 
@@ -100,6 +105,24 @@ export default async function AdminDataOrdersPage({
           </p>
         </div>
       </div>
+
+      {available && claimsOnly ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-niki-danger/5 px-5 py-4 ring-1 ring-niki-danger/25">
+          <p className="text-sm text-niki-ink/75">
+            <span className="font-semibold text-niki-ink">Disputed payments only.</span>{" "}
+            {total === 1
+              ? "One buyer says they were debited for an order that reads unpaid."
+              : `${total} buyers say they were debited for orders that read unpaid.`}{" "}
+            Confirm or reject each one on its row below.
+          </p>
+          <Link
+            href="/admin/data/orders"
+            className="niki-focus shrink-0 text-sm font-semibold text-niki-orange underline underline-offset-2 hover:text-niki-orange-light"
+          >
+            Show all orders
+          </Link>
+        </div>
+      ) : null}
 
       {available ? (
         <div className="mt-4">

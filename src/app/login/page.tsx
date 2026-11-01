@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
-import { LoginForm } from "@/components/auth/LoginForm";
+import { SignInModeTabs } from "@/components/auth/SignInModeTabs";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { auth } from "@/lib/auth";
 import { isRole, ROLE_HOME } from "@/lib/roles";
@@ -55,23 +54,12 @@ export default async function LoginPage({
             Nick<span className="text-niki-orange">imart</span>
           </span>
         </div>
-        <h1 className="mt-6 font-display text-2xl font-bold text-niki-ink">Welcome back</h1>
-        <p className="mt-1 text-sm text-niki-ink/60">Sign in to your Nickimart account.</p>
+        <h1 className="mt-6 mb-4 font-display text-2xl font-bold text-niki-ink">Welcome back</h1>
 
-        <LoginForm callbackUrl={cb} />
-
-        <p className="mt-4 text-center text-sm">
-          <Link href="/forgot-password" className="font-semibold text-niki-orange hover:underline">
-            Forgot your password?
-          </Link>
-        </p>
-
-        <p className="mt-6 text-center text-sm text-niki-ink/60">
-          New to Nickimart?{" "}
-          <Link href={cb ? `/register?callbackUrl=${encodeURIComponent(cb)}` : "/register"} className="font-semibold text-niki-orange hover:underline">
-            Create an account
-          </Link>
-        </p>
+        {/* Agents land on the homepage like everyone else and press Sign in.
+            Before this they got the mall's form, which cannot sign them in,
+            and nothing said where else to go. */}
+        <SignInModeTabs callbackUrl={cb} registerHref={cb ? `/register?callbackUrl=${encodeURIComponent(cb)}` : "/register"} />
       </div>
     </Container>
   );
