@@ -1,4 +1,5 @@
 import "server-only";
+import { CACHE_BACKSTOP } from "@/lib/cache-windows";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -174,7 +175,7 @@ export const CATEGORIES_TAG = "categories";
 const readCategories = unstable_cache(
   async () => prisma.category.findMany({ orderBy: { name: "asc" } }),
   ["categories"],
-  { tags: [CATEGORIES_TAG], revalidate: 300 },
+  { tags: [CATEGORIES_TAG], revalidate: CACHE_BACKSTOP },
 );
 
 /**
@@ -199,7 +200,7 @@ export const VENDORS_TAG = "vendors";
 const readVendors = unstable_cache(
   async () => prisma.vendor.findMany({ orderBy: { businessName: "asc" } }),
   ["vendors"],
-  { tags: [VENDORS_TAG], revalidate: 120 },
+  { tags: [VENDORS_TAG], revalidate: CACHE_BACKSTOP },
 );
 
 export const getVendors = cache(async (): Promise<Vendor[]> => {
@@ -304,7 +305,7 @@ const readProductCards = unstable_cache(
       ...(take ? { take } : {}),
     }),
   ["product-cards"],
-  { tags: [PRODUCTS_TAG], revalidate: 120 },
+  { tags: [PRODUCTS_TAG], revalidate: CACHE_BACKSTOP },
 );
 
 export const getProducts = cache(async (): Promise<Product[]> => {

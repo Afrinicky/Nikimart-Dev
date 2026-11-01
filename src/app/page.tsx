@@ -1,3 +1,4 @@
+import { PAGE_BACKSTOP } from "@/lib/cache-windows";
 import { Hero } from "@/components/home/Hero";
 import { SellCta } from "@/components/home/SellCta";
 import { FlashSaleSection } from "@/components/home/FlashSaleSection";
@@ -23,7 +24,7 @@ import {
 // session reads cookies, which makes every route dynamic whatever is set here.
 // See the note in src/components/layout/Header.tsx. Left in place because it is
 // the right setting and becomes live the moment that changes.
-export const revalidate = 60;
+export const revalidate = PAGE_BACKSTOP;
 
 export default async function Home() {
   const [products, flashSale, total, vendorNames] = await Promise.all([

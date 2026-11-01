@@ -1,3 +1,4 @@
+import { PAGE_BACKSTOP } from "@/lib/cache-windows";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Montserrat } from "next/font/google";
 import "./globals.css";
@@ -77,7 +78,7 @@ export const metadata: Metadata = {
 // throwing, so a build without DATABASE_URL still succeeds; it would just
 // prerender thin pages, and the revalidate above replaces them within the
 // minute.
-export const revalidate = 60;
+export const revalidate = PAGE_BACKSTOP;
 
 export default async function RootLayout({
   children,

@@ -1,3 +1,4 @@
+import { PAGE_BACKSTOP } from "@/lib/cache-windows";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -25,7 +26,7 @@ import { getLeadDays } from "@/lib/shipping-config";
 // has to stop doing that on the server before any of these pages can be cached
 // — see the note in src/components/layout/Header.tsx. Left in place because it
 // is the right setting and becomes live the moment that changes.
-export const revalidate = 60;
+export const revalidate = PAGE_BACKSTOP;
 
 
 type Params = Promise<{ region: string }>;

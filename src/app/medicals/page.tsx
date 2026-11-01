@@ -1,3 +1,4 @@
+import { PAGE_BACKSTOP } from "@/lib/cache-windows";
 import type { Metadata } from "next";
 import { CategorySidebar } from "@/components/medical/layout/CategorySidebar";
 import { HomeHero } from "@/components/medical/home/HomeHero";
@@ -28,7 +29,7 @@ export const metadata: Metadata = {
 // A minute, matching the rest of the site. Short enough that a price edit shows
 // up while the administrator is still looking at it, long enough that a burst
 // of traffic costs one render rather than one render per visitor.
-export const revalidate = 60;
+export const revalidate = PAGE_BACKSTOP;
 
 export default async function MedicalHomePage() {
   if (!isMedicalConfigured()) return <NotConfigured />;

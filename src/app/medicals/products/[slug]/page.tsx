@@ -1,3 +1,4 @@
+import { PAGE_BACKSTOP } from "@/lib/cache-windows";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AlertTriangle, Snowflake, Thermometer } from "lucide-react";
@@ -18,7 +19,7 @@ import {
 import { isMedicalConfigured } from "@/lib/medical/db";
 import { NotConfigured } from "@/components/medical/ui/NotConfigured";
 
-export const revalidate = 60;
+export const revalidate = PAGE_BACKSTOP;
 
 type Params = Promise<{ slug: string }>;
 

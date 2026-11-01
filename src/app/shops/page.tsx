@@ -1,3 +1,4 @@
+import { PAGE_BACKSTOP } from "@/lib/cache-windows";
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -14,7 +15,7 @@ import { getVendors } from "@/lib/catalog";
 // has to stop doing that on the server before any of these pages can be cached
 // — see the note in src/components/layout/Header.tsx. Left in place because it
 // is the right setting and becomes live the moment that changes.
-export const revalidate = 60;
+export const revalidate = PAGE_BACKSTOP;
 
 
 export const metadata: Metadata = {

@@ -1,3 +1,4 @@
+import { PAGE_BACKSTOP } from "@/lib/cache-windows";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -14,7 +15,7 @@ import { getProductsInCategory, type CatalogueSort } from "@/lib/medical/catalog
 import { isMedicalConfigured } from "@/lib/medical/db";
 import { NotConfigured } from "@/components/medical/ui/NotConfigured";
 
-export const revalidate = 60;
+export const revalidate = PAGE_BACKSTOP;
 
 const PER_PAGE = 24;
 
