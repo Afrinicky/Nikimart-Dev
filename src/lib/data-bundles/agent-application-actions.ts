@@ -1,4 +1,5 @@
 "use server";
+import { dataRateLimit } from "@/lib/data-bundles/rate-limit";
 
 import { createHash } from "crypto";
 import { headers } from "next/headers";
@@ -7,7 +8,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
 import { requireDataAdminAction, dataUserOrNull } from "@/lib/data-bundles/session";
-import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+import { retryAfterLabel } from "@/lib/rate-limit";
 import { notify } from "@/lib/notifications";
 import { notifyTemplate, smsTemplate } from "@/lib/messages";
 import { siteUrl } from "@/lib/site";
@@ -133,7 +134,7 @@ export async function checkStoreName(raw: string): Promise<SlugCheck> {
   // Unauthenticated and one query per call, so cap it. The allowance is
   // generous — a debounced field fires a handful of times per name — but it
   // stops the endpoint being used to walk the slug space.
-  const limit = await rateLimit(`slug-check:${await clientIp()}`, 60, 5 * 60_000);
+  const limit = await dataRateLimit(`slug-check:${await clientIp()}`, 60, 5 * 60_000);
   if (!limit.ok) {
     return { state: "invalid", message: "Too many checks. Please wait a moment and try again." };
   }
@@ -199,7 +200,7 @@ export async function quoteRegistration(rawCode: string, via = ""): Promise<FeeQ
 
   // Unauthenticated, and one lookup per call: capped so it can't be used to
   // walk the space of agent codes.
-  const limit = await rateLimit(`fee-quote:${await clientIp()}`, 60, 5 * 60_000);
+  const limit = await dataRateLimit(`fee-quote:${await clientIp()}`, 60, 5 * 60_000);
   if (!limit.ok) return full;
 
   const resolved = await resolveReferralCode(code);
@@ -298,7 +299,7 @@ export async function applyToBeAgent(
 
   // Applications cost nothing to submit, so rate-limit them or the queue
   // becomes someone's plaything.
-  const limit = await rateLimit(`agent-apply:${await clientIp()}`, 5, 60 * 60_000);
+  const limit = await dataRateLimit(`agent-apply:${await clientIp()}`, 5, 60 * 60_000);
   if (!limit.ok) {
     return { error: `Too many applications from here. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }
@@ -933,7 +934,7 @@ export async function completeAgentSetup(
   if (password !== confirm) return { error: "Both passwords must match." };
   if (storeName.length < 2) return { error: "Give your store a name." };
 
-  const limit = await rateLimit(`agent-setup:${await clientIp()}`, 10, 15 * 60_000);
+  const limit = await dataRateLimit(`agent-setup:${await clientIp()}`, 10, 15 * 60_000);
   if (!limit.ok) {
     return { error: `Too many attempts. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }

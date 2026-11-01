@@ -69,6 +69,12 @@ export async function setNewPassword(
       data: {
         passwordHash: await bcrypt.hash(parsed.data.password, 10),
         mustChangePassword: false,
+        // The issued password this replaces went out by text and through an
+        // inbox, and two people know it. Any session opened with it ends here,
+        // including this one — they sign in again with the password they just
+        // chose, which is the point.
+        activeSessionId: null,
+        activeSessionAt: null,
         // This account has its own password now, and the mall has never heard
         // of it. The stamp is what tells scripts/copy-logins.mjs --refresh to
         // leave this row alone rather than overwrite it with the copied one.

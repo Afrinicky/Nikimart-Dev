@@ -1,11 +1,12 @@
 import "server-only";
 import { headers } from "next/headers";
 import { dataDb } from "@/lib/data-db";
-import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+import { retryAfterLabel } from "@/lib/rate-limit";
 import { toLocalGhPhone } from "@/lib/data-bundles/networks";
 import { AFA_REFERENCE_PREFIX } from "@/lib/data-bundles/fulfillment";
 import { syncOpenOrders } from "@/lib/data-bundles/order-sync";
 import { reconcileDataOrder } from "@/lib/data-bundles/payment-recovery";
+import { dataRateLimit } from "@/lib/data-bundles/rate-limit";
 
 /**
  * Public order lookup for the bundle storefront.
@@ -64,7 +65,7 @@ export async function lookupOrders(rawQuery: string | undefined): Promise<Lookup
 
   const h = await headers();
   const ip = (h.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || "unknown";
-  const limit = await rateLimit(`data-lookup:${ip}`, 20, 5 * 60_000);
+  const limit = await dataRateLimit(`data-lookup:${ip}`, 20, 5 * 60_000);
   if (!limit.ok) {
     return {
       state: "error",

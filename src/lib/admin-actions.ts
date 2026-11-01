@@ -459,7 +459,16 @@ export async function updateUser(id: string, _prev: CrudState, fd: FormData): Pr
       email,
       role: parsed.data.role,
       phone: optStr(fd, "phone") ?? null,
-      ...(password ? { passwordHash: await bcrypt.hash(password, 10) } : {}),
+      // A new password from an admin is an intervention on an account that
+      // is usually in trouble. It ends the sessions that account holds, for
+      // the same reason the self-service reset does.
+      ...(password
+        ? {
+            passwordHash: await bcrypt.hash(password, 10),
+            activeSessionId: null,
+            activeSessionAt: null,
+          }
+        : {}),
     },
   });
   revalidatePath("/admin/users");

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
 import { requireDataAdminAction, requireDataUser } from "@/lib/data-bundles/session";
-import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+import { retryAfterLabel } from "@/lib/rate-limit";
 import { formatMoney } from "@/lib/format";
 import { bundleLabel, isNetwork, networkLabel } from "@/lib/data-bundles/networks";
 import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
@@ -13,6 +13,7 @@ import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { getLeaderboardConfig } from "@/lib/data-bundles/settings";
 import { postLedgerEntry } from "@/lib/data-bundles/agent-ledger";
 import { InsufficientPointsError, postPointEntry } from "@/lib/data-bundles/points";
+import { dataRateLimit } from "@/lib/data-bundles/rate-limit";
 
 /**
  * Spending points, and the admin side of the shelf they are spent on.
@@ -66,7 +67,7 @@ export async function redeemReward(input: z.infer<typeof redeemSchema>): Promise
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Please pick a reward." };
   }
 
-  const limit = await rateLimit(`agent-redeem:${agent.id}`, 10, 60 * 60_000);
+  const limit = await dataRateLimit(`agent-redeem:${agent.id}`, 10, 60 * 60_000);
   if (!limit.ok) {
     return {
       ok: false,

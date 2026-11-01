@@ -5,12 +5,13 @@ import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
 import { requireDataAdminAction } from "@/lib/data-bundles/session";
 import { callbackOrigin } from "@/lib/site";
-import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+import { retryAfterLabel } from "@/lib/rate-limit";
 import { initializeTransaction, isPaymentConfigured, toPesewas } from "@/lib/payments";
 import { newDataReference, settleDataOrder } from "@/lib/data-bundles/fulfillment";
 import { getActiveBundles } from "@/lib/data-bundles/catalog";
 import { bundleLabel, networkLabel, NETWORKS } from "@/lib/data-bundles/networks";
 import { checkRecipient } from "@/lib/data-bundles/gh-phone";
+import { dataRateLimit } from "@/lib/data-bundles/rate-limit";
 
 /**
  * Nickimart buying its own bundles, at the wholesale rate it charges agents.
@@ -50,7 +51,7 @@ export async function adminBuyBundle(input: z.infer<typeof buySchema>): Promise<
   if (!recipient.ok) return { ok: false, error: recipient.message };
   const recipientPhone = recipient.local;
 
-  const limit = await rateLimit(`admin-topup:${admin.id}`, 60, 10 * 60_000);
+  const limit = await dataRateLimit(`admin-topup:${admin.id}`, 60, 10 * 60_000);
   if (!limit.ok) {
     return { ok: false, error: `Too many orders. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }

@@ -2,9 +2,10 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+import { retryAfterLabel } from "@/lib/rate-limit";
 import { raisePaymentClaim, type ClaimResult } from "@/lib/data-bundles/payment-claims";
 import { reconcileDataOrder, reconcileMessage } from "@/lib/data-bundles/payment-recovery";
+import { dataRateLimit } from "@/lib/data-bundles/rate-limit";
 
 /**
  * The buyer's two buttons on the tracker, both open to guests.
@@ -24,7 +25,7 @@ async function callerKey(): Promise<string> {
 /** "I paid — check again." Asks the gateway and settles if the money is there. */
 export async function recheckOrderPayment(reference: string): Promise<ClaimResult> {
   const ip = await callerKey();
-  const limit = await rateLimit(`data-recheck:${ip}`, 12, 10 * 60_000);
+  const limit = await dataRateLimit(`data-recheck:${ip}`, 12, 10 * 60_000);
   if (!limit.ok) {
     return {
       ok: false,
@@ -47,7 +48,7 @@ export async function claimOrderPayment(input: {
   note: string;
 }): Promise<ClaimResult> {
   const ip = await callerKey();
-  const limit = await rateLimit(`data-claim:${ip}`, 5, 60 * 60_000);
+  const limit = await dataRateLimit(`data-claim:${ip}`, 5, 60 * 60_000);
   if (!limit.ok) {
     return {
       ok: false,

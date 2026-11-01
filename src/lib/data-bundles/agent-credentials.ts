@@ -57,7 +57,10 @@ export async function issueAgentCredentials(applicationId: string): Promise<bool
   const claimed = await dataDb.dataAgentApplication
     .updateMany({
       where: { id: applicationId, credentialsSentAt: null, passwordIsTemporary: true },
-      data: { passwordHash: await bcrypt.hash(password, 10), credentialsSentAt: new Date() },
+      data: {
+        passwordHash: await bcrypt.hash(password, 10),
+        credentialsSentAt: new Date(),
+      },
     })
     .catch(() => ({ count: 0 }));
   // Somebody else got there first; their password is the one that works and
