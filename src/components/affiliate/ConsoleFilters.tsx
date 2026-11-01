@@ -91,8 +91,15 @@ function SearchBox({
         onChange={(e) => setTerm(e.target.value)}
         placeholder={placeholder}
         aria-label="Search"
-        className={cn(control, "pl-9")}
+        type="search"
+        className={cn(control, "pl-9 pr-20")}
       />
+      <button
+        type="submit"
+        className="niki-press niki-focus absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg bg-niki-orange px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-niki-orange-light"
+      >
+        Search
+      </button>
     </form>
   );
 }

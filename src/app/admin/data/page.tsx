@@ -392,7 +392,11 @@ export default async function AdminDataOverviewPage({
     waitingClaims > 0
       ? {
           key: "claims",
-          href: "/admin/data/orders?status=pending",
+          // The disputed orders themselves, not every unpaid one. The status
+          // is deliberately not pinned: a claim outlives the status that
+          // prompted it, and arriving at an empty list because the order moved
+          // on is the same dead end by another route.
+          href: "/admin/data/orders?claims=open",
           tone: "danger" as const,
           icon: ShieldAlert,
           live: true,

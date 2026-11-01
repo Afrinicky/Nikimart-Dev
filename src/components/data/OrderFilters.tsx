@@ -53,7 +53,16 @@ function Select({
   );
 }
 
-/** The one search box: submit to apply, so a long reference isn't queried per keystroke. */
+/**
+ * The one search box.
+ *
+ * Submit to apply rather than query per keystroke — a long reference typed a
+ * character at a time would be a dozen queries against a database that is
+ * billed by the hour. But submit-to-apply needs something to submit *with*:
+ * this was a form with no button and a magnifying glass that looked clickable
+ * and was not, so typing a phone number and waiting did nothing at all, with
+ * no hint that Enter was the missing step. The button is that hint.
+ */
 function SearchBox({ initial, onSearch }: { initial: string; onSearch: (q: string) => void }) {
   const [term, setTerm] = useState(initial);
   return (
@@ -70,8 +79,15 @@ function SearchBox({ initial, onSearch }: { initial: string; onSearch: (q: strin
         onChange={(e) => setTerm(e.target.value)}
         placeholder="Search by order ID, phone number…"
         aria-label="Search orders"
-        className={cn(control, "pl-9")}
+        type="search"
+        className={cn(control, "pl-9 pr-20")}
       />
+      <button
+        type="submit"
+        className="niki-press niki-focus absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg bg-niki-orange px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-niki-orange-light"
+      >
+        Search
+      </button>
     </form>
   );
 }

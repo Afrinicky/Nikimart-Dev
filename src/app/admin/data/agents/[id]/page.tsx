@@ -76,6 +76,7 @@ import { recruitPaymentRule } from "@/lib/data-bundles/referrals";
 import { ledgerTypeLabel } from "@/lib/data-bundles/ledger-labels";
 import { pendingTopupsFor } from "@/lib/data-bundles/wallet";
 import { cn } from "@/lib/cn";
+import { currentLock } from "@/lib/data-bundles/lockout";
 
 export const metadata: Metadata = { title: "Agent — Admin — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -290,6 +291,26 @@ export default async function AdminAgentDetailPage({
   // The person behind the agent lives in the retail database — one extra query
   // rather than an include.
   const agent = { ...row, user: await getAgentUser(row.userId) };
+
+  // The sign-in account behind this storefront, read from this database. Only
+  // the fields the account panel shows: the hash is never read here.
+  const signInAccount = row.userId
+    ? await dataDb.dataUser
+        .findUnique({
+          where: { id: row.userId },
+          select: {
+            email: true,
+            phone: true,
+            twoFactorEnabled: true,
+            lockoutStage: true,
+          },
+        })
+        .catch(() => null)
+    : null;
+  // Whether the lock is running *now* is a question about the clock, and a
+  // render has to be pure — so it is asked by the same lib function the
+  // sign-in asks, which is where that judgement already lives and is tested.
+  const accountLock = row.userId ? await currentLock(row.userId) : null;
 
   const [referrer, recruits] = await Promise.all([
     row.referredById
@@ -1065,6 +1086,19 @@ export default async function AdminAgentDetailPage({
                       ownerName: agent.user?.name ?? "",
                       ownerPhone: agent.user?.phone ?? "",
                       userId: agent.userId,
+                      // The sign-in account itself, so the console can manage
+                      // it here instead of sending an admin to the mall's user
+                      // editor — which since the split writes a different
+                      // database and a password this side never reads.
+                      account: signInAccount
+                        ? {
+                            email: signInAccount.email,
+                            phone: signInAccount.phone ?? "",
+                            twoFactorEnabled: signInAccount.twoFactorEnabled,
+                            lockoutStage: signInAccount.lockoutStage,
+                            lockedNow: accountLock !== null,
+                          }
+                        : undefined,
                     }}
                   />
 
