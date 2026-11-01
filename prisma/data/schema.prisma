@@ -1641,6 +1641,24 @@ model DataUser {
   /// the copied one, which is what makes a re-run of the copy safe.
   passwordChangedAt DateTime?
 
+  // --- Getting the password wrong, repeatedly ---------------------------------
+  // A fixed-window rate limit answers "how many attempts in ten minutes", which
+  // is the wrong question for one account being guessed at patiently. These
+  // four hold an escalation instead: five wrong passwords cost a minute, five
+  // more cost half an hour and tell the administrators, and five after that
+  // hold the account until a person decides to let it go. The rules are in
+  // lockout-rules.ts, which is pure and tested.
+  /// Consecutive failures since the last success or the last lock.
+  failedLoginCount  Int       @default(0)
+  /// 0 none · 1 served a minute · 2 served half an hour · 3 held for an admin.
+  /// It survives a lock expiring, which is what makes the next run escalate
+  /// rather than start again at a minute.
+  lockoutStage      Int       @default(0)
+  /// When a timed lock ends. Null at stage 3: that one has no end of its own.
+  lockedUntil       DateTime?
+  lockedAt          DateTime?
+  lastFailedLoginAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1668,4 +1686,37 @@ model DataRateLimit {
   resetAt DateTime
 
   @@index([resetAt])
+}
+
+/**
+ * The code that comes after the password, for the bundle business.
+ *
+ * The mall's twin, in this database, because that is the whole arrangement:
+ * an agent signing in must not need the mall to be reachable, and a second
+ * step that lived over there would have put it straight back. The rules for
+ * which channel a code may go to are shared — lib/two-factor-rules.ts is pure
+ * and reads nothing — but the challenges themselves belong here.
+ *
+ * No relation to DataUser, deliberately: `userId` is indexed and nothing else.
+ * A cascade delete is not wanted on a table whose rows are spent in minutes,
+ * and the lookups are all by id.
+ */
+model DataTwoFactorChallenge {
+  id String @id @default(cuid())
+
+  userId String
+
+  /// SIGN_IN | ENABLE
+  purpose    String    @default("SIGN_IN")
+  codeHash   String
+  /// Where it was sent, so the screen can say so without guessing again.
+  channel    String    @default("email")
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  /// Set the moment it is spent. A consumed challenge is never valid again.
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }

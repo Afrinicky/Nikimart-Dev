@@ -15,6 +15,34 @@ import { signOutEverywhere } from "@/lib/auth-actions";
 import { cn } from "@/lib/cn";
 
 /**
+ * The four actions this card drives, so the same card can serve two
+ * businesses that keep their accounts in different databases.
+ *
+ * It used to import the mall's directly, which was fine until the bundle
+ * business got its own `DataUser`: the agent console rendered this card, the
+ * switch wrote `User.twoFactorEnabled` in the mall, and the bundle sign-in
+ * read `DataUser.twoFactorEnabled` and saw nothing. An agent who turned it on
+ * believed they had a second step and did not, which is worse than not
+ * offering one. The actions are passed in now, so which database is written
+ * is decided by whichever console rendered the card.
+ */
+export interface TwoFactorActions {
+  start: (prev: TwoFactorState, fd: FormData) => Promise<TwoFactorState>;
+  confirm: (prev: TwoFactorState, fd: FormData) => Promise<TwoFactorState>;
+  disable: () => Promise<void>;
+  /** Ending every other session, which belongs on the same card. */
+  signOutEverywhere: () => Promise<void>;
+}
+
+/** What the mall passes. Named so the call site reads as a choice. */
+export const RETAIL_TWO_FACTOR_ACTIONS: TwoFactorActions = {
+  start: startTwoFactorSetup,
+  confirm: confirmTwoFactorSetup,
+  disable: disableTwoFactor,
+  signOutEverywhere,
+};
+
+/**
  * Two-step verification, on the account it protects.
  *
  * Off is the honest default here, so the card leads with what it would cost
@@ -25,15 +53,18 @@ export function TwoFactorSettings({
   enabled,
   channel,
   hasPhone,
+  actions = RETAIL_TWO_FACTOR_ACTIONS,
 }: {
   enabled: boolean;
   channel: string;
   /** Text messages are only offered to an account we have a number for. */
   hasPhone: boolean;
+  /** Which account store to write. Defaults to the mall's. */
+  actions?: TwoFactorActions;
 }) {
-  const [setup, startAction] = useActionState<TwoFactorState, FormData>(startTwoFactorSetup, {});
+  const [setup, startAction] = useActionState<TwoFactorState, FormData>(actions.start, {});
   const [confirm, confirmAction] = useActionState<TwoFactorState, FormData>(
-    confirmTwoFactorSetup,
+    actions.confirm,
     {},
   );
   const pending = confirm.pending ?? setup.pending;
@@ -62,7 +93,7 @@ export function TwoFactorSettings({
         </div>
 
         {isOn ? (
-          <form action={disableTwoFactor}>
+          <form action={actions.disable}>
             <SubmitButton
               pendingLabel="Turning off…"
               className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-niki-danger ring-1 ring-niki-danger/30 hover:bg-niki-danger/5"
@@ -134,7 +165,7 @@ export function TwoFactorSettings({
       {/* The way back for somebody who signed in on a borrowed phone and
           walked away from it. One account holds one sign-in, so this ends
           every other one — and this one. */}
-      <form action={signOutEverywhere} className="mt-5 border-t border-niki-edge pt-4">
+      <form action={actions.signOutEverywhere} className="mt-5 border-t border-niki-edge pt-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-niki-ink/60">
             Signed in somewhere you shouldn&apos;t be? Sign out of every device.

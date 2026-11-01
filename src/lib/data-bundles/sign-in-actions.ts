@@ -9,9 +9,15 @@ import { dataDb } from "@/lib/data-db";
 import { clearDataRateLimit, dataRateLimit } from "@/lib/data-bundles/rate-limit";
 import { retryAfterLabel } from "@/lib/rate-limit";
 import { findDataUserByIdentifier } from "@/lib/data-bundles/user-lookup";
+import { currentLock } from "@/lib/data-bundles/lockout";
+import { lockMessage } from "@/lib/data-bundles/lockout-rules";
+import { issueDataChallenge, dataChallengeState } from "@/lib/data-bundles/two-factor";
+import { usableChannel, type TwoFactorChannel } from "@/lib/two-factor-rules";
+import bcrypt from "bcryptjs";
 import { DATA_ROLE_HOME, isDataRole } from "@/lib/data-bundles/roles";
 import {
   ACCOUNT_UNAVAILABLE,
+  WRONG_CODE,
   WRONG_CREDENTIALS,
   signInFailureMessage,
 } from "@/lib/auth-failure";
@@ -34,6 +40,12 @@ export type DataAuthFormState = {
   fieldErrors?: Record<string, string>;
   /** What was typed, echoed back. Never the password. */
   values?: { identifier?: string };
+  /**
+   * Present when the password was right and a code is out. It carries nothing
+   * secret: the challenge is useless without the code, and the password is not
+   * held anywhere between the two steps.
+   */
+  twoFactor?: { challengeId: string; channel: TwoFactorChannel; hint: string };
 };
 
 const schema = z.object({
@@ -96,18 +108,58 @@ export async function dataLoginAction(
     };
   }
 
-  // Looked up here as well as inside the provider, only to decide where to
-  // land them. A failure is the database, not the password, and says so.
+  // Looked up here as well as inside the provider, to decide where to land
+  // them and to say something true when the account is locked. A failure is
+  // the database, not the password, and says so.
   let home = "/agent";
+  let account: Awaited<ReturnType<typeof findDataUserByIdentifier>> = null;
   try {
-    const user = await findDataUserByIdentifier(identifier);
-    if (user && isDataRole(user.role)) home = DATA_ROLE_HOME[user.role];
+    account = await findDataUserByIdentifier(identifier);
+    if (account && isDataRole(account.role)) home = DATA_ROLE_HOME[account.role];
   } catch (error) {
     console.error("[data-auth] sign-in lookup failed:", error);
     return { error: ACCOUNT_UNAVAILABLE, values };
   }
 
+  // The lock is enforced in the provider; this is only so the screen can say
+  // how long rather than "invalid email or password", which would send
+  // somebody to reset a password that is perfectly correct.
+  if (account) {
+    const lock = await currentLock(account.id);
+    if (lock) return { error: lockMessage(lock), values };
+  }
+
   const redirectTo = safeCallback(formData.get("callbackUrl")) ?? home;
+
+  // An account that asks for a code gets its password checked here rather than
+  // inside the provider, because what follows is a code rather than a session.
+  // The same wrong-password wording either way: which accounts have a second
+  // step is not something a sign-in form should disclose.
+  if (account?.twoFactorEnabled && account.passwordHash) {
+    if (!(await bcrypt.compare(parsed.data.password, account.passwordHash))) {
+      // Wrong password on a 2FA account still counts toward the lock; the
+      // provider never sees this attempt, so it is recorded here instead.
+      const { recordFailure } = await import("@/lib/data-bundles/lockout");
+      const locked = await recordFailure({
+        id: account.id,
+        email: account.email,
+        name: account.name,
+      });
+      return { error: locked ? lockMessage(locked) : WRONG_CREDENTIALS, values };
+    }
+
+    const channel = usableChannel(account, account.twoFactorChannel);
+    let challenge;
+    try {
+      challenge = await issueDataChallenge(account, "SIGN_IN", channel);
+    } catch (error) {
+      console.error("[data-auth] could not issue a sign-in code:", error);
+      return { error: ACCOUNT_UNAVAILABLE, values };
+    }
+    // The password was right, so the guessing counters have done their job.
+    await clearDataRateLimit(accountKey);
+    return { values, twoFactor: challenge };
+  }
 
   try {
     await dataSignIn("data-credentials", {
@@ -131,6 +183,62 @@ export async function dataLoginAction(
     await clearDataRateLimit(accountKey);
     await clearDataRateLimit(ipKey);
     throw error;
+  }
+
+  return {};
+}
+
+const EXPIRED = "That code has expired. Enter your password again to get a new one.";
+
+/**
+ * The second step: spend the code and finish signing in.
+ *
+ * Rate-limited in its own right. The five attempts on the challenge stop one
+ * code being brute-forced; this stops somebody churning through challenges to
+ * get five fresh guesses at a time.
+ */
+export async function dataVerifyTwoFactorAction(
+  _prev: DataAuthFormState,
+  formData: FormData,
+): Promise<DataAuthFormState> {
+  const challengeId = String(formData.get("challengeId") ?? "").trim();
+  const code = String(formData.get("code") ?? "").trim();
+  const channel = String(formData.get("channel") ?? "email") as TwoFactorChannel;
+  const hint = String(formData.get("hint") ?? "");
+  const again: DataAuthFormState = { twoFactor: { challengeId, channel, hint } };
+
+  if (!challengeId) return { error: EXPIRED };
+  if (!/^\d{6}$/.test(code)) {
+    return { ...again, error: "Enter the 6-digit code.", fieldErrors: { code: "6 digits." } };
+  }
+
+  const limit = await dataRateLimit(`data-2fa:ip:${await clientIp()}`, 20, 15 * 60 * 1000);
+  if (!limit.ok) {
+    return { error: `Too many attempts. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
+  }
+
+  // Read-only, so the screen can say "expired" rather than "incorrect" without
+  // spending one of the five attempts to find out — and can tell a database
+  // that did not answer apart from a code that is actually wrong.
+  const state = await dataChallengeState(challengeId, "SIGN_IN");
+  if (state === "unavailable") return { ...again, error: ACCOUNT_UNAVAILABLE };
+  if (state === "missing" || state === "expired") return { error: EXPIRED };
+  if (state === "locked") {
+    return { error: "Too many wrong codes. Enter your password again to start over." };
+  }
+
+  const redirectTo = safeCallback(formData.get("callbackUrl")) ?? "/agent";
+  try {
+    await dataSignIn("data-two-factor", { challengeId, code, redirectTo });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      if (error.type !== "CredentialsSignin") {
+        console.error("[data-auth] the code could not be checked:", error);
+        return { ...again, error: ACCOUNT_UNAVAILABLE };
+      }
+      return { ...again, error: WRONG_CODE, fieldErrors: { code: "Incorrect." } };
+    }
+    throw error; // NEXT_REDIRECT — the code was right
   }
 
   return {};

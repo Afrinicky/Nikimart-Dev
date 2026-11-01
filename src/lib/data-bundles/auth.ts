@@ -9,6 +9,8 @@ import { dataDb } from "@/lib/data-db";
 import { dataAuthConfig, applyDataToken } from "@/lib/data-bundles/auth.config";
 import { isDataRole } from "@/lib/data-bundles/roles";
 import { findDataUserByIdentifier } from "@/lib/data-bundles/user-lookup";
+import { clearAfterSuccess, currentLock, recordFailure } from "@/lib/data-bundles/lockout";
+import { consumeDataChallenge } from "@/lib/data-bundles/two-factor";
 import { sessionAccepted, sessionVerdict } from "@/lib/session-rules";
 
 /**
@@ -30,6 +32,11 @@ const credentialsSchema = z.object({
   // Email address or phone number.
   identifier: z.string().trim().min(1),
   password: z.string().min(1),
+});
+
+const twoFactorSchema = z.object({
+  challengeId: z.string().trim().min(1),
+  code: z.string().trim().regex(/^\d{6}$/),
 });
 
 export const {
@@ -66,9 +73,65 @@ export const {
         const user = await findDataUserByIdentifier(parsed.data.identifier);
         if (!user?.passwordHash) return null;
 
-        const valid = await bcrypt.compare(parsed.data.password, user.passwordHash);
-        if (!valid) return null;
+        // The lock is checked here rather than in the sign-in action, because
+        // the action is one way to reach this and posting straight at the
+        // Auth.js callback is another. A lock only the form respected would be
+        // no lock at all.
+        if (await currentLock(user.id)) return null;
 
+        const valid = await bcrypt.compare(parsed.data.password, user.passwordHash);
+        if (!valid) {
+          await recordFailure({ id: user.id, email: user.email, name: user.name });
+          return null;
+        }
+
+        // An account that asks for a code is never signed in on the password
+        // alone. The second step is a sign-in of its own, below, so the
+        // password alone stops here — the same rule the mall applies, and the
+        // reason the copied twoFactorEnabled flags finally mean something.
+        if (user.twoFactorEnabled) return null;
+
+        await clearAfterSuccess(user.id);
+        return claimDataSession(user);
+      },
+    }),
+
+    /**
+     * The second step, as a sign-in of its own.
+     *
+     * A challenge only ever exists once a password has been checked, so
+     * spending one is proof of both halves. Doing it this way means the
+     * password is never held anywhere between the two steps — not in a cookie,
+     * not in a hidden field, not in form state that goes back to the browser.
+     */
+    Credentials({
+      id: "data-two-factor",
+      credentials: {
+        challengeId: { label: "Challenge", type: "text" },
+        code: { label: "Code", type: "text" },
+      },
+      authorize: async (credentials) => {
+        const parsed = twoFactorSchema.safeParse(credentials);
+        if (!parsed.success) return null;
+
+        const spent = await consumeDataChallenge(parsed.data.challengeId, parsed.data.code, "SIGN_IN");
+        if (!spent.ok || !spent.userId) return null;
+
+        const user = await dataDb.dataUser.findUnique({
+          where: { id: spent.userId },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            role: true,
+            mustChangePassword: true,
+          },
+        });
+        if (!user) return null;
+
+        // Getting all the way in is the proof the lock was waiting for.
+        await clearAfterSuccess(user.id);
         return claimDataSession(user);
       },
     }),

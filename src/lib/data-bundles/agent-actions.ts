@@ -207,6 +207,14 @@ export async function changeAgentPassword(input: {
         // has it needs that to be true, so they sign in again afterwards.
         activeSessionId: null,
         activeSessionAt: null,
+        // A new password lifts the sign-in lock as well. Somebody who can set
+        // one has proved who they are at least as well as getting the old one
+        // right would have, and leaving them locked out of an account they
+        // have just secured would be absurd.
+        failedLoginCount: 0,
+        lockoutStage: 0,
+        lockedUntil: null,
+        lockedAt: null,
       },
     });
   } catch {

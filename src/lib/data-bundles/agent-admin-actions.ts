@@ -1,4 +1,5 @@
 "use server";
+import { liftLock } from "@/lib/data-bundles/lockout";
 
 import { createHash, randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
@@ -94,6 +95,39 @@ export async function setAgentStatus(fd: FormData): Promise<void> {
         { store: agent.storeName },
       );
     }
+  } catch {
+    // Agent gone, or tables not migrated — nothing to undo.
+  }
+}
+
+/**
+ * Let a locked account go.
+ *
+ * The third stage of the sign-in lock has no timer: five wrong passwords cost
+ * a minute, five more cost half an hour, and five after that hold the account
+ * until somebody decides. This is that decision. It clears the counter and the
+ * stage both, so the next run starts again at a minute rather than straight
+ * back where it left off — the point of lifting it is that the person is
+ * believed, and a lock that resumes mid-escalation does not believe them.
+ *
+ * Setting a new password lifts it too, in `liftLock` from the password paths:
+ * an administrator who thinks the account is being guessed at should reach for
+ * that rather than this, because unlocking alone leaves the guessable password
+ * exactly where it was.
+ */
+export async function unlockAgentAccount(fd: FormData): Promise<void> {
+  await requireDataAdminAction();
+  const agentId = str(fd, "agentId");
+  if (!agentId) return;
+
+  try {
+    const agent = await dataDb.dataAgent.findUnique({
+      where: { id: agentId },
+      select: { userId: true },
+    });
+    if (!agent?.userId) return;
+    await liftLock(agent.userId);
+    revalidateAgents(agentId);
   } catch {
     // Agent gone, or tables not migrated — nothing to undo.
   }

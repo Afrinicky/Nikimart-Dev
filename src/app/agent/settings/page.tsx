@@ -9,6 +9,7 @@ import { requireDataUser } from "@/lib/data-bundles/session";
 import { dataDb } from "@/lib/data-db";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { cn } from "@/lib/cn";
+import { BUNDLE_TWO_FACTOR_ACTIONS } from "@/lib/data-bundles/two-factor-card-actions";
 
 export const metadata: Metadata = { title: "Settings — Agent — Nickimart" };
 export const dynamic = "force-dynamic";
@@ -49,6 +50,9 @@ export default async function AgentSettingsPage() {
         enabled={profile?.twoFactorEnabled ?? false}
         channel={profile?.twoFactorChannel ?? "email"}
         hasPhone={Boolean(profile?.phone ?? agent.supportPhone)}
+        // This console's accounts live in the bundle database, so the switch
+        // has to write there — the card defaults to the mall's actions.
+        actions={BUNDLE_TWO_FACTOR_ACTIONS}
       />
 
       <Card title="Account" icon={BadgeCheck}>
