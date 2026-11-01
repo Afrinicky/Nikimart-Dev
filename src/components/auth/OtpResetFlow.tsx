@@ -7,12 +7,40 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { requestResetOtp, resetWithOtp, type ResetState } from "@/lib/reset-actions";
 
-export function OtpResetFlow() {
+/**
+ * The two actions this flow drives, and where it sends somebody afterwards.
+ *
+ * Passed in rather than imported, for the same reason the two-step card takes
+ * its actions: the bundle business keeps its accounts in a different database,
+ * and a reset that wrote the mall's `User` would set a password the agent
+ * console never reads. Which is worse than not offering a reset, because it
+ * would appear to work.
+ */
+export interface OtpResetActions {
+  request: (prev: ResetState, fd: FormData) => Promise<ResetState>;
+  reset: (prev: ResetState, fd: FormData) => Promise<ResetState>;
+  /** Where "Sign in" goes — each business has its own door. */
+  signInHref: string;
+}
+
+/** What the mall passes. Named so the call site reads as a choice. */
+export const RETAIL_RESET_ACTIONS: OtpResetActions = {
+  request: requestResetOtp,
+  reset: resetWithOtp,
+  signInHref: "/login",
+};
+
+export function OtpResetFlow({
+  actions = RETAIL_RESET_ACTIONS,
+}: {
+  /** Which account store to reset. Defaults to the mall's. */
+  actions?: OtpResetActions;
+} = {}) {
   const [step, setStep] = useState<1 | 2>(1);
   const [identifier, setIdentifier] = useState("");
 
-  const [reqState, requestAction] = useActionState<ResetState, FormData>(requestResetOtp, {});
-  const [resetState, resetAction] = useActionState<ResetState, FormData>(resetWithOtp, {});
+  const [reqState, requestAction] = useActionState<ResetState, FormData>(actions.request, {});
+  const [resetState, resetAction] = useActionState<ResetState, FormData>(actions.reset, {});
 
   // Advance to the code-entry step when a request succeeds. Adjusted during
   // render rather than in an effect — "Resend code" can send us back to step 1,
@@ -30,7 +58,7 @@ export function OtpResetFlow() {
           <CheckCircle2 className="h-5 w-5" /> Password updated
         </p>
         <p className="mt-2 text-niki-ink/70">You can now sign in with your new password.</p>
-        <Link href="/login" className="mt-3 inline-block font-semibold text-niki-orange hover:underline">Go to sign in</Link>
+        <Link href={actions.signInHref} className="mt-3 inline-block font-semibold text-niki-orange hover:underline">Go to sign in</Link>
       </div>
     );
   }
@@ -83,7 +111,7 @@ export function OtpResetFlow() {
       <SubmitButton>Send reset code</SubmitButton>
       <p className="text-center text-sm text-niki-ink/60">
         Remembered it?{" "}
-        <Link href="/login" className="font-semibold text-niki-orange hover:underline">Sign in</Link>
+        <Link href={actions.signInHref} className="font-semibold text-niki-orange hover:underline">Sign in</Link>
       </p>
     </form>
   );

@@ -168,6 +168,25 @@ export const MESSAGE_TEMPLATES: MessageTemplate[] = [
     hasEmail: true,
   },
   {
+    key: "agent.resetCode",
+    scope: "data",
+    group: "Agents",
+    name: "Agent password reset code",
+    description:
+      "To somebody who has asked to reset their agent password. Sent by SMS and email together, because the one they can still open is the one that matters.",
+    variables: [
+      { name: "code", note: "The six-digit code", example: "418203" },
+      { name: "minutes", note: "How long it lasts", example: "10" },
+    ],
+    sms: "Nickimart: your agent password reset code is {{code}}. It expires in {{minutes}} minutes. Never share it.",
+    emailSubject: "Your Nickimart agent password reset code",
+    emailBody:
+      "Use this code to set a new password:\n\n{{code}}\n\nIt expires in " +
+      "{{minutes}} minutes.\n\nIf you didn't ask for this, you can ignore it — " +
+      "nothing has changed and your password still works.",
+    hasEmail: true,
+  },
+  {
     key: "agent.signInCode",
     scope: "data",
     group: "Agents",

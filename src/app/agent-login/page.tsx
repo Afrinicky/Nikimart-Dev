@@ -63,6 +63,15 @@ export default async function AgentLoginPage({
 
         <AgentLoginForm callbackUrl={cb} />
 
+        <p className="mt-4 text-center text-sm">
+          <Link
+            href="/agent-forgot-password"
+            className="font-semibold text-niki-orange hover:underline"
+          >
+            Forgot your password?
+          </Link>
+        </p>
+
         <p className="mt-6 text-center text-sm text-niki-ink/60">
           Not selling bundles yet?{" "}
           <Link href="/become-an-agent" className="font-semibold text-niki-orange hover:underline">

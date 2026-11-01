@@ -1720,3 +1720,36 @@ model DataTwoFactorChallenge {
   @@index([userId])
   @@index([expiresAt])
 }
+
+/**
+ * A reset code for a bundle account.
+ *
+ * The mall's twin, in this database, for the reason everything here is: an
+ * agent who has forgotten their password must be able to get back in without
+ * the mall being reachable. Until now they could not get back in at all —
+ * forgetting a password meant waiting for an administrator to set a new one,
+ * which is a support ticket for something the person can prove themselves.
+ *
+ * The code is never stored, only a SHA-256 of it. `attempts` is what stops six
+ * digits being guessed: five wrong ones and the token is spent, which is why
+ * requesting a fresh code is throttled too — otherwise somebody could request
+ * one between every five guesses and have as many as they liked.
+ *
+ * No relation to DataUser, matching DataTwoFactorChallenge: these rows live
+ * for ten minutes and are only ever looked up by user or by id.
+ */
+model DataPasswordResetToken {
+  id String @id @default(cuid())
+
+  userId String
+
+  /// SHA-256 of the six digits. The code itself is never written down.
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  attempts  Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}

@@ -1,4 +1,5 @@
 import "server-only";
+import { sweepDataResetTokens } from "@/lib/data-bundles/reset-actions";
 import { sweepDataRateLimits } from "@/lib/data-bundles/rate-limit";
 import { sweepDataChallenges } from "@/lib/data-bundles/two-factor";
 import { dataDb } from "@/lib/data-db";
@@ -106,7 +107,11 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
   // one and not the other still gets the half it can.
   // Housekeeping first, and cheap: spent sign-in codes and lapsed throttle
   // windows, neither of which anything reads once they are past.
-  await Promise.allSettled([sweepDataChallenges(), sweepDataRateLimits()]);
+  await Promise.allSettled([
+    sweepDataChallenges(),
+    sweepDataResetTokens(),
+    sweepDataRateLimits(),
+  ]);
 
   const costs = await syncBundleCosts();
   result.costsUpdated = costs.updated;
