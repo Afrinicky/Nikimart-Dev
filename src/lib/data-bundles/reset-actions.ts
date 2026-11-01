@@ -1,4 +1,5 @@
 "use server";
+import { mirrorPasswordToRetail } from "@/lib/data-bundles/password-mirror";
 
 import { createHash, randomInt } from "crypto";
 import { headers } from "next/headers";
@@ -198,6 +199,11 @@ export async function resetDataPasswordWithOtp(
     }),
     dataDb.dataPasswordResetToken.deleteMany({ where: { userId: user.id } }),
   ]);
+
+  // And the mall, for somebody who holds both accounts. Somebody recovering
+  // an account they have been locked out of should come back to one password,
+  // not two. Best-effort, after the fact: the reset has already succeeded.
+  await mirrorPasswordToRetail(user.id, user.email, passwordHash);
 
   return { ok: true };
 }

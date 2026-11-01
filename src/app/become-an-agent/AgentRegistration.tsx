@@ -3,8 +3,8 @@ import { BadgePercent, Banknote, Link2, Store, Tags } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { ApplyAgentForm } from "@/components/agent/ApplyAgentForm";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { dataUserOrNull } from "@/lib/data-bundles/session";
+import { dataDb } from "@/lib/data-db";
 import { siteUrl } from "@/lib/site";
 import {
   getAgentProgramConfig,
@@ -48,7 +48,15 @@ export async function AgentRegistration({
   /** The door they came through, which can carry a price of its own. */
   channel?: JoinChannel;
 }) {
-  const session = await auth();
+  // The bundle session, not the mall's.
+  //
+  // This page and /agent redirect to each other — /agent sends somebody with
+  // no storefront here, and this sends somebody who has one there — so the two
+  // must agree about who is asking. While this read the mall's session and
+  // /agent read the bundle's, anyone holding both at once for different people
+  // bounced between them forever: the screen simply blinked. Asking the same
+  // session both sides is what makes the pair terminate.
+  const session = await dataUserOrNull();
   const [program, store, referral] = await Promise.all([
     getAgentProgramConfig(),
     getDataStoreConfig(),
@@ -91,15 +99,15 @@ export async function AgentRegistration({
 
   // Already an agent? There's nothing to pitch — send them to their console.
   let signedInAs: { name: string; email: string; phone: string } | null = null;
-  if (session?.user?.id) {
-    const existing = await getAgentForUser(session.user.id);
+  if (session?.id) {
+    const existing = await getAgentForUser(session.id);
     if (existing) redirect("/agent");
 
     // Signed in but not an agent: the storefront is added to the account they
     // already have, so the form doesn't ask them to invent a second password.
-    const profile = await prisma.user
+    const profile = await dataDb.dataUser
       .findUnique({
-        where: { id: session.user.id },
+        where: { id: session.id },
         select: { name: true, email: true, phone: true },
       })
       .catch(() => null);

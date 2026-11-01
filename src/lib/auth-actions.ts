@@ -9,7 +9,6 @@ import { termsAccepted, TERMS_REQUIRED_MESSAGE } from "@/lib/terms";
 import { prisma } from "@/lib/prisma";
 import { isRole, ROLE_HOME } from "@/lib/roles";
 import { findUserByIdentifier } from "@/lib/user-lookup";
-import { isAgentUser } from "@/lib/data-bundles/agents";
 import { medicalHomeForUser } from "@/lib/medical/home";
 import { clearRateLimit, rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { challengeState, issueChallenge } from "@/lib/two-factor";
@@ -121,8 +120,14 @@ async function homeForUser(user: { id: string; role: string } | null): Promise<s
   if (user.role === "CUSTOMER") {
     const medical = await medicalHomeForUser(user.id);
     if (medical) return medical;
-    if (await isAgentUser(user.id)) return "/agent";
   }
+  // Deliberately not the agent console.
+  //
+  // Signing in here is signing in to the mall, and a mall session cannot open
+  // /agent any more — the bundle business checks its own. Sending somebody
+  // there landed them on the agent sign-in a moment later, having apparently
+  // signed in successfully, which is how "I logged in and the screen started
+  // blinking" began. The agent door is the Data agent tab on this same page.
   return homeForRole(user.role);
 }
 
