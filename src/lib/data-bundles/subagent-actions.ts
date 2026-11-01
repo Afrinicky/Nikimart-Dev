@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
 import { requireDataUser } from "@/lib/data-bundles/session";
-import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+import { retryAfterLabel } from "@/lib/rate-limit";
 import { formatMoney } from "@/lib/format";
 import { getAgentProgramConfig } from "@/lib/data-bundles/settings";
 import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
@@ -14,6 +14,7 @@ import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { quoteRegistrationFee, recruitPaymentMode } from "@/lib/data-bundles/referrals";
 import { canChoosePaymentMethod, settleMethodFor } from "@/lib/data-bundles/payment-mode";
 import { startApplicationFeePayment } from "@/lib/data-bundles/registration-fee";
+import { dataRateLimit } from "@/lib/data-bundles/rate-limit";
 
 /**
  * An agent bringing somebody in from their own console.
@@ -101,7 +102,7 @@ export async function registerSubAgent(
   }
   const data = parsed.data;
 
-  const limit = await rateLimit(`subagent:${agent.id}`, 20, 60 * 60_000);
+  const limit = await dataRateLimit(`subagent:${agent.id}`, 20, 60 * 60_000);
   if (!limit.ok) {
     return { error: `Too many registrations. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }

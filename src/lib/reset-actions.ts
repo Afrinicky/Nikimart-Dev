@@ -135,7 +135,21 @@ export async function resetWithOtp(_prev: ResetState, fd: FormData): Promise<Res
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
   await prisma.$transaction([
-    prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+      // Changing the password ends every session the account currently has.
+      // `activeSessionId` is this codebase's own revocation switch — a token
+      // carrying any other id stops being accepted the moment this is written
+      // — and until now nothing but signing out ever touched it. That made
+      // the reset useless for the one job it exists to do: somebody whose
+      // account has been taken recovers it, and the person who took it stays
+      // signed in on their own device with the old session, indefinitely.
+        activeSessionId: null,
+        activeSessionAt: null,
+      },
+    }),
     prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }),
   ]);
   return { ok: true };

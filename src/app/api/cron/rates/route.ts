@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { refreshCurrencyRates } from "@/lib/fx";
+import { denyCron } from "@/lib/cron-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,13 +21,8 @@ export const dynamic = "force-dynamic";
  * A failure is reported and changes nothing: yesterday's rates stand.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = request.headers.get("authorization");
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
+  const denied = denyCron(request);
+  if (denied) return denied;
 
   const result = await refreshCurrencyRates();
   return NextResponse.json(result, { status: result.ok ? 200 : 502 });

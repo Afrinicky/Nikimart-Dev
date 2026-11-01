@@ -1,4 +1,7 @@
 import "server-only";
+import { sweepDataResetTokens } from "@/lib/data-bundles/reset-actions";
+import { sweepDataRateLimits } from "@/lib/data-bundles/rate-limit";
+import { sweepDataChallenges } from "@/lib/data-bundles/two-factor";
 import { dataDb } from "@/lib/data-db";
 import { notify, type Recipient } from "@/lib/notifications";
 import { formatPrice } from "@/lib/format";
@@ -102,6 +105,14 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
   // Costs first, and outside the provider-key guard below: the price list can
   // be read on either the API key or the dashboard sign-in, so a site that has
   // one and not the other still gets the half it can.
+  // Housekeeping first, and cheap: spent sign-in codes and lapsed throttle
+  // windows, neither of which anything reads once they are past.
+  await Promise.allSettled([
+    sweepDataChallenges(),
+    sweepDataResetTokens(),
+    sweepDataRateLimits(),
+  ]);
+
   const costs = await syncBundleCosts();
   result.costsUpdated = costs.updated;
   if (!costs.ok) result.notes.push(`Cost sync: ${costs.message}`);

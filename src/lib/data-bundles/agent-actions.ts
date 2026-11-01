@@ -1,4 +1,5 @@
 "use server";
+import { dataRateLimit } from "@/lib/data-bundles/rate-limit";
 
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
@@ -11,7 +12,7 @@ import { callbackOrigin, siteUrl } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
 import { notifyAdmins } from "@/lib/data-bundles/admin-alerts";
 import { recordNotification } from "@/lib/data-bundles/notifications";
-import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+import { retryAfterLabel } from "@/lib/rate-limit";
 import { initializeTransaction, isPaymentConfigured, toPesewas } from "@/lib/payments";
 import { newDataReference, settleDataOrder } from "@/lib/data-bundles/fulfillment";
 import { bundleLabel, networkLabel, NETWORKS } from "@/lib/data-bundles/networks";
@@ -172,7 +173,7 @@ export async function changeAgentPassword(input: {
     return { ok: false, error: "Choose a password of at least 6 characters." };
   }
 
-  const limit = await rateLimit(`agent-password:${user.id}`, 10, 15 * 60_000);
+  const limit = await dataRateLimit(`agent-password:${user.id}`, 10, 15 * 60_000);
   if (!limit.ok) {
     return {
       ok: false,
@@ -201,6 +202,19 @@ export async function changeAgentPassword(input: {
         // Diverged from the copied one on purpose: the mall has never heard of
         // this password, and copy-logins.mjs --refresh must not undo it.
         passwordChangedAt: new Date(),
+        // And every session the account holds ends with the old password.
+        // Somebody changing their password because they think someone else
+        // has it needs that to be true, so they sign in again afterwards.
+        activeSessionId: null,
+        activeSessionAt: null,
+        // A new password lifts the sign-in lock as well. Somebody who can set
+        // one has proved who they are at least as well as getting the old one
+        // right would have, and leaving them locked out of an account they
+        // have just secured would be absurd.
+        failedLoginCount: 0,
+        lockoutStage: 0,
+        lockedUntil: null,
+        lockedAt: null,
       },
     });
   } catch {
@@ -433,7 +447,7 @@ export async function requestWithdrawal(input: z.infer<typeof withdrawSchema>): 
     return { ok: false, error: `The smallest withdrawal is GH₵${config.minWithdrawal.toFixed(2)}.` };
   }
 
-  const limit = await rateLimit(`agent-withdraw:${agent.id}`, 5, 60 * 60_000);
+  const limit = await dataRateLimit(`agent-withdraw:${agent.id}`, 5, 60 * 60_000);
   if (!limit.ok) {
     return { ok: false, error: `Too many requests. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }
@@ -541,7 +555,7 @@ export async function topUpWallet(amount: number): Promise<WalletTopupResult> {
     };
   }
 
-  const limit = await rateLimit(`agent-topup-wallet:${agent.id}`, 20, 60 * 60_000);
+  const limit = await dataRateLimit(`agent-topup-wallet:${agent.id}`, 20, 60 * 60_000);
   if (!limit.ok) {
     return { ok: false, error: `Too many attempts. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }
@@ -568,7 +582,7 @@ export async function checkWalletTopup(reference: string): Promise<ActionResult>
   const { agent, error } = await currentAgent();
   if (!agent) return { ok: false, error };
 
-  const limit = await rateLimit(`agent-topup-check:${agent.id}`, 30, 10 * 60_000);
+  const limit = await dataRateLimit(`agent-topup-check:${agent.id}`, 30, 10 * 60_000);
   if (!limit.ok) {
     return { ok: false, error: `Too many checks. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }
@@ -602,7 +616,7 @@ export async function payRegistrationFee(): Promise<PayFeeResult> {
   const { agent, user, error } = await currentAgent();
   if (!agent) return { ok: false, error };
 
-  const limit = await rateLimit(`agent-fee:${agent.id}`, 10, 60 * 60_000);
+  const limit = await dataRateLimit(`agent-fee:${agent.id}`, 10, 60 * 60_000);
   if (!limit.ok) {
     return { ok: false, error: `Too many attempts. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }
@@ -640,7 +654,7 @@ export async function requestCallback(input: z.infer<typeof callbackSchema>): Pr
   if (!parsedPhone.ok) return { ok: false, error: parsedPhone.message };
   const phone = parsedPhone.local;
 
-  const limit = await rateLimit(`agent-callback:${user.id}`, 3, 60 * 60_000);
+  const limit = await dataRateLimit(`agent-callback:${user.id}`, 3, 60 * 60_000);
   if (!limit.ok) {
     return { ok: false, error: `You've already asked us to call. We'll be in touch shortly.` };
   }
@@ -749,7 +763,7 @@ export async function agentTopup(input: z.infer<typeof topupSchema>): Promise<Ag
   if (!recipient.ok) return { ok: false, error: recipient.message };
   const recipientPhone = recipient.local;
 
-  const limit = await rateLimit(`agent-topup:${agent.id}`, 40, 10 * 60_000);
+  const limit = await dataRateLimit(`agent-topup:${agent.id}`, 40, 10 * 60_000);
   if (!limit.ok) {
     return { ok: false, error: `Too many orders. Please try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }

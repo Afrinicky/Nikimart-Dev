@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { updateTag } from "next/cache";
 import { runDataBundleSweep } from "@/lib/data-bundles/monitor";
 import { BUNDLES_TAG } from "@/lib/data-bundles/catalog";
+import { denyCron } from "@/lib/cron-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,13 +18,8 @@ export const maxDuration = 60;
  * work that was already paid for and can't be made to do anything else.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = request.headers.get("authorization");
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
+  const denied = denyCron(request);
+  if (denied) return denied;
 
   const result = await runDataBundleSweep();
 

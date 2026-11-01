@@ -5,7 +5,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
 import { dataUserOrNull } from "@/lib/data-bundles/session";
-import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+import { retryAfterLabel } from "@/lib/rate-limit";
 import { initializeTransaction, isPaymentConfigured, toPesewas } from "@/lib/payments";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { callbackOrigin } from "@/lib/site";
@@ -26,6 +26,7 @@ import {
   settleDataOrder,
 } from "@/lib/data-bundles/fulfillment";
 import { recoverStalePayments } from "@/lib/data-bundles/payment-recovery";
+import { dataRateLimit } from "@/lib/data-bundles/rate-limit";
 
 /**
  * Public actions for the bundle storefront. Buying needs no account — a phone
@@ -85,7 +86,7 @@ export async function buyBundle(input: BuyBundleInput): Promise<BuyBundleResult>
 
   // One buyer shouldn't be able to spray orders — a burst of failed provider
   // calls costs real money upstream.
-  const limit = await rateLimit(`bundle:${buyerPhone}:${await clientIp()}`, 8, 10 * 60_000);
+  const limit = await dataRateLimit(`bundle:${buyerPhone}:${await clientIp()}`, 8, 10 * 60_000);
   if (!limit.ok) {
     return {
       ok: false,
@@ -265,7 +266,7 @@ export async function registerAfa(input: AfaInputForm): Promise<AfaResult> {
     return { ok: false, error: "Enter a valid date of birth." };
   }
 
-  const limit = await rateLimit(`afa:${phoneNumber}:${await clientIp()}`, 4, 30 * 60_000);
+  const limit = await dataRateLimit(`afa:${phoneNumber}:${await clientIp()}`, 4, 30 * 60_000);
   if (!limit.ok) {
     return {
       ok: false,

@@ -3,6 +3,7 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { dataDb } from "@/lib/data-db";
 import { NETWORKS, type Network } from "@/lib/data-bundles/networks";
+import { CACHE_BACKSTOP } from "@/lib/cache-windows";
 
 export interface Bundle {
   id: string;
@@ -95,7 +96,7 @@ const readActiveBundles = unstable_cache(
       orderBy: [{ order: "asc" }, { sizeGb: "asc" }],
     }),
   ["data-bundles-active"],
-  { tags: [BUNDLES_TAG], revalidate: 60 },
+  { tags: [BUNDLES_TAG], revalidate: CACHE_BACKSTOP },
 );
 
 /**

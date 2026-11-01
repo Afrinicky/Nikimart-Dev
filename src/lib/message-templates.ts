@@ -168,6 +168,86 @@ export const MESSAGE_TEMPLATES: MessageTemplate[] = [
     hasEmail: true,
   },
   {
+    key: "agent.resetCode",
+    scope: "data",
+    group: "Agents",
+    name: "Agent password reset code",
+    description:
+      "To somebody who has asked to reset their agent password. Sent by SMS and email together, because the one they can still open is the one that matters.",
+    variables: [
+      { name: "code", note: "The six-digit code", example: "418203" },
+      { name: "minutes", note: "How long it lasts", example: "10" },
+    ],
+    sms: "Nickimart: your agent password reset code is {{code}}. It expires in {{minutes}} minutes. Never share it.",
+    emailSubject: "Your Nickimart agent password reset code",
+    emailBody:
+      "Use this code to set a new password:\n\n{{code}}\n\nIt expires in " +
+      "{{minutes}} minutes.\n\nIf you didn't ask for this, you can ignore it — " +
+      "nothing has changed and your password still works.",
+    hasEmail: true,
+  },
+  {
+    key: "agent.signInCode",
+    scope: "data",
+    group: "Agents",
+    name: "Agent sign-in code",
+    description:
+      "The second step, after the password. Sent to whichever channel the account asks for.",
+    variables: [
+      { name: "code", note: "The six-digit code", example: "418203" },
+      { name: "minutes", note: "How long it lasts", example: "10" },
+    ],
+    sms: "Nickimart: your agent sign-in code is {{code}}. It expires in {{minutes}} minutes. Never share it.",
+    emailSubject: "Your Nickimart agent sign-in code",
+    emailBody:
+      "Use this code to finish signing in:\n\n{{code}}\n\nIt expires in " +
+      "{{minutes}} minutes.\n\nIf this wasn't you, somebody has your password. " +
+      "Change it as soon as you are back in.",
+    hasEmail: true,
+  },
+  {
+    key: "agentAccountLocked",
+    scope: "data",
+    group: "Agents",
+    name: "Agent account locked (30 minutes)",
+    description:
+      "To the administrators when an account has failed enough sign-ins to be locked for half an hour. The next run of failures holds it until one of you lifts it.",
+    variables: [
+      { name: "name", note: "Who the account belongs to", example: "Ama Mensah" },
+      { name: "email", note: "The address they sign in with", example: "ama@example.com" },
+    ],
+    sms: "Nickimart: {{name}} ({{email}}) has been locked out for 30 minutes after repeated failed sign-ins.",
+    emailSubject: "An agent account has been locked for 30 minutes",
+    emailBody:
+      "{{name}} ({{email}}) has failed enough sign-in attempts to be locked for " +
+      "thirty minutes.\n\nThis is the second stage. If the attempts continue after " +
+      "it lifts, the account will be held until one of you unlocks it or sets a new " +
+      "password.\n\nIf this is them having forgotten their password, a reset is " +
+      "kinder than waiting.",
+    hasEmail: true,
+  },
+  {
+    key: "agentAccountHeld",
+    scope: "data",
+    group: "Agents",
+    name: "Agent account held for an admin",
+    description:
+      "To the administrators when an account has been locked for good and now needs a person to unlock it or reset the password.",
+    variables: [
+      { name: "name", note: "Who the account belongs to", example: "Ama Mensah" },
+      { name: "email", note: "The address they sign in with", example: "ama@example.com" },
+    ],
+    sms: "Nickimart: {{name}} ({{email}}) is locked out and needs an admin to unlock it. Waiting will not clear it.",
+    emailSubject: "An agent account is locked and needs you",
+    emailBody:
+      "{{name}} ({{email}}) has now failed three runs of sign-in attempts, so the " +
+      "account is held.\n\nWaiting will not clear this one. Unlock it from the " +
+      "agent's page in the console, or set them a new password — either lifts " +
+      "it.\n\nIf none of this was them, their password is being guessed at and " +
+      "a new one is the safer answer.",
+    hasEmail: true,
+  },
+  {
     key: "agent.approved",
     scope: "data",
     group: "Agents",

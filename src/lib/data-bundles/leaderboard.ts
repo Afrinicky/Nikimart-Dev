@@ -1,4 +1,5 @@
 import "server-only";
+import { CACHE_BACKSTOP } from "@/lib/cache-windows";
 import { unstable_cache } from "next/cache";
 import { dataDb } from "@/lib/data-db";
 import { round2 } from "@/lib/data-bundles/agent-pricing";
@@ -225,7 +226,7 @@ const readLiveStandings = unstable_cache(
   async (config: LeaderboardConfig): Promise<Standings> =>
     computeStandings(config, new Date(), 0),
   ["data-leaderboard"],
-  { tags: ["data-leaderboard"], revalidate: 60 },
+  { tags: ["data-leaderboard"], revalidate: CACHE_BACKSTOP },
 );
 
 /** Cache tag for the live boards. Awards drop it so new points show at once. */

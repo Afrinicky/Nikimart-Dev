@@ -4,10 +4,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
 import { requireDataUser } from "@/lib/data-bundles/session";
-import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+import { retryAfterLabel } from "@/lib/rate-limit";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { getAgentUser } from "@/lib/data-bundles/user-link";
 import { sessionAccess } from "@/lib/data-bundles/team/sessions";
+import { dataRateLimit } from "@/lib/data-bundles/rate-limit";
 
 /**
  * Holding a session: scheduling one, opening it, being counted at it, and
@@ -47,7 +48,7 @@ export async function scheduleSession(
   const startsAt = new Date(parsed.data.startsAt);
   if (Number.isNaN(startsAt.getTime())) return { error: "That start time isn't a date." };
 
-  const limit = await rateLimit(`team-session:${agent.id}`, 20, 24 * 60 * 60_000);
+  const limit = await dataRateLimit(`team-session:${agent.id}`, 20, 24 * 60 * 60_000);
   if (!limit.ok) {
     return { error: `You've scheduled a lot today. Try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }

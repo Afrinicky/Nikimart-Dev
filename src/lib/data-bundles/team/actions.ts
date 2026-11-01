@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dataDb } from "@/lib/data-db";
 import { requireDataUser } from "@/lib/data-bundles/session";
-import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+import { retryAfterLabel } from "@/lib/rate-limit";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { memberLevelFor } from "@/lib/data-bundles/team/hierarchy";
+import { dataRateLimit } from "@/lib/data-bundles/rate-limit";
 
 /**
  * What a leader writes: posts to their team, notes about one member.
@@ -38,7 +39,7 @@ export async function postToTeam(
     return { error: parsed.error.issues[0]?.message ?? "Please check the form." };
   }
 
-  const limit = await rateLimit(`team-post:${agent.id}`, 20, 60 * 60_000);
+  const limit = await dataRateLimit(`team-post:${agent.id}`, 20, 60 * 60_000);
   if (!limit.ok) {
     return { error: `You've posted a lot today. Try again in ${retryAfterLabel(limit.retryAfter)}.` };
   }

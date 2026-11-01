@@ -77,7 +77,11 @@ export const metadata: Metadata = {
 // throwing, so a build without DATABASE_URL still succeeds; it would just
 // prerender thin pages, and the revalidate above replaces them within the
 // minute.
-export const revalidate = 60;
+// Thirty minutes, matching CACHE_BACKSTOP in src/lib/cache-windows.ts — which
+// explains why. It cannot be imported from there: Next requires this export to
+// be statically analyzable, so a literal is the only form it accepts (see
+// node_modules/next/dist/docs/01-app/02-guides/caching-without-cache-components.md).
+export const revalidate = 1800;
 
 export default async function RootLayout({
   children,

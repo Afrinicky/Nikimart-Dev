@@ -18,7 +18,11 @@ import {
 import { isMedicalConfigured } from "@/lib/medical/db";
 import { NotConfigured } from "@/components/medical/ui/NotConfigured";
 
-export const revalidate = 60;
+// Thirty minutes, matching CACHE_BACKSTOP in src/lib/cache-windows.ts — which
+// explains why. It cannot be imported from there: Next requires this export to
+// be statically analyzable, so a literal is the only form it accepts (see
+// node_modules/next/dist/docs/01-app/02-guides/caching-without-cache-components.md).
+export const revalidate = 1800;
 
 type Params = Promise<{ slug: string }>;
 

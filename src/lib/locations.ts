@@ -4,6 +4,7 @@ import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { locations as STATIC_LOCATIONS } from "@/lib/mock-data";
 import type { Location, LocationType } from "@/lib/types";
+import { CACHE_BACKSTOP } from "@/lib/cache-windows";
 
 /**
  * All locations for the storefront (the "Any Location" option plus active
@@ -19,7 +20,7 @@ const readLocations = unstable_cache(
       orderBy: [{ order: "asc" }, { name: "asc" }],
     }),
   ["locations"],
-  { tags: [LOCATIONS_TAG], revalidate: 300 },
+  { tags: [LOCATIONS_TAG], revalidate: CACHE_BACKSTOP },
 );
 
 export const getLocations = cache(async (): Promise<Location[]> => {

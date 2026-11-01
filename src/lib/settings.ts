@@ -3,6 +3,7 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { normaliseDataBundlesUrl } from "@/lib/data-bundles/store-link";
+import { CACHE_BACKSTOP, CACHE_BACKSTOP_LONG } from "@/lib/cache-windows";
 
 // Site-wide settings stored as key/value rows, merged with these defaults.
 export const SETTINGS_DEFAULTS = {
@@ -339,7 +340,7 @@ const readStoredSettings = unstable_cache(
     };
   },
   ["site-settings"],
-  { tags: [SETTINGS_TAG], revalidate: 300 },
+  { tags: [SETTINGS_TAG], revalidate: CACHE_BACKSTOP },
 );
 
 /**
@@ -352,7 +353,7 @@ export const readImageSetting = unstable_cache(
     return row?.value ?? null;
   },
   ["site-setting-image"],
-  { tags: [SETTINGS_TAG], revalidate: 3600 },
+  { tags: [SETTINGS_TAG], revalidate: CACHE_BACKSTOP_LONG },
 );
 
 /** All settings merged with defaults. Resilient if the table doesn't exist yet. */

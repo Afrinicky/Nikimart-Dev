@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { CACHE_BACKSTOP } from "@/lib/cache-windows";
 
 export interface BannerSlide {
   id: string;
@@ -81,7 +82,7 @@ const readBanners = unstable_cache(
       orderBy: [{ order: "asc" }, { createdAt: "asc" }],
     }),
   ["banners"],
-  { tags: [BANNERS_TAG], revalidate: 300 },
+  { tags: [BANNERS_TAG], revalidate: CACHE_BACKSTOP },
 );
 
 export const getBanners = cache(async (): Promise<BannerSlide[]> => {

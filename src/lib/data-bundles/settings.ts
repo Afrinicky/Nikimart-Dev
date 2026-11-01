@@ -5,6 +5,7 @@ import { dataDb } from "@/lib/data-db";
 import { getSettings as getRetailSettings } from "@/lib/settings";
 import { programPaymentMode, type PaymentMode } from "@/lib/data-bundles/payment-mode";
 import type { Network } from "@/lib/data-bundles/networks";
+import { CACHE_BACKSTOP } from "@/lib/cache-windows";
 
 /**
  * Settings for the data-bundle business, stored in the data-bundle database.
@@ -258,7 +259,7 @@ export const DATA_SETTINGS_TAG = "data-settings";
 const readStoredDataSettings = unstable_cache(
   async () => dataDb.dataSetting.findMany(),
   ["data-settings"],
-  { tags: [DATA_SETTINGS_TAG], revalidate: 300 },
+  { tags: [DATA_SETTINGS_TAG], revalidate: CACHE_BACKSTOP },
 );
 
 /**
