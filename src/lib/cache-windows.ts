@@ -39,12 +39,25 @@ export const CACHE_BACKSTOP = 30 * 60;
 export const CACHE_BACKSTOP_LONG = 60 * 60;
 
 /**
- * What a cached *page* may serve before it re-renders.
+ * Pages are not configured from here, and cannot be.
  *
- * Distinct from the two above because it governs a different thing: the page
- * cache holds rendered HTML, and re-rendering is what goes back to the reads
- * underneath. A page that re-renders every minute over reads that are an hour
- * old is just work — it produces identical HTML and still touches the database
- * through anything not cached. Matching the backstop keeps the two in step.
+ * A page's own window is `export const revalidate`, which is route segment
+ * config, and Next requires those exports to be *statically analyzable*: a
+ * literal and nothing else. Not an imported constant, not even `30 * 60` —
+ * the docs give exactly that as the counter-example, in
+ * node_modules/next/dist/docs/01-app/02-guides/caching-without-cache-components.md.
+ * Importing a constant here type-checked perfectly and then failed the
+ * production build with "Invalid segment configuration export detected", which
+ * is the kind of thing worth writing down once rather than rediscovering.
+ *
+ * So each cached page carries the literal 1800 with a comment pointing back at
+ * `CACHE_BACKSTOP`. The two are kept in step by convention, because the
+ * language of the framework does not allow anything better. If you change the
+ * number here, change it there:
+ *
+ *     grep -rn "export const revalidate" src/app
+ *
+ * They should match, and for the same reason: a page that re-renders every
+ * minute over reads half an hour old produces identical HTML and still touches
+ * the database through everything uncached, which is pure cost.
  */
-export const PAGE_BACKSTOP = CACHE_BACKSTOP;

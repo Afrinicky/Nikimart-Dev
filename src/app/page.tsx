@@ -1,4 +1,3 @@
-import { PAGE_BACKSTOP } from "@/lib/cache-windows";
 import { Hero } from "@/components/home/Hero";
 import { SellCta } from "@/components/home/SellCta";
 import { FlashSaleSection } from "@/components/home/FlashSaleSection";
@@ -24,7 +23,11 @@ import {
 // session reads cookies, which makes every route dynamic whatever is set here.
 // See the note in src/components/layout/Header.tsx. Left in place because it is
 // the right setting and becomes live the moment that changes.
-export const revalidate = PAGE_BACKSTOP;
+// Thirty minutes, matching CACHE_BACKSTOP in src/lib/cache-windows.ts — which
+// explains why. It cannot be imported from there: Next requires this export to
+// be statically analyzable, so a literal is the only form it accepts (see
+// node_modules/next/dist/docs/01-app/02-guides/caching-without-cache-components.md).
+export const revalidate = 1800;
 
 export default async function Home() {
   const [products, flashSale, total, vendorNames] = await Promise.all([
