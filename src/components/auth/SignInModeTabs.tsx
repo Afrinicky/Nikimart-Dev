@@ -35,13 +35,19 @@ export function SignInModeTabs({
   // The mall first: it is the common case, and an agent switching once is a
   // smaller cost than a shopper landing on a form that is not for them.
   const [mode, setMode] = useState<"shop" | "agent">("shop");
+  // Set when somebody has just been moved here from the shop tab, so the
+  // reason is on screen rather than them wondering why the form changed.
+  const [sentOver, setSentOver] = useState(false);
 
   const tab = (value: "shop" | "agent", label: string, Icon: typeof Store) => (
     <button
       type="button"
       role="tab"
       aria-selected={mode === value}
-      onClick={() => setMode(value)}
+      onClick={() => {
+        setMode(value);
+        setSentOver(false);
+      }}
       className={cn(
         "niki-focus flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all",
         mode === value
@@ -64,13 +70,26 @@ export function SignInModeTabs({
       {mode === "shop" ? (
         <>
           <p className="mt-4 text-sm text-niki-ink/60">Sign in to your Nickimart account.</p>
-          <LoginForm callbackUrl={callbackUrl} />
+          <LoginForm
+            callbackUrl={callbackUrl}
+            onAgentAccount={() => {
+              setMode("agent");
+              setSentOver(true);
+            }}
+          />
         </>
       ) : (
         <>
-          <p className="mt-4 text-sm text-niki-ink/60">
-            Sign in to your data agent console, with the password you already use.
-          </p>
+          {sentOver ? (
+            <p className="animate-fade-up mt-4 rounded-xl bg-niki-orange/10 px-4 py-3 text-sm font-medium text-niki-ink ring-1 ring-niki-orange/25">
+              That&apos;s a data agent account — you&apos;re in the right place now. Enter your
+              password again to sign in.
+            </p>
+          ) : (
+            <p className="mt-4 text-sm text-niki-ink/60">
+              Sign in to your data agent console, with the password you already use.
+            </p>
+          )}
           {/* The agent form posts to the bundle sign-in, so a callback into the
               mall would be meaningless — it is deliberately not passed on. */}
           <AgentLoginForm />

@@ -63,3 +63,33 @@ export async function findDataUserByIdentifier(
   `;
   return rows[0] ?? null;
 }
+
+/**
+ * Are these the right credentials for a bundle account?
+ *
+ * Asked by the *mall's* sign-in when its own attempt has failed, so it can
+ * say "that is a data agent account" instead of "invalid email or password"
+ * to somebody who used the wrong door with the right key. Agents reach the
+ * homepage like everybody else and press Sign in, and the shop form is the
+ * one they land on.
+ *
+ * It mints nothing and returns a boolean. The check is deliberately only made
+ * *after* the mall has already rejected the attempt, and only reported when
+ * the password is right — so it tells somebody who already holds the password
+ * which door to use, and tells somebody guessing exactly nothing.
+ */
+export async function bundleCredentialsValid(
+  identifier: string,
+  password: string,
+): Promise<boolean> {
+  try {
+    const user = await findDataUserByIdentifier(identifier);
+    if (!user?.passwordHash) return false;
+    const bcrypt = (await import("bcryptjs")).default;
+    return await bcrypt.compare(password, user.passwordHash);
+  } catch {
+    // The bundle database being away is not a reason to change what the mall
+    // tells somebody about their mall password.
+    return false;
+  }
+}

@@ -5,10 +5,13 @@ import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { auth, signIn, signOut } from "@/lib/auth";
+import { dataSignIn } from "@/lib/data-bundles/auth";
+import { tryCompanionSignIn } from "@/lib/companion-session";
 import { termsAccepted, TERMS_REQUIRED_MESSAGE } from "@/lib/terms";
 import { prisma } from "@/lib/prisma";
 import { isRole, ROLE_HOME } from "@/lib/roles";
 import { findUserByIdentifier } from "@/lib/user-lookup";
+import { bundleCredentialsValid } from "@/lib/data-bundles/user-lookup";
 import { medicalHomeForUser } from "@/lib/medical/home";
 import { clearRateLimit, rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import { challengeState, issueChallenge } from "@/lib/two-factor";
@@ -69,6 +72,14 @@ export type AuthFormState = {
    * password is not held anywhere between the two steps.
    */
   twoFactor?: { challengeId: string; channel: TwoFactorChannel; hint: string };
+  /**
+   * Set when the mall rejected the attempt but these *are* the credentials of
+   * a data agent account. Agents land on the homepage like anybody else and
+   * press Sign in, which is the shop form; telling them "invalid email or
+   * password" when they have typed their password correctly is both wrong and
+   * the start of a long evening. The page switches to the agent tab.
+   */
+  agentAccount?: boolean;
 };
 
 const registerSchema = z.object({
@@ -334,6 +345,14 @@ export async function loginAction(
     return { values, twoFactor: challenge.value };
   }
 
+  // Before the sign-in that owns the redirect: open the bundle side too, for
+  // somebody who holds both accounts. Attempted, never required — see
+  // lib/companion-session.ts for why this cannot weaken anything.
+  await tryCompanionSignIn(dataSignIn, "data-credentials", {
+    identifier,
+    password: parsed.data.password,
+  });
+
   try {
     await signIn("credentials", {
       email: identifier,
@@ -348,8 +367,19 @@ export async function loginAction(
       // somebody to reset a password that was never the problem.
       if (error.type !== "CredentialsSignin") {
         console.error("[auth] sign-in failed before the password could be judged:", error);
+        return { error: signInFailureMessage(error.type, WRONG_CREDENTIALS), values };
       }
-      return { error: signInFailureMessage(error.type, WRONG_CREDENTIALS), values };
+
+      // The mall says no. Before repeating that, ask whether this is simply
+      // the wrong door: an agent with no mall account, or one whose two
+      // passwords differ. Only asked after a rejection and only acted on when
+      // the password is right, so it helps whoever holds it and tells a
+      // guesser nothing they did not already supply.
+      if (await bundleCredentialsValid(identifier, parsed.data.password)) {
+        return { agentAccount: true, values };
+      }
+
+      return { error: WRONG_CREDENTIALS, values };
     }
     // signIn throws NEXT_REDIRECT on success — the attempt worked, so clear the
     // counters before re-throwing so navigation still happens.

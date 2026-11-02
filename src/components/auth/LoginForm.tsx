@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { PasswordInput } from "@/components/ui/PasswordInput";
@@ -12,8 +12,28 @@ import {
 } from "@/lib/auth-actions";
 import { FormFeedback } from "@/components/ui/FormFeedback";
 
-export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
+export function LoginForm({
+  callbackUrl,
+  onAgentAccount,
+}: {
+  callbackUrl?: string;
+  /**
+   * Called when the mall rejected the attempt but these are a data agent's
+   * credentials. The page switches tabs rather than leaving somebody staring
+   * at "invalid email or password" for a password that is perfectly correct.
+   */
+  onAgentAccount?: (identifier: string) => void;
+}) {
   const [state, formAction] = useActionState<AuthFormState, FormData>(loginAction, {});
+
+  // Reported during render rather than from an effect, and only on the edge:
+  // the same shape OtpResetFlow uses to advance a step without an effect
+  // chasing its own state.
+  const [acked, setAcked] = useState(false);
+  if (Boolean(state.agentAccount) !== acked) {
+    setAcked(Boolean(state.agentAccount));
+    if (state.agentAccount) onAgentAccount?.(state.values?.email ?? "");
+  }
 
   // The password was right and a code is out. Swapping the form rather than
   // showing a second one keeps the password field off the screen entirely —
