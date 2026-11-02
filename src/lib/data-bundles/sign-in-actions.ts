@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import { AuthError } from "next-auth";
 import { z } from "zod";
 import { dataSignIn, dataSignOut } from "@/lib/data-bundles/auth";
+import { signIn as retailSignIn } from "@/lib/auth";
+import { tryCompanionSignIn } from "@/lib/companion-session";
 import { dataAuth } from "@/lib/data-bundles/auth";
 import { dataDb } from "@/lib/data-db";
 import { clearDataRateLimit, dataRateLimit } from "@/lib/data-bundles/rate-limit";
@@ -160,6 +162,14 @@ export async function dataLoginAction(
     await clearDataRateLimit(accountKey);
     return { values, twoFactor: challenge };
   }
+
+  // The mall side too, for somebody who holds both. Attempted, never
+  // required: this console must keep working when the mall is away, which is
+  // the whole reason it has its own accounts.
+  await tryCompanionSignIn(retailSignIn, "credentials", {
+    email: identifier,
+    password: parsed.data.password,
+  });
 
   try {
     await dataSignIn("data-credentials", {

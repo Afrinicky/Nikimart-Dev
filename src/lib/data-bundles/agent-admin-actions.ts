@@ -1,4 +1,5 @@
 "use server";
+import { mirrorPasswordToRetail } from "@/lib/data-bundles/password-mirror";
 import { DB_UNIQUE_VIOLATION, describeDbError } from "@/lib/db-errors";
 import bcrypt from "bcryptjs";
 import { liftLock } from "@/lib/data-bundles/lockout";
@@ -128,15 +129,17 @@ export async function updateAgentAccount(
     return { error: "A new password must be at least 8 characters." };
   }
 
+  const newHash = password ? await bcrypt.hash(password, 10) : null;
+
   try {
     await dataDb.dataUser.update({
       where: { id: userId },
       data: {
         email,
         phone: phone || null,
-        ...(password
+        ...(newHash
           ? {
-              passwordHash: await bcrypt.hash(password, 10),
+              passwordHash: newHash,
               // The same rules a self-service change follows: the account now
               // has its own password, every session it held ends, and the
               // sign-in lock lifts — an admin setting a password is deciding
@@ -161,11 +164,24 @@ export async function updateAgentAccount(
     return { error: "Couldn't save the account. Please try again." };
   }
 
+  // And the mall, if they hold an account there too. An administrator setting
+  // a password is still the account's password being changed, and leaving the
+  // two halves out of step is the thing this mirror exists to stop — the
+  // person would be handed one password and find it opens one of their two
+  // accounts. Best-effort, after the fact: the mall being away cannot undo
+  // the bundle password that has already been set.
+  let mirrored = false;
+  if (newHash) {
+    mirrored = (await mirrorPasswordToRetail(userId, email, newHash)) === "mirrored";
+  }
+
   revalidatePath("/admin/data/agents");
   return {
     ok: true,
-    message: password
-      ? "Account saved. The new password works now and they have been signed out everywhere."
+    message: newHash
+      ? mirrored
+        ? "Account saved. The new password works for both their agent and their mall account, and they have been signed out everywhere."
+        : "Account saved. The new password works now and they have been signed out everywhere."
       : "Account saved.",
   };
 }

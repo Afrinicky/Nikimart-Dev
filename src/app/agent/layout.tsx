@@ -45,7 +45,13 @@ export default async function AgentLayout({
     getWorkspaces({ id: user.id, role: user.role }),
   ]);
 
-  if (!agent) redirect("/become-an-agent");
+  if (!agent) {
+    // An administrator has no storefront and does not want one — pitching
+    // them the recruitment page is how "it opened the agent console even
+    // though I am an admin" looks from the inside. Their console is the one
+    // they were going to.
+    redirect(user.role === "ADMIN" ? "/admin/data" : "/become-an-agent");
+  }
 
   // A password that arrived by text is a way in, not a password. Nothing in
   // the console opens until they have replaced it — handled here, in the
