@@ -7,8 +7,11 @@ import {
   dataPaymentCovers,
   isAfaReference,
   isDataReference,
+  isServiceReference,
+  servicePaymentCovers,
   settleAfaRegistration,
   settleDataOrder,
+  settleServiceOrder,
 } from "@/lib/data-bundles/fulfillment";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +40,8 @@ export default async function VerifyStorePaymentPage({
   if (!reference) redirect(home);
 
   const isAfa = isAfaReference(reference);
-  if (!isDataReference(reference) && !isAfa) redirect(home);
+  const isService = isServiceReference(reference);
+  if (!isDataReference(reference) && !isAfa && !isService) redirect(home);
 
   let paid = false;
   try {
@@ -47,7 +51,9 @@ export default async function VerifyStorePaymentPage({
       result.currency === "GHS" &&
       (isAfa
         ? await afaPaymentCovers(reference, result.amountPesewas)
-        : await dataPaymentCovers(reference, result.amountPesewas));
+        : isService
+          ? await servicePaymentCovers(reference, result.amountPesewas)
+          : await dataPaymentCovers(reference, result.amountPesewas));
   } catch {
     // Couldn't reach Paystack — the webhook settles it independently.
   }
@@ -57,14 +63,19 @@ export default async function VerifyStorePaymentPage({
     // error screen: if settlement throws, land them on their order anyway.
     try {
       if (isAfa) await settleAfaRegistration(reference);
+      else if (isService) await settleServiceOrder(reference);
       else await settleDataOrder(reference);
     } catch (err) {
       console.error(
         `[store] settling ${reference} failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+    // A service order lands on its own page, where the documents it still
+    // needs are attached — the first moment any of them may be stored.
+    if (isService) redirect(`/data-bundles/services/order/${encodeURIComponent(reference)}?paid=1`);
     const done = isAfa ? "afa" : "paid";
     redirect(`${tracker}?q=${encodeURIComponent(reference)}&${done}=1`);
   }
+  if (isService) redirect(`/data-bundles/services/order/${encodeURIComponent(reference)}?failed=1`);
   redirect(`${tracker}?q=${encodeURIComponent(reference)}&failed=1`);
 }

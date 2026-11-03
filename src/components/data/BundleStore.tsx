@@ -5,6 +5,7 @@ import { Check, CreditCard, X } from "lucide-react";
 import { inputClass } from "@/components/ui/Field";
 import { BusyButton } from "@/components/ui/motion";
 import { BundleCard, NetworkTabs } from "@/components/data/BundleCard";
+import { ServiceCard, type StoreService } from "@/components/data/ServiceCard";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { NETWORK_INFO, bundleLabel, type Network } from "@/lib/data-bundles/networks";
@@ -31,17 +32,32 @@ export interface NetworkGroup {
  * `storeSlug` routes the sale through an agent's storefront: the server prices
  * it from that agent's ladder and credits them the difference. Omitted on
  * Nickimart's own /data-bundles page.
+ *
+ * `services` adds one more tab at the end of the operators — registrations and
+ * certificates, the business's second shelf. It is a tab rather than a section
+ * further down the page because it is another thing this store sells, and a
+ * buyer should be able to find it in the same place they find MTN. The grid
+ * behind it is the same grid; only what is on the cards differs.
  */
 export function BundleStore({
   groups,
   storeSlug,
   trackHref = "/data-bundles/orders",
+  services = [],
+  servicesLabel = "Services",
+  servicesBase = "/data-bundles/services",
 }: {
   groups: NetworkGroup[];
   storeSlug?: string;
   trackHref?: string;
+  /** The services shelf, empty when this store sells none. */
+  services?: StoreService[];
+  servicesLabel?: string;
+  /** Where a service card leads: Nickimart's own, or this agent's copy. */
+  servicesBase?: string;
 }) {
   const [network, setNetwork] = useState<Network>(groups[0]?.network ?? "MTN");
+  const [onServices, setOnServices] = useState(false);
   const [selected, setSelected] = useState<StoreBundle | null>(null);
 
   const active = useMemo(
@@ -49,7 +65,9 @@ export function BundleStore({
     [groups, network],
   );
 
-  if (groups.length === 0) {
+  // A store with services but no priced bundles still has something to sell,
+  // so the empty state only applies when there is genuinely nothing.
+  if (groups.length === 0 && services.length === 0) {
     return (
       <div className="animate-fade-up rounded-3xl bg-white p-10 text-center ring-1 ring-niki-edge">
         <p className="font-display text-lg font-bold text-niki-ink">No bundles on sale yet</p>
@@ -62,10 +80,44 @@ export function BundleStore({
 
   return (
     <div>
-      {/* Network chooser */}
-      <NetworkTabs networks={groups.map((g) => g.network)} value={network} onChange={setNetwork} />
+      {/* Network chooser, with the services shelf at the end of the row. */}
+      <NetworkTabs
+        networks={groups.map((g) => g.network)}
+        value={network}
+        onChange={(n) => {
+          setNetwork(n);
+          setOnServices(false);
+        }}
+        services={
+          services.length > 0
+            ? {
+                label: servicesLabel,
+                active: onServices,
+                onSelect: () => setOnServices(true),
+              }
+            : undefined
+        }
+      />
 
-      {active ? (
+      {onServices ? (
+        <>
+          <p className="mt-4 text-sm text-niki-ink/60">
+            Registrations and certificates, handled end to end. Pick one to apply.
+          </p>
+          {/* Keyed so switching tabs re-runs the stagger — the change is then
+              visibly a change, rather than a swap. */}
+          <div
+            key="services"
+            className="stagger-children mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          >
+            {services.map((s) => (
+              <ServiceCard key={s.slug} service={s} href={`${servicesBase}/${s.slug}`} />
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      {!onServices && active ? (
         <>
           <p className="mt-4 text-sm text-niki-ink/60">{NETWORK_INFO[active.network].blurb}</p>
 

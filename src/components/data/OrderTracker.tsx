@@ -1,8 +1,14 @@
-import { PackageSearch } from "lucide-react";
+import { FileText, PackageSearch } from "lucide-react";
+import Link from "next/link";
 import { DataOrderLookup } from "@/components/data/DataOrderLookup";
 import { PaymentClaimPanel } from "@/components/data/PaymentClaimPanel";
 import { formatPrice } from "@/lib/format";
-import { maskPhone, type LookupHit, type LookupOutcome } from "@/lib/data-bundles/lookup";
+import {
+  maskPhone,
+  type LookupHit,
+  type LookupOutcome,
+  type LookupService,
+} from "@/lib/data-bundles/lookup";
 import {
   DATA_STATUS_LABELS,
   DATA_STATUS_TONES,
@@ -11,6 +17,12 @@ import {
   networkLabel,
   type DataOrderStatus,
 } from "@/lib/data-bundles/networks";
+import {
+  SERVICE_STATUS_LABELS,
+  SERVICE_STATUS_NOTE,
+  SERVICE_STATUS_TONES,
+  isServiceStatus,
+} from "@/lib/data-bundles/service-status";
 
 /**
  * "Where's my data?" — the whole tracker, shared by Nickimart's own page and
@@ -95,6 +107,10 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
  * Everything else is the supporting detail that proves it is the right order.
  */
 function OrderCard({ hit }: { hit: LookupHit }) {
+  // A service order is paperwork, not a dispatch: its own six states, its own
+  // sentences, and a way through to the page where its documents live.
+  if (hit.kind === "service") return <ServiceCard hit={hit} />;
+
   const status = isDataOrderStatus(hit.status) ? hit.status : "processing";
   const title =
     hit.kind === "bundle"
@@ -142,6 +158,52 @@ function OrderCard({ hit }: { hit: LookupHit }) {
           value={<span className="font-mono text-xs">{hit.reference}</span>}
         />
       </dl>
+    </div>
+  );
+}
+
+/** A registration or a certificate: what it is, where it is, and what is left to do. */
+function ServiceCard({ hit }: { hit: LookupService }) {
+  const status = isServiceStatus(hit.status) ? hit.status : "processing";
+  const orderHref = `/data-bundles/services/order/${encodeURIComponent(hit.reference)}`;
+
+  return (
+    <div className="animate-fade-up mt-5 overflow-hidden rounded-2xl bg-niki-surface ring-1 ring-niki-edge-strong">
+      <div className="flex flex-wrap items-start justify-between gap-4 p-5">
+        <div className="min-w-0">
+          <p className="font-figures text-xl font-bold text-niki-ink">{hit.serviceName}</p>
+          <p className="mt-1 text-sm text-niki-ink/60">{hit.variantName}</p>
+        </div>
+        <span
+          className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-bold tracking-wide ${SERVICE_STATUS_TONES[status]}`}
+        >
+          {SERVICE_STATUS_LABELS[status]}
+        </span>
+      </div>
+
+      <p className="border-t border-niki-edge px-5 py-4 text-sm leading-relaxed text-niki-ink/70">
+        {SERVICE_STATUS_NOTE[status]}
+      </p>
+
+      <dl className="grid grid-cols-2 gap-4 border-t border-niki-edge bg-white p-5 sm:grid-cols-4">
+        <Detail label="Amount" value={formatPrice(hit.price)} />
+        <Detail label="Turnaround" value={hit.turnaround || "—"} />
+        <Detail label="Documents" value={hit.documents > 0 ? `${hit.documents} attached` : "None yet"} />
+        <Detail
+          label="Reference"
+          value={<span className="font-mono text-xs">{hit.reference}</span>}
+        />
+      </dl>
+
+      <div className="border-t border-niki-edge bg-white px-5 pb-5">
+        <Link
+          href={orderHref}
+          className="niki-press inline-flex items-center gap-2 rounded-full bg-niki-black px-5 py-2.5 text-sm font-semibold text-white"
+        >
+          <FileText className="h-4 w-4" />
+          Open application
+        </Link>
+      </div>
     </div>
   );
 }

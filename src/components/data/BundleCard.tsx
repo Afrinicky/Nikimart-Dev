@@ -106,15 +106,23 @@ export function BundleCard({
  * The network chooser above the grid. Selected tabs fill with the network's
  * gradient; the rest stay outlined in it, so the whole row reads as a set of
  * operators rather than a set of buttons.
+ *
+ * `services` adds one more tab at the end of the row, in Nickimart's own
+ * colours rather than an operator's. It is the same object as the rest — same
+ * shape, same fill, same place in the grid — because the shelf behind it is
+ * another thing this store sells, not a different kind of navigation.
  */
 export function NetworkTabs({
   networks,
   value,
   onChange,
+  services,
 }: {
   networks: Network[];
   value: Network;
   onChange: (n: Network) => void;
+  /** The extra tab at the end. Omitted when the store sells no services. */
+  services?: { label: string; active: boolean; onSelect: () => void };
 }) {
   return (
     // Two per row on a phone; from `sm` they share one row evenly however many
@@ -122,7 +130,7 @@ export function NetworkTabs({
     <div className="grid grid-cols-2 gap-2.5 sm:flex sm:gap-3">
       {networks.map((n) => {
         const info = NETWORK_INFO[n];
-        const active = n === value;
+        const active = n === value && !services?.active;
         return (
           <button
             key={n}
@@ -149,6 +157,25 @@ export function NetworkTabs({
           </button>
         );
       })}
+
+      {services ? (
+        <button
+          type="button"
+          onClick={services.onSelect}
+          aria-pressed={services.active}
+          className={cn(
+            "niki-press niki-focus flex items-center justify-center gap-2 rounded-2xl px-3 py-3.5 text-sm font-bold sm:flex-1",
+            services.active ? "shadow-lg" : "bg-white",
+          )}
+          style={
+            services.active
+              ? { background: "linear-gradient(135deg, #ff6a00, #ff9a3d)", color: "#ffffff" }
+              : { color: "#ff6a00", boxShadow: "inset 0 0 0 2px #ff6a00" }
+          }
+        >
+          {services.label}
+        </button>
+      ) : null}
     </div>
   );
 }

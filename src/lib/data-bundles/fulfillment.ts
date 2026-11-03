@@ -1,7 +1,11 @@
 import "server-only";
 import { after } from "next/server";
 import { dataDb } from "@/lib/data-db";
-import { DATA_REFERENCE_PREFIX, AFA_REFERENCE_PREFIX } from "@/lib/data-bundles/reference";
+import {
+  DATA_REFERENCE_PREFIX,
+  AFA_REFERENCE_PREFIX,
+  SERVICE_REFERENCE_PREFIX,
+} from "@/lib/data-bundles/reference";
 import { toPesewas } from "@/lib/payments";
 import { notifyTemplate, smsTemplate } from "@/lib/messages";
 import { siteUrl } from "@/lib/site";
@@ -54,8 +58,10 @@ import {
 export {
   DATA_REFERENCE_PREFIX,
   AFA_REFERENCE_PREFIX,
+  SERVICE_REFERENCE_PREFIX,
   isDataReference,
   isAfaReference,
+  isServiceReference,
 } from "@/lib/data-bundles/reference";
 
 export function newDataReference(): string {
@@ -63,6 +69,9 @@ export function newDataReference(): string {
 }
 export function newAfaReference(): string {
   return `${AFA_REFERENCE_PREFIX}${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 900 + 100)}`;
+}
+export function newServiceReference(): string {
+  return `${SERVICE_REFERENCE_PREFIX}${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 900 + 100)}`;
 }
 
 /**
@@ -589,4 +598,45 @@ async function settleAfaCommissions(id: string): Promise<void> {
     .findUnique({ where: { id }, select: { agentId: true } })
     .catch(() => null);
   if (row?.agentId) await releaseReferralRewards(row.agentId);
+}
+
+// ---------------------------------------------------------------------------
+// Service orders
+// ---------------------------------------------------------------------------
+
+/** Confirm the captured amount covers the service order before settling it. */
+export async function servicePaymentCovers(
+  reference: string,
+  amountPesewas: number,
+): Promise<boolean> {
+  try {
+    const order = await dataDb.dataServiceOrder.findUnique({
+      where: { reference },
+      select: { price: true },
+    });
+    if (!order) return false;
+    return amountPesewas + 1 >= toPesewas(order.price);
+  } catch {
+    return false; // service tables not migrated yet
+  }
+}
+
+/**
+ * Mark a service order paid, idempotently.
+ *
+ * There is nothing to dispatch: a registration is work people do, not an API
+ * call, so settlement ends at "paid" and the admin moves it on from there.
+ * What payment does unlock is the customer's documents — until this flips,
+ * nothing of theirs is stored at all.
+ */
+export async function settleServiceOrder(reference: string): Promise<boolean> {
+  try {
+    const flipped = await dataDb.dataServiceOrder.updateMany({
+      where: { reference, paymentStatus: "unpaid" },
+      data: { paymentStatus: "paid", status: "paid", paidAt: new Date() },
+    });
+    return flipped.count > 0;
+  } catch {
+    return false;
+  }
 }

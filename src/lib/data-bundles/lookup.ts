@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { dataDb } from "@/lib/data-db";
 import { retryAfterLabel } from "@/lib/rate-limit";
 import { toLocalGhPhone } from "@/lib/data-bundles/networks";
-import { AFA_REFERENCE_PREFIX } from "@/lib/data-bundles/fulfillment";
+import { AFA_REFERENCE_PREFIX, SERVICE_REFERENCE_PREFIX } from "@/lib/data-bundles/fulfillment";
 import { syncOpenOrders } from "@/lib/data-bundles/order-sync";
 import { reconcileDataOrder } from "@/lib/data-bundles/payment-recovery";
 import { dataRateLimit } from "@/lib/data-bundles/rate-limit";
@@ -43,7 +43,21 @@ export interface LookupAfa {
   createdAt: Date;
 }
 
-export type LookupHit = LookupOrder | LookupAfa;
+export interface LookupService {
+  kind: "service";
+  reference: string;
+  serviceName: string;
+  variantName: string;
+  price: number;
+  status: string;
+  paymentStatus: string;
+  /** How many documents are still wanted before the work can start. */
+  documents: number;
+  turnaround: string;
+  createdAt: Date;
+}
+
+export type LookupHit = LookupOrder | LookupAfa | LookupService;
 
 export type LookupOutcome =
   | { state: "idle" }
@@ -80,6 +94,43 @@ export async function lookupOrders(rawQuery: string | undefined): Promise<Lookup
   const phone = toLocalGhPhone(q);
 
   try {
+    // A service order: a registration or a certificate, worked by hand rather
+    // than dispatched, so there is no provider to re-ask — only the row.
+    if (reference.startsWith(SERVICE_REFERENCE_PREFIX)) {
+      const row = await dataDb.dataServiceOrder.findUnique({
+        where: { reference },
+        select: {
+          reference: true,
+          serviceName: true,
+          variantName: true,
+          price: true,
+          status: true,
+          paymentStatus: true,
+          turnaround: true,
+          createdAt: true,
+          _count: { select: { documents: true } },
+        },
+      });
+      if (!row) return { state: "empty" };
+      return {
+        state: "found",
+        hits: [
+          {
+            kind: "service",
+            reference: row.reference,
+            serviceName: row.serviceName,
+            variantName: row.variantName,
+            price: row.price,
+            status: row.status,
+            paymentStatus: row.paymentStatus,
+            documents: row._count.documents,
+            turnaround: row.turnaround,
+            createdAt: row.createdAt,
+          },
+        ],
+      };
+    }
+
     if (reference.startsWith(AFA_REFERENCE_PREFIX)) {
       const row = await dataDb.afaRegistration.findUnique({ where: { reference } });
       if (!row) return { state: "empty" };
