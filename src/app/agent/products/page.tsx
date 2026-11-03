@@ -19,6 +19,7 @@ import { FlyerDesigner } from "@/components/affiliate/FlyerDesigner";
 import { requireDataUser } from "@/lib/data-bundles/session";
 import { getAgentForUser } from "@/lib/data-bundles/agents";
 import { getAgentServiceRows, getAgentShelf } from "@/lib/data-bundles/services";
+import { openSpeeds } from "@/lib/data-bundles/service-fields";
 import { getAgentServiceTotals, getServiceOrders } from "@/lib/data-bundles/service-orders";
 import {
   SERVICE_STATUS_LABELS,
@@ -194,7 +195,8 @@ async function OrdersPanel({ agentId }: { agentId: string }) {
               name: v.name,
               price: v.sellPrice,
               turnaround: v.turnaround,
-              speeds: v.speeds,
+              standardEnabled: v.standardEnabled,
+              speeds: openSpeeds(v.speeds),
             })),
           }))}
         />

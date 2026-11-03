@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Loader2, Pencil, RotateCcw, X } from "lucide-react";
 import { TableScroll } from "@/components/agent/AgentUi";
-import { inputClass } from "@/components/ui/Field";
+import { inputBase } from "@/components/ui/Field";
 import { saveServicePrice } from "@/lib/data-bundles/service-agent-actions";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -111,7 +111,7 @@ export function ServicePricingTable({ rows }: { rows: ServicePricingRow[] }) {
                           if (e.key === "Enter") void write(r.variantId, draft);
                           if (e.key === "Escape") setEditing(null);
                         }}
-                        className={cn(inputClass, "w-28 py-1.5")}
+                        className={cn(inputBase, "w-28 py-1.5")}
                       />
                     ) : (
                       <span className="font-figures font-bold text-niki-ink">

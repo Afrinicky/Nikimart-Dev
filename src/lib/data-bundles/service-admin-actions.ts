@@ -12,6 +12,7 @@ import {
   MAX_SERVICE_SPEEDS,
   resolveServiceFields,
   resolveServiceSpeeds,
+  variantIsOrderable,
 } from "@/lib/data-bundles/service-fields";
 
 /**
@@ -30,6 +31,9 @@ import {
  */
 
 export type ServiceAdminState = { ok?: boolean; error?: string; message?: string };
+
+/** Roughly 3MB of base64 — far more than the browser ever sends. */
+const MAX_IMAGE_CHARS = 4_000_000;
 
 const STORAGE_ERROR =
   "Couldn't save — the services tables aren't set up on this database yet. " +
@@ -72,6 +76,7 @@ interface PostedVariant {
   price: number;
   agentPrice: number;
   turnaround: string;
+  standardEnabled: boolean;
   speeds: string;
   fields: string;
   isActive: boolean;
@@ -98,6 +103,7 @@ function readVariants(fd: FormData): PostedVariant[] {
       price: Math.max(0, Number(v.price) || 0),
       agentPrice: Math.max(0, Number(v.agentPrice) || 0),
       turnaround: String(v.turnaround ?? "").trim().slice(0, 80),
+      standardEnabled: v.standardEnabled !== false,
       // Re-resolved rather than trusted: the editor is a browser, and this is
       // the only side that decides what a stored speed or field may say.
       speeds: JSON.stringify(resolveServiceSpeeds(v.speeds).slice(0, MAX_SERVICE_SPEEDS)),
@@ -108,11 +114,38 @@ function readVariants(fd: FormData): PostedVariant[] {
     .filter((v) => v.name !== "");
 }
 
-/** Create or update one service, with everything it contains. */
+/**
+ * Create or update one service, with everything it contains.
+ *
+ * Every failure returns a message. Nothing is allowed to throw out of here:
+ * an uncaught error in a server action reaches the client as a rejected
+ * promise and lands on the console's error boundary, which is how saving a
+ * product turned into a full-page "something went wrong" with a digest and no
+ * way back to the form. A save that cannot happen should say so above the
+ * form, with the form still filled in.
+ */
 export async function saveService(
   _state: ServiceAdminState,
   fd: FormData,
 ): Promise<ServiceAdminState> {
+  try {
+    return await writeService(fd);
+  } catch (err) {
+    // NEXT_REDIRECT is how redirect() travels; it must pass through.
+    if (err && typeof err === "object" && "digest" in err) throw err;
+    console.error(
+      `[services] saving a product failed: ${err instanceof Error ? err.stack ?? err.message : String(err)}`,
+    );
+    return {
+      error:
+        err instanceof Error && err.message
+          ? `Couldn't save: ${err.message}`
+          : "Couldn't save the product. Please try again.",
+    };
+  }
+}
+
+async function writeService(fd: FormData): Promise<ServiceAdminState> {
   await requireDataAdminAction();
 
   const id = str(fd, "id");
@@ -127,12 +160,41 @@ export async function saveService(
     return { error: "Add at least one option — a service with nothing to choose cannot be sold." };
   }
 
+  // An option with the ordinary speed switched off and no faster lane open is
+  // one nobody can order. Caught here rather than left to puzzle somebody at
+  // the checkout.
+  const unorderable = variants.find(
+    (v) =>
+      v.isActive &&
+      !variantIsOrderable({
+        standardEnabled: v.standardEnabled,
+        speeds: resolveServiceSpeeds(v.speeds),
+      }),
+  );
+  if (unorderable) {
+    return {
+      error: `"${unorderable.name}" has no speed anybody can choose. Switch the standard speed back on, or open one of its faster options.`,
+    };
+  }
+
+  // A data URL is the heaviest thing in this form by an order of magnitude,
+  // and a request over the server-action body limit never reaches this
+  // function at all — it fails upstream with nothing useful to show. The
+  // browser downscales before posting; this is the backstop that names the
+  // problem if one ever arrives anyway.
+  const imageUrl = str(fd, "imageUrl");
+  if (imageUrl.length > MAX_IMAGE_CHARS) {
+    return {
+      error: "That picture is too large. Please use a smaller image and save again.",
+    };
+  }
+
   const data = {
     slug,
     name: name.slice(0, 120),
     tagline: str(fd, "tagline").slice(0, 160),
     summary: str(fd, "summary").slice(0, 1200),
-    imageUrl: str(fd, "imageUrl"),
+    imageUrl,
     icon: str(fd, "icon").slice(0, 8) || "📄",
     accentFrom: str(fd, "accentFrom") || "#ff6a00",
     accentTo: str(fd, "accentTo") || "#ff9a3d",
@@ -163,6 +225,7 @@ export async function saveService(
         price: v.price,
         agentPrice: v.agentPrice,
         turnaround: v.turnaround,
+        standardEnabled: v.standardEnabled,
         speeds: v.speeds,
         fields: v.fields,
         isActive: v.isActive,
@@ -189,7 +252,10 @@ export async function saveService(
     });
 
     refresh();
-  } catch {
+  } catch (err) {
+    console.error(
+      `[services] writing product ${id || "(new)"} failed: ${err instanceof Error ? err.stack ?? err.message : String(err)}`,
+    );
     return { error: STORAGE_ERROR };
   }
 

@@ -78,6 +78,7 @@ export default async function EditServicePage({
               price: v.price,
               agentPrice: v.agentPrice,
               turnaround: v.turnaround,
+              standardEnabled: v.standardEnabled,
               speeds: v.speeds,
               fields: v.fields,
               isActive: v.isActive,

@@ -2,11 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   checkServiceAnswers,
+  findSpeed,
   mergeServiceFields,
+  openSpeeds,
   resolveServiceFields,
   resolveServiceSpeeds,
   serviceFieldKey,
   servicePricing,
+  variantIsOrderable,
 } from "./service-fields.ts";
 
 /**
@@ -139,4 +142,43 @@ test("a speed fee reaches Nickimart whole and moves nobody's commission", () => 
   // An agent priced below their cost must never produce a negative commission.
   const underwater = servicePricing({ sellPrice: 200, costPrice: 300, speedFee: 0 });
   assert.equal(underwater.commission, 0);
+});
+
+test("a speed written before the switch existed reads as open", () => {
+  const speeds = resolveServiceSpeeds(
+    JSON.stringify([
+      { label: "Fast track", extraFee: 150 },
+      { label: "Same day", extraFee: 400, enabled: false },
+    ]),
+  );
+  assert.equal(speeds[0].enabled, true);
+  assert.equal(speeds[1].enabled, false);
+  assert.deepEqual(
+    openSpeeds(speeds).map((s) => s.label),
+    ["Fast track"],
+  );
+});
+
+test("a suspended lane cannot be ordered, even by key", () => {
+  const speeds = resolveServiceSpeeds(
+    JSON.stringify([{ key: "same_day", label: "Same day", extraFee: 400, enabled: false }]),
+  );
+  // A storefront left open in a tab still has the old key in hand.
+  assert.equal(findSpeed(speeds, "same_day"), null);
+});
+
+test("something always has to be choosable", () => {
+  const open = resolveServiceSpeeds(JSON.stringify([{ label: "Fast track", extraFee: 150 }]));
+  const closed = resolveServiceSpeeds(
+    JSON.stringify([{ label: "Fast track", extraFee: 150, enabled: false }]),
+  );
+
+  // Standard on is always fine, whatever the lanes say.
+  assert.equal(variantIsOrderable({ standardEnabled: true, speeds: [] }), true);
+  assert.equal(variantIsOrderable({ standardEnabled: true, speeds: closed }), true);
+  // Fast-track only is fine while that lane is open.
+  assert.equal(variantIsOrderable({ standardEnabled: false, speeds: open }), true);
+  // Both off is an option nobody can buy.
+  assert.equal(variantIsOrderable({ standardEnabled: false, speeds: closed }), false);
+  assert.equal(variantIsOrderable({ standardEnabled: false, speeds: [] }), false);
 });

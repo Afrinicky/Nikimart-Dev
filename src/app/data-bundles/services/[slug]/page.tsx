@@ -97,6 +97,7 @@ export default async function ServiceApplyPage({
                   description: v.description,
                   price: v.sellPrice,
                   turnaround: v.turnaround,
+                  standardEnabled: v.standardEnabled,
                   speeds: v.speeds,
                   fields: v.fields,
                 })),

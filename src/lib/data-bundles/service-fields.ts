@@ -57,8 +57,17 @@ export interface ServiceField {
   half: boolean;
 }
 
-/** More than this and it is not a form, it is an application pack. */
-export const MAX_SERVICE_FIELDS = 30;
+/**
+ * More than this and it is not a form, it is an application pack.
+ *
+ * Sixty, because a real one is longer than it looks: a sole proprietorship
+ * filing alone wants the owner, four parts of an address, three proposed names
+ * and three statements of purpose, and a company adds its directors,
+ * shareholders and officers on top. The ceiling also governs the merged form —
+ * the service's questions plus the chosen option's — so a limit that fitted
+ * the service on its own quietly truncated the option's.
+ */
+export const MAX_SERVICE_FIELDS = 60;
 export const MAX_FIELD_OPTIONS = 20;
 
 /** A document the customer attaches. Stored as a data URL, so bounded. */
@@ -202,6 +211,14 @@ export interface ServiceSpeed {
   extraFee: number;
   /** How long it takes at this speed, e.g. "3 working days". */
   turnaround: string;
+  /**
+   * Whether this lane is currently open. Off keeps the fee and the turnaround
+   * on file while taking it off every storefront, which is what suspending a
+   * service means — deleting it would mean typing them in again.
+   *
+   * Absent reads as on, so every speed written before this existed stays on.
+   */
+  enabled: boolean;
 }
 
 export const MAX_SERVICE_SPEEDS = 4;
@@ -240,20 +257,45 @@ export function resolveServiceSpeeds(raw: unknown): ServiceSpeed[] {
       label,
       extraFee: amount(r.extraFee),
       turnaround: text(r.turnaround, MAX_LABEL),
+      enabled: r.enabled !== false,
     });
   }
   return speeds;
 }
 
 export function newServiceSpeed(): ServiceSpeed {
-  return { key: "", label: "", extraFee: 0, turnaround: "" };
+  return { key: "", label: "", extraFee: 0, turnaround: "", enabled: true };
 }
 
-/** The speed a customer picked, or null for the ordinary one. */
+/** The lanes a customer may actually choose from. */
+export function openSpeeds(speeds: readonly ServiceSpeed[]): ServiceSpeed[] {
+  return speeds.filter((s) => s.enabled);
+}
+
+/**
+ * The speed a customer picked, or null for the ordinary one.
+ *
+ * A suspended lane is not found, so a storefront left open in a tab cannot
+ * order one that has since been closed.
+ */
 export function findSpeed(speeds: readonly ServiceSpeed[], key: string): ServiceSpeed | null {
   const wanted = key.trim();
   if (!wanted) return null;
-  return speeds.find((s) => s.key === wanted) ?? null;
+  return openSpeeds(speeds).find((s) => s.key === wanted) ?? null;
+}
+
+/**
+ * Can this option be ordered at all?
+ *
+ * Something has to be choosable: either the ordinary speed is offered, or at
+ * least one faster lane is open. Both closed is a variant nobody can buy, and
+ * the editor refuses to save one.
+ */
+export function variantIsOrderable(variant: {
+  standardEnabled: boolean;
+  speeds: readonly ServiceSpeed[];
+}): boolean {
+  return variant.standardEnabled || openSpeeds(variant.speeds).length > 0;
 }
 
 // ---------------------------------------------------------------------------

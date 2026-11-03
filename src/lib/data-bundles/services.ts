@@ -34,6 +34,8 @@ export interface ServiceVariantRow {
   /** What an agent is charged. 0 means it is not resold to agents. */
   agentPrice: number;
   turnaround: string;
+  /** Whether the ordinary speed is offered at all. */
+  standardEnabled: boolean;
   speeds: ServiceSpeed[];
   fields: ServiceField[];
   isActive: boolean;
@@ -65,6 +67,7 @@ interface RawVariant {
   price: number;
   agentPrice: number;
   turnaround: string;
+  standardEnabled: boolean;
   speeds: string;
   fields: string;
   isActive: boolean;
@@ -97,6 +100,7 @@ function shapeVariant(v: RawVariant): ServiceVariantRow {
     price: v.price,
     agentPrice: v.agentPrice,
     turnaround: v.turnaround,
+    standardEnabled: v.standardEnabled,
     speeds: resolveServiceSpeeds(v.speeds),
     fields: resolveServiceFields(v.fields),
     isActive: v.isActive,
