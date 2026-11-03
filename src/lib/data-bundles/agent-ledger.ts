@@ -354,3 +354,90 @@ export async function creditAfaCommission(id: string): Promise<boolean> {
     return false;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Services
+// ---------------------------------------------------------------------------
+
+/**
+ * Credit an agent's commission on a completed service order.
+ *
+ * The same rule as a bundle, for the same reason: the money is owed when the
+ * work is done, not when it is paid for. A registration that was paid for and
+ * then cancelled pays nobody, and an order sitting in "processing" for a
+ * fortnight is not yet anybody's earnings.
+ */
+export async function creditServiceCommission(orderId: string): Promise<boolean> {
+  let order;
+  try {
+    order = await dataDb.dataServiceOrder.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        reference: true,
+        agentId: true,
+        agentCommission: true,
+        status: true,
+        paymentStatus: true,
+        commissionStatus: true,
+        serviceName: true,
+        variantName: true,
+      },
+    });
+  } catch {
+    return false; // service tables not migrated yet
+  }
+
+  if (!order?.agentId) return false;
+  if (order.status !== "completed" || order.paymentStatus !== "paid") return false;
+  if (order.commissionStatus !== "pending") return false;
+  if (order.agentCommission <= 0) {
+    await dataDb.dataServiceOrder.updateMany({
+      where: { id: orderId, commissionStatus: "pending" },
+      data: { commissionStatus: "void" },
+    });
+    return false;
+  }
+
+  const agent = await dataDb.dataAgent.findUnique({
+    where: { id: order.agentId },
+    select: { status: true },
+  });
+  if (!agent || agent.status !== "active") return false;
+
+  const claimed = await dataDb.dataServiceOrder.updateMany({
+    where: { id: orderId, commissionStatus: "pending" },
+    data: { commissionStatus: "earned", commissionPaidAt: new Date() },
+  });
+  if (claimed.count === 0) return false;
+
+  try {
+    await postLedgerEntry({
+      agentId: order.agentId,
+      type: "COMMISSION",
+      amount: order.agentCommission,
+      narration: `Commission from ${order.reference} — ${order.serviceName}, ${order.variantName}`,
+      reference: order.reference,
+    });
+    return true;
+  } catch {
+    // The ledger write failed — put it back so the next completion retries.
+    await dataDb.dataServiceOrder.updateMany({
+      where: { id: orderId, commissionStatus: "earned" },
+      data: { commissionStatus: "pending", commissionPaidAt: null },
+    });
+    return false;
+  }
+}
+
+/** Void the commission on a service order that was cancelled or refunded. */
+export async function voidServiceCommission(orderId: string): Promise<void> {
+  try {
+    await dataDb.dataServiceOrder.updateMany({
+      where: { id: orderId, commissionStatus: "pending" },
+      data: { commissionStatus: "void" },
+    });
+  } catch {
+    // not migrated — nothing to void
+  }
+}

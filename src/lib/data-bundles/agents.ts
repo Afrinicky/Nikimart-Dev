@@ -46,6 +46,11 @@ export interface AgentAccount {
   whatsappGroup: string;
   afaPrice: number;
   afaEnabled: boolean;
+  /** Off takes the Services tab off this agent's storefront. */
+  servicesEnabled: boolean;
+  /** This agent's own service-flyer design, layered over the house one. */
+  serviceFlyerDesign: string;
+  serviceFlyerTheme: string;
   status: string;
   balance: number;
   setupFee: number;

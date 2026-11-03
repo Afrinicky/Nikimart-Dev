@@ -6,7 +6,13 @@ import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { BundleStore, type NetworkGroup } from "@/components/data/BundleStore";
 import { getActiveBundles, groupByNetwork } from "@/lib/data-bundles/catalog";
-import { getAgentProgramConfig, getDataStoreConfig } from "@/lib/data-bundles/settings";
+import {
+  getAgentProgramConfig,
+  getDataStoreConfig,
+  getServicesConfig,
+} from "@/lib/data-bundles/settings";
+import { getHouseShelf } from "@/lib/data-bundles/services";
+import type { StoreService } from "@/components/data/ServiceCard";
 import { formatPrice } from "@/lib/format";
 
 export const metadata: Metadata = {
@@ -25,13 +31,33 @@ const STEPS = [
 ];
 
 export default async function DataBundlesPage() {
-  const [config, program, bundles] = await Promise.all([
+  const [config, program, bundles, services] = await Promise.all([
     getDataStoreConfig(),
     getAgentProgramConfig(),
     getActiveBundles(),
+    getServicesConfig(),
   ]);
 
   if (!config.enabled) notFound();
+
+  // The second shelf, as a tab at the end of the operators. Two switches have
+  // to agree before it appears: the shelf is open, and it is shown here.
+  const shelf: StoreService[] =
+    services.enabled && services.onStore
+      ? (await getHouseShelf()).map((s) => ({
+          slug: s.slug,
+          name: s.name,
+          tagline: s.tagline,
+          icon: s.icon,
+          imageUrl: s.imageUrl,
+          accentFrom: s.accentFrom,
+          accentTo: s.accentTo,
+          fromPrice: s.fromPrice,
+          from: s.variants.length > 1,
+          turnaround: s.variants[0]?.turnaround ?? "",
+          options: s.variants.length,
+        }))
+      : [];
 
   const groups: NetworkGroup[] = groupByNetwork(bundles).map((g) => ({
     network: g.network,
@@ -87,7 +113,7 @@ export default async function DataBundlesPage() {
       </div>
 
       <Container className="py-8">
-        <BundleStore groups={groups} />
+        <BundleStore groups={groups} services={shelf} />
 
         {/* How it works */}
         <section className="mt-12">

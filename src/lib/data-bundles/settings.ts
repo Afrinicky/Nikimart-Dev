@@ -32,6 +32,29 @@ export const DATA_SETTINGS_DEFAULTS = {
   dataSupportWhatsapp: "",
   dataAfaEnabled: "1",
   dataAfaPrice: "12",
+
+  // --- Services -------------------------------------------------------------
+  // The second shelf: passport applications, business registration and the
+  // rest. The master switch takes the whole module off every storefront; the
+  // two below decide where it is shown without closing it, because a service
+  // can be sold through agents while Nickimart's own pages say nothing about
+  // it. A service also carries its own `onStore` flag — this is the switch
+  // above all of them.
+  dataServicesEnabled: "1",
+  // The Services tab on Nickimart's own /data-bundles store.
+  dataServicesOnStore: "1",
+  // A section on the Nickimart homepage.
+  dataServicesOnHomepage: "0",
+  dataServicesHeading: "Registrations & services",
+  // The largest single document a customer may attach, in megabytes. Theirs to
+  // set: a passport photograph off a phone is under one, a scanned Ghana Card
+  // can be three, and the ceiling that suits one service is a nuisance on
+  // another.
+  dataServiceMaxUploadMb: "2",
+  dataServicesBlurb: "Passport applications, business registration and certificates — handled end to end.",
+  // The house flyer design, as JSON (see lib/affiliate-flyer). Empty is the
+  // built-in design; an agent may layer their own on top of it.
+  dataServiceFlyerDesign: "",
   dataMarkupPercent: "25",
   dataLowBalanceThreshold: "50",
 
@@ -373,6 +396,33 @@ export async function getDataStoreConfig(): Promise<DataStoreConfig> {
     afaPrice: numOr(s.dataAfaPrice, 12),
     markupPercent: numOr(s.dataMarkupPercent, 25),
     lowBalanceThreshold: numOr(s.dataLowBalanceThreshold, 50),
+  };
+}
+
+export interface ServicesConfig {
+  /** The master switch. Off takes the shelf off every storefront. */
+  enabled: boolean;
+  /** Show the Services tab on Nickimart's own bundle store. */
+  onStore: boolean;
+  /** Show a services section on the Nickimart homepage. */
+  onHomepage: boolean;
+  heading: string;
+  blurb: string;
+  /** The largest single document a customer may attach, in bytes. */
+  maxUploadBytes: number;
+}
+
+/** Where the services shelf is shown, and whether it is open at all. */
+export async function getServicesConfig(): Promise<ServicesConfig> {
+  const s = await getDataSettings();
+  return {
+    enabled: on(s.dataServicesEnabled),
+    onStore: on(s.dataServicesOnStore),
+    onHomepage: on(s.dataServicesOnHomepage),
+    heading: s.dataServicesHeading.trim() || "Registrations & services",
+    blurb: s.dataServicesBlurb.trim(),
+    // Clamped, because this one decides how much a single row may weigh.
+    maxUploadBytes: Math.round(Math.min(Math.max(numOr(s.dataServiceMaxUploadMb, 2), 0.5), 10) * 1_000_000),
   };
 }
 

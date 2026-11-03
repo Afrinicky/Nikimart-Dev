@@ -13,6 +13,7 @@ import {
   Inbox,
   LifeBuoy,
   ListOrdered,
+  Package,
   PiggyBank,
   RefreshCw,
   ShieldAlert,
@@ -47,6 +48,7 @@ import { emailStatus, isSmsConfigured } from "@/lib/notifications";
 import { getDataStoreConfig } from "@/lib/data-bundles/settings";
 import { getAllBundles } from "@/lib/data-bundles/catalog";
 import { getBellState } from "@/lib/data-bundles/notifications";
+import { getServiceTotals } from "@/lib/data-bundles/service-orders";
 import { pendingApplicationCount } from "@/lib/data-bundles/agent-module";
 import { pendingClaimCount } from "@/lib/data-bundles/payment-claims";
 import { lastWebhookSeen, webhookStatus } from "@/lib/data-bundles/webhook-health";
@@ -240,6 +242,7 @@ export default async function AdminDataOverviewPage({
     payouts,
     operations,
     bell,
+    serviceTotals,
   ] = await Promise.all([
     // Reads the wallet *and* writes the reading down. This screen was already
     // asking the provider on every load and throwing the answer away, which is
@@ -272,6 +275,9 @@ export default async function AdminDataOverviewPage({
     getPayoutTotals(period),
     getOperationsTotals(period),
     getBellState(),
+    // The second shelf. Scoped to the same window as everything above it, so
+    // the two businesses on this page are being read over the same stretch.
+    getServiceTotals({ gte: period.start, lt: period.end }),
   ]);
 
   const activeBundles = bundles.filter((b) => b.isActive && b.price > 0).length;
@@ -614,6 +620,43 @@ export default async function AdminDataOverviewPage({
           icon={ListOrdered}
         />
       </div>
+
+      {/* Services, when the shelf has sold anything. Three tiles rather than
+          five: this is the second business on the page, and it does not need
+          to be read in the same depth as the first before somebody clicks
+          into it. Hidden entirely until there is something to report, so an
+          admin who does not sell services never sees an empty row. */}
+      {serviceTotals.orders > 0 || serviceTotals.open > 0 ? (
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <Stat
+            label="Service revenue"
+            value={formatPrice(serviceTotals.revenue)}
+            hint={`Registrations and certificates · ${windowLabel}`}
+            href="/admin/data/products/orders"
+            icon={Package}
+          />
+          <Stat
+            label="Service income"
+            value={formatPrice(serviceTotals.net)}
+            hint={
+              serviceTotals.commission > 0
+                ? `After ${formatPrice(serviceTotals.commission)} in agent commission · ${windowLabel}`
+                : `What Nickimart keeps · ${windowLabel}`
+            }
+            href="/admin/data/products/orders"
+            icon={PiggyBank}
+            tone="success"
+          />
+          <Stat
+            label="Applications to work"
+            value={String(serviceTotals.open)}
+            hint={`Paid and not yet finished${asAtLabel}`}
+            href="/admin/data/products/orders?status=paid"
+            icon={ListOrdered}
+            tone={serviceTotals.open > 0 ? "orange" : "ink"}
+          />
+        </div>
+      ) : null}
 
       {attention.length > 0 ? (
         <section className="mt-4">

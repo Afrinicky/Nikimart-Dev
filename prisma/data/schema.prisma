@@ -428,6 +428,18 @@ model DataAgent {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // --- Services ------------------------------------------------------------
+  /**
+   * This agent's own flyer design for a service, as JSON, layered over the
+   * house design the admin sets (see lib/affiliate-flyer). Empty inherits the
+   * house design entirely, which is what every agent starts on.
+   */
+  serviceFlyerDesign String  @default("")
+  /** The colourway chosen in the share studio. Empty uses the design's own. */
+  serviceFlyerTheme  String  @default("")
+  /** Off takes the Services tab off this agent's storefront altogether. */
+  servicesEnabled    Boolean @default(true)
+
   prices      DataAgentPrice[]
   ledger      DataAgentLedger[]
   withdrawals DataAgentWithdrawal[]
@@ -441,6 +453,10 @@ model DataAgent {
   earnedFor   DataAgentLedger[]      @relation("LedgerSourceAgent")
   teamOrders  DataOrder[]            @relation("TeamUpline")
   teamAfa     AfaRegistration[]      @relation("AfaTeamUpline")
+
+  servicePrices  DataAgentServicePrice[]
+  serviceShelf   DataAgentService[]
+  serviceOrders  DataServiceOrder[]
 
   @@index([status])
   @@index([referredById])
@@ -1751,5 +1767,255 @@ model DataPasswordResetToken {
   createdAt DateTime  @default(now())
 
   @@index([userId])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Services — the paperwork Nickimart does for people: passport applications,
+// business registration, birth certificates and whatever is added next.
+//
+// It is the bundle business's second shelf, and it is built like the first on
+// purpose: an admin lists what is for sale, an agent puts it on their own
+// storefront at their own price and keeps the difference, and the customer
+// pays through the same Paystack checkout and tracks it with the same
+// reference. Nothing about adding a new service touches code — what it costs,
+// what it is called, what the form asks and how fast it can be done are all
+// rows here.
+// ---------------------------------------------------------------------------
+
+/// One service on the shelf, e.g. "Business registration".
+model DataService {
+  id      String @id @default(cuid())
+  /// The public path segment: /data-bundles/services/<slug>.
+  slug    String @unique
+  name    String
+  /// One line under the name on the card.
+  tagline String @default("")
+  /// What this is and how it works. Kept brief — it sits on the order form.
+  summary String @default("")
+
+  /// The picture the admin uploads. A data URL, as product images are stored
+  /// on the retail side; the flyer draws it and the card shows it.
+  imageUrl   String @default("")
+  /// Drawn when there is no picture, exactly as a listing's placeholder is.
+  icon       String @default("📄")
+  accentFrom String @default("#ff6a00")
+  accentTo   String @default("#ff9a3d")
+
+  /// The questions every variant of this service asks, as a JSON array of
+  /// fields (see lib/data-bundles/service-fields). A variant may add its own.
+  fields String @default("[]")
+  /// The terms the customer accepts before paying. Plain text, one per line.
+  terms  String @default("")
+
+  isActive Boolean @default(true)
+  /// Shown on Nickimart's own storefront. Off leaves it to agents only.
+  onStore  Boolean @default(true)
+  order    Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  variants DataServiceVariant[]
+  orders   DataServiceOrder[]
+  shelf    DataAgentService[]
+  drafts   DataServiceDraft[]
+
+  @@index([isActive, order])
+}
+
+/// What the customer is actually choosing: a kind of business to register, a
+/// class of passport. Each one carries its own fee and its own extra
+/// questions.
+model DataServiceVariant {
+  id        String      @id @default(cuid())
+  serviceId String
+  service   DataService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String @default("")
+
+  /// What Nickimart charges for it (GH₵).
+  price      Float @default(0)
+  /// What an agent is charged — their cost basis. Their commission is whatever
+  /// they sell it above this. 0 hides the variant from agent storefronts.
+  agentPrice Float @default(0)
+
+  /// How long it takes at the ordinary speed, e.g. "10 working days".
+  turnaround String @default("")
+  /// Faster options, as JSON: [{ key, label, extraFee, turnaround }]. The fee
+  /// is added to what the customer pays and to the agent's cost alike, so it
+  /// passes straight through and never moves anybody's commission.
+  speeds     String @default("[]")
+  /// Questions this variant asks on top of the service's own.
+  fields     String @default("[]")
+
+  isActive Boolean @default(true)
+  order    Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders      DataServiceOrder[]
+  agentPrices DataAgentServicePrice[]
+
+  @@index([serviceId, order])
+}
+
+/// One service bought. Everything the customer chose and answered is
+/// snapshotted here, so later edits to a price, a field or a variant's name
+/// never rewrite an order that was already placed.
+model DataServiceOrder {
+  id        String @id @default(cuid())
+  /// Doubles as the Paystack reference (NS-…), so it must be unique.
+  reference String @unique
+
+  serviceId   String?
+  service     DataService?        @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  serviceName String
+  variantId   String?
+  variant     DataServiceVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  variantName String
+
+  /// The speed chosen, and what it added. Empty label is the ordinary speed.
+  speedLabel String @default("")
+  speedFee   Float  @default(0)
+  turnaround String @default("")
+
+  /// What the customer paid, and the cost basis the commission came from.
+  price     Float
+  agentCost Float @default(0)
+
+  customerName  String
+  customerPhone String
+  customerEmail String @default("")
+  /// The form, as JSON: { fieldKey: answer }. Snapshotted with its labels so
+  /// the order reads correctly after the form is edited.
+  answers       String @default("{}")
+
+  /// pending | paid | processing | completed | cancelled | refunded
+  status        String    @default("pending")
+  /// unpaid | paid
+  paymentStatus String    @default("unpaid")
+  paidAt        DateTime?
+  completedAt   DateTime?
+  /// What the admin wants the customer to know, shown on the tracker.
+  adminNote     String    @default("")
+
+  /// Sub-agent attribution, exactly as on a bundle order.
+  agentId          String?
+  agent            DataAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  source           String     @default("WEB")
+  agentCommission  Float      @default(0)
+  /// pending | earned | void
+  commissionStatus String     @default("pending")
+  commissionPaidAt DateTime?
+
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents DataServiceDocument[]
+
+  @@index([status, createdAt])
+  @@index([customerPhone])
+  @@index([agentId, createdAt])
+  @@index([serviceId, createdAt])
+}
+
+/// A file the customer attached — a Ghana Card, a passport photograph. Stored
+/// as a data URL on its own row rather than inside the order's answers, so a
+/// list of orders never drags megabytes of images along with it.
+model DataServiceDocument {
+  id      String           @id @default(cuid())
+  orderId String
+  order   DataServiceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// The form field it came from, and what that field was called.
+  fieldKey String
+  label    String
+  fileName String
+  mimeType String @default("")
+  /// Bytes, as uploaded. Kept so a list can show a size without reading the file.
+  size     Int    @default(0)
+  dataUrl  String
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([createdAt])
+}
+
+/// An agent's own price for one variant. Absent means they sell it at
+/// Nickimart's agent price and earn nothing on it.
+model DataAgentServicePrice {
+  id        String             @id @default(cuid())
+  agentId   String
+  agent     DataAgent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  variantId String
+  variant   DataServiceVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  /// What the agent charges (GH₵). Must be at least the agent price.
+  price Float @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([agentId, variantId])
+  @@index([agentId])
+}
+
+/// Whether one service appears on one agent's storefront. A row exists only
+/// once the agent has made a choice; the default is set by the service itself.
+model DataAgentService {
+  id        String      @id @default(cuid())
+  agentId   String
+  agent     DataAgent   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  serviceId String
+  service   DataService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  visible Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([agentId, serviceId])
+  @@index([agentId])
+}
+
+/// A part-filled application somebody saved to finish later.
+///
+/// These forms are long — a business registration asks for proposed names,
+/// addresses and the owners' details — and somebody who has to go and find a
+/// document should not come back to an empty page. The draft is reached by a
+/// code rather than an account, because the bundle store has no accounts and
+/// inventing one to hold a half-typed form would be a login screen between a
+/// customer and a sale.
+///
+/// It holds answers only. No document is written anywhere until the order has
+/// been paid for, which is the rule the whole module is built around.
+model DataServiceDraft {
+  id   String @id @default(cuid())
+  /// What the customer quotes to pick it up again, e.g. "SV-7K3P9D".
+  code String @unique
+
+  serviceId String?
+  service   DataService? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  variantId String?
+  speedKey  String       @default("")
+
+  customerName  String @default("")
+  customerPhone String @default("")
+  customerEmail String @default("")
+  /// The form so far, as JSON. Documents are never part of it.
+  answers       String @default("{}")
+
+  /// Swept after this. A draft nobody came back to is not worth keeping.
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerPhone])
   @@index([expiresAt])
 }

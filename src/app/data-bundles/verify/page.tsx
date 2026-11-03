@@ -5,8 +5,11 @@ import {
   dataPaymentCovers,
   isAfaReference,
   isDataReference,
+  isServiceReference,
+  servicePaymentCovers,
   settleAfaRegistration,
   settleDataOrder,
+  settleServiceOrder,
 } from "@/lib/data-bundles/fulfillment";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +34,8 @@ export default async function VerifyDataPaymentPage({
   if (!reference) redirect("/data-bundles");
 
   const isAfa = isAfaReference(reference);
-  if (!isDataReference(reference) && !isAfa) redirect("/data-bundles");
+  const isService = isServiceReference(reference);
+  if (!isDataReference(reference) && !isAfa && !isService) redirect("/data-bundles");
 
   let paid = false;
   try {
@@ -41,7 +45,9 @@ export default async function VerifyDataPaymentPage({
       result.currency === "GHS" &&
       (isAfa
         ? await afaPaymentCovers(reference, result.amountPesewas)
-        : await dataPaymentCovers(reference, result.amountPesewas));
+        : isService
+          ? await servicePaymentCovers(reference, result.amountPesewas)
+          : await dataPaymentCovers(reference, result.amountPesewas));
   } catch {
     // Couldn't reach Paystack — treat as unconfirmed. The webhook settles it
     // later, and the lookup page tells the buyer exactly that.
@@ -55,12 +61,18 @@ export default async function VerifyDataPaymentPage({
     // with its reference, and the Paystack webhook settles it independently.
     try {
       if (isAfa) await settleAfaRegistration(reference);
+      else if (isService) await settleServiceOrder(reference);
       else await settleDataOrder(reference);
     } catch (err) {
       console.error(`[data-bundles] settling ${reference} failed: ${err instanceof Error ? err.message : String(err)}`);
     }
+    // A paid service order goes to its own page rather than the tracker: that
+    // is where the documents it still needs are attached, and payment is the
+    // moment the first of them may be stored at all.
+    if (isService) redirect(`/data-bundles/services/order/${encodeURIComponent(reference)}?paid=1`);
     const done = isAfa ? "afa" : "paid";
     redirect(`/data-bundles/orders?q=${encodeURIComponent(reference)}&${done}=1`);
   }
+  if (isService) redirect(`/data-bundles/services/order/${encodeURIComponent(reference)}?failed=1`);
   redirect(`/data-bundles/orders?q=${encodeURIComponent(reference)}&failed=1`);
 }

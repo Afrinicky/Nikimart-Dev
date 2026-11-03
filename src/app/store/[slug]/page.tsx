@@ -5,8 +5,10 @@ import { Container } from "@/components/ui/Container";
 import { ActionLink } from "@/components/ui/motion";
 import { BundleStore, type NetworkGroup } from "@/components/data/BundleStore";
 import { formatPrice } from "@/lib/format";
-import { getDataStoreConfig } from "@/lib/data-bundles/settings";
+import { getDataStoreConfig, getServicesConfig } from "@/lib/data-bundles/settings";
 import { agentIsSelling, getAgentBySlug, getAgentStorefrontGroups } from "@/lib/data-bundles/agents";
+import { getAgentShelf } from "@/lib/data-bundles/services";
+import type { StoreService } from "@/components/data/ServiceCard";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +86,27 @@ export default async function AgentStorefrontPage({
     })),
   }));
 
+  // The agent's own shelf, as a tab at the end of the operators. Three
+  // switches have to agree: Nickimart's, this agent's, and the service's own
+  // place on their storefront.
+  const services = await getServicesConfig();
+  const shelf: StoreService[] =
+    services.enabled && agent.servicesEnabled
+      ? (await getAgentShelf(agent.id)).map((s) => ({
+          slug: s.slug,
+          name: s.name,
+          tagline: s.tagline,
+          icon: s.icon,
+          imageUrl: s.imageUrl,
+          accentFrom: s.accentFrom,
+          accentTo: s.accentTo,
+          fromPrice: s.fromPrice,
+          from: s.variants.length > 1,
+          turnaround: s.variants[0]?.turnaround ?? "",
+          options: s.variants.length,
+        }))
+      : [];
+
   const afaPrice = agent.afaPrice > 0 ? agent.afaPrice : store.afaPrice;
   const showAfa = store.afaEnabled && agent.afaEnabled;
 
@@ -114,6 +137,8 @@ export default async function AgentStorefrontPage({
           groups={groups}
           storeSlug={agent.slug}
           trackHref={`/store/${agent.slug}/orders`}
+          services={shelf}
+          servicesBase={`/store/${agent.slug}/services`}
         />
 
         {showAfa ? (

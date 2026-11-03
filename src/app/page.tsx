@@ -2,6 +2,7 @@ import { Hero } from "@/components/home/Hero";
 import { SellCta } from "@/components/home/SellCta";
 import { FlashSaleSection } from "@/components/home/FlashSaleSection";
 import { AllProductsSection } from "@/components/home/AllProductsSection";
+import { ServicesSection } from "@/components/home/ServicesSection";
 import { TrustStrip } from "@/components/home/TrustStrip";
 import {
   countProducts,
@@ -47,6 +48,9 @@ export default async function Home() {
         viewAllHref="/products?badge=flash_sale"
       />
       <AllProductsSection products={products} vendorNames={vendorNames} total={total} />
+      {/* Registrations and services. Renders nothing unless an admin has
+          switched it on and there is something on the shelf. */}
+      <ServicesSection />
       {/* Sits on the homepage rather than the shared layout: the root layout also
           wraps the admin and seller consoles, and a shopper-facing trust band
           has no business above an orders table. */}

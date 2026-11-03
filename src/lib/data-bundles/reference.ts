@@ -17,6 +17,8 @@ export const AFA_REFERENCE_PREFIX = "NA-";
 export const REGISTRATION_REFERENCE_PREFIX = "NR-";
 /** An agent putting money into their own Nickimart wallet. */
 export const WALLET_REFERENCE_PREFIX = "NT-";
+/** A service bought from the shelf — a registration, a certificate. */
+export const SERVICE_REFERENCE_PREFIX = "NS-";
 
 export function isDataReference(reference: string): boolean {
   return reference.startsWith(DATA_REFERENCE_PREFIX);
@@ -34,12 +36,17 @@ export function isWalletReference(reference: string): boolean {
   return reference.startsWith(WALLET_REFERENCE_PREFIX);
 }
 
+export function isServiceReference(reference: string): boolean {
+  return reference.startsWith(SERVICE_REFERENCE_PREFIX);
+}
+
 /** Every reference the data-bundle business issues, whatever it is for. */
 export function isDataBundleReference(reference: string): boolean {
   return (
     isDataReference(reference) ||
     isAfaReference(reference) ||
     isRegistrationReference(reference) ||
-    isWalletReference(reference)
+    isWalletReference(reference) ||
+    isServiceReference(reference)
   );
 }

@@ -12,10 +12,16 @@ import {
   dataPaymentCovers,
   isAfaReference,
   isDataReference,
+  servicePaymentCovers,
   settleAfaRegistration,
   settleDataOrder,
+  settleServiceOrder,
 } from "@/lib/data-bundles/fulfillment";
-import { isRegistrationReference, isWalletReference } from "@/lib/data-bundles/reference";
+import {
+  isRegistrationReference,
+  isServiceReference,
+  isWalletReference,
+} from "@/lib/data-bundles/reference";
 import { isAffiliateRegistrationReference } from "@/lib/affiliate-reference";
 import {
   isSellerRegistrationReference,
@@ -50,7 +56,7 @@ export const dynamic = "force-dynamic";
  * configured key in turn, and the one that matches says which key signed.
  *
  * Then the important part: that key has to be one that settles for the business
- * the reference belongs to. "ND-"/"NA-"/"NR-" are bundle orders, AFA
+ * the reference belongs to. "ND-"/"NA-"/"NR-"/"NS-" are bundle orders, AFA
  * registrations and agent registration fees; anything else is a mall order.
  * Without that check, whoever holds one account's key could sign an event
  * naming an order in the other's ledger and have it settled unpaid — which is a
@@ -115,6 +121,9 @@ export async function POST(req: Request) {
 
     const isRegistration = isRegistrationReference(reference);
     const isWalletTopup = isWalletReference(reference);
+    // A service off the bundle business's second shelf — a registration, a
+    // certificate. Paid for exactly like a bundle, worked by hand afterwards.
+    const isService = isServiceReference(reference);
     // An affiliate registration is retail money, so it routes to the retail
     // account like a mall order — only what settles it is different.
     const isAffiliateJoining = isAffiliateRegistrationReference(reference);
@@ -143,21 +152,24 @@ export async function POST(req: Request) {
         ? await dataPaymentCovers(reference, amount)
         : isAfaReference(reference)
           ? await afaPaymentCovers(reference, amount)
-          : isRegistration
-            ? await registrationChargeCovers(reference, amount, metadata)
-            : isAffiliateJoining
-              ? await affiliateRegistrationCovers(reference, amount, metadata)
-              : isShopJoining
-                ? await vendorFeeCovers(reference, amount, vendorIdFromMetadata(metadata))
-                : // A wallet top-up is worth whatever was captured, so there is no
-              // total for it to fall short of — only a real amount to credit.
-                  isWalletTopup
-                  ? amount > 0
-                  : await paymentCoversOrder(reference, amount));
+          : isService
+            ? await servicePaymentCovers(reference, amount)
+            : isRegistration
+              ? await registrationChargeCovers(reference, amount, metadata)
+              : isAffiliateJoining
+                ? await affiliateRegistrationCovers(reference, amount, metadata)
+                : isShopJoining
+                  ? await vendorFeeCovers(reference, amount, vendorIdFromMetadata(metadata))
+                  : // A wallet top-up is worth whatever was captured, so there is
+                    // no total for it to fall short of — only an amount to credit.
+                    isWalletTopup
+                    ? amount > 0
+                    : await paymentCoversOrder(reference, amount));
 
     if (covered) {
       if (isDataReference(reference)) await settleDataOrder(reference);
       else if (isAfaReference(reference)) await settleAfaRegistration(reference);
+      else if (isService) await settleServiceOrder(reference);
       else if (isRegistration) await settleRegistrationCharge(reference, metadata);
       else if (isAffiliateJoining) await settleAffiliateRegistrationCharge(reference, metadata);
       else if (isShopJoining) await settleVendorFee(vendorIdFromMetadata(metadata), reference);

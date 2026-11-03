@@ -75,6 +75,7 @@ const DATA: NavItem[] = [
   { href: "/admin/data/orders", label: "Bundle orders", icon: ListOrdered },
   { href: "/admin/data/topup", label: "Buy data", icon: ShoppingBag },
   { href: "/admin/data/afa", label: "AFA", icon: BadgeCheck },
+  { href: "/admin/data/products", label: "Products", icon: Package },
   { href: "/admin/data/agents", label: "Agents", icon: Users },
   { href: "/admin/data/users", label: "Users", icon: UserCog },
   { href: "/admin/data/referrals", label: "Referrals", icon: Share2 },
