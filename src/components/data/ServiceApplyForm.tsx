@@ -2,7 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Bookmark, Check, Clock3, CreditCard, Loader2, Paperclip } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Bookmark,
+  Check,
+  Clock3,
+  Copy,
+  CreditCard,
+  Loader2,
+  Paperclip,
+} from "lucide-react";
 import { Field, inputClass } from "@/components/ui/Field";
 import { BusyButton } from "@/components/ui/motion";
 import {
@@ -127,6 +137,7 @@ export function ServiceApplyForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [savedCode, setSavedCode] = useState<string | null>(draft?.code ?? null);
+  const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const variant = useMemo(
@@ -175,6 +186,18 @@ export function ServiceApplyForm({
     setSaving(false);
     if (!result.ok) return setError(result.error);
     setSavedCode(result.code);
+  }
+
+  async function copyCode() {
+    if (!savedCode) return;
+    try {
+      await navigator.clipboard.writeText(savedCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Clipboard blocked — the code is on screen to write down, which is
+      // what it is for.
+    }
   }
 
   async function submit() {
@@ -263,13 +286,6 @@ export function ServiceApplyForm({
       {error ? (
         <p className="animate-fade-up mb-4 rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
           {error}
-        </p>
-      ) : null}
-
-      {savedCode ? (
-        <p className="animate-fade-up mb-4 rounded-xl bg-niki-trust/10 px-4 py-3 text-sm text-niki-ink/75 ring-1 ring-niki-trust/25">
-          Saved. Come back any time with the code{" "}
-          <span className="font-mono font-bold text-niki-ink">{savedCode}</span> — write it down.
         </p>
       ) : null}
 
@@ -484,6 +500,38 @@ export function ServiceApplyForm({
               <ArrowRight className="h-4 w-4" />
             </button>
           </div>
+
+          {/* The code sits under the button that made it. It used to be
+              announced at the top of the form, which on a long one is a
+              screen and a half above where the person is looking — so the
+              thing they need to write down was the thing they never saw. */}
+          {savedCode ? (
+            <div className="animate-scale-in rounded-2xl bg-niki-trust/[0.07] p-4 ring-1 ring-niki-trust/30">
+              <p className="flex items-center gap-1.5 text-sm font-bold text-niki-ink">
+                <Check className="h-4 w-4 text-niki-success" />
+                Saved. Write this code down.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <code className="rounded-xl bg-white px-4 py-2.5 font-mono text-lg font-bold tracking-widest text-niki-ink ring-1 ring-niki-edge">
+                  {savedCode}
+                </code>
+                <button
+                  type="button"
+                  onClick={copyCode}
+                  className="niki-press flex items-center gap-1.5 rounded-xl bg-niki-black px-4 py-2.5 text-sm font-semibold text-white"
+                >
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-niki-ink/60">
+                Come back to this service and choose{" "}
+                <span className="font-semibold text-niki-ink/75">Already started?</span> — your
+                code, or the phone number or email above, brings this form back as it is. Kept for
+                30 days.
+              </p>
+            </div>
+          ) : null}
         </form>
       ) : null}
 

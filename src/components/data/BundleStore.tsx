@@ -6,6 +6,7 @@ import { inputClass } from "@/components/ui/Field";
 import { BusyButton } from "@/components/ui/motion";
 import { BundleCard, NetworkTabs } from "@/components/data/BundleCard";
 import { ServiceCard, type StoreService } from "@/components/data/ServiceCard";
+import { ServiceContinuePanel } from "@/components/data/ServiceContinuePanel";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { NETWORK_INFO, bundleLabel, type Network } from "@/lib/data-bundles/networks";
@@ -113,6 +114,14 @@ export function BundleStore({
             {services.map((s) => (
               <ServiceCard key={s.slug} service={s} href={`${servicesBase}/${s.slug}`} />
             ))}
+          </div>
+
+          {/* The way back in. These forms are long and the documents come
+              later, so most people are here a second time rather than a
+              first — and until now the only door was a code they had to have
+              kept, on a page nothing linked to. */}
+          <div className="mt-4">
+            <ServiceContinuePanel />
           </div>
         </>
       ) : null}
