@@ -29,6 +29,9 @@ export interface AssistOption {
   name: string;
   price: number;
   turnaround: string;
+  /** Whether the ordinary speed is offered at all. */
+  standardEnabled: boolean;
+  /** The lanes that are open. A closed one never reaches here. */
   speeds: Array<{ key: string; label: string; extraFee: number; turnaround: string }>;
 }
 
@@ -53,7 +56,13 @@ export function ServiceAssistForm({ services }: { services: AssistService[] }) {
     () => service?.variants.find((v) => v.id === variantId) ?? service?.variants[0],
     [service, variantId],
   );
-  const speed = variant?.speeds.find((s) => s.key === speedKey);
+  // An option can be fast-track only, and then there is no standard to pick:
+  // the first open lane is chosen rather than left blank.
+  const effectiveSpeedKey =
+    variant && !variant.standardEnabled && !variant.speeds.some((s) => s.key === speedKey)
+      ? (variant.speeds[0]?.key ?? "")
+      : speedKey;
+  const speed = variant?.speeds.find((s) => s.key === effectiveSpeedKey);
   const total = (variant?.price ?? 0) + (speed?.extraFee ?? 0);
 
   function pickService(next: string) {
@@ -175,16 +184,20 @@ export function ServiceAssistForm({ services }: { services: AssistService[] }) {
         </Field>
       </div>
 
-      {variant && variant.speeds.length > 0 ? (
+      {variant && variant.speeds.length + (variant.standardEnabled ? 1 : 0) > 1 ? (
         <Field label="Delivery speed" htmlFor="assist-speed">
           <select
             id="assist-speed"
             name="speedKey"
-            value={speedKey}
+            value={effectiveSpeedKey}
             onChange={(e) => setSpeedKey(e.target.value)}
             className={inputClass}
           >
-            <option value="">Standard{variant.turnaround ? ` — ${variant.turnaround}` : ""}</option>
+            {variant.standardEnabled ? (
+              <option value="">
+                Standard{variant.turnaround ? ` — ${variant.turnaround}` : ""}
+              </option>
+            ) : null}
             {variant.speeds.map((s) => (
               <option key={s.key} value={s.key}>
                 {s.label} — +{formatPrice(s.extraFee)}
@@ -194,7 +207,7 @@ export function ServiceAssistForm({ services }: { services: AssistService[] }) {
           </select>
         </Field>
       ) : (
-        <input type="hidden" name="speedKey" value="" />
+        <input type="hidden" name="speedKey" value={effectiveSpeedKey} />
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">

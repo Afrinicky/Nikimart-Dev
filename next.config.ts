@@ -24,6 +24,22 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  /**
+   * How large a server-action request may be.
+   *
+   * The default is 1MB, and this app posts pictures as `data:` URLs inside
+   * ordinary forms — a product photograph, a service's picture, a customer's
+   * Ghana Card. One photograph off a phone clears a megabyte on its own, and
+   * the request is then rejected before the action runs, so the form has
+   * nothing to report and the console shows a full-page error with a digest.
+   * Raised to the smallest number that comfortably holds a downscaled
+   * photograph plus the form around it; the forms themselves still downscale
+   * before posting, and refuse anything larger.
+   */
+  experimental: {
+    serverActions: { bodySizeLimit: "6mb" },
+  },
+
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

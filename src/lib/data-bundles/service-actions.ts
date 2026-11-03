@@ -17,6 +17,7 @@ import {
   MAX_DOCUMENTS,
   checkServiceAnswers,
   findSpeed,
+  openSpeeds,
   servicePricing,
 } from "@/lib/data-bundles/service-fields";
 import { newServiceReference, settleServiceOrder } from "@/lib/data-bundles/fulfillment";
@@ -111,9 +112,17 @@ export async function orderService(input: OrderServiceInput): Promise<OrderServi
   }
   const { service, variant } = sellable;
 
-  const speed = findSpeed(variant.speeds, data.speedKey);
-  if (data.speedKey && !speed) {
+  const chosen = findSpeed(variant.speeds, data.speedKey);
+  if (data.speedKey && !chosen) {
     return { ok: false, error: "That delivery option is no longer available." };
+  }
+
+  // An option with the ordinary speed switched off has to be ordered on one of
+  // its faster lanes; the browser picks the first, and this is what makes that
+  // true rather than merely displayed.
+  const speed = chosen ?? (variant.standardEnabled ? null : (openSpeeds(variant.speeds)[0] ?? null));
+  if (!variant.standardEnabled && !speed) {
+    return { ok: false, error: "That option is not available right now. Please choose another." };
   }
 
   const money = servicePricing({

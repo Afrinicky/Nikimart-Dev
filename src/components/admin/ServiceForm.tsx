@@ -2,7 +2,7 @@
 
 import { useActionState, useRef, useState } from "react";
 import { ChevronDown, GripVertical, Image as ImageIcon, Loader2, Plus, Save, Trash2, Upload, X } from "lucide-react";
-import { Field, inputClass } from "@/components/ui/Field";
+import { Field, inputBase, inputClass } from "@/components/ui/Field";
 import {
   MAX_SERVICE_FIELDS,
   MAX_SERVICE_SPEEDS,
@@ -34,7 +34,11 @@ import { cn } from "@/lib/cn";
  * sends is trusted — it decides what is shown, not what is stored.
  */
 
-const MAX_IMAGE_DIM = 1400;
+// A flyer frame is 1080px wide, so there is nothing to gain above this — and
+// every pixel above it is weight in a form that is posted whole.
+const MAX_IMAGE_DIM = 1080;
+/** ~1.3MB of base64. Comfortably inside the request limit, with room to spare. */
+const MAX_IMAGE_CHARS = 1_800_000;
 
 /** Downscale an upload and hand back a data URL. Pictures are stored inline. */
 function fileToDataUrl(file: File): Promise<string> {
@@ -55,7 +59,9 @@ function fileToDataUrl(file: File): Promise<string> {
         const ctx = canvas.getContext("2d");
         if (!ctx) return resolve(String(reader.result));
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL(file.type === "image/png" ? "image/png" : "image/jpeg", 0.85));
+        // JPEG whatever came in: a photograph as PNG is several times the
+        // size for no visible gain, and this one travels inside a form post.
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
       };
       img.onerror = reject;
       img.src = String(reader.result);
@@ -72,6 +78,8 @@ export interface EditableVariant {
   price: number;
   agentPrice: number;
   turnaround: string;
+  /** Whether the ordinary speed is offered at all. */
+  standardEnabled: boolean;
   speeds: ServiceSpeed[];
   fields: ServiceField[];
   isActive: boolean;
@@ -171,12 +179,12 @@ function FieldRow({
           value={field.label}
           onChange={(e) => onChange({ label: e.target.value })}
           placeholder="What are you asking for?"
-          className={cn(inputClass, "flex-1 py-2")}
+          className={cn(inputBase, "min-w-0 flex-1 py-2")}
         />
         <select
           value={field.type}
           onChange={(e) => onChange({ type: e.target.value as ServiceFieldType })}
-          className={cn(inputClass, "w-36 shrink-0 py-2")}
+          className={cn(inputBase, "w-36 shrink-0 py-2")}
           aria-label="Answer type"
         >
           {SERVICE_FIELD_TYPES.map((t) => (
@@ -341,6 +349,8 @@ function VariantCard({
 }) {
   const [open, setOpen] = useState(variant.name === "");
   const margin = Math.round((variant.price - variant.agentPrice) * 100) / 100;
+  // Something has to be choosable, or the option is unsellable.
+  const orderable = variant.standardEnabled || variant.speeds.some((s) => s.enabled);
 
   function patchSpeed(i: number, next: Partial<ServiceSpeed>) {
     onChange({ speeds: variant.speeds.map((s, j) => (j === i ? { ...s, ...next } : s)) });
@@ -353,7 +363,7 @@ function VariantCard({
           value={variant.name}
           onChange={(e) => onChange({ name: e.target.value })}
           placeholder="Option name, e.g. Sole Proprietorship"
-          className={cn(inputClass, "min-w-[12rem] flex-1 py-2 font-semibold")}
+          className={cn(inputBase, "min-w-[12rem] flex-1 py-2 font-semibold")}
         />
         <label className="flex items-center gap-1.5">
           <span className="text-xs font-medium text-niki-ink/45">Price</span>
@@ -363,7 +373,7 @@ function VariantCard({
             step="0.01"
             value={variant.price || ""}
             onChange={(e) => onChange({ price: Number(e.target.value) || 0 })}
-            className={cn(inputClass, "w-28 py-2")}
+            className={cn(inputBase, "w-28 py-2")}
           />
         </label>
         <label className="flex items-center gap-1.5">
@@ -374,7 +384,7 @@ function VariantCard({
             step="0.01"
             value={variant.agentPrice || ""}
             onChange={(e) => onChange({ agentPrice: Number(e.target.value) || 0 })}
-            className={cn(inputClass, "w-28 py-2")}
+            className={cn(inputBase, "w-28 py-2")}
           />
         </label>
         <button
@@ -431,24 +441,63 @@ function VariantCard({
 
           {/* Delivery speed */}
           <div>
-            <p className="mb-1.5 text-sm font-medium text-niki-ink">Faster options</p>
+            <p className="mb-1.5 text-sm font-medium text-niki-ink">Delivery speed</p>
             <p className="mb-2 text-xs text-niki-ink/55">
               The extra fee is added to what the customer pays and to the agent&apos;s cost alike,
               so expediting never moves anybody&apos;s commission.
             </p>
-            {variant.speeds.length === 0 ? (
-              <p className="rounded-xl bg-niki-surface px-4 py-2.5 text-sm text-niki-ink/55">
-                One speed only — whatever the turnaround above says.
-              </p>
-            ) : (
-              <ul className="space-y-2">
+
+            {/* The ordinary lane, which is a choice like any other. */}
+            <label
+              className={cn(
+                "flex cursor-pointer items-center gap-3 rounded-xl px-4 py-2.5 ring-1",
+                variant.standardEnabled
+                  ? "bg-white ring-niki-edge"
+                  : "bg-niki-surface ring-niki-edge opacity-70",
+              )}
+            >
+              <input
+                type="checkbox"
+                checked={variant.standardEnabled}
+                onChange={(e) => onChange({ standardEnabled: e.target.checked })}
+                className="h-4 w-4 accent-[var(--color-niki-orange,#ff6a00)]"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-niki-ink">Standard</span>
+                <span className="block text-xs text-niki-ink/55">
+                  {variant.turnaround || "The turnaround above"} · no extra charge
+                </span>
+              </span>
+              {!variant.standardEnabled ? (
+                <span className="shrink-0 rounded-md bg-niki-ink/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-niki-ink/55">
+                  Off
+                </span>
+              ) : null}
+            </label>
+
+            {variant.speeds.length > 0 ? (
+              <ul className="mt-2 space-y-2">
                 {variant.speeds.map((s, i) => (
-                  <li key={i} className="flex flex-wrap items-center gap-2">
+                  <li
+                    key={i}
+                    className={cn(
+                      "flex flex-wrap items-center gap-2",
+                      !s.enabled && "opacity-60",
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={s.enabled}
+                      onChange={(e) => patchSpeed(i, { enabled: e.target.checked })}
+                      aria-label={`Offer ${s.label || "this speed"}`}
+                      title="Offer this speed"
+                      className="h-4 w-4 shrink-0 accent-[var(--color-niki-orange,#ff6a00)]"
+                    />
                     <input
                       value={s.label}
                       onChange={(e) => patchSpeed(i, { label: e.target.value })}
                       placeholder="Fast track"
-                      className={cn(inputClass, "min-w-[8rem] flex-1 py-2")}
+                      className={cn(inputBase, "min-w-[8rem] flex-1 py-2")}
                     />
                     <input
                       type="number"
@@ -457,13 +506,13 @@ function VariantCard({
                       value={s.extraFee || ""}
                       onChange={(e) => patchSpeed(i, { extraFee: Number(e.target.value) || 0 })}
                       placeholder="Extra fee"
-                      className={cn(inputClass, "w-28 py-2")}
+                      className={cn(inputBase, "w-28 py-2")}
                     />
                     <input
                       value={s.turnaround}
                       onChange={(e) => patchSpeed(i, { turnaround: e.target.value })}
                       placeholder="3 working days"
-                      className={cn(inputClass, "w-40 py-2")}
+                      className={cn(inputBase, "w-40 py-2")}
                     />
                     <button
                       type="button"
@@ -476,7 +525,14 @@ function VariantCard({
                   </li>
                 ))}
               </ul>
-            )}
+            ) : null}
+
+            {!orderable ? (
+              <p className="animate-fade-up mt-2 rounded-xl bg-niki-danger/10 px-4 py-2.5 text-xs font-medium text-niki-danger">
+                Nobody can order this option: the standard speed is off and no faster one is
+                switched on.
+              </p>
+            ) : null}
             <button
               type="button"
               onClick={() => onChange({ speeds: [...variant.speeds, newServiceSpeed()] })}
@@ -540,6 +596,7 @@ export function ServiceForm({ initial }: { initial: EditableService }) {
   const [service, setService] = useState<EditableService>(initial);
   const [state, submit, saving] = useActionState<ServiceAdminState, FormData>(saveService, {});
   const [busyImage, setBusyImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function patch(next: Partial<EditableService>) {
@@ -565,8 +622,16 @@ export function ServiceForm({ initial }: { initial: EditableService }) {
     const file = files?.[0];
     if (!file || !file.type.startsWith("image/")) return;
     setBusyImage(true);
+    setImageError(null);
     try {
-      patch({ imageUrl: await fileToDataUrl(file) });
+      const url = await fileToDataUrl(file);
+      if (url.length > MAX_IMAGE_CHARS) {
+        setImageError("That picture is too large even after resizing. Try a smaller one.");
+        return;
+      }
+      patch({ imageUrl: url });
+    } catch {
+      setImageError("Couldn't read that picture. Try another file.");
     } finally {
       setBusyImage(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -687,10 +752,16 @@ export function ServiceForm({ initial }: { initial: EditableService }) {
                 </button>
               ) : null}
             </div>
-            <p className="mt-1.5 flex items-start gap-1 text-[11px] text-niki-ink/45">
-              <ImageIcon className="mt-0.5 h-3 w-3 shrink-0" />
-              Also the picture the agent flyer is built around.
-            </p>
+            {imageError ? (
+              <p className="animate-fade-up mt-2 text-[11px] font-medium text-niki-danger">
+                {imageError}
+              </p>
+            ) : (
+              <p className="mt-1.5 flex items-start gap-1 text-[11px] text-niki-ink/45">
+                <ImageIcon className="mt-0.5 h-3 w-3 shrink-0" />
+                Also the picture the agent flyer is built around.
+              </p>
+            )}
 
             <div className="mt-3 grid grid-cols-3 gap-2">
               <label className="block">
@@ -765,6 +836,7 @@ export function ServiceForm({ initial }: { initial: EditableService }) {
                   price: 0,
                   agentPrice: 0,
                   turnaround: "",
+                  standardEnabled: true,
                   speeds: [],
                   fields: [],
                   isActive: true,

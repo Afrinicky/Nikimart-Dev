@@ -1843,6 +1843,12 @@ model DataServiceVariant {
 
   /// How long it takes at the ordinary speed, e.g. "10 working days".
   turnaround String @default("")
+  /// Whether the ordinary speed is offered at all. Off makes this a
+  /// fast-track-only option — some things Nickimart will only do expedited,
+  /// and offering a standard lane nobody will serve is worse than not
+  /// offering one. A variant with no standard and no enabled speed cannot be
+  /// saved, so there is always something to choose.
+  standardEnabled Boolean @default(true)
   /// Faster options, as JSON: [{ key, label, extraFee, turnaround }]. The fee
   /// is added to what the customer pays and to the agent's cost alike, so it
   /// passes straight through and never moves anybody's commission.

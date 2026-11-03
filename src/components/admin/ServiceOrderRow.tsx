@@ -4,12 +4,13 @@ import { useState } from "react";
 import {
   ChevronDown,
   Download,
+  FileText,
   Mail,
   MessageCircle,
   Paperclip,
   Trash2,
 } from "lucide-react";
-import { inputClass } from "@/components/ui/Field";
+import { inputBase, inputClass } from "@/components/ui/Field";
 import {
   SERVICE_STATUSES,
   SERVICE_STATUS_LABELS,
@@ -191,6 +192,14 @@ export function ServiceOrderRow({ order }: { order: AdminOrderView }) {
           {/* Reach them, and move it on */}
           <div className="flex flex-wrap items-end gap-3 p-4">
             <a
+              href={`/admin/data/products/orders/${encodeURIComponent(order.reference)}/document`}
+              download
+              className="niki-press flex items-center gap-1.5 rounded-lg bg-niki-black px-3.5 py-2 text-xs font-semibold text-white"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Registration document
+            </a>
+            <a
               href={whatsappHref(order.customerPhone)}
               target="_blank"
               rel="noopener noreferrer"
@@ -218,7 +227,7 @@ export function ServiceOrderRow({ order }: { order: AdminOrderView }) {
                 <select
                   name="status"
                   defaultValue={status}
-                  className={cn(inputClass, "w-44 py-2")}
+                  className={cn(inputBase, "w-44 py-2")}
                 >
                   {SERVICE_STATUSES.map((s) => (
                     <option key={s} value={s}>

@@ -10,6 +10,7 @@ import {
   saveServiceDraft,
   type LoadedDraft,
 } from "@/lib/data-bundles/service-actions";
+import { openSpeeds } from "@/lib/data-bundles/service-fields";
 import type { ServiceField, ServiceSpeed } from "@/lib/data-bundles/service-fields";
 import { formatMoney, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -35,6 +36,8 @@ export interface ApplyVariant {
   description: string;
   price: number;
   turnaround: string;
+  /** Whether the ordinary speed is offered at all. */
+  standardEnabled: boolean;
   speeds: ServiceSpeed[];
   fields: ServiceField[];
 }
@@ -130,7 +133,17 @@ export function ServiceApplyForm({
     () => service.variants.find((v) => v.id === variantId) ?? service.variants[0],
     [service.variants, variantId],
   );
-  const speed = variant?.speeds.find((s) => s.key === speedKey) ?? null;
+
+  // Only the lanes that are actually open, and the ordinary one only when the
+  // option offers it. An option can be fast-track only, and then there is no
+  // "Standard" to pick and one of the faster lanes is chosen for them.
+  const lanes = useMemo(() => openSpeeds(variant?.speeds ?? []), [variant]);
+  const effectiveSpeedKey =
+    variant && !variant.standardEnabled && !lanes.some((l) => l.key === speedKey)
+      ? (lanes[0]?.key ?? "")
+      : speedKey;
+
+  const speed = lanes.find((s) => s.key === effectiveSpeedKey) ?? null;
   const total = (variant?.price ?? 0) + (speed?.extraFee ?? 0);
   const turnaround = speed?.turnaround || variant?.turnaround || "";
 
@@ -152,7 +165,7 @@ export function ServiceApplyForm({
     const result = await saveServiceDraft({
       serviceSlug: service.slug,
       variantId,
-      speedKey,
+      speedKey: effectiveSpeedKey,
       customerName: name,
       customerPhone: phone,
       customerEmail: email,
@@ -170,7 +183,7 @@ export function ServiceApplyForm({
     const result = await orderService({
       serviceSlug: service.slug,
       variantId,
-      speedKey,
+      speedKey: effectiveSpeedKey,
       customerName: name,
       customerPhone: phone,
       customerEmail: email,
@@ -295,50 +308,56 @@ export function ServiceApplyForm({
                     {v.description ? (
                       <span className="mt-0.5 block text-xs text-niki-ink/55">{v.description}</span>
                     ) : null}
-                    {v.turnaround ? (
+                    {v.standardEnabled ? v.turnaround : openSpeeds(v.speeds)[0]?.turnaround ? (
                       <span className="mt-1 flex items-center gap-1 text-[11px] font-medium text-niki-ink/45">
                         <Clock3 className="h-3 w-3" />
-                        {v.turnaround}
+                        {v.standardEnabled ? v.turnaround : openSpeeds(v.speeds)[0]?.turnaround}
+                        {!v.standardEnabled ? " · fast track only" : ""}
                       </span>
                     ) : null}
                   </span>
                   <span className="shrink-0 font-figures font-bold text-niki-ink">
-                    {formatMoney(v.price)}
+                    {formatMoney(v.price + (v.standardEnabled ? 0 : openSpeeds(v.speeds)[0]?.extraFee ?? 0))}
                   </span>
                 </button>
               );
             })}
           </div>
 
-          {variant && variant.speeds.length > 0 ? (
+          {/* Shown only when there is a decision to make: one lane on its own
+              is not a choice, it is the turnaround, and it is already on the
+              option above. */}
+          {variant && lanes.length + (variant.standardEnabled ? 1 : 0) > 1 ? (
             <div>
               <p className="mb-2 text-sm font-medium text-niki-ink">How fast do you need it?</p>
               <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setSpeedKey("")}
-                  aria-pressed={speedKey === ""}
-                  className={cn(
-                    "niki-press niki-focus rounded-xl px-4 py-3 text-left",
-                    speedKey === ""
-                      ? "bg-niki-orange/[0.07] ring-2 ring-niki-orange"
-                      : "bg-white ring-1 ring-niki-edge",
-                  )}
-                >
-                  <span className="block text-sm font-bold text-niki-ink">Standard</span>
-                  <span className="mt-0.5 block text-xs text-niki-ink/55">
-                    {variant.turnaround || "Usual turnaround"} · no extra charge
-                  </span>
-                </button>
-                {variant.speeds.map((s) => (
+                {variant.standardEnabled ? (
+                  <button
+                    type="button"
+                    onClick={() => setSpeedKey("")}
+                    aria-pressed={effectiveSpeedKey === ""}
+                    className={cn(
+                      "niki-press niki-focus rounded-xl px-4 py-3 text-left",
+                      effectiveSpeedKey === ""
+                        ? "bg-niki-orange/[0.07] ring-2 ring-niki-orange"
+                        : "bg-white ring-1 ring-niki-edge",
+                    )}
+                  >
+                    <span className="block text-sm font-bold text-niki-ink">Standard</span>
+                    <span className="mt-0.5 block text-xs text-niki-ink/55">
+                      {variant.turnaround || "Usual turnaround"} · no extra charge
+                    </span>
+                  </button>
+                ) : null}
+                {lanes.map((s) => (
                   <button
                     key={s.key}
                     type="button"
                     onClick={() => setSpeedKey(s.key)}
-                    aria-pressed={speedKey === s.key}
+                    aria-pressed={effectiveSpeedKey === s.key}
                     className={cn(
                       "niki-press niki-focus rounded-xl px-4 py-3 text-left",
-                      speedKey === s.key
+                      effectiveSpeedKey === s.key
                         ? "bg-niki-orange/[0.07] ring-2 ring-niki-orange"
                         : "bg-white ring-1 ring-niki-edge",
                     )}

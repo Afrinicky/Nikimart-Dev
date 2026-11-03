@@ -5,10 +5,11 @@ import { PanelHeading } from "@/components/admin/ModuleHeader";
 import { ServiceModuleHeader } from "@/components/admin/ServiceModuleHeader";
 import { ServiceOrderRow } from "@/components/admin/ServiceOrderRow";
 import { ServiceAssistForm } from "@/components/data/ServiceAssistForm";
-import { inputClass } from "@/components/ui/Field";
+import { inputBase, inputClass } from "@/components/ui/Field";
 import { requireDataAdmin } from "@/lib/data-bundles/session";
 import { getAdminServiceOrders, SERVICE_STATUSES, SERVICE_STATUS_LABELS } from "@/lib/data-bundles/service-orders";
 import { getHouseCatalogue } from "@/lib/data-bundles/services";
+import { openSpeeds } from "@/lib/data-bundles/service-fields";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Service orders — Admin — Nickimart" };
@@ -69,7 +70,8 @@ export default async function AdminServiceOrdersPage({
                   name: v.name,
                   price: v.sellPrice,
                   turnaround: v.turnaround,
-                  speeds: v.speeds,
+                  standardEnabled: v.standardEnabled,
+                  speeds: openSpeeds(v.speeds),
                 })),
               }))}
             />
@@ -92,7 +94,7 @@ export default async function AdminServiceOrdersPage({
                 className={cn(inputClass, "pl-9")}
               />
             </label>
-            <select name="status" defaultValue={params.status ?? ""} className={cn(inputClass, "w-44")}>
+            <select name="status" defaultValue={params.status ?? ""} className={cn(inputBase, "w-44")}>
               <option value="">Every status</option>
               {SERVICE_STATUSES.map((s) => (
                 <option key={s} value={s}>

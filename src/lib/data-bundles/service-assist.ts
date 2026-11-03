@@ -11,7 +11,7 @@ import { requireDataUser } from "@/lib/data-bundles/session";
 import { agentIsSelling, getAgentForUser } from "@/lib/data-bundles/agents";
 import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
 import { findSellableVariant } from "@/lib/data-bundles/services";
-import { findSpeed, servicePricing } from "@/lib/data-bundles/service-fields";
+import { findSpeed, openSpeeds, servicePricing } from "@/lib/data-bundles/service-fields";
 import { newServiceReference, settleServiceOrder } from "@/lib/data-bundles/fulfillment";
 
 /**
@@ -115,7 +115,12 @@ export async function registerCustomerForService(
   if (!sellable) return { error: "That option is no longer available." };
   const { service, variant } = sellable;
 
-  const speed = findSpeed(variant.speeds, data.speedKey);
+  const chosen = findSpeed(variant.speeds, data.speedKey);
+  const speed = chosen ?? (variant.standardEnabled ? null : (openSpeeds(variant.speeds)[0] ?? null));
+  if (!variant.standardEnabled && !speed) {
+    return { error: "That option has no delivery speed switched on." };
+  }
+
   const money = servicePricing({
     sellPrice: variant.sellPrice,
     costPrice: variant.costPrice,
