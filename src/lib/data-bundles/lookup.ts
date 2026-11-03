@@ -150,6 +150,60 @@ export async function lookupOrders(rawQuery: string | undefined): Promise<Lookup
       };
     }
 
+    // A phone number can have bought a bundle and applied for a passport, and
+    // the tracker shows one thing — so the service shelf is asked too, and
+    // whichever is newer is what the person standing there means. Searching
+    // by reference never gets here: a service reference was answered above.
+    if (phone) {
+      const service = await dataDb.dataServiceOrder
+        .findFirst({
+          where: { customerPhone: phone },
+          orderBy: { createdAt: "desc" },
+          select: {
+            reference: true,
+            serviceName: true,
+            variantName: true,
+            price: true,
+            status: true,
+            paymentStatus: true,
+            turnaround: true,
+            createdAt: true,
+            _count: { select: { documents: true } },
+          },
+        })
+        .catch(() => null);
+
+      if (service) {
+        const bundle = await dataDb.dataOrder
+          .findFirst({
+            where: { OR: [{ buyerPhone: phone }, { recipientPhone: phone }] },
+            orderBy: { createdAt: "desc" },
+            select: { createdAt: true },
+          })
+          .catch(() => null);
+
+        if (!bundle || service.createdAt > bundle.createdAt) {
+          return {
+            state: "found",
+            hits: [
+              {
+                kind: "service",
+                reference: service.reference,
+                serviceName: service.serviceName,
+                variantName: service.variantName,
+                price: service.price,
+                status: service.status,
+                paymentStatus: service.paymentStatus,
+                documents: service._count.documents,
+                turnaround: service.turnaround,
+                createdAt: service.createdAt,
+              },
+            ],
+          };
+        }
+      }
+    }
+
     const rows = await dataDb.dataOrder.findMany({
       where: phone
         ? { OR: [{ buyerPhone: phone }, { recipientPhone: phone }] }

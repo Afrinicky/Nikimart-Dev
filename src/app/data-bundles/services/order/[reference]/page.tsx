@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Clock3, MessageCircle, Search } from "lucide-react";
+import { Bookmark, Clock3, MessageCircle, Search } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ServiceDocuments, type DocumentSlot } from "@/components/data/ServiceDocuments";
@@ -190,6 +190,34 @@ export default async function ServiceOrderPage({
               >
                 Pay {formatPrice(order.price)}
               </Link>
+            </div>
+          ) : null}
+
+          {/* How to get back here.
+              Documents are the step people stop on: the card is on another
+              phone, the photograph is with somebody else. Saying plainly how
+              to return is the difference between finishing tomorrow and
+              ringing support. */}
+          {paid ? (
+            <div className="rounded-2xl bg-niki-trust/[0.06] p-5 ring-1 ring-niki-trust/25">
+              <p className="flex items-center gap-1.5 font-display font-bold text-niki-ink">
+                <Bookmark className="h-4 w-4 text-niki-trust" />
+                Come back any time
+              </p>
+              <p className="mt-1 text-sm text-niki-ink/70">
+                Nothing is lost if you stop here. Your place is kept against this reference —
+                open{" "}
+                <Link
+                  href="/data-bundles/services/resume"
+                  className="font-semibold text-niki-orange hover:underline"
+                >
+                  Continue your application
+                </Link>{" "}
+                and give the reference below, or the phone number or email you paid with.
+              </p>
+              <code className="mt-3 inline-block rounded-xl bg-white px-4 py-2 font-mono text-sm font-bold tracking-wide text-niki-ink ring-1 ring-niki-edge">
+                {order.reference}
+              </code>
             </div>
           ) : null}
 

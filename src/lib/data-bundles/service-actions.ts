@@ -12,7 +12,13 @@ import { getServicesConfig } from "@/lib/data-bundles/settings";
 import { agentIsSelling, getAgentBySlug } from "@/lib/data-bundles/agents";
 import { dataRateLimit } from "@/lib/data-bundles/rate-limit";
 import { parseGhPhone } from "@/lib/data-bundles/gh-phone";
-import { findSellableVariant, formFor } from "@/lib/data-bundles/services";
+import { findSellableVariant, formFor, getServiceById } from "@/lib/data-bundles/services";
+import {
+  maskEmail,
+  maskPhone,
+  nothingFoundMessage,
+  readLookup,
+} from "@/lib/data-bundles/service-lookup";
 import {
   MAX_DOCUMENTS,
   checkServiceAnswers,
@@ -483,5 +489,171 @@ export async function uploadServiceDocument(
     return { ok: true };
   } catch {
     return { ok: false, error: "Could not attach that file. Please try again." };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Coming back
+// ---------------------------------------------------------------------------
+
+export interface InFlightDraft {
+  code: string;
+  serviceName: string;
+  serviceSlug: string;
+  /** Where to pick it up, already carrying the code. */
+  href: string;
+  savedAt: Date;
+  expiresAt: Date;
+}
+
+export interface InFlightOrder {
+  reference: string;
+  serviceName: string;
+  variantName: string;
+  status: string;
+  paymentStatus: string;
+  /** Required documents still missing. The reason most people come back. */
+  outstanding: number;
+  href: string;
+  createdAt: Date;
+}
+
+export type InFlightResult =
+  | { ok: true; drafts: InFlightDraft[]; orders: InFlightOrder[]; who: string }
+  | { ok: false; error: string };
+
+/**
+ * Everything of somebody's that is still unfinished.
+ *
+ * Two kinds of unfinished, and people do not distinguish between them: a form
+ * they saved halfway, and an order they have paid for whose documents are
+ * still on their other phone. Both are "the thing I started", so one box
+ * finds both and the answer says which is which.
+ *
+ * Four ways in, because what somebody still has in hand a fortnight later is
+ * not predictable: the code, the reference off the receipt, the number they
+ * used, or their email. Rate limited per address, and the phone numbers and
+ * emails in the answer come back masked — enough to recognise your own, not
+ * enough to walk the number space collecting other people's.
+ */
+export async function findInFlight(rawQuery: string): Promise<InFlightResult> {
+  const query = readLookup(rawQuery);
+  if (query.kind === "unknown") {
+    return { ok: false, error: nothingFoundMessage("unknown") };
+  }
+
+  const limit = await dataRateLimit(`service-continue:${await clientIp()}`, 15, 10 * 60_000);
+  if (!limit.ok) {
+    return {
+      ok: false,
+      error: `Too many attempts. Please try again in ${retryAfterLabel(limit.retryAfter)}.`,
+    };
+  }
+
+  try {
+    const now = new Date();
+
+    // --- Saved forms -------------------------------------------------------
+    const draftWhere =
+      query.kind === "code"
+        ? { code: query.value }
+        : query.kind === "phone"
+          ? { customerPhone: query.value }
+          : query.kind === "email"
+            ? { customerEmail: query.value }
+            : null; // a reference belongs to an order, never to a draft
+
+    const draftRows = draftWhere
+      ? await dataDb.dataServiceDraft.findMany({
+          where: { ...draftWhere, expiresAt: { gt: now } },
+          include: { service: { select: { name: true, slug: true } } },
+          orderBy: { updatedAt: "desc" },
+          take: 10,
+        })
+      : [];
+
+    // --- Orders ------------------------------------------------------------
+    const orderWhere =
+      query.kind === "reference"
+        ? { reference: query.value }
+        : query.kind === "phone"
+          ? { customerPhone: query.value }
+          : query.kind === "email"
+            ? { customerEmail: query.value }
+            : null; // a draft code belongs to no order yet
+
+    const orderRows = orderWhere
+      ? await dataDb.dataServiceOrder.findMany({
+          // A finished or cancelled order is not something to come back to.
+          where: { ...orderWhere, status: { notIn: ["cancelled", "refunded"] } },
+          select: {
+            reference: true,
+            serviceId: true,
+            serviceName: true,
+            variantId: true,
+            variantName: true,
+            status: true,
+            paymentStatus: true,
+            createdAt: true,
+            documents: { select: { fieldKey: true } },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+        })
+      : [];
+
+    // How many required documents are still missing, which is the one number
+    // somebody coming back actually wants. Read from the form as it stands:
+    // a question added since is still worth asking for.
+    const orders: InFlightOrder[] = [];
+    for (const row of orderRows) {
+      let outstanding = 0;
+      if (row.paymentStatus === "paid" && row.serviceId) {
+        const service = await getServiceById(row.serviceId);
+        const variant = service?.variants.find((v) => v.id === row.variantId);
+        if (service) {
+          const have = new Set(row.documents.map((d) => d.fieldKey));
+          outstanding = formFor(service, variant ?? { fields: [] }).filter(
+            (f) => f.type === "file" && f.required && !have.has(f.key),
+          ).length;
+        }
+      }
+      orders.push({
+        reference: row.reference,
+        serviceName: row.serviceName,
+        variantName: row.variantName,
+        status: row.status,
+        paymentStatus: row.paymentStatus,
+        outstanding,
+        href: `/data-bundles/services/order/${encodeURIComponent(row.reference)}`,
+        createdAt: row.createdAt,
+      });
+    }
+
+    const drafts: InFlightDraft[] = draftRows
+      .filter((d) => d.service)
+      .map((d) => ({
+        code: d.code,
+        serviceName: d.service!.name,
+        serviceSlug: d.service!.slug,
+        href: `/data-bundles/services/${d.service!.slug}?code=${encodeURIComponent(d.code)}`,
+        savedAt: d.updatedAt,
+        expiresAt: d.expiresAt,
+      }));
+
+    if (drafts.length === 0 && orders.length === 0) {
+      return { ok: false, error: nothingFoundMessage(query.kind) };
+    }
+
+    const who =
+      query.kind === "phone"
+        ? maskPhone(query.value)
+        : query.kind === "email"
+          ? maskEmail(query.value)
+          : query.value;
+
+    return { ok: true, drafts, orders, who };
+  } catch {
+    return { ok: false, error: "We couldn't look that up just now. Please try again." };
   }
 }
