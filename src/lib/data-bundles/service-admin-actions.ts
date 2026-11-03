@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { dataDb } from "@/lib/data-db";
 import { requireDataAdminAction } from "@/lib/data-bundles/session";
-import { saveDataSettings } from "@/lib/data-bundles/settings";
+import { DATA_SETTINGS_TAG, saveDataSettings } from "@/lib/data-bundles/settings";
 import { creditServiceCommission, voidServiceCommission } from "@/lib/data-bundles/agent-ledger";
 import { isServiceStatus } from "@/lib/data-bundles/service-orders";
 import {
@@ -62,6 +62,11 @@ function refresh() {
   revalidatePath("/admin/data");
   revalidatePath("/data-bundles");
   revalidatePath("/agent/products");
+  // The mall homepage is the one reader here that is not force-dynamic — it
+  // is cached for half an hour — so suspending a product, taking it off the
+  // store or changing its price would otherwise go on being advertised there
+  // long after the change.
+  revalidatePath("/");
 }
 
 // ---------------------------------------------------------------------------
@@ -371,8 +376,15 @@ export async function saveServiceSettings(
       dataServicesBlurb: str(fd, "blurb").slice(0, 240),
       dataServiceMaxUploadMb: String(Math.min(Math.max(num(fd, "maxUploadMb", 2), 0.5), 10)),
     });
+
+    // The stored settings are cached across requests behind this tag, so
+    // writing a row is only half of saving one: without dropping it, every
+    // reader goes on being handed the values from before the write until the
+    // cache lapses of its own accord. That is why switching the homepage
+    // section off and reloading showed it back on — the row said off and the
+    // cache said on, and the cache is what the page read.
+    updateTag(DATA_SETTINGS_TAG);
     refresh();
-    revalidatePath("/");
     return { ok: true, message: "Saved." };
   } catch {
     return { error: STORAGE_ERROR };
@@ -388,6 +400,9 @@ export async function saveHouseServiceFlyerDesign(
   const design = str(fd, "design");
   try {
     await saveDataSettings({ dataServiceFlyerDesign: design });
+    // Same reason as above: the design is a stored setting, and an agent would
+    // otherwise go on sharing the old house flyer.
+    updateTag(DATA_SETTINGS_TAG);
     revalidatePath("/admin/data/products/flyer");
     revalidatePath("/agent/products");
     return { ok: true, message: "House design saved." };
