@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Loader2 } from "lucide-react";
 import { updateSettings, type SettingsState } from "@/lib/settings-actions";
+import { Toggle } from "@/components/ui/Toggle";
 import { inputClass } from "@/components/ui/Field";
 
 /**
@@ -496,52 +497,5 @@ export function AffiliatePolicyForm({
         Save policy
       </button>
     </form>
-  );
-}
-
-/**
- * A switch that submits "1" or "0".
- *
- * A bare checkbox submits nothing at all when it is off, and the settings
- * writer only touches keys the form actually sends — so an unchecked box would
- * silently leave the old value in place, which on "programme enabled" is the
- * difference between off and still running.
- *
- * The trailing hidden input is what makes "off" a value. The order matters: the
- * reader takes the *first* entry for a name, so the checkbox has to come first
- * (checked → "1" wins) and the fallback after it (unchecked → only "0" is
- * sent). Swapping them would pin the setting to off forever.
- */
-function Toggle({
-  name,
-  value,
-  label,
-  hint,
-}: {
-  name: string;
-  value: string | undefined;
-  label: string;
-  hint?: string;
-}) {
-  const on = (value ?? "1").trim() !== "0";
-  return (
-    <div>
-      <label className="flex cursor-pointer items-start gap-2.5">
-        <input
-          type="checkbox"
-          name={name}
-          value="1"
-          defaultChecked={on}
-          className="mt-0.5 h-4 w-4 shrink-0 accent-niki-orange"
-        />
-        <span>
-          <span className="block text-sm font-medium text-niki-ink/80">{label}</span>
-          {hint ? (
-            <span className="mt-0.5 block text-xs leading-relaxed text-niki-ink/50">{hint}</span>
-          ) : null}
-        </span>
-      </label>
-      <input type="hidden" name={name} value="0" />
-    </div>
   );
 }

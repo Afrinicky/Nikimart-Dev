@@ -10,6 +10,7 @@ import {
 } from "@/lib/affiliate-invites";
 import { inviteProblem } from "@/lib/data-bundles/invite-rules";
 import { isClaimedInviteSlug } from "@/lib/invite-slug-registry";
+import { computeSettingsOrDefaults } from "@/lib/compute-settings";
 
 /**
  * Both lookups for one path, once per request.
@@ -25,6 +26,12 @@ import { isClaimedInviteSlug } from "@/lib/invite-slug-registry";
  * trip per claimed path per request rather than two.
  */
 const resolveInvite = cache(async (slug: string) => {
+  // Settings → Performance → "Answer one-word registration links". Off, this
+  // route stops looking anything up at all: every path it catches is refused
+  // before a database is touched. The long /become-an-agent?invite=CODE links
+  // are a different route and keep working.
+  const { inviteShortLinks } = await computeSettingsOrDefaults();
+  if (!inviteShortLinks) return { agent: null, affiliate: null };
   if (!(await isClaimedInviteSlug(slug))) return { agent: null, affiliate: null };
   const [agent, affiliate] = await Promise.all([
     resolveAgentInviteBySlug(slug),

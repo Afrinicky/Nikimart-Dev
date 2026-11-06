@@ -1,4 +1,12 @@
-import { OG_SIZE, OG_CONTENT_TYPE, renderOgJpeg, ogResponse, OgBrandMark } from "@/lib/og";
+import {
+  OG_SIZE,
+  OG_CONTENT_TYPE,
+  renderOgJpeg,
+  ogResponse,
+  ogFallbackJpeg,
+  OgBrandMark,
+} from "@/lib/og";
+import { computeSettingsOrDefaults } from "@/lib/compute-settings";
 
 // Branded card for the homepage — and therefore for affiliate referral links,
 // which are the homepage with a ?ref= code (e.g. /?ref=ABC). This is the image
@@ -13,6 +21,11 @@ export const contentType = OG_CONTENT_TYPE;
 export const alt = "Nickimart — Shop smart. Sell faster. Deliver closer.";
 
 export default async function OgImage() {
+  // Settings → Performance → "Render link-preview cards". Off, every link from
+  // this site previews with the plain brand card instead.
+  const { ogImages } = await computeSettingsOrDefaults();
+  if (!ogImages) return ogResponse(await ogFallbackJpeg());
+
   const jpeg = await renderOgJpeg(
     <div
       style={{

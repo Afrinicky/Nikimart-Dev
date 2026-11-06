@@ -4,8 +4,8 @@ import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { computeSettingsOrDefaults } from "@/lib/compute-settings";
 import {
-  CATALOGUE_PAGE_LIMIT,
   countFilteredProducts,
   filterProducts,
   getCategories,
@@ -59,12 +59,15 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
     maxPrice: Number.isFinite(maxPrice) ? maxPrice : undefined,
   };
 
+  // Settings → Performance → "Products per catalogue page".
+  const { cataloguePageLimit } = await computeSettingsOrDefaults();
+
   const [results, total, categories, vendorNames, activeCategory] = await Promise.all([
     // Capped. This route reads the query string, so it cannot be prerendered —
     // every distinct filter a visitor or a crawler invents is a fresh render,
     // and rendering an unbounded catalogue each time is what made that
     // expensive. The count comes from the database, not from the list.
-    filterProducts(filters),
+    filterProducts(filters, { take: cataloguePageLimit }),
     countFilteredProducts(filters),
     getCategories(),
     getVendorNameMap(),
@@ -124,7 +127,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
             <ProductGrid products={results} vendorNames={vendorNames} />
             {truncated ? (
               <p className="mt-8 text-center text-sm text-niki-ink/60">
-                Showing the first {CATALOGUE_PAGE_LIMIT} of {total} products. Search, or pick a
+                Showing the first {results.length} of {total} products. Search, or pick a
                 category above, to narrow this down.
               </p>
             ) : null}

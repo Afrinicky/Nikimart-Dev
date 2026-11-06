@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { siteUrl } from "@/lib/site";
+import { computeSettingsOrDefaults } from "@/lib/compute-settings";
 
 /**
  * What crawlers may walk, and — far more importantly — what they may not.
@@ -28,8 +29,35 @@ import { siteUrl } from "@/lib/site";
  * `crawlDelay` is advisory and the big search engines ignore it, but the
  * second-tier crawlers and SEO scrapers that generate most of this traffic do
  * honour it, and they are the ones doing the damage.
+ *
+ * Three settings, in Settings → Performance → "How much of the site crawlers
+ * may walk". "lean" is the list above and the one to leave it on. "open" drops
+ * the catalogue-filter rules, which is better for search ranking and worse for
+ * the bill, because every filter combination a crawler invents is a page that
+ * cannot be cached. "closed" leaves the homepage and nothing else — for the
+ * week when the allowance is nearly gone and the month is not.
  */
-export default function robots(): MetadataRoute.Robots {
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  const { crawlerPolicy, sitemap } = await computeSettingsOrDefaults();
+
+  if (crawlerPolicy === "closed") {
+    return {
+      rules: [{ userAgent: "*", allow: "/$", disallow: "/" }],
+      host: siteUrl(),
+    };
+  }
+
+  // The views that cannot be cached, and therefore cost a render per hit. Kept
+  // out of the list under "open": that setting is the deliberate choice to pay
+  // for them in exchange for the indexing.
+  const uncacheable = [
+    "/products?",
+    "/*?q=",
+    "/*?category=",
+    "/*?badge=",
+    "/*?maxPrice=",
+  ];
+
   const disallow = [
     "/api/",
     "/admin",
@@ -50,16 +78,13 @@ export default function robots(): MetadataRoute.Robots {
     "/agent-forgot-password",
     "/reset-password",
     "/r/",
+    // A referral or invite code on a URL is one visitor's, never a page.
+    "/*?ref=",
+    "/*?invite=",
     // Every filtered or searched view of the catalogue. The unfiltered
     // /products, /categories/… and /shops/… pages stay crawlable: those are
     // the cached ones, and they link to every product on their own.
-    "/products?",
-    "/*?q=",
-    "/*?category=",
-    "/*?badge=",
-    "/*?maxPrice=",
-    "/*?ref=",
-    "/*?invite=",
+    ...(crawlerPolicy === "open" ? [] : uncacheable),
   ];
 
   return {
@@ -97,7 +122,7 @@ export default function robots(): MetadataRoute.Robots {
         crawlDelay: 30,
       },
     ],
-    sitemap: `${siteUrl()}/sitemap.xml`,
+    sitemap: sitemap ? `${siteUrl()}/sitemap.xml` : undefined,
     host: siteUrl(),
   };
 }

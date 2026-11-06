@@ -1,5 +1,6 @@
-import { OG_SIZE, OG_CONTENT_TYPE, renderOgJpeg, ogResponse, loadImageBuffer, coverJpeg, squareDataUrl, OgBrandMark } from "@/lib/og";
+import { OG_SIZE, OG_CONTENT_TYPE, renderOgJpeg, ogResponse, ogFallbackJpeg, loadImageBuffer, coverJpeg, squareDataUrl, OgBrandMark } from "@/lib/og";
 import { getVendorBySlug } from "@/lib/catalog";
+import { computeSettingsOrDefaults } from "@/lib/compute-settings";
 import { absoluteImageUrl } from "@/lib/site";
 
 export const runtime = "nodejs";
@@ -12,11 +13,16 @@ export const contentType = OG_CONTENT_TYPE;
 export const alt = "Nickimart shop";
 
 export default async function ShopOgImage({ params }: { params: Promise<{ slug: string }> }) {
+  const { ogImages, ogProductPhoto } = await computeSettingsOrDefaults();
+  if (!ogImages) return ogResponse(await ogFallbackJpeg());
+
   const { slug } = await params;
   const vendor = await getVendorBySlug(slug);
 
   // A cover banner makes the strongest "catalogue" preview — use it full-bleed.
-  if (vendor?.bannerUrl) {
+  // Skipped when shop and product photographs are switched off in the card:
+  // fetching and recropping a banner is the expensive half of this route.
+  if (ogProductPhoto && vendor?.bannerUrl) {
     const buf = await loadImageBuffer(absoluteImageUrl(vendor.bannerUrl));
     if (buf) return ogResponse(await coverJpeg(buf));
   }
@@ -28,7 +34,8 @@ export default async function ShopOgImage({ params }: { params: Promise<{ slug: 
   const verified = vendor?.verificationStatus === "verified";
 
   // Fall back to a branded card: the shop logo (if any) or its initials badge.
-  const logoBuf = vendor?.logoUrl ? await loadImageBuffer(absoluteImageUrl(vendor.logoUrl)) : null;
+  const logoBuf =
+    ogProductPhoto && vendor?.logoUrl ? await loadImageBuffer(absoluteImageUrl(vendor.logoUrl)) : null;
   const logo = logoBuf ? await squareDataUrl(logoBuf) : null;
 
   const jpeg = await renderOgJpeg(

@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import { readProductImageBytes } from "@/lib/product-image-bytes";
+import { computeSettingsOrDefaults } from "@/lib/compute-settings";
 
 // Needs Prisma + sharp, so run on Node. Output a small JPEG (not a heavy PNG):
 // WhatsApp and other scrapers silently drop preview images that are too large,
@@ -43,6 +44,20 @@ async function loadBuffer(slug: string): Promise<Buffer | null> {
 }
 
 export default async function ProductOgImage({ params }: { params: Promise<{ slug: string }> }) {
+  // Settings → Performance. Two switches reach here: the first turns
+  // link-preview cards off altogether, the second keeps the card but stops it
+  // carrying the product's own photograph — which is the half of this route
+  // that decodes and re-encodes an image.
+  const { ogImages, ogProductPhoto } = await computeSettingsOrDefaults();
+  if (!ogImages || !ogProductPhoto) {
+    return new Response(new Uint8Array(await blankCard()), {
+      headers: {
+        "Content-Type": "image/jpeg",
+        "Cache-Control": "public, max-age=3600, s-maxage=86400",
+      },
+    });
+  }
+
   const { slug } = await params;
   const input = await loadBuffer(slug);
 

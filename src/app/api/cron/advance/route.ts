@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { sweepRateLimits } from "@/lib/rate-limit";
 import { refreshCurrencyRates } from "@/lib/fx";
 import { denyCron } from "@/lib/cron-auth";
+import { computeSettingsOrDefaults } from "@/lib/compute-settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,18 +28,27 @@ export async function GET(request: Request) {
   const denied = denyCron(request);
   if (denied) return denied;
 
+  // The rate-limit sweep always runs: it deletes rows that have already
+  // expired, so skipping it only lets a table grow. The rates pull is the part
+  // that talks to a service and can be switched off in Settings → Performance
+  // — against the advice there, because a stale cedi rate is wrong in the
+  // expensive direction.
+  const { fxAutoRefresh } = await computeSettingsOrDefaults();
+
   const [rateLimitsCleared, rates] = await Promise.all([
     sweepRateLimits(),
-    refreshCurrencyRates(),
+    fxAutoRefresh ? refreshCurrencyRates() : Promise.resolve(null),
   ]);
 
   return NextResponse.json({
     ok: true,
     advanced: 0,
     rateLimitsCleared,
-    exchangeRates: rates.ok
-      ? { updated: rates.updated, skipped: rates.skipped }
-      : { error: rates.error },
+    exchangeRates: !rates
+      ? { skipped: "Automatic exchange-rate refresh is switched off." }
+      : rates.ok
+        ? { updated: rates.updated, skipped: rates.skipped }
+        : { error: rates.error },
     note: "Manual role-based confirmations; no time-based advance.",
   });
 }

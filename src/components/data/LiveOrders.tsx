@@ -34,9 +34,16 @@ export function LiveOrders({
   /** How many orders on this page are still moving. Zero means stop. */
   open,
   seconds = 20,
+  /**
+   * Settings → Performance → "Refresh orders screens automatically". Off, this
+   * component does nothing at all and the page is current as of the moment it
+   * was opened — which is what a reload is for.
+   */
+  enabled = true,
 }: {
   open: number;
   seconds?: number;
+  enabled?: boolean;
 }) {
   const router = useRouter();
   // Refreshing on becoming visible is the useful half of this, but a tab that
@@ -44,7 +51,7 @@ export function LiveOrders({
   const lastRefresh = useRef(0);
 
   useEffect(() => {
-    if (open <= 0) return;
+    if (!enabled || open <= 0) return;
 
     const base = Math.max(10, seconds) * 1000;
     const ceiling = 5 * 60 * 1000;
@@ -84,7 +91,7 @@ export function LiveOrders({
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [open, seconds, router]);
+  }, [enabled, open, seconds, router]);
 
   return null;
 }

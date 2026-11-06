@@ -186,6 +186,59 @@ flat overnight baseline on the usage chart: scanners do not sleep.
 
 ---
 
+## The switches: Admin → Settings → Performance
+
+Everything above is a decision made once, in code. The decisions that actually
+change month to month are *which features the site can afford this month*, and
+those now live on a settings page rather than in a deploy.
+
+Defined in `src/lib/settings.ts`, resolved in `src/lib/compute-rules.ts`
+(tested — `compute-rules.test.ts`) and read through
+`src/lib/compute-settings.ts`, which is the only module any page talks to.
+
+| Switch | What it costs when on | What is lost when off |
+| --- | --- | --- |
+| **Low compute mode** | — | The panic switch. Forces the cheapest setting for everything below, at once. |
+| Draw a card for each link | A layout engine and a JPEG encoder, per scrape. The most expensive thing this app does for one request. | Shared links preview with one fixed Nickimart card instead of their own. |
+| Product photograph in its card | Decode + resize + re-encode of a photograph. | A shared product link shows the generic card. |
+| Refresh orders screens | A full server render of a `force-dynamic` page, per tick, per open tab. | Staff reload the page themselves. |
+| First refresh after *n* seconds | — | Nothing; it doubles to five minutes either way. |
+| Chat bubble | A token minted for every visitor who opens it. | No live chat on the storefront. Existing conversations stay in the console. |
+| Crawler policy | `open` lets crawlers walk filters and searches, none of which can be cached. | `closed` costs search traffic within days and takes weeks to recover. |
+| Publish a sitemap | One cached render per window. | Crawlers guess instead, which is usually *more* expensive — leave it on. |
+| Products in the sitemap | More URLs handed out at once. | Zero still lists categories and shops; crawlers find products through those. |
+| Products per catalogue page | `/products` cannot be cached, so this is the ceiling on each render. | Shoppers see fewer at once and are pointed at search. |
+| Answer one-word registration links | The root route that also absorbs every `/wp-login.php` scan. | Short paths stop; the long `?invite=CODE` links keep working. |
+| Nightly bundle sweep | One provider call per stalled order. | A stalled order waits for somebody to spot it. The last switch to reach for. |
+| Nightly exchange-rate pull | One call a night. | Yesterday's cedi rate stands — wrong in the expensive direction. Leave it on. |
+
+Three things were deliberate in how this is built:
+
+* **Every switch defaults to the behaviour the site already had**, so deploying
+  this changes nothing until somebody decides it should.
+* **Low compute mode overrides without overwriting.** The admin's own choices
+  stay in the database, so clearing the panic switch restores them exactly
+  rather than leaving the site stripped and somebody trying to remember what it
+  looked like before.
+* **An unreadable value falls back to *working*, never to off.** These are
+  free-text rows in a key/value table; a typo must not be what takes the
+  storefront's link previews away. The test that pins this is
+  `a value nobody can read falls back to working, never to off`.
+
+Two switches are deliberately **not** in low compute mode. Short registration
+links, because an advert already printed with `/join` on it must not stop
+working because the hosting bill got tight. The exchange-rate pull, because a
+stale cedi rate costs more in mispriced orders than the one call saves.
+
+Nothing on that page can take the shop offline. Browsing, search, the cart and
+checkout are untouched by every setting on it, and
+`no switch on this page can close the shop` is a test rather than a promise.
+
+Automatic backups already had their own switch (`backupAutoEnabled`, in the
+bundle console) and were left where they are.
+
+---
+
 ## What to do next, if this is still not enough
 
 In rough order of value for effort:

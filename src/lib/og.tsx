@@ -69,6 +69,34 @@ export async function squareDataUrl(buf: Buffer, size = 220): Promise<string | n
   }
 }
 
+/**
+ * The card served when link-preview rendering is switched off.
+ *
+ * Not an empty response and not a 404: a scraper that gets nothing shows the
+ * link with no picture at all, which looks broken rather than plain. This is a
+ * real card — the brand on its dark ground, at the right size — it is simply
+ * the *same* card every time, and it costs one JPEG encode of a solid colour
+ * rather than a layout engine and a photograph.
+ *
+ * Built once per process and then handed out, because a fixed image has no
+ * reason to be made twice.
+ */
+let fallbackCard: Promise<Buffer> | null = null;
+
+export function ogFallbackJpeg(): Promise<Buffer> {
+  fallbackCard ??= sharp({
+    create: {
+      width: OG_SIZE.width,
+      height: OG_SIZE.height,
+      channels: 3,
+      background: { r: 25, g: 25, b: 25 },
+    },
+  })
+    .jpeg({ quality: 70 })
+    .toBuffer();
+  return fallbackCard;
+}
+
 /** A JPEG Response with sensible caching, for use from an opengraph-image route. */
 export function ogResponse(jpeg: Buffer): Response {
   return new Response(new Uint8Array(jpeg), {

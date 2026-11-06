@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getCategories, getProductSlugs, getVendors } from "@/lib/catalog";
 import { siteUrl } from "@/lib/site";
+import { computeSettingsOrDefaults } from "@/lib/compute-settings";
 
 /**
  * The map robots.ts points at.
@@ -18,17 +19,24 @@ import { siteUrl } from "@/lib/site";
  */
 export const revalidate = 1800;
 
-/** A ceiling, so a runaway catalogue cannot turn this into a megabyte of XML. */
-const MAX_PRODUCTS = 5000;
-
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
   const now = new Date();
 
+  // Settings → Performance. Off, this is empty rather than absent — an empty
+  // sitemap is a valid one, and a 404 at /sitemap.xml is something a crawler
+  // retries. The product ceiling is a setting too: zero lists the fixed pages,
+  // the categories and the shops, and lets crawlers find products by following
+  // those, which is far fewer URLs handed out at once.
+  const { sitemap: enabled, sitemapProductLimit } = await computeSettingsOrDefaults();
+  if (!enabled) return [];
+
   const [categories, vendors, productSlugs] = await Promise.all([
     getCategories().catch(() => []),
     getVendors().catch(() => []),
-    getProductSlugs(MAX_PRODUCTS).catch(() => []),
+    sitemapProductLimit > 0
+      ? getProductSlugs(sitemapProductLimit).catch(() => [])
+      : Promise.resolve([] as string[]),
   ]);
 
   const entry = (
