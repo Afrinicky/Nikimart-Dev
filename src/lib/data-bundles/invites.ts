@@ -1,5 +1,6 @@
 import "server-only";
 import { dataDb } from "@/lib/data-db";
+import { forgetClaimedInviteSlugs } from "@/lib/invite-slug-registry";
 import { siteUrl } from "@/lib/site";
 import {
   inviteProblem,
@@ -87,7 +88,7 @@ export async function createAgentInvite(input: {
   // unique index is what decides, not a pre-check.
   for (let attempt = 0; attempt < 6; attempt++) {
     try {
-      return await dataDb.$transaction(async (tx) => {
+      const created = await dataDb.$transaction(async (tx) => {
         // A short path can only belong to one link, and an advert already
         // printed on a flyer is the reason to re-point it rather than refuse
         // it: the admin who types "join" again means "/join is this link now".
@@ -118,6 +119,10 @@ export async function createAgentInvite(input: {
         });
         return { invite, slugTakenFrom };
       });
+      // The root route answers a short path from a cached set of the paths
+      // that exist; a new one has to appear in it before the link works.
+      forgetClaimedInviteSlugs();
+      return created;
     } catch {
       if (attempt === 5) return null;
     }
@@ -127,10 +132,12 @@ export async function createAgentInvite(input: {
 
 export async function setAgentInviteActive(id: string, isActive: boolean): Promise<void> {
   await dataDb.dataAgentInvite.updateMany({ where: { id }, data: { isActive } }).catch(() => {});
+  forgetClaimedInviteSlugs();
 }
 
 export async function deleteAgentInvite(id: string): Promise<void> {
   await dataDb.dataAgentInvite.delete({ where: { id } }).catch(() => {});
+  forgetClaimedInviteSlugs();
 }
 
 export type InviteLookup =

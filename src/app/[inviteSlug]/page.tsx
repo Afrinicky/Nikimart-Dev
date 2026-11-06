@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { AgentRegistration } from "../become-an-agent/AgentRegistration";
 import { AffiliateRegistration } from "../become-an-affiliate/AffiliateRegistration";
@@ -8,6 +9,29 @@ import {
   type AffiliateInviteLookup,
 } from "@/lib/affiliate-invites";
 import { inviteProblem } from "@/lib/data-bundles/invite-rules";
+import { isClaimedInviteSlug } from "@/lib/invite-slug-registry";
+
+/**
+ * Both lookups for one path, once per request.
+ *
+ * Guarded by the claimed-slug registry, which answers from a single cached
+ * read shared by every visitor. A path nobody has claimed — which is every
+ * scanner probe and every mistyped address, and therefore the overwhelming
+ * majority of what reaches this route — is refused here without a query.
+ * Without the guard this route ran two queries against two databases for each
+ * of them, twice over, since `generateMetadata` and the page body each asked.
+ *
+ * `cache` is React's per-request dedupe, so the pair below now costs one round
+ * trip per claimed path per request rather than two.
+ */
+const resolveInvite = cache(async (slug: string) => {
+  if (!(await isClaimedInviteSlug(slug))) return { agent: null, affiliate: null };
+  const [agent, affiliate] = await Promise.all([
+    resolveAgentInviteBySlug(slug),
+    resolveAffiliateInviteBySlug(slug),
+  ]);
+  return { agent, affiliate };
+});
 
 /**
  * A registration link short enough to advertise: nickimart.com/join.
@@ -57,10 +81,7 @@ type Search = Promise<{ ref?: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { inviteSlug } = await params;
-  const [agent, affiliate] = await Promise.all([
-    resolveAgentInviteBySlug(inviteSlug),
-    resolveAffiliateInviteBySlug(inviteSlug),
-  ]);
+  const { agent, affiliate } = await resolveInvite(inviteSlug);
   // No link claims this path, so the page below is the site's not-found page.
   // Said out loud here because the status code cannot say it: without this, a
   // mistyped address would be a page a search engine is willing to index.
@@ -98,10 +119,7 @@ export default async function InviteSlugPage({
   searchParams?: Search;
 }) {
   const { inviteSlug } = await params;
-  const [agent, affiliate] = await Promise.all([
-    resolveAgentInviteBySlug(inviteSlug),
-    resolveAffiliateInviteBySlug(inviteSlug),
-  ]);
+  const { agent, affiliate } = await resolveInvite(inviteSlug);
   if (!agent && !affiliate) notFound();
 
   // A recruiter's code still works on a short link, so one person can share

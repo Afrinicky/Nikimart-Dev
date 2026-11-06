@@ -3,6 +3,10 @@ import { getVendorBySlug } from "@/lib/catalog";
 import { absoluteImageUrl } from "@/lib/site";
 
 export const runtime = "nodejs";
+// A day, matching the Cache-Control these cards carry: a shop's preview does
+// not change between the scrapes of it, and satori plus a JPEG encode is the
+// most expensive thing per request this app does.
+export const revalidate = 86400;
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 export const alt = "Nickimart shop";

@@ -2,6 +2,20 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
+
+/**
+ * How hard to compress a snapshot.
+ *
+ * Level 9 was costing several times the CPU of zlib's default for two or three
+ * percent of file size, on a dump whose bulk is base64 photographs that barely
+ * compress further at any level. `gzipSync` also blocks the event loop while it
+ * runs, so the whole of it is billed as active compute — and this runs nightly,
+ * against a database that grows.
+ *
+ * Six is zlib's own default and the knee of that curve. Storage is the cheap
+ * side of this trade; compute is the metered one.
+ */
+const BACKUP_GZIP_LEVEL = 6;
 import { dataDb } from "@/lib/data-db";
 import {
   BACKUP_APP,
@@ -314,7 +328,7 @@ export async function runDataBackup(options: {
 
   try {
     const dump = await buildDump({ id, kind, takenAt: startedAt });
-    const body = gzipSync(dump.payload, { level: 9 });
+    const body = gzipSync(dump.payload, { level: BACKUP_GZIP_LEVEL });
     const checksum = createHash("sha256").update(body).digest("hex");
 
     locations = await putBackupFile(fileName, body, BACKUP_CONTENT_TYPE);
@@ -436,7 +450,7 @@ export async function takeDirectBackup(options: {
 
   try {
     const dump = await buildDump({ id, kind, takenAt: startedAt });
-    const body = gzipSync(dump.payload, { level: 9 });
+    const body = gzipSync(dump.payload, { level: BACKUP_GZIP_LEVEL });
     const checksum = createHash("sha256").update(body).digest("hex");
 
     const row = await dataDb.dataBackup.update({

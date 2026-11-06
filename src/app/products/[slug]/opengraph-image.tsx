@@ -1,11 +1,15 @@
 import sharp from "sharp";
-import { getProductBySlug } from "@/lib/catalog";
-import { absoluteImageUrl } from "@/lib/site";
+import { prisma } from "@/lib/prisma";
+import { readProductImageBytes } from "@/lib/product-image-bytes";
 
 // Needs Prisma + sharp, so run on Node. Output a small JPEG (not a heavy PNG):
 // WhatsApp and other scrapers silently drop preview images that are too large,
 // so we compress the actual product photo well under their limit.
 export const runtime = "nodejs";
+// A day. Without it this route re-renders — decode, resize, re-encode — for
+// every scraper that asks, and a product's card does not change between asks.
+// The `Cache-Control` below covers the CDN; this covers the route itself.
+export const revalidate = 86400;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/jpeg";
 export const alt = "Nickimart product";
@@ -13,45 +17,45 @@ export const alt = "Nickimart product";
 // Nickimart navy — fills the letterbox bars around non-landscape photos.
 const BG = { r: 14, g: 31, b: 54, alpha: 1 };
 
-/** Load the product image bytes from a data: URL or an http(s) URL. */
-async function loadBuffer(src: string | null): Promise<Buffer | null> {
-  if (!src) return null;
+async function blankCard(): Promise<Buffer> {
+  return sharp({ create: { width: 1200, height: 630, channels: 3, background: BG } }).jpeg({ quality: 80 }).toBuffer();
+}
+
+/** The stored photograph as bytes, without going back out over the network. */
+async function loadBuffer(slug: string): Promise<Buffer | null> {
   try {
-    if (src.startsWith("data:")) {
-      const comma = src.indexOf(",");
-      if (comma === -1) return null;
-      const isB64 = src.slice(5, comma).includes("base64");
-      const payload = src.slice(comma + 1);
-      return isB64 ? Buffer.from(payload, "base64") : Buffer.from(decodeURIComponent(payload));
+    const row = await prisma.product.findUnique({ where: { slug }, select: { id: true } });
+    if (!row) return null;
+    const stored = (await readProductImageBytes(row.id, 0))?.trim() ?? "";
+    const match = /^data:image\/[a-z.+-]+;base64,(.+)$/i.exec(stored);
+    if (match) return Buffer.from(match[1], "base64");
+    if (/^https?:\/\//i.test(stored)) {
+      const res = await fetch(stored, { signal: AbortSignal.timeout(5000) });
+      if (!res.ok) return null;
+      const ab = await res.arrayBuffer();
+      if (ab.byteLength > 15_000_000) return null;
+      return Buffer.from(ab);
     }
-    const res = await fetch(src, { signal: AbortSignal.timeout(5000), cache: "no-store" });
-    if (!res.ok) return null;
-    const ct = res.headers.get("content-type") ?? "";
-    if (ct && !ct.startsWith("image/")) return null;
-    const ab = await res.arrayBuffer();
-    if (ab.byteLength > 15_000_000) return null;
-    return Buffer.from(ab);
+    return null;
   } catch {
     return null;
   }
 }
 
-async function blankCard(): Promise<Buffer> {
-  return sharp({ create: { width: 1200, height: 630, channels: 3, background: BG } }).jpeg({ quality: 80 }).toBuffer();
-}
-
 export default async function ProductOgImage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const product = await getProductBySlug(slug);
-  const src = product ? absoluteImageUrl(product.image) : null;
-  const input = await loadBuffer(src);
+  const input = await loadBuffer(slug);
 
   let out: Buffer;
   try {
     out = input
       ? await sharp(input)
           .resize(1200, 630, { fit: "contain", background: BG, withoutEnlargement: false })
-          .jpeg({ quality: 80, mozjpeg: true })
+          // Plain libjpeg, not mozjpeg. mozjpeg trades several times the CPU
+          // for a few percent of file size, and this is a card a scraper
+          // fetches once and then caches for a day — the bytes saved are not
+          // worth the compute, which is the meter that is actually running.
+          .jpeg({ quality: 80 })
           .toBuffer()
       : await blankCard();
   } catch {

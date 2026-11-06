@@ -16,10 +16,15 @@ import type {
   VerificationStatus,
 } from "@/lib/types";
 import { ABROAD_TYPES, isAbroadType, publicAbroadInfo } from "@/lib/abroad";
+import {
+  readProductImageStamps,
+  servedGallery,
+  servedProductImage,
+} from "@/lib/product-image-stamps";
+import { readVendorImageStamps, servedVendorImage } from "@/lib/vendor-image-stamps";
 import type {
   Prisma,
   Product as PrismaProduct,
-  Vendor as PrismaVendor,
   Category as PrismaCategory,
 } from "@prisma/client";
 
@@ -51,7 +56,19 @@ export function mapCategory(c: PrismaCategory): Category {
   };
 }
 
-export function mapVendor(v: PrismaVendor): Vendor {
+/**
+ * The columns a storefront shop card reads — VENDOR_SELECT plus the two
+ * branding links that `readVendors` resolves. Spelled out rather than taking a
+ * whole `Vendor` row so that a caller cannot hand this the payout details by
+ * accident, and so removing a column from the select below is a type error
+ * here rather than an empty field on a page.
+ */
+export type VendorCardRow = Prisma.VendorGetPayload<{ select: typeof VENDOR_SELECT }> & {
+  logoUrl: string;
+  bannerUrl: string;
+};
+
+export function mapVendor(v: VendorCardRow): Vendor {
   return {
     id: v.id,
     slug: v.slug,
@@ -197,9 +214,57 @@ export const getCategories = cache(async (): Promise<Category[]> => {
 /** Cache tag for the shop list. Any vendor write must drop it. */
 export const VENDORS_TAG = "vendors";
 
+/**
+ * What a shop shows on the storefront — and nothing else.
+ *
+ * This was a `findMany` with no `select`, so it read every column of every
+ * shop on every catalogue page: the two branding images, which may each be a
+ * whole picture stored as base64, and the shop's momo and bank account
+ * details, which no storefront page has any business reading. `mapVendor`
+ * dropped the payout fields on the way out, which meant nobody noticed they
+ * were being read in the first place.
+ *
+ * The branding arrives as links built from digests the database computes (see
+ * lib/vendor-image-stamps.ts) rather than as the pictures themselves.
+ */
+const VENDOR_SELECT = {
+  id: true, slug: true, businessName: true, sellerTypes: true, description: true,
+  initials: true, accentFrom: true, accentTo: true, locationIds: true,
+  originCountry: true, verificationStatus: true, rating: true, reviewCount: true,
+  totalSales: true, isOfficial: true, deliveryAvailable: true, pickupAvailable: true,
+  sameDayDeliveryAvailable: true, whatsapp: true,
+} as const;
+
 const readVendors = unstable_cache(
-  async () => prisma.vendor.findMany({ orderBy: { businessName: "asc" } }),
+  async () => {
+    const [rows, stamps] = await Promise.all([
+      prisma.vendor.findMany({ orderBy: { businessName: "asc" }, select: VENDOR_SELECT }),
+      readVendorImageStamps(),
+    ]);
+    return rows.map((row) => ({
+      ...row,
+      logoUrl: servedVendorImage(row.id, "logo", stamps.get(row.id)?.logo),
+      bannerUrl: servedVendorImage(row.id, "banner", stamps.get(row.id)?.banner),
+    }));
+  },
   ["vendors"],
+  { tags: [VENDORS_TAG], revalidate: CACHE_BACKSTOP },
+);
+
+/**
+ * Shop ids to shop names, and nothing more.
+ *
+ * Every catalogue page needs this to print "sold by" under a card, and it used
+ * to be built by reading every shop in full and throwing all but two columns
+ * away. Two columns is what it asks for now.
+ */
+const readVendorNames = unstable_cache(
+  async () =>
+    prisma.vendor.findMany({
+      orderBy: { businessName: "asc" },
+      select: { id: true, businessName: true },
+    }),
+  ["vendor-names"],
   { tags: [VENDORS_TAG], revalidate: CACHE_BACKSTOP },
 );
 
@@ -237,28 +302,41 @@ const CARD_SELECT = {
   badges: true, locationIds: true,
   campusDeliveryAvailable: true, pickupAvailable: true, sameDayDeliveryAvailable: true,
   isOfficial: true, isFeatured: true, rating: true, reviewCount: true,
-  gradientFrom: true, gradientTo: true, emoji: true, image: true,
+  gradientFrom: true, gradientTo: true, emoji: true,
   originCountry: true, isArchived: true,
   sourceUrl: true, supplierName: true, freightMode: true, supplierDelivers: true,
   shippingWeightKg: true, lengthCm: true, widthCm: true, heightCm: true, cbm: true,
   arrivalPointId: true, forwarderId: true, forwarderRouteId: true,
   shippingMethod: true, manualShippingFee: true, shippingOnPickup: true,
   affiliateEnabled: true, affiliateEnrolledBy: true, affiliateCommissionRate: true,
-  images: { orderBy: { order: "asc" }, take: 1, select: { url: true } },
   vendor: { select: { originCountry: true } },
 } as const;
 
+// Deliberately absent: `image` and the `images` relation.
+//
+// Both columns hold an entire photograph as base64 (see
+// lib/product-image-stamps.ts), so selecting them put hundreds of kilobytes
+// per card into the query result, the cache entry and the rendered page. The
+// card's picture now arrives as a link, built from a digest the database
+// computes — a few dozen bytes instead of a few hundred kilobytes.
+
 // Derived from the select itself, so adding or removing a column above cannot
 // leave this type quietly describing a row shape that is no longer fetched.
-type CardRow = Prisma.ProductGetPayload<{ select: typeof CARD_SELECT }>;
+type CardRow = Prisma.ProductGetPayload<{ select: typeof CARD_SELECT }> & {
+  /** The product's picture as a link — see readProductCards. */
+  imageUrl: string | null;
+};
 
 /**
  * A card row as a Product. The four fields a card never shows are filled in
  * empty rather than fetched — see CARD_SELECT.
  */
 function mapProductCard(row: CardRow): Product {
+  const { imageUrl, ...rest } = row;
   return mapProduct({
-    ...row,
+    ...rest,
+    image: imageUrl,
+    images: imageUrl ? [{ url: imageUrl }] : [],
     description: "",
     attributes: "[]",
     preorderInfo: null,
@@ -297,13 +375,25 @@ export const PRODUCTS_TAG = "products";
  * stale grid — the race simply fails and rolls back.
  */
 const readProductCards = unstable_cache(
-  async (where: Record<string, unknown>, take?: number) =>
-    prisma.product.findMany({
+  async (where: Record<string, unknown>, take?: number) => {
+    const rows = await prisma.product.findMany({
       where: { ...LIVE, ...where },
       orderBy: { name: "asc" },
       select: CARD_SELECT,
       ...(take ? { take } : {}),
-    }),
+    });
+    // The picture, as a link. Fetched alongside rather than selected with the
+    // rows above, because the column it comes from holds the whole photograph
+    // and this returns only its digest — which is what keeps this entry small
+    // enough to actually be cached. An entry over 2 MB is silently refused,
+    // and a page of base64 photographs clears that inside ten products, so
+    // before this the cache around this read did nothing at all.
+    const stamps = await readProductImageStamps(rows.map((row) => row.id));
+    return rows.map((row) => ({
+      ...row,
+      imageUrl: servedProductImage(row.id, stamps.get(row.id)?.[0]) ?? null,
+    }));
+  },
   ["product-cards"],
   { tags: [PRODUCTS_TAG], revalidate: CACHE_BACKSTOP },
 );
@@ -383,8 +473,12 @@ export const getAffiliateProducts = cache(async (): Promise<Product[]> => {
 
 // A quick id -> businessName map for product cards.
 export const getVendorNameMap = cache(async (): Promise<Record<string, string>> => {
-  const vendors = await getVendors();
-  return Object.fromEntries(vendors.map((v) => [v.id, v.businessName]));
+  try {
+    const rows = await readVendorNames();
+    return Object.fromEntries(rows.map((v) => [v.id, v.businessName]));
+  } catch {
+    return {};
+  }
 });
 
 // ---- lookups --------------------------------------------------------------
@@ -413,9 +507,24 @@ export async function getProductBySlug(slug: string): Promise<Product | undefine
   try {
     const row = await prisma.product.findUnique({
       where: { slug },
-      include: { images: { orderBy: { order: "asc" } }, vendor: { select: { originCountry: true } } },
+      // No `images` and no `image`: both hold whole photographs as base64, and
+      // the gallery below is a *client* component, so including them meant
+      // Next serialised every photograph twice — once into the HTML and again
+      // into the Flight payload. A product with five pictures was several
+      // megabytes of string work per request. The links come from the digests
+      // instead; the bytes are served once each by /img/product/[id].
+      omit: { image: true },
+      include: { vendor: { select: { originCountry: true } } },
     });
-    return row ? mapProduct(row) : undefined;
+    if (!row) return undefined;
+
+    const stamps = (await readProductImageStamps([row.id])).get(row.id);
+    const gallery = servedGallery(row.id, stamps);
+    return mapProduct({
+      ...row,
+      image: gallery[0] ?? null,
+      images: gallery.map((url) => ({ url })),
+    });
   } catch {
     return undefined;
   }
@@ -523,7 +632,19 @@ export interface ProductFilters {
  * and matches case-insensitively rather than by lowercasing every string in
  * JavaScript first.
  */
-export async function filterProducts(filters: ProductFilters): Promise<Product[]> {
+/**
+ * How many cards one catalogue view renders.
+ *
+ * /products rendered every match, with no limit and no paging. On a shop with
+ * a few hundred listings that is a few hundred cards built, serialised and
+ * compressed for every request — and the route cannot be prerendered, because
+ * it reads its filters from the query string, so that happened per visitor and
+ * per crawler. Nobody scrolls past the first screen or two; a cap turns an
+ * unbounded page into a bounded one and costs nothing a shopper notices.
+ */
+export const CATALOGUE_PAGE_LIMIT = 96;
+
+async function productFilterWhere(filters: ProductFilters): Promise<Record<string, unknown>> {
   const where: Record<string, unknown> = {};
 
   if (filters.category) {
@@ -556,8 +677,37 @@ export async function filterProducts(filters: ProductFilters): Promise<Product[]
     }
   }
 
-  return listProducts(where);
+  return where;
 }
+
+export async function filterProducts(
+  filters: ProductFilters,
+  opts: { take?: number } = {},
+): Promise<Product[]> {
+  return listProducts(await productFilterWhere(filters), {
+    take: opts.take ?? CATALOGUE_PAGE_LIMIT,
+  });
+}
+
+/**
+ * How many products match a filter, for "showing 96 of 320".
+ *
+ * A `count` in the database rather than the length of a list: the whole point
+ * of the cap above is not to pull rows nobody is going to see.
+ */
+export const countFilteredProducts = unstable_cache(
+  async (filters: ProductFilters): Promise<number> => {
+    try {
+      return await prisma.product.count({
+        where: { ...LIVE, ...(await productFilterWhere(filters)) },
+      });
+    } catch {
+      return 0;
+    }
+  },
+  ["product-filter-count"],
+  { tags: [PRODUCTS_TAG], revalidate: CACHE_BACKSTOP },
+);
 
 export async function getProductsForLocation(locationId: string): Promise<Product[]> {
   if (locationId === "any") return getProducts();
@@ -593,4 +743,32 @@ export async function getVendorsForLocation(locationId: string): Promise<Vendor[
   const all = await getVendors();
   if (locationId === "any") return all;
   return all.filter((v) => v.locationIds.includes(locationId) || v.locationIds.includes("any"));
+}
+
+/**
+ * Every live product's slug, and nothing else.
+ *
+ * For the sitemap, which needs one short string per product and must never be
+ * the thing that drags the whole catalogue — base64 photographs and all —
+ * through the cache. Two columns, so the cached entry stays a few kilobytes
+ * however large the shop gets.
+ */
+export const readProductSlugs = unstable_cache(
+  async (take = 5000) =>
+    prisma.product.findMany({
+      where: LIVE,
+      orderBy: { name: "asc" },
+      select: { slug: true },
+      take,
+    }),
+  ["product-slugs"],
+  { tags: [PRODUCTS_TAG], revalidate: CACHE_BACKSTOP },
+);
+
+export async function getProductSlugs(take?: number): Promise<string[]> {
+  try {
+    return (await readProductSlugs(take)).map((row) => row.slug);
+  } catch {
+    return [];
+  }
 }

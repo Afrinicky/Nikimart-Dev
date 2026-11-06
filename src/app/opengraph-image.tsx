@@ -5,6 +5,9 @@ import { OG_SIZE, OG_CONTENT_TYPE, renderOgJpeg, ogResponse, OgBrandMark } from 
 // that represents the whole site in a WhatsApp or Facebook preview, so it
 // carries the mark and not just the name.
 export const runtime = "nodejs";
+// The site's own card never changes between deploys; there is no reason to
+// render it more than once a day.
+export const revalidate = 86400;
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 export const alt = "Nickimart — Shop smart. Sell faster. Deliver closer.";
