@@ -250,6 +250,71 @@ export const SETTINGS_DEFAULTS = {
   // checkout. The goods are always paid for in full at checkout. "0" turns the
   // option off everywhere; a listing can still decline it on its own.
   shipPayOnPickupEnabled: "1",
+  // --- Compute: what the site is allowed to spend CPU on --------------------
+  //
+  // Every switch below defaults to the behaviour the site already had, so
+  // nothing changes until somebody decides it should. They exist because the
+  // hosting allowance is metered in CPU-seconds and the features that spend it
+  // are not the features that earn: a link-preview card is rendered for a
+  // scraper, an orders page refreshes itself for a tab nobody is reading, a
+  // crawler walks a catalogue it will never buy from. See docs/compute-audit.md
+  // for what each one actually costs, and lib/compute-settings.ts for the one
+  // place they are read.
+  //
+  // The panic switch. "1" forces the cheapest setting for everything in this
+  // section at once, without overwriting what is chosen below — so turning it
+  // off again restores those choices rather than leaving the site stripped.
+  lowComputeMode: "0",
+  // Link-preview cards (WhatsApp, Facebook, X). Rendering one runs a layout
+  // engine and a JPEG encoder, which is the most expensive thing this app does
+  // per request. "0" serves a small fixed card instead — previews still show a
+  // picture, it is just the same picture every time.
+  ogImagesEnabled: "1",
+  // Whether a product's own photograph is used in its card, which means
+  // decoding and re-encoding it. "0" gives products the generic card too.
+  ogProductPhotoEnabled: "1",
+  // Whether an orders screen refreshes itself while somebody watches it. Each
+  // refresh is a full server render of the page, so this is the one setting
+  // here a busy shop may want to turn *down* rather than off.
+  liveOrderRefreshEnabled: "1",
+  // Seconds before the first refresh. It doubles from there towards five
+  // minutes, and resets whenever somebody returns to the tab.
+  liveOrderRefreshSeconds: "20",
+  // The chat bubble on the storefront. Needs an Ably key to work at all; this
+  // closes it independently of the key, because a bubble nobody is staffing
+  // still mints tokens for everybody who presses it.
+  liveChatEnabled: "1",
+  // The one-word registration links (nickimart.com/join). The route that
+  // serves them sits at the root, so it is also what answers every scanner
+  // probing for /wp-login.php. "0" refuses every short path outright; the long
+  // /become-an-agent?invite=CODE links keep working.
+  inviteShortLinksEnabled: "1",
+  // How much of the site crawlers are invited into:
+  //   "lean"   — the recommended setting. Everything cacheable is open;
+  //              searched and filtered views, the consoles and anything
+  //              personal are not.
+  //   "open"   — only the consoles and the personal pages are closed. Search
+  //              engines index more; they also walk every filter combination
+  //              they can invent, and none of those can be cached.
+  //   "closed" — nothing but the homepage. For when the allowance is nearly
+  //              gone and the month is not. Search traffic will fall.
+  crawlerPolicy: "lean",
+  // The sitemap. It aims crawlers at the pages that are cached rather than
+  // leaving them to guess; "0" removes it, which is only worth doing with
+  // crawlerPolicy "closed".
+  sitemapEnabled: "1",
+  // The most products to list in it.
+  sitemapProductLimit: "5000",
+  // How many cards one catalogue view renders. /products reads its filters
+  // from the query string, so it cannot be cached and every view is rendered
+  // fresh — this is the ceiling on what that costs.
+  cataloguePageLimit: "96",
+  // The nightly exchange-rate pull. "0" leaves yesterday's rates standing,
+  // which is wrong in one direction only, so do not leave it off.
+  fxAutoRefreshEnabled: "1",
+  // The nightly bundle sweep, which asks the provider about every order that
+  // stalled. "0" means a stalled order waits for somebody to notice it.
+  dataBundleSweepEnabled: "1",
   // The public heading and blurb on /shipped-from-abroad.
   abroadPageTitle: "Shipped from Abroad",
   abroadPageIntro:

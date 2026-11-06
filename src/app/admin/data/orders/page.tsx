@@ -7,6 +7,7 @@ import { OrderActions, type OrderView } from "@/components/data/OrderActions";
 import { OrderFilters } from "@/components/data/OrderFilters";
 import { OrderPager } from "@/components/data/OrderPager";
 import { LiveOrders } from "@/components/data/LiveOrders";
+import { computeSettingsOrDefaults } from "@/lib/compute-settings";
 import { formatMoney } from "@/lib/format";
 import { bundleLabel } from "@/lib/data-bundles/networks";
 import {
@@ -68,6 +69,7 @@ export default async function AdminDataOrdersPage({
   // and a worse one: an interrupted checkout leaves a charge captured against
   // an order that reads "awaiting payment", and this console is where that is
   // noticed. It used to notice and do nothing.
+  const liveRefresh = await computeSettingsOrDefaults();
   await Promise.all([syncOpenOrders(), recoverStalePayments()]);
 
   const { orders, total, available } = await getDataOrders({
@@ -93,7 +95,7 @@ export default async function AdminDataOrdersPage({
 
   return (
     <Container className="py-8">
-      <LiveOrders open={openOnPage} />
+      <LiveOrders open={openOnPage} enabled={liveRefresh.liveOrderRefresh} seconds={liveRefresh.liveOrderRefreshSeconds} />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>

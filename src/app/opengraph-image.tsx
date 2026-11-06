@@ -1,15 +1,31 @@
-import { OG_SIZE, OG_CONTENT_TYPE, renderOgJpeg, ogResponse, OgBrandMark } from "@/lib/og";
+import {
+  OG_SIZE,
+  OG_CONTENT_TYPE,
+  renderOgJpeg,
+  ogResponse,
+  ogFallbackJpeg,
+  OgBrandMark,
+} from "@/lib/og";
+import { computeSettingsOrDefaults } from "@/lib/compute-settings";
 
 // Branded card for the homepage — and therefore for affiliate referral links,
 // which are the homepage with a ?ref= code (e.g. /?ref=ABC). This is the image
 // that represents the whole site in a WhatsApp or Facebook preview, so it
 // carries the mark and not just the name.
 export const runtime = "nodejs";
+// The site's own card never changes between deploys; there is no reason to
+// render it more than once a day.
+export const revalidate = 86400;
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 export const alt = "Nickimart — Shop smart. Sell faster. Deliver closer.";
 
 export default async function OgImage() {
+  // Settings → Performance → "Render link-preview cards". Off, every link from
+  // this site previews with the plain brand card instead.
+  const { ogImages } = await computeSettingsOrDefaults();
+  if (!ogImages) return ogResponse(await ogFallbackJpeg());
+
   const jpeg = await renderOgJpeg(
     <div
       style={{

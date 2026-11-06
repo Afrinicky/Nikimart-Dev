@@ -1,7 +1,13 @@
 import "server-only";
+import { cache } from "react";
+import { unstable_cache, updateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { dataDb } from "@/lib/data-db";
-import { normaliseInviteSlug } from "@/lib/data-bundles/invite-rules";
+import { CACHE_BACKSTOP } from "@/lib/cache-windows";
+import {
+  isReservedInviteSlug,
+  normaliseInviteSlug,
+} from "@/lib/data-bundles/invite-rules";
 
 /**
  * Who owns a short path.
@@ -53,4 +59,84 @@ export async function slugHeldElsewhere(
     if (affiliate) return "affiliate";
   }
   return null;
+}
+
+/**
+ * Every short path either programme has claimed, as a set.
+ *
+ * Why this exists
+ * ---------------
+ * `src/app/[inviteSlug]/page.tsx` is a dynamic segment at the *root*, so it
+ * catches every single-segment path the site does not otherwise answer. That
+ * is not mostly people mistyping an address. A public domain is scanned
+ * continuously for `/wp-login.php`, `/.env`, `/.git`, `/config`, `/backup`
+ * and a few hundred others, and `normaliseInviteSlug` turns each of them into
+ * a perfectly ordinary-looking word the reserved list has never heard of.
+ *
+ * Each of those probes used to cost two `findUnique` queries against two
+ * different databases — once in `generateMetadata` and, for a path that
+ * resolved, again in the page — followed by a full render of the not-found
+ * page inside the whole site chrome. Nothing about that was cached, because
+ * the route is `force-dynamic` and the lookups take the path as their key, so
+ * the work scaled with the number of strangers guessing rather than with the
+ * number of links we have actually issued.
+ *
+ * A shop issues a handful of these links, so the complete answer is a few
+ * dozen short strings. Reading it once per cache window and checking
+ * membership costs nothing, and an unclaimed path is then refused without
+ * touching a database at all.
+ *
+ * Tagged, and dropped by every write below, so a link an admin creates works
+ * on the next request rather than when the window lapses.
+ */
+export const INVITE_SLUGS_TAG = "invite-slugs";
+
+const readClaimedSlugs = unstable_cache(
+  async (): Promise<string[]> => {
+    const [agents, affiliates] = await Promise.all([
+      dataDb.dataAgentInvite
+        .findMany({ where: { slug: { not: null } }, select: { slug: true } })
+        .catch(() => [] as { slug: string | null }[]),
+      prisma.affiliateInvite
+        .findMany({ where: { slug: { not: null } }, select: { slug: true } })
+        .catch(() => [] as { slug: string | null }[]),
+    ]);
+    return [...agents, ...affiliates]
+      .map((row) => row.slug)
+      .filter((slug): slug is string => Boolean(slug));
+  },
+  ["invite-slugs"],
+  { tags: [INVITE_SLUGS_TAG], revalidate: CACHE_BACKSTOP },
+);
+
+/**
+ * Could this path belong to a registration link at all?
+ *
+ * False is the answer for every scanner probe and every mistyped address, and
+ * it is reached without a query. True means it is worth looking the path up
+ * properly — which is what the route then does, because the set may be up to
+ * one cache window stale on a link that was just switched off.
+ *
+ * `cache` wraps it so `generateMetadata` and the page body share one answer
+ * within a request instead of asking twice.
+ */
+export const isClaimedInviteSlug = cache(async (rawSlug: string): Promise<boolean> => {
+  const slug = normaliseInviteSlug(rawSlug);
+  if (!slug || isReservedInviteSlug(slug)) return false;
+  try {
+    return (await readClaimedSlugs()).includes(slug);
+  } catch {
+    // Never let a cache miss turn a live link into a 404: if we cannot tell,
+    // let the route ask the database the slow way.
+    return true;
+  }
+});
+
+/** Drop the set. Called by every write that creates, renames or removes a link. */
+export function forgetClaimedInviteSlugs(): void {
+  try {
+    updateTag(INVITE_SLUGS_TAG);
+  } catch {
+    // Called outside a request (a script, a seed) — nothing to drop.
+  }
 }

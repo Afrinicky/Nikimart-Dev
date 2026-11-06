@@ -13,6 +13,7 @@ import { ChromeGate } from "@/components/layout/ChromeGate";
 import { PageMain } from "@/components/layout/PageMain";
 import { ChatLauncher } from "@/components/chat/ChatLauncher";
 import { isChatConfigured } from "@/lib/chat/ably";
+import { computeSettingsOrDefaults } from "@/lib/compute-settings";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { AuthSession } from "@/components/providers/AuthSession";
 import { RouteProgress } from "@/components/ui/motion";
@@ -88,9 +89,15 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const locations = await getLocations();
-  // Without a key the bubble would open onto an error, so it stays hidden.
-  const chatOn = isChatConfigured();
+  const [locations, compute] = await Promise.all([
+    getLocations(),
+    computeSettingsOrDefaults(),
+  ]);
+  // Two things have to agree. Without a key the bubble would open onto an
+  // error, so it stays hidden; and an admin can close it from Settings →
+  // Performance whether or not a key is set, because a bubble nobody is
+  // staffing still mints a realtime token for everybody who presses it.
+  const chatOn = isChatConfigured() && compute.liveChat;
 
   return (
     <html

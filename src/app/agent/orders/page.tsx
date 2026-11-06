@@ -15,6 +15,7 @@ import { OrderActions, type OrderView } from "@/components/data/OrderActions";
 import { OrderFilters } from "@/components/data/OrderFilters";
 import { OrderPager } from "@/components/data/OrderPager";
 import { LiveOrders } from "@/components/data/LiveOrders";
+import { computeSettingsOrDefaults } from "@/lib/compute-settings";
 import { requireDataUser } from "@/lib/data-bundles/session";
 import { formatMoney } from "@/lib/format";
 import { bundleLabel } from "@/lib/data-bundles/networks";
@@ -72,6 +73,7 @@ export default async function AgentOrdersPage({
     recoverStalePayments({ agentId: agent.id }),
   ]);
 
+  const liveRefresh = await computeSettingsOrDefaults();
   const [{ rows, total }, store] = await Promise.all([
     getAgentOrders(agent.id, {
       take: perPage,
@@ -96,7 +98,7 @@ export default async function AgentOrdersPage({
 
   return (
     <div className="space-y-4">
-      <LiveOrders open={openOnPage} />
+      <LiveOrders open={openOnPage} enabled={liveRefresh.liveOrderRefresh} seconds={liveRefresh.liveOrderRefreshSeconds} />
 
       <AgentPageHeading title="Orders" subtitle="View and manage your data bundle orders.">
       </AgentPageHeading>

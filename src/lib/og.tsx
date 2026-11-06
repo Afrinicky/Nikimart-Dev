@@ -14,7 +14,11 @@ const CACHE = "public, max-age=3600, s-maxage=86400";
 /** Render a React element (a card) to a compact JPEG buffer. */
 export async function renderOgJpeg(element: ReactElement): Promise<Buffer> {
   const png = await new ImageResponse(element, OG_SIZE).arrayBuffer();
-  return sharp(Buffer.from(png)).jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+  // Plain libjpeg rather than mozjpeg. mozjpeg costs several times the CPU for
+  // a few percent of file size, and these cards are fetched once per link and
+  // then held by the CDN for a day — compute is the meter that is running, not
+  // bytes. The quality is nudged down to keep the result the same size.
+  return sharp(Buffer.from(png)).jpeg({ quality: 80 }).toBuffer();
 }
 
 /** Load image bytes from a data: URL or an http(s) URL (with a timeout). */
@@ -43,8 +47,12 @@ export async function loadImageBuffer(src: string | null): Promise<Buffer | null
 /** A full-bleed 1200×630 JPEG cover of an image (for banner-based OG cards). */
 export async function coverJpeg(buf: Buffer): Promise<Buffer> {
   return sharp(buf)
-    .resize(OG_SIZE.width, OG_SIZE.height, { fit: "cover", position: "attention" })
-    .jpeg({ quality: 80, mozjpeg: true })
+    // `position: "attention"` ran an entropy pass over the whole image to pick
+    // the crop. On a banner, which is already laid out as a wide strip, centre
+    // is what that pass almost always chose anyway — at a few hundred
+    // milliseconds of CPU per card.
+    .resize(OG_SIZE.width, OG_SIZE.height, { fit: "cover", position: "centre" })
+    .jpeg({ quality: 80 })
     .toBuffer();
 }
 
@@ -52,13 +60,41 @@ export async function coverJpeg(buf: Buffer): Promise<Buffer> {
 export async function squareDataUrl(buf: Buffer, size = 220): Promise<string | null> {
   try {
     const out = await sharp(buf)
-      .resize(size, size, { fit: "cover", position: "attention" })
+      .resize(size, size, { fit: "cover", position: "centre" })
       .jpeg({ quality: 82 })
       .toBuffer();
     return `data:image/jpeg;base64,${out.toString("base64")}`;
   } catch {
     return null;
   }
+}
+
+/**
+ * The card served when link-preview rendering is switched off.
+ *
+ * Not an empty response and not a 404: a scraper that gets nothing shows the
+ * link with no picture at all, which looks broken rather than plain. This is a
+ * real card — the brand on its dark ground, at the right size — it is simply
+ * the *same* card every time, and it costs one JPEG encode of a solid colour
+ * rather than a layout engine and a photograph.
+ *
+ * Built once per process and then handed out, because a fixed image has no
+ * reason to be made twice.
+ */
+let fallbackCard: Promise<Buffer> | null = null;
+
+export function ogFallbackJpeg(): Promise<Buffer> {
+  fallbackCard ??= sharp({
+    create: {
+      width: OG_SIZE.width,
+      height: OG_SIZE.height,
+      channels: 3,
+      background: { r: 25, g: 25, b: 25 },
+    },
+  })
+    .jpeg({ quality: 70 })
+    .toBuffer();
+  return fallbackCard;
 }
 
 /** A JPEG Response with sensible caching, for use from an opengraph-image route. */

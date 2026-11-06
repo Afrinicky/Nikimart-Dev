@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import {
   GalleryHorizontalEnd,
+  Gauge,
   HelpCircle,
   LayoutGrid,
   LayoutTemplate,
@@ -30,6 +31,7 @@ const TABS: { href: string; label: string; icon: React.ElementType; exact?: bool
   { href: "/admin/settings/carousel", label: "Carousel", icon: GalleryHorizontalEnd },
   { href: "/admin/settings/faqs", label: "FAQs", icon: HelpCircle },
   { href: "/admin/settings/policies", label: "Policies", icon: Scale },
+  { href: "/admin/settings/performance", label: "Performance", icon: Gauge },
 ];
 
 export function SettingsNav() {

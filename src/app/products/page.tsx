@@ -4,7 +4,14 @@ import { Container } from "@/components/ui/Container";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { filterProducts, getCategories, getCategoryBySlug, getVendorNameMap } from "@/lib/catalog";
+import { computeSettingsOrDefaults } from "@/lib/compute-settings";
+import {
+  countFilteredProducts,
+  filterProducts,
+  getCategories,
+  getCategoryBySlug,
+  getVendorNameMap,
+} from "@/lib/catalog";
 import { BADGE_LABELS } from "@/lib/types";
 import type { BadgeKind } from "@/lib/types";
 import Link from "next/link";
@@ -45,17 +52,28 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
   const maxPriceRaw = first(sp.maxPrice);
   const maxPrice = maxPriceRaw ? Number(maxPriceRaw) : undefined;
 
-  const [results, categories, vendorNames, activeCategory] = await Promise.all([
-    filterProducts({
-      q,
-      category,
-      badge,
-      maxPrice: Number.isFinite(maxPrice) ? maxPrice : undefined,
-    }),
+  const filters = {
+    q,
+    category,
+    badge,
+    maxPrice: Number.isFinite(maxPrice) ? maxPrice : undefined,
+  };
+
+  // Settings → Performance → "Products per catalogue page".
+  const { cataloguePageLimit } = await computeSettingsOrDefaults();
+
+  const [results, total, categories, vendorNames, activeCategory] = await Promise.all([
+    // Capped. This route reads the query string, so it cannot be prerendered —
+    // every distinct filter a visitor or a crawler invents is a fresh render,
+    // and rendering an unbounded catalogue each time is what made that
+    // expensive. The count comes from the database, not from the list.
+    filterProducts(filters, { take: cataloguePageLimit }),
+    countFilteredProducts(filters),
     getCategories(),
     getVendorNameMap(),
     category ? getCategoryBySlug(category) : Promise.resolve(undefined),
   ]);
+  const truncated = total > results.length;
 
   let title = "All Products";
   if (q) title = `Results for “${q}”`;
@@ -67,7 +85,11 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
     <>
       <PageHeader
         title={title}
-        subtitle={`${results.length} ${results.length === 1 ? "product" : "products"} found`}
+        subtitle={
+          truncated
+            ? `Showing ${results.length} of ${total} products`
+            : `${total} ${total === 1 ? "product" : "products"} found`
+        }
         crumbs={[{ label: "Products" }]}
       />
 
@@ -101,7 +123,15 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
         </div>
 
         {results.length > 0 ? (
-          <ProductGrid products={results} vendorNames={vendorNames} />
+          <>
+            <ProductGrid products={results} vendorNames={vendorNames} />
+            {truncated ? (
+              <p className="mt-8 text-center text-sm text-niki-ink/60">
+                Showing the first {results.length} of {total} products. Search, or pick a
+                category above, to narrow this down.
+              </p>
+            ) : null}
+          </>
         ) : (
           <EmptyState
             icon={<SearchX className="h-6 w-6" />}

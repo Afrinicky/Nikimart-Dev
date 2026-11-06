@@ -23,6 +23,7 @@ import { TrendChart } from "@/components/admin/charts/TrendChart";
 import { BarList } from "@/components/admin/charts/BarList";
 import { StatusBar } from "@/components/admin/charts/StatusBar";
 import { LiveOrders } from "@/components/data/LiveOrders";
+import { computeSettingsOrDefaults } from "@/lib/compute-settings";
 import { ActionLink } from "@/components/ui/motion";
 import { formatPrice } from "@/lib/format";
 import { normalizeGhPhone } from "@/lib/phone";
@@ -103,6 +104,7 @@ export default async function OrderTrackerPage({
   const perPage = perPageFrom(params.per, 25);
   const page = Math.max(1, Number(params.page) || 1);
 
+  const liveRefresh = await computeSettingsOrDefaults();
   const [live, history] = await Promise.all([getLiveTracker(), getDeliveredHistory(period)]);
 
   const summary = summarise(live);
@@ -163,7 +165,7 @@ export default async function OrderTrackerPage({
       <Container className="space-y-4 py-6 sm:space-y-5 sm:py-8">
         {/* The board goes stale the moment somebody confirms a stage
             elsewhere, so it refreshes itself while it is being watched. */}
-        <LiveOrders open={summary.open} seconds={45} />
+        <LiveOrders open={summary.open} enabled={liveRefresh.liveOrderRefresh} seconds={Math.max(45, liveRefresh.liveOrderRefreshSeconds)} />
 
         <FulfilmentTabs counts={{ "/admin/orders/tracker": flagged }} />
 

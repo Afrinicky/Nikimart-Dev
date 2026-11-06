@@ -26,6 +26,20 @@ function revalidateChrome() {
   revalidatePath("/pickup-points");
   revalidatePath("/shipped-from-abroad");
   revalidatePath("/admin/settings");
+
+  // The performance switches (see lib/compute-settings.ts) are read by routes
+  // that cache themselves for far longer than the settings tag: the link-
+  // preview cards hold for a day, the sitemap for half an hour, robots.txt
+  // until the build changes. Dropping the tag alone would leave an admin who
+  // has just switched something off watching it stay on, which on a panic
+  // switch is the whole point missed. These are cheap to rebuild and are only
+  // rebuilt when somebody actually asks for them.
+  revalidatePath("/robots.txt");
+  revalidatePath("/sitemap.xml");
+  revalidatePath("/opengraph-image");
+  revalidatePath("/products/[slug]/opengraph-image", "page");
+  revalidatePath("/shops/[slug]/opengraph-image", "page");
+  revalidatePath("/products");
 }
 
 // ---------------------------------------------------------------------------
@@ -44,6 +58,30 @@ export async function updateSettings(_prev: SettingsState, fd: FormData): Promis
     if (v && !(Number(v) >= 0 && Number(v) <= 100)) {
       return { error: `${label} must be between 0 and 100.`, fieldErrors: { [key]: "0–100 only." } };
     }
+  }
+
+  // The performance numbers. getComputeSettings clamps these anyway — nothing
+  // typed here can break a page — but silently moving a number somebody just
+  // chose is worse than saying it was out of range.
+  for (const [key, label, min, max] of [
+    ["liveOrderRefreshSeconds", "Refresh interval", 10, 600],
+    ["cataloguePageLimit", "Products per page", 12, 500],
+    ["sitemapProductLimit", "Products in the sitemap", 0, 50_000],
+  ] as const) {
+    const v = str(fd, key);
+    if (!v) continue;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < min || n > max) {
+      return {
+        error: `${label} must be between ${min} and ${max}.`,
+        fieldErrors: { [key]: `${min}–${max} only.` },
+      };
+    }
+  }
+
+  const policy = str(fd, "crawlerPolicy");
+  if (policy && !["open", "lean", "closed"].includes(policy)) {
+    return { error: "Pick one of the three crawler settings.", fieldErrors: { crawlerPolicy: "Unknown value." } };
   }
 
   for (const key of SETTING_KEYS) {

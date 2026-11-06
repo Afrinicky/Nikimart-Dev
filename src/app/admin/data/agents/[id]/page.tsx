@@ -34,6 +34,7 @@ import { OrderActions, type OrderView } from "@/components/data/OrderActions";
 import { OrderFilters } from "@/components/data/OrderFilters";
 import { OrderPager } from "@/components/data/OrderPager";
 import { LiveOrders } from "@/components/data/LiveOrders";
+import { computeSettingsOrDefaults } from "@/lib/compute-settings";
 import { siteUrl } from "@/lib/site";
 import { NetworkCell, StatusPill, formatWhen } from "@/components/agent/AgentUi";
 import { dataDb } from "@/lib/data-db";
@@ -371,6 +372,7 @@ export default async function AdminAgentDetailPage({
   const pageCount = Math.max(1, Math.ceil(orderPage.total / perPage));
   const filtered = status !== "all" || network !== "all" || query !== "";
   // Orders still moving on this page. Nothing polls when there are none.
+  const liveRefresh = await computeSettingsOrDefaults();
   const openOnPage = orderPage.orders.filter(
     (o) => o.status === "queued" || o.status === "processing",
   ).length;
@@ -685,7 +687,7 @@ export default async function AdminAgentDetailPage({
             label: "Bundle orders",
             content: (
               <div className="space-y-4">
-                <LiveOrders open={openOnPage} />
+                <LiveOrders open={openOnPage} enabled={liveRefresh.liveOrderRefresh} seconds={liveRefresh.liveOrderRefreshSeconds} />
 
                 {/*
                   The console's bundle-orders table, narrowed to this agent.

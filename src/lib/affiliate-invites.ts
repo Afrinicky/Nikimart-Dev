@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { forgetClaimedInviteSlugs } from "@/lib/invite-slug-registry";
 import { siteUrl } from "@/lib/site";
 import {
   inviteProblem,
@@ -104,7 +105,7 @@ export async function createAffiliateInvite(input: {
   // unique index is what decides, not a pre-check.
   for (let attempt = 0; attempt < 6; attempt++) {
     try {
-      return await prisma.$transaction(async (tx) => {
+      const created = await prisma.$transaction(async (tx) => {
         // A short path can only belong to one link, and an advert already
         // printed on a flyer is the reason to re-point it rather than refuse
         // it: the admin who types "earn" again means "/earn is this link now".
@@ -135,6 +136,10 @@ export async function createAffiliateInvite(input: {
         });
         return { invite, slugTakenFrom };
       });
+      // Same reason as the agent programme's: the root route answers a short
+      // path from a cached set, and a new path has to be in it to work.
+      forgetClaimedInviteSlugs();
+      return created;
     } catch {
       if (attempt === 5) return null;
     }
@@ -164,10 +169,12 @@ export async function resolveAffiliateInviteBySlug(
 
 export async function setAffiliateInviteActive(id: string, isActive: boolean): Promise<void> {
   await prisma.affiliateInvite.updateMany({ where: { id }, data: { isActive } }).catch(() => {});
+  forgetClaimedInviteSlugs();
 }
 
 export async function deleteAffiliateInvite(id: string): Promise<void> {
   await prisma.affiliateInvite.delete({ where: { id } }).catch(() => {});
+  forgetClaimedInviteSlugs();
 }
 
 export type AffiliateInviteLookup =
