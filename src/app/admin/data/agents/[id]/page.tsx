@@ -48,11 +48,8 @@ import {
 } from "@/lib/data-bundles/order-filters";
 import { getDataOrders, orderIncome, orderSourceLabel } from "@/lib/data-bundles/reporting";
 import { syncOpenOrders } from "@/lib/data-bundles/order-sync";
-import {
-  markDataOrderRefunded,
-  refreshDataOrderStatus,
-  retryDataOrder,
-} from "@/lib/data-bundles/admin-actions";
+import { refreshDataOrderStatus } from "@/lib/data-bundles/admin-actions";
+import { reorderDataOrderAdmin } from "@/lib/data-bundles/payment-admin-actions";
 import {
   countAgentOrders,
   getAgentLedger,
@@ -828,6 +825,7 @@ export default async function AdminAgentDetailPage({
                                               status: o.status,
                                               paymentStatus: o.paymentStatus,
                                               sourceLabel: label,
+                                              source: o.source,
                                               agentSale: !house,
                                               commission: o.agentCommission,
                                               commissionStatus: o.commissionStatus,
@@ -840,12 +838,12 @@ export default async function AdminAgentDetailPage({
                                               providerOrderId: o.providerOrderId,
                                               providerStatus: o.providerStatus,
                                               providerMessage: o.providerMessage,
+                                              originalRecipientPhone: o.originalRecipientPhone,
                                             } satisfies OrderView
                                           }
                                           adminForms={{
-                                            retry: retryDataOrder,
                                             refresh: refreshDataOrderStatus,
-                                            markRefunded: markDataOrderRefunded,
+                                            reorder: reorderDataOrderAdmin,
                                           }}
                                         />
                                       </td>

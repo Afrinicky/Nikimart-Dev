@@ -8,7 +8,7 @@ import {
   settleOrderByHand,
 } from "@/lib/data-bundles/payment-recovery";
 import { confirmPaymentClaim, rejectPaymentClaim } from "@/lib/data-bundles/payment-claims";
-import { reorderFailedOrder } from "@/lib/data-bundles/fulfillment";
+import { reorderDataOrder } from "@/lib/data-bundles/fulfillment";
 
 /**
  * What an admin can do about an order that reads "awaiting payment".
@@ -75,15 +75,19 @@ export async function decidePaymentClaimAdmin(
 }
 
 /**
- * Buy a failed order again.
+ * Send this order to the provider again.
  *
- * Separate from the ordinary retry because it is a different decision: the
- * provider took the first attempt and then dropped it, so this spends upstream
- * money on a second one. The card asks before it gets here.
+ * One action, because from the console it is one decision: this bundle was
+ * paid for and has not been delivered, so buy it. Whether the provider has
+ * already given the order a reference of its own — which is the difference the
+ * old pair of buttons exposed, and the reason the obvious one did not work on
+ * a failed order — is worked out upstream in `reorderDataOrder`.
+ *
+ * It spends money, so the card asks before it gets here.
  */
-export async function reorderFailedOrderAdmin(orderId: string): Promise<PaymentActionResult> {
+export async function reorderDataOrderAdmin(orderId: string): Promise<PaymentActionResult> {
   await requireDataAdminAction();
-  const result = await reorderFailedOrder(String(orderId ?? ""));
+  const result = await reorderDataOrder(String(orderId ?? ""));
   if (result.ok) refresh();
   return { ok: result.ok, message: result.message };
 }

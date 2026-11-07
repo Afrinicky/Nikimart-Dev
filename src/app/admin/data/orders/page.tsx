@@ -18,15 +18,11 @@ import {
 } from "@/lib/data-bundles/order-filters";
 import { getDataOrders, orderSourceLabel } from "@/lib/data-bundles/reporting";
 import { syncOpenOrders } from "@/lib/data-bundles/order-sync";
-import {
-  markDataOrderRefunded,
-  refreshDataOrderStatus,
-  retryDataOrder,
-} from "@/lib/data-bundles/admin-actions";
+import { refreshDataOrderStatus } from "@/lib/data-bundles/admin-actions";
 import {
   decidePaymentClaimAdmin,
   recheckOrderPaymentAdmin,
-  reorderFailedOrderAdmin,
+  reorderDataOrderAdmin,
   settleOrderPaymentAdmin,
 } from "@/lib/data-bundles/payment-admin-actions";
 import { openClaimsByOrder } from "@/lib/data-bundles/payment-claims";
@@ -234,6 +230,7 @@ export default async function AdminDataOrdersPage({
                               status: o.status,
                               paymentStatus: o.paymentStatus,
                               sourceLabel: label,
+                              source: o.source,
                               agentSale: !house,
                               commission: o.agentCommission,
                               commissionStatus: o.commissionStatus,
@@ -246,6 +243,7 @@ export default async function AdminDataOrdersPage({
                               providerOrderId: o.providerOrderId,
                               providerStatus: o.providerStatus,
                               providerMessage: o.providerMessage,
+                              originalRecipientPhone: o.originalRecipientPhone,
                               settledBy: o.settledBy,
                               claim: claim
                                 ? {
@@ -259,13 +257,11 @@ export default async function AdminDataOrdersPage({
                             } satisfies OrderView
                           }
                           adminForms={{
-                            retry: retryDataOrder,
                             refresh: refreshDataOrderStatus,
-                            markRefunded: markDataOrderRefunded,
                             recheckPayment: recheckOrderPaymentAdmin,
                             settlePayment: settleOrderPaymentAdmin,
                             decideClaim: decidePaymentClaimAdmin,
-                            reorder: reorderFailedOrderAdmin,
+                            reorder: reorderDataOrderAdmin,
                           }}
                         />
                       </td>

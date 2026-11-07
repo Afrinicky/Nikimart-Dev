@@ -15,6 +15,12 @@ export const dynamic = "force-dynamic";
  * because one of them is not Nickimart's own book at all. Audit answers the
  * one an auditor asks, which neither of the others can: do the two of them
  * agree with each other, and where exactly do they part company.
+ *
+ * Refunds are the fourth, and the only one that is also a queue: money back to
+ * an agent's wallet is finished when it is written, but money owed to a buyer
+ * on MoMo leaves by hand, so it has to be tracked until somebody sends it. The
+ * ledger cannot show that half at all — there is no ledger row for cedis that
+ * never touched a wallet.
  */
 export default function TransactionsModuleLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -29,6 +35,7 @@ export default function TransactionsModuleLayout({ children }: { children: React
           tabs={[
             { href: "/admin/data/transactions", label: "Ledger", icon: "receipt", exact: true },
             { href: "/admin/data/transactions/topups", label: "Top-ups", icon: "banknote" },
+            { href: "/admin/data/transactions/refunds", label: "Refunds", icon: "refund" },
             { href: "/admin/data/transactions/audit", label: "Audit", icon: "audit" },
           ]}
         />

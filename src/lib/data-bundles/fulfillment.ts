@@ -22,6 +22,7 @@ import {
   isDataProviderConfigured,
 } from "@/lib/data-bundles/provider";
 import { canDispatch, placeBundleOrder, readBundleStatus } from "@/lib/data-bundles/routing";
+import { canReorderOrder } from "@/lib/data-bundles/refund-rules";
 import {
   creditAfaCommission,
   creditAgentCommission,
@@ -244,24 +245,24 @@ export async function dispatchDataOrder(orderId: string): Promise<DispatchResult
 }
 
 /**
- * Buy a failed order again.
+ * Re-order: one button for every "send this to the provider again".
  *
- * `dispatchDataOrder` refuses an order that already carries a provider id, and
- * rightly so — that guard is what stops a retry buying the same bundle twice.
- * But a provider that accepts an order and *then* reports it failed leaves
- * exactly that: a paid order, a provider id, and no data delivered. Until now
- * there was nothing to do about it from the console.
+ * There were two, and the difference between them was invisible from the
+ * console. "Send to provider" calls `dispatchDataOrder`, which refuses any
+ * order already carrying an upstream reference — the guard that stops a retry
+ * buying the same bundle twice. "Order again" cleared that reference first.
+ * The trouble is that a provider which *accepts* an order and then fails it
+ * leaves exactly such a reference behind, so on a failed order the obvious
+ * button was the one that could not work, and the one that could was hidden
+ * further down the card.
  *
- * So this is the deliberate version of a retry. It clears the upstream
- * reference — keeping it in the message trail, because what the first attempt
- * did is the first thing anybody will ask — and puts the order back in line
- * for dispatch. The commissions the failure voided go back to pending with
- * it: the sale is live again, and an agent whose bundle finally lands is owed
- * for it.
+ * So they are one thing now. It works out for itself whether the upstream
+ * reference has to be cleared, and it is the only way an order is sent to the
+ * provider by hand.
  *
  * It spends money upstream, so it is only ever reachable from a confirmation.
  */
-export async function reorderFailedOrder(orderId: string): Promise<DispatchResult> {
+export async function reorderDataOrder(orderId: string): Promise<DispatchResult> {
   const order = await dataDb.dataOrder.findUnique({
     where: { id: orderId },
     select: {
@@ -277,32 +278,65 @@ export async function reorderFailedOrder(orderId: string): Promise<DispatchResul
   if (order.paymentStatus !== "paid") {
     return { ok: false, message: "This order has not been paid for yet." };
   }
-  if (order.status !== "failed") {
-    return { ok: false, message: "Only a failed order can be ordered again." };
+  if (!canReorderOrder(order.status, order.paymentStatus)) {
+    if (order.status === "completed") {
+      return { ok: false, message: "This bundle has already been delivered." };
+    }
+    if (order.status === "refunded") {
+      return { ok: false, message: "This order has been refunded — it can't be sent again." };
+    }
+    // Still with the provider. Re-sending would buy a second bundle for one
+    // payment; what is wanted here is the status, not another order.
+    return {
+      ok: false,
+      message: "This order is still with the provider. Refresh its status first.",
+    };
   }
 
-  // One guarded flip decides the winner: two admins on the same row must buy
-  // one bundle between them, not two.
-  const claimed = await dataDb.dataOrder.updateMany({
-    where: { id: orderId, status: "failed" },
-    data: {
-      status: "paid",
-      providerOrderId: null,
-      providerCode: null,
-      providerStatus: null,
-      providerMessage: order.providerOrderId
-        ? `Re-ordered by an admin. The first attempt was ${order.providerOrderId} and failed.`
-        : "Re-ordered by an admin after a failed attempt.",
-      completedAt: null,
-      // A sale that is live again owes what it owed before.
-      ...(order.agentCommission > 0 ? { commissionStatus: "pending", commissionPaidAt: null } : {}),
-      ...(order.teamCommission > 0
+  // A fresh dispatch can go straight through. Only an order the provider has
+  // already given a reference to needs that reference cleared, and that is
+  // the one guarded flip: two admins on the same row must buy one bundle
+  // between them, not two.
+  if (order.providerOrderId) {
+    const claimed = await dataDb.dataOrder.updateMany({
+      where: { id: orderId, status: order.status, providerOrderId: order.providerOrderId },
+      data: {
+        status: "paid",
+        providerOrderId: null,
+        providerCode: null,
+        providerStatus: null,
+        providerMessage: `Re-ordered by hand. The previous attempt was ${order.providerOrderId}.`,
+        completedAt: null,
+        // A sale that is live again owes what it owed before.
+        ...(order.agentCommission > 0 ? { commissionStatus: "pending", commissionPaidAt: null } : {}),
+        ...(order.teamCommission > 0
+          ? { teamCommissionStatus: "pending", teamCommissionPaidAt: null }
+          : {}),
+      },
+    });
+    if (claimed.count === 0) {
+      return { ok: false, message: "That order has just changed — refresh and try again." };
+    }
+  } else {
+    // Never handed over at all. `dispatchDataOrder` claims an order out of
+    // "paid" or "failed", so a paid-for order still reading "pending" — a
+    // settlement whose dispatch never ran — is moved onto "paid" where the
+    // claim can reach it. And the commissions a failure voided go back on, so
+    // a bundle that finally lands pays what it owes.
+    const reset = {
+      ...(order.status === "pending" ? { status: "paid" } : {}),
+      ...(order.status === "failed" && order.agentCommission > 0
+        ? { commissionStatus: "pending", commissionPaidAt: null }
+        : {}),
+      ...(order.status === "failed" && order.teamCommission > 0
         ? { teamCommissionStatus: "pending", teamCommissionPaidAt: null }
         : {}),
-    },
-  });
-  if (claimed.count === 0) {
-    return { ok: false, message: "That order has just changed — refresh and try again." };
+    };
+    if (Object.keys(reset).length > 0) {
+      await dataDb.dataOrder
+        .updateMany({ where: { id: orderId, status: order.status }, data: reset })
+        .catch(() => {});
+    }
   }
 
   return dispatchDataOrder(orderId);

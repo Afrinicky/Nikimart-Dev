@@ -615,7 +615,10 @@ behind the same `requireAdmin` guard:
   a selling agent's recruiter earns on that bundle, and it refuses an amount
   larger than your own margin on the agent price.
 - **Bundle orders** — filter by status, search by reference or phone, and per
-  order: send now, refresh from the provider, mark refunded.
+  order: re-order from the provider, refresh its status, credit the bundle to
+  another number, or cancel and refund it. A refund goes back to the selling
+  agent's wallet or to the buyer's mobile money, and is always the full amount
+  paid; an agent refunding their own sale can only credit their own wallet.
 - **AFA** — registrations and their approval status.
 - **Agents** — the roster, the application queue, and per agent their wallet,
   ledger, orders and who recruited them.
@@ -623,6 +626,11 @@ behind the same `requireAdmin` guard:
   registration waivers, and what those numbers have actually paid out.
 - **Leaderboard** — the boards as agents see them, the points a place pays, the
   rewards points buy, and the queue of claims waiting to be handed over.
+- **Transactions** — four tabs: the ledger of every movement, the floats
+  (agent and provider top-ups), **Refunds**, and the audit that reconciles
+  them. Refunds lists every refund with where it went, and totals what is
+  still owed to buyers on MoMo — money that leaves by hand and so has no
+  ledger row of its own until it is marked sent.
 - **Withdrawals / Announcements / Agent support** — the MoMo payout queue,
   broadcasts to agents, and their callback requests.
 - **Store settings** — store name, tagline, open/closed, support WhatsApp, the

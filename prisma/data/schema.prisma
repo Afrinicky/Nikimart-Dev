@@ -92,6 +92,10 @@ model DataOrder {
   costPrice      Float   @default(0)
   // Local Ghana number the data is credited to (0XXXXXXXXX).
   recipientPhone String
+  /// The number this order was originally bought for, kept only when a
+  /// cancel-and-re-credit sent the bundle somewhere else instead. Null on
+  /// every order that went where it was bought for.
+  originalRecipientPhone String?
   // Who bought it — for the receipt SMS and order lookup.
   buyerPhone     String
   buyerEmail     String?
@@ -171,7 +175,8 @@ model DataOrder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  claims DataPaymentClaim[]
+  claims  DataPaymentClaim[]
+  refunds DataOrderRefund[]
 
   @@index([buyerPhone])
   @@index([recipientPhone])
@@ -215,6 +220,59 @@ model DataPaymentClaim {
 
   @@index([status, createdAt])
   @@index([orderId])
+}
+
+/**
+ * One refund, whichever way the money went.
+ *
+ * A refund used to be two unrelated things wearing one name: a wallet credit
+ * on a queued order, and a bare status flip on a failed one that moved no
+ * money at all. This row is what makes them one thing — written on every
+ * refund path, so "has this been paid back?" is a question with an answer.
+ *
+ * A wallet credit also has a DataAgentLedger row and settles at once. A MoMo
+ * refund cannot have one: the cedis leave by hand, exactly like a withdrawal,
+ * so it is written `pending` and marked paid by whoever made the transfer.
+ */
+model DataOrderRefund {
+  id      String    @id @default(cuid())
+  orderId String    @unique
+  order   DataOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// The order's own reference, denormalised so the refunds screen can be
+  /// searched without joining every order.
+  reference String
+  agentId   String?
+  agent     DataAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  /// Always the full amount the buyer paid for the order.
+  amount Float
+  /// WALLET — credited to the selling agent's wallet.
+  /// BUYER_MOMO — to be sent to the buyer's mobile money by hand.
+  destination String @default("WALLET")
+  /// settled | pending
+  status      String @default("settled")
+
+  /// Snapshotted, so a later edit to the order never rewrites what was sent.
+  momoPhone   String @default("")
+  momoName    String @default("")
+  momoNetwork String @default("")
+
+  /// admin | agent
+  requestedBy     String @default("admin")
+  requestedByName String @default("")
+  note            String @default("")
+
+  paidBy String?
+  paidAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([destination, createdAt])
+  @@index([agentId, createdAt])
+  @@index([reference])
 }
 
 // An AFA (agent SIM) registration sold through the storefront and submitted to
@@ -448,6 +506,7 @@ model DataAgent {
   points      DataAgentPoint[]
   redemptions DataRewardRedemption[]
   topups      DataWalletTopup[]
+  refunds     DataOrderRefund[]
   // Ledger rows this agent's own activity *paid someone else* — their upline's
   // referral and team-sales commissions.
   earnedFor   DataAgentLedger[]      @relation("LedgerSourceAgent")
