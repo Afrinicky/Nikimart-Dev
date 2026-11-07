@@ -100,6 +100,8 @@ export interface AdminDataOrder {
   price: number;
   costPrice: number;
   recipientPhone: string;
+  /** Set only where a cancel-and-re-credit moved this order to another number. */
+  originalRecipientPhone: string | null;
   buyerPhone: string;
   buyerName: string | null;
   status: string;

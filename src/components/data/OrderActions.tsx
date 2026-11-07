@@ -3,15 +3,20 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowLeft,
+  ArrowRightLeft,
   BadgeCheck,
   Check,
+  ChevronRight,
   Eye,
   Loader2,
   MessageCircle,
   RefreshCw,
   RotateCcw,
   ShieldAlert,
+  Smartphone,
   Undo2,
+  Wallet,
   X,
 } from "lucide-react";
 import {
@@ -21,7 +26,12 @@ import {
   isDataOrderStatus,
   networkLabel,
 } from "@/lib/data-bundles/networks";
-import { cancelOrderAction } from "@/lib/data-bundles/order-actions";
+import { cancelOrderAction, recreditOrderAction } from "@/lib/data-bundles/order-actions";
+import {
+  canRecreditOrder,
+  canRefundOrder,
+  canReorderOrder,
+} from "@/lib/data-bundles/refund-rules";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
@@ -42,9 +52,16 @@ export interface OrderView {
   /** Human label for where the order came from (e.g. "Nickimart", "Agent · Ama"). */
   sourceLabel: string;
   /**
+   * WEB | STOREFRONT | AGENT | ADMIN. Read for one decision only: an AGENT
+   * order was bought by the agent themselves, usually out of their own wallet,
+   * so refunding the buyer instead of the wallet leaves the agent short of
+   * money they have already paid. The sheet says so rather than refusing it.
+   */
+  source?: string | null;
+  /**
    * True when an agent made this sale, so a refund has a wallet to land in.
-   * Nickimart's own orders are refunded in Paystack instead, and the dialog
-   * must not promise a credit that will never appear.
+   * Nickimart's own orders can only be refunded to the buyer, and the sheet
+   * must not offer a credit that will never appear.
    */
   agentSale?: boolean;
   commission?: number | null;
@@ -56,10 +73,12 @@ export interface OrderView {
   buyerPhone?: string | null;
   costPrice?: number | null;
   providerCode?: string | null;
-  /** Set once the order has been accepted upstream — the admin's retry gate. */
+  /** Set once the order has been accepted upstream. */
   providerOrderId?: string | null;
   providerStatus?: string | null;
   providerMessage?: string | null;
+  /** The number this order was bought for, where a re-credit moved it since. */
+  originalRecipientPhone?: string | null;
   /** Who recorded this payment by hand, where nobody could do it automatically. */
   settledBy?: string | null;
   /** A buyer's open claim that the money left their wallet. Admin side only. */
@@ -76,19 +95,15 @@ export interface OrderClaimView {
 }
 
 /**
- * The admin-only buttons, handed in as server actions from the console page.
+ * The admin-only actions, handed in as server actions from the console page.
  *
- * They are props rather than imports because this dialog is shared: the agent
+ * They are props rather than imports because this sheet is shared: the agent
  * console renders the same component and must not be able to reach a dispatch
- * or a bookkeeping flip, whatever a browser sends.
+ * or a decision on somebody's claim, whatever a browser sends.
  */
 export interface AdminOrderForms {
-  /** Send a paid order to the provider again. */
-  retry?: (fd: FormData) => Promise<void>;
   /** Ask the provider where an order got to. */
   refresh?: (fd: FormData) => Promise<void>;
-  /** Record that a failed order has been refunded in Paystack. */
-  markRefunded?: (fd: FormData) => Promise<void>;
   /** Ask Paystack whether an unpaid order was in fact charged for. */
   recheckPayment?: (reference: string) => Promise<PaymentActionFeedback>;
   /** Record the payment on the admin's own word and send the bundle. */
@@ -99,7 +114,7 @@ export interface AdminOrderForms {
     decision: "confirm" | "reject",
     reason: string,
   ) => Promise<PaymentActionFeedback>;
-  /** Buy a failed order again, upstream. Spends money, so it asks first. */
+  /** Send this order to the provider again. Spends money, so it asks first. */
   reorder?: (orderId: string) => Promise<PaymentActionFeedback>;
 }
 
@@ -107,6 +122,9 @@ export interface PaymentActionFeedback {
   ok: boolean;
   message: string;
 }
+
+/** The MoMo networks a refund can be sent on. */
+const MOMO_NETWORKS = ["MTN MoMo", "Telecel Cash", "AirtelTigo Money"] as const;
 
 function formatWhen(iso: string): string {
   return new Date(iso).toLocaleString("en-GB", {
@@ -165,12 +183,16 @@ function useDialog(open: boolean, onClose: () => void) {
 
 function Shell({
   title,
+  caption,
   onClose,
+  onBack,
   children,
   footer,
 }: {
   title: string;
+  caption?: string;
   onClose: () => void;
+  onBack?: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
@@ -184,8 +206,23 @@ function Shell({
         aria-label={title}
         className="animate-sheet-up relative z-10 max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-white pb-[max(env(safe-area-inset-bottom),1.25rem)] shadow-2xl sm:max-w-md sm:rounded-3xl sm:pb-0"
       >
-        <div className="flex items-center justify-between gap-4 border-b border-niki-edge px-5 py-4">
-          <p className="font-display text-lg font-bold text-niki-ink">{title}</p>
+        <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-niki-edge bg-white/95 px-5 py-4 backdrop-blur">
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              aria-label="Back"
+              className="niki-press niki-focus -ml-1 rounded-full p-1.5 text-niki-ink/40 hover:bg-niki-surface hover:text-niki-ink"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <p className="font-display text-lg font-bold leading-tight text-niki-ink">{title}</p>
+            {caption ? (
+              <p className="truncate text-xs text-niki-ink/45">{caption}</p>
+            ) : null}
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -197,7 +234,7 @@ function Shell({
         </div>
         <div className="p-5">{children}</div>
         {footer ? (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-niki-edge px-5 py-4">
+          <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-2 border-t border-niki-edge bg-white/95 px-5 py-4 backdrop-blur">
             {footer}
           </div>
         ) : null}
@@ -225,71 +262,362 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 }
 
 const ghostBtn =
-  "niki-press niki-focus rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/60 hover:text-niki-ink";
+  "niki-press niki-focus rounded-full px-4 py-2.5 text-sm font-semibold text-niki-ink/60 hover:bg-niki-surface hover:text-niki-ink";
 const darkBtn =
-  "niki-press niki-focus rounded-full bg-niki-black px-5 py-2 text-sm font-semibold text-white";
-const dangerBtn =
-  "niki-press niki-focus inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-niki-danger hover:bg-niki-danger/10";
-const quietBtn =
-  "niki-press niki-focus inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-niki-ink/65 ring-1 ring-niki-edge hover:bg-niki-black/5";
+  "niki-press niki-focus rounded-full bg-niki-black px-5 py-2.5 text-sm font-semibold text-white";
+const field =
+  "w-full rounded-xl border border-niki-edge-strong bg-white px-3.5 py-2.5 text-sm text-niki-ink outline-none transition-colors focus:border-niki-orange";
+
+/**
+ * One thing that can be done to this order.
+ *
+ * A row rather than a pill, which is the whole of the redesign: the actions
+ * used to be a wrap of five same-shaped buttons in the footer, where the
+ * difference between refreshing a status and refunding a sale was a word and a
+ * colour. A row has room for the word *and* the sentence under it, so nothing
+ * irreversible is one mis-tap away from something routine.
+ */
+function ActionRow({
+  icon: Icon,
+  label,
+  caption,
+  tone = "neutral",
+  busy,
+  onClick,
+}: {
+  icon: React.ElementType;
+  label: string;
+  caption: string;
+  tone?: "neutral" | "primary" | "danger";
+  busy?: boolean;
+  onClick: () => void;
+}) {
+  const chip = {
+    neutral: "bg-niki-surface text-niki-ink/60 ring-niki-edge",
+    primary: "bg-niki-orange/10 text-niki-orange ring-niki-orange/20",
+    danger: "bg-niki-danger/10 text-niki-danger ring-niki-danger/20",
+  }[tone];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className="niki-press niki-focus group flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-niki-surface/70 disabled:opacity-60"
+    >
+      <span
+        className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1",
+          chip,
+        )}
+      >
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span
+          className={cn(
+            "block text-sm font-semibold",
+            tone === "danger" ? "text-niki-danger" : "text-niki-ink",
+          )}
+        >
+          {label}
+        </span>
+        <span className="block text-xs leading-snug text-niki-ink/50">{caption}</span>
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-niki-ink/25 transition-transform group-hover:translate-x-0.5" />
+    </button>
+  );
+}
+
+function Notice({ feedback }: { feedback: PaymentActionFeedback }) {
+  return (
+    <p
+      className={cn(
+        "animate-fade-up mt-4 flex items-start gap-2 rounded-xl px-3.5 py-3 text-sm font-medium",
+        feedback.ok ? "bg-niki-success/10 text-niki-success" : "bg-niki-danger/10 text-niki-danger",
+      )}
+    >
+      {feedback.ok ? (
+        <Check className="mt-0.5 h-4 w-4 shrink-0" />
+      ) : (
+        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+      )}
+      <span>{feedback.message}</span>
+    </p>
+  );
+}
+
+/** The headline every confirmation view opens with. */
+function Prompt({
+  icon: Icon,
+  tone,
+  title,
+  children,
+}: {
+  icon: React.ElementType;
+  tone: "danger" | "primary" | "trust";
+  title: string;
+  children: React.ReactNode;
+}) {
+  const chip = {
+    danger: "bg-niki-danger/10 text-niki-danger",
+    primary: "bg-niki-orange/10 text-niki-orange",
+    trust: "bg-niki-trust/10 text-niki-trust",
+  }[tone];
+  return (
+    <div className="text-center">
+      <span
+        className={cn("mx-auto flex h-12 w-12 items-center justify-center rounded-2xl", chip)}
+      >
+        <Icon className="h-6 w-6" />
+      </span>
+      <p className="mt-3 font-display text-lg font-bold text-niki-ink">{title}</p>
+      <p className="mx-auto mt-1 max-w-xs text-sm leading-relaxed text-niki-ink/60">{children}</p>
+    </div>
+  );
+}
+
+/** The two or three things one order can be refunded to. */
+function DestinationCard({
+  active,
+  fixed,
+  icon: Icon,
+  title,
+  caption,
+  onSelect,
+}: {
+  active: boolean;
+  /** The only destination this order has, so it reads rather than chooses. */
+  fixed?: boolean;
+  icon: React.ElementType;
+  title: string;
+  caption: string;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      disabled={fixed}
+      aria-pressed={active}
+      className={cn(
+        "niki-focus flex w-full items-start gap-3 rounded-2xl p-3.5 text-left ring-1 transition-colors",
+        !fixed && "niki-press hover:bg-niki-surface/60",
+        active
+          ? "bg-niki-orange/[0.06] ring-niki-orange"
+          : "bg-white ring-niki-edge",
+      )}
+    >
+      <span
+        className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+          active ? "bg-niki-orange text-white" : "bg-niki-surface text-niki-ink/50",
+        )}
+      >
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-niki-ink">{title}</span>
+        <span className="block text-xs leading-snug text-niki-ink/50">{caption}</span>
+      </span>
+      <span
+        className={cn(
+          "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full ring-1",
+          active ? "bg-niki-orange ring-niki-orange" : "ring-niki-edge-strong",
+        )}
+      >
+        {active ? <Check className="h-3 w-3 text-white" /> : null}
+      </span>
+    </button>
+  );
+}
 
 /**
  * Cancel & refund, asked properly.
  *
  * It replaces the detail panels rather than stacking a second dialog on top of
  * the first: a confirmation nobody can read past is a confirmation nobody
- * reads. What the money does next is spelled out, because for an agent sale it
- * does not go back to the card — it lands in the agent's wallet.
+ * reads. Where the money goes is now a choice rather than a sentence, because
+ * it genuinely is one — an agent sale can go back to the agent's wallet, where
+ * they settle their own customer, or straight to the buyer on MoMo. Only an
+ * administrator gets the choice; an agent's refund lands in their own wallet,
+ * which is the only place they are allowed to send Nickimart's money.
  */
 function CancelPanel({
   order,
+  admin,
   onDone,
-  onBack,
 }: {
   order: OrderView;
-  onDone: () => void;
-  onBack: () => void;
+  admin: boolean;
+  onDone: (feedback: { title: string; message: string }) => void;
 }) {
   const router = useRouter();
+  const walletPossible = order.agentSale !== false;
+  const choosable = admin && walletPossible;
+  const [destination, setDestination] = useState<"WALLET" | "BUYER_MOMO">(
+    walletPossible ? "WALLET" : "BUYER_MOMO",
+  );
+  const [momoPhone, setMomoPhone] = useState(order.buyerPhone ?? "");
+  const [momoName, setMomoName] = useState(order.buyerName ?? "");
+  const [momoNetwork, setMomoNetwork] = useState<string>(MOMO_NETWORKS[0]);
+  const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const unpaid = order.paymentStatus !== "paid";
+  const toBuyer = destination === "BUYER_MOMO";
 
   function confirm() {
     setError(null);
     startTransition(async () => {
-      const result = await cancelOrderAction(order.id);
+      const result = await cancelOrderAction(order.id, {
+        destination,
+        momoPhone,
+        momoName,
+        momoNetwork,
+        note,
+      });
       if (!result.ok) {
         setError(result.error);
         return;
       }
       router.refresh();
-      onDone();
+      onDone({
+        title:
+          result.destination === "BUYER_MOMO"
+            ? result.owedToBuyer > 0
+              ? "Refund queued for the buyer"
+              : "Order cancelled"
+            : result.credited > 0
+              ? "Refunded to the wallet"
+              : "Order cancelled",
+        message: result.message,
+      });
     });
   }
 
   return (
     <>
-      <div className="text-center">
-        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-niki-danger/10 text-niki-danger">
-          <Undo2 className="h-6 w-6" />
-        </span>
-        <p className="mt-3 font-display text-lg font-bold text-niki-ink">
-          Cancel this order and refund it?
-        </p>
-        <p className="mt-1 text-sm text-niki-ink/60">
-          The bundle is still queued, so it can be pulled back.{" "}
-          {order.agentSale === false
-            ? `${formatMoney(order.price)} then has to be sent back in Paystack — this only records it.`
-            : `${formatMoney(order.price)} is credited to the wallet — ready to withdraw or spend on another order.`}{" "}
-          This can&apos;t be undone.
-        </p>
-      </div>
+      <Prompt
+        icon={Undo2}
+        tone="danger"
+        title={unpaid ? "Cancel this order?" : "Cancel this order and refund it?"}
+      >
+        {unpaid
+          ? "Nothing was charged for it, so there is nothing to send back."
+          : `The full ${formatMoney(order.price)} goes back. This can't be undone.`}
+      </Prompt>
 
-      {error ? (
-        <p className="animate-fade-up mt-4 rounded-xl bg-niki-danger/10 px-4 py-3 text-sm font-medium text-niki-danger">
-          {error}
-        </p>
+      {!unpaid ? (
+        <div className="mt-5">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-niki-ink/45">
+            Refund to
+          </p>
+          <div className="space-y-2">
+            {walletPossible ? (
+              <DestinationCard
+                active={destination === "WALLET"}
+                fixed={!choosable}
+                icon={Wallet}
+                title="Agent wallet"
+                caption={`${formatMoney(order.price)} on the balance, to withdraw or spend`}
+                onSelect={() => setDestination("WALLET")}
+              />
+            ) : null}
+            {admin ? (
+              <DestinationCard
+                active={toBuyer}
+                fixed={!walletPossible}
+                icon={Smartphone}
+                title="Buyer's mobile money"
+                caption="Queued for transfer, and tracked until it is sent"
+                onSelect={() => setDestination("BUYER_MOMO")}
+              />
+            ) : null}
+          </div>
+          {toBuyer && order.source === "AGENT" ? (
+            <p className="animate-fade-up mt-2 flex items-start gap-1.5 rounded-xl bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-900/80 ring-1 ring-amber-200">
+              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                The agent bought this one themselves, so the money came off their own balance.
+                Refunding the buyer instead leaves the agent short of it.
+              </span>
+            </p>
+          ) : null}
+          {!choosable && !admin ? (
+            <p className="mt-2 text-xs text-niki-ink/45">
+              Send the customer their money on MoMo once the balance is credited.
+            </p>
+          ) : null}
+        </div>
       ) : null}
+
+      {!unpaid && toBuyer ? (
+        <div className="animate-fade-up mt-4 space-y-2.5 rounded-2xl bg-niki-surface/60 p-4 ring-1 ring-niki-edge">
+          <p className="text-xs font-semibold uppercase tracking-wide text-niki-ink/45">
+            Where to send it
+          </p>
+          <div>
+            <label className="text-xs font-medium text-niki-ink/60" htmlFor="refund-momo-phone">
+              Mobile money number
+            </label>
+            <input
+              id="refund-momo-phone"
+              value={momoPhone}
+              onChange={(e) => setMomoPhone(e.target.value)}
+              inputMode="numeric"
+              placeholder="0XXXXXXXXX"
+              className={cn(field, "mt-1 font-mono")}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-niki-ink/60" htmlFor="refund-momo-name">
+              Account name
+            </label>
+            <input
+              id="refund-momo-name"
+              value={momoName}
+              onChange={(e) => setMomoName(e.target.value)}
+              placeholder="As registered on MoMo"
+              className={cn(field, "mt-1")}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-niki-ink/60" htmlFor="refund-momo-network">
+              Network
+            </label>
+            <select
+              id="refund-momo-network"
+              value={momoNetwork}
+              onChange={(e) => setMomoNetwork(e.target.value)}
+              className={cn(field, "mt-1 appearance-none font-medium")}
+            >
+              {MOMO_NETWORKS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      ) : null}
+
+      {!unpaid ? (
+        <div className="mt-3">
+          <label className="text-xs font-medium text-niki-ink/60" htmlFor="refund-note">
+            Reason <span className="text-niki-ink/35">(optional)</span>
+          </label>
+          <input
+            id="refund-note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Wrong number, customer cancelled…"
+            className={cn(field, "mt-1")}
+          />
+        </div>
+      ) : null}
+
+      {error ? <Notice feedback={{ ok: false, message: error }} /> : null}
 
       <div className="mt-4">
         <Panel title="Order">
@@ -297,25 +625,218 @@ function CancelPanel({
             label="Order ID"
             value={<span className="font-mono text-xs">{order.reference}</span>}
           />
-          <DetailRow label="Network" value={networkLabel(order.network)} />
-          <DetailRow label="Size" value={bundleLabel(order.sizeGb)} />
-          <DetailRow label="Refund" value={formatMoney(order.price)} />
+          <DetailRow
+            label="Bundle"
+            value={`${bundleLabel(order.sizeGb)} ${networkLabel(order.network)}`}
+          />
+          <DetailRow label="Number" value={<span className="font-mono">{order.recipientPhone}</span>} />
+          <DetailRow label="Refund" value={formatMoney(unpaid ? 0 : order.price)} />
         </Panel>
       </div>
 
-      <div className="mt-5 flex gap-3">
-        <button type="button" onClick={onBack} disabled={pending} className={cn(ghostBtn, "flex-1")}>
-          Keep order
-        </button>
-        <button
-          type="button"
-          onClick={confirm}
-          disabled={pending}
-          className="niki-press niki-focus flex-[1.4] rounded-full bg-niki-danger px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
-        >
-          {pending ? "Refunding…" : "Cancel & Refund"}
-        </button>
+      <button
+        type="button"
+        onClick={confirm}
+        disabled={pending}
+        className="niki-press niki-focus mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-niki-danger px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+      >
+        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+        {pending
+          ? "Working…"
+          : unpaid
+            ? "Cancel order"
+            : toBuyer
+              ? "Cancel & refund the buyer"
+              : "Cancel & refund the wallet"}
+      </button>
+    </>
+  );
+}
+
+/**
+ * Sending the bundle somewhere else instead of refunding it.
+ *
+ * Behind most queued orders nobody wants, and most failed ones nobody can
+ * rescue, is a mistyped number. Refunding and re-buying costs a round trip
+ * through the wallet and throws away the reference the customer was given;
+ * what is wanted is the same purchase, delivered to the right number. So this
+ * keeps the order and moves it.
+ */
+function RecreditPanel({
+  order,
+  onDone,
+}: {
+  order: OrderView;
+  onDone: (feedback: { title: string; message: string }) => void;
+}) {
+  const router = useRouter();
+  const [phone, setPhone] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function confirm() {
+    setError(null);
+    startTransition(async () => {
+      const result = await recreditOrderAction(order.id, phone);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+      onDone({ title: "Bundle on its way", message: result.message });
+    });
+  }
+
+  return (
+    <>
+      <Prompt icon={ArrowRightLeft} tone="trust" title="Credit another number">
+        This cancels the attempt on {order.recipientPhone} and sends the same{" "}
+        {bundleLabel(order.sizeGb)} to a new {networkLabel(order.network)} number. Nothing is
+        charged again.
+      </Prompt>
+
+      <div className="mt-5">
+        <label className="text-xs font-medium text-niki-ink/60" htmlFor="recredit-phone">
+          New {networkLabel(order.network)} number
+        </label>
+        <input
+          id="recredit-phone"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          inputMode="numeric"
+          autoFocus
+          placeholder="0XXXXXXXXX"
+          className={cn(field, "mt-1 font-mono text-base tracking-wide")}
+        />
+        <p className="mt-1.5 text-xs text-niki-ink/45">
+          It has to be on {networkLabel(order.network)} — data sent to the wrong network can&apos;t
+          be reversed.
+        </p>
       </div>
+
+      {error ? <Notice feedback={{ ok: false, message: error }} /> : null}
+
+      <div className="mt-4">
+        <Panel title="Order">
+          <DetailRow
+            label="Order ID"
+            value={<span className="font-mono text-xs">{order.reference}</span>}
+          />
+          <DetailRow
+            label="Bundle"
+            value={`${bundleLabel(order.sizeGb)} ${networkLabel(order.network)}`}
+          />
+          <DetailRow
+            label="Bought for"
+            value={<span className="font-mono">{order.recipientPhone}</span>}
+          />
+        </Panel>
+      </div>
+
+      <button
+        type="button"
+        onClick={confirm}
+        disabled={pending || phone.trim().length < 9}
+        className="niki-press niki-focus mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-niki-trust px-5 py-3 text-sm font-bold text-white disabled:opacity-50"
+      >
+        {pending ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <ArrowRightLeft className="h-4 w-4" />
+        )}
+        {pending ? "Sending…" : "Cancel & credit this number"}
+      </button>
+    </>
+  );
+}
+
+/**
+ * Buying the bundle from the provider again.
+ *
+ * One confirmation for what used to be two buttons — "Send to provider" and
+ * "Order again" — doing the same job behind an invisible gate. It spends money
+ * upstream, and the one case it cannot tell apart is a bundle the provider
+ * delivered and then reported wrongly, so whoever presses it is asked to check
+ * the number first.
+ */
+function ReorderPanel({
+  order,
+  reorder,
+  onDone,
+}: {
+  order: OrderView;
+  reorder: (orderId: string) => Promise<PaymentActionFeedback>;
+  onDone: (feedback: { title: string; message: string }) => void;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<PaymentActionFeedback | null>(null);
+
+  function send() {
+    setNotice(null);
+    setBusy(true);
+    void reorder(order.id)
+      .then((result) => {
+        if (result.ok) {
+          router.refresh();
+          onDone({ title: "Ordered again", message: result.message });
+          return;
+        }
+        setNotice(result);
+      })
+      .catch(() => setNotice({ ok: false, message: "That didn't go through. Try again." }))
+      .finally(() => setBusy(false));
+  }
+
+  return (
+    <>
+      <Prompt icon={RotateCcw} tone="primary" title="Re-order this bundle?">
+        {bundleLabel(order.sizeGb)} {networkLabel(order.network)} is bought from the provider again
+        for {order.recipientPhone}. The customer is not charged twice.
+      </Prompt>
+
+      <p className="mt-4 rounded-xl bg-amber-50 px-3.5 py-3 text-xs leading-relaxed text-amber-900/80 ring-1 ring-amber-200">
+        Check the number has not already received it. A provider reporting a failure it did deliver
+        is the one case this cannot tell apart.
+      </p>
+
+      {notice ? <Notice feedback={notice} /> : null}
+
+      <div className="mt-4">
+        <Panel title="Order">
+          <DetailRow
+            label="Order ID"
+            value={<span className="font-mono text-xs">{order.reference}</span>}
+          />
+          <DetailRow label="Number" value={<span className="font-mono">{order.recipientPhone}</span>} />
+          <DetailRow
+            label="Upstream cost"
+            value={
+              order.costPrice != null && order.costPrice > 0
+                ? formatMoney(order.costPrice)
+                : "At today's rate"
+            }
+          />
+          {order.providerMessage ? (
+            <DetailRow
+              label="Last attempt"
+              value={
+                <span className="font-normal text-niki-ink/70">{order.providerMessage}</span>
+              }
+            />
+          ) : null}
+        </Panel>
+      </div>
+
+      <button
+        type="button"
+        onClick={send}
+        disabled={busy}
+        className="niki-press niki-focus mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-niki-orange px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+      >
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+        {busy ? "Ordering…" : "Yes, re-order it"}
+      </button>
     </>
   );
 }
@@ -443,7 +964,7 @@ function SettlementPanel({
               type="button"
               disabled={busy !== null}
               onClick={() => run("reject", () => forms.decideClaim!(claim.id, "reject", reason))}
-              className={dangerBtn}
+              className="niki-press niki-focus inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-niki-danger hover:bg-niki-danger/10"
             >
               <X className="h-4 w-4" />
               Reject claim
@@ -509,114 +1030,7 @@ function SettlementPanel({
   );
 }
 
-/**
- * Ordering a failed bundle again.
- *
- * The ordinary "send to provider" refuses an order that already carries a
- * provider id, which is the guard that stops a retry buying the same bundle
- * twice. A provider that accepted an order and then failed it leaves one
- * stranded behind that guard — paid for, and never delivered.
- *
- * So this is the way through, and it asks first, because the one case it
- * cannot tell apart is a bundle the provider delivered and then reported
- * wrongly. Whoever presses it is the person who knows.
- */
-function ReorderPanel({
-  order,
-  reorder,
-}: {
-  order: OrderView;
-  reorder: (orderId: string) => Promise<PaymentActionFeedback>;
-}) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [asking, setAsking] = useState(false);
-  const [notice, setNotice] = useState<PaymentActionFeedback | null>(null);
-
-  function send() {
-    setNotice(null);
-    setBusy(true);
-    void reorder(order.id)
-      .then((result) => {
-        setNotice(result);
-        setAsking(false);
-        if (result.ok) router.refresh();
-      })
-      .catch(() => setNotice({ ok: false, message: "That didn't go through. Try again." }))
-      .finally(() => setBusy(false));
-  }
-
-  return (
-    <div className="rounded-2xl bg-niki-danger/[0.06] p-4 ring-1 ring-niki-danger/20">
-      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-niki-danger">
-        Delivery failed
-      </p>
-      <p className="text-sm text-niki-ink/75">
-        This one was paid for and never landed. Ordering it again buys a fresh bundle from the
-        provider at {order.costPrice != null && order.costPrice > 0 ? formatMoney(order.costPrice) : "the current cost"}.
-      </p>
-
-      {notice ? (
-        <p
-          className={cn(
-            "animate-fade-up mt-3 flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm font-medium",
-            notice.ok ? "bg-niki-success/10 text-niki-success" : "bg-niki-danger/10 text-niki-danger",
-          )}
-        >
-          {notice.ok ? (
-            <Check className="mt-0.5 h-4 w-4 shrink-0" />
-          ) : (
-            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-          )}
-          <span>{notice.message}</span>
-        </p>
-      ) : null}
-
-      <div className="mt-3">
-        {asking ? (
-          <div className="animate-fade-up">
-            <p className="text-sm font-semibold text-niki-ink">
-              Order {bundleLabel(order.sizeGb)} {networkLabel(order.network)} for{" "}
-              {order.recipientPhone} again?
-            </p>
-            <p className="mt-0.5 text-xs text-niki-ink/60">
-              Check the number has not already received it — the provider reporting a failure it
-              did deliver is the one case this cannot tell apart.
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={send}
-                className="niki-press niki-focus inline-flex items-center gap-1.5 rounded-full bg-niki-orange px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
-              >
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                {busy ? "Ordering…" : "Yes, order it again"}
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setAsking(false)}
-                className={ghostBtn}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setAsking(true)}
-            className="niki-press niki-focus inline-flex items-center gap-1.5 rounded-full bg-niki-black px-4 py-2 text-sm font-semibold text-white"
-          >
-            <RotateCcw className="h-4 w-4" />
-            Order again
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
+type SheetView = "details" | "cancel" | "recredit" | "reorder" | "done";
 
 function OrderDetailsModal({
   order,
@@ -631,17 +1045,26 @@ function OrderDetailsModal({
   onReport?: () => void;
   onClose: () => void;
 }) {
-  const [view, setView] = useState<"details" | "cancel" | "done">("details");
-  const admin = order.buyerPhone != null || order.providerCode != null || order.costPrice != null;
+  const [view, setView] = useState<SheetView>("details");
+  const [done, setDone] = useState<{ title: string; message: string } | null>(null);
+  const [refreshing, startRefresh] = useTransition();
+  const admin = Boolean(adminForms);
+  const showsTrade = order.buyerPhone != null || order.providerCode != null || order.costPrice != null;
   const margin =
     order.costPrice != null && order.costPrice > 0
       ? Math.round((order.price - order.costPrice) * 100) / 100
       : null;
 
-  // What this order can still have done to it. Cancelling is queued-only — an
-  // order already with the network is not ours to pull back — and reporting is
-  // for a delivery the customer says never arrived.
-  const canCancel = order.status === "queued";
+  // What this order can still have done to it.
+  //
+  // Refunding is no longer queued-only, which was the bug: a failed order
+  // offered a different button that moved no money at all, and an order left
+  // on "paid" or "processing" by a dispatch that did not complete offered
+  // nothing whatsoever. Everything short of delivered and already-refunded is
+  // a paid-for order with no data at the other end.
+  const canCancel = canRefundOrder(order.status, admin);
+  // Re-crediting needs a bundle that is paid for and not with the provider.
+  const canRecredit = canRecreditOrder(order.status, order.paymentStatus);
   const canReport = order.status === "completed" && Boolean(whatsapp) && Boolean(onReport);
   // Awaiting payment, and the console that opened this can do something about
   // it. The agent side passes no admin forms, so it never sees this.
@@ -649,27 +1072,78 @@ function OrderDetailsModal({
     order.paymentStatus !== "paid" &&
     order.status === "pending" &&
     Boolean(adminForms?.recheckPayment || adminForms?.settlePayment);
-  // Paid for and never delivered. The ordinary retry cannot reach it once the
-  // provider has given the order an id of its own.
+  // One button for the provider now. It refuses an order that is still with
+  // them, so it is offered only where there is nothing in flight to disturb.
   const canReorder =
-    order.status === "failed" && order.paymentStatus === "paid" && Boolean(adminForms?.reorder);
+    Boolean(adminForms?.reorder) && canReorderOrder(order.status, order.paymentStatus);
+  const canRefresh = Boolean(adminForms?.refresh) && Boolean(order.providerOrderId);
+
+  const caption = `${bundleLabel(order.sizeGb)} ${networkLabel(order.network)} · ${order.reference}`;
 
   if (view === "cancel") {
     return (
-      <Shell title="Cancel & Refund" onClose={onClose}>
+      <Shell
+        title="Cancel & refund"
+        caption={caption}
+        onClose={onClose}
+        onBack={() => setView("details")}
+      >
         <CancelPanel
           order={order}
-          onBack={() => setView("details")}
-          onDone={() => setView("done")}
+          admin={admin}
+          onDone={(feedback) => {
+            setDone(feedback);
+            setView("done");
+          }}
         />
       </Shell>
     );
   }
 
-  if (view === "done") {
+  if (view === "recredit") {
     return (
       <Shell
-        title="Order cancelled"
+        title="Credit another number"
+        caption={caption}
+        onClose={onClose}
+        onBack={() => setView("details")}
+      >
+        <RecreditPanel
+          order={order}
+          onDone={(feedback) => {
+            setDone(feedback);
+            setView("done");
+          }}
+        />
+      </Shell>
+    );
+  }
+
+  if (view === "reorder" && adminForms?.reorder) {
+    return (
+      <Shell
+        title="Re-order"
+        caption={caption}
+        onClose={onClose}
+        onBack={() => setView("details")}
+      >
+        <ReorderPanel
+          order={order}
+          reorder={adminForms.reorder}
+          onDone={(feedback) => {
+            setDone(feedback);
+            setView("done");
+          }}
+        />
+      </Shell>
+    );
+  }
+
+  if (view === "done" && done) {
+    return (
+      <Shell
+        title={done.title}
+        caption={caption}
         onClose={onClose}
         footer={
           <button type="button" onClick={onClose} className={darkBtn}>
@@ -677,84 +1151,31 @@ function OrderDetailsModal({
           </button>
         }
       >
-        <div className="animate-scale-in rounded-2xl bg-niki-success/10 p-6 text-center ring-1 ring-niki-success/30">
-          <Check className="mx-auto h-8 w-8 text-niki-success" />
-          <p className="mt-2 font-display font-bold text-niki-ink">
-            {order.agentSale === false ? "Order cancelled" : "Refunded to the wallet"}
+        <div className="animate-scale-in rounded-2xl bg-niki-success/[0.08] p-6 text-center ring-1 ring-niki-success/25">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-niki-success/15 text-niki-success">
+            <Check className="h-6 w-6" />
+          </span>
+          <p className="mt-3 font-display font-bold text-niki-ink">{done.title}</p>
+          <p className="mx-auto mt-1 max-w-xs text-sm leading-relaxed text-niki-ink/65">
+            {done.message}
           </p>
-          <p className="mt-1 text-sm text-niki-ink/70">
-            {order.agentSale === false ? (
-              <>
-                Order <span className="font-mono font-semibold">{order.reference}</span> is marked
-                refunded. Send the {formatMoney(order.price)} back in Paystack.
-              </>
-            ) : (
-              <>
-                {formatMoney(order.price)} from order{" "}
-                <span className="font-mono font-semibold">{order.reference}</span> is now on the
-                balance.
-              </>
-            )}
-          </p>
+          <p className="mt-3 font-mono text-[11px] text-niki-ink/40">{order.reference}</p>
         </div>
       </Shell>
     );
   }
 
+  const hasActions = canReorder || canRefresh || canRecredit || canCancel || canReport;
+
   return (
     <Shell
       title="Order Details"
+      caption={caption}
       onClose={onClose}
       footer={
-        <>
-          {canCancel ? (
-            <button type="button" onClick={() => setView("cancel")} className={dangerBtn}>
-              <X className="h-4 w-4" />
-              Cancel & Refund
-            </button>
-          ) : null}
-
-          {canReport ? (
-            <button type="button" onClick={onReport} className={quietBtn}>
-              <MessageCircle className="h-4 w-4" />
-              Report Not received
-            </button>
-          ) : null}
-
-          {adminForms?.retry && order.paymentStatus === "paid" && !order.providerOrderId ? (
-            <form action={adminForms.retry}>
-              <input type="hidden" name="id" value={order.id} />
-              <button type="submit" className={quietBtn}>
-                <RotateCcw className="h-4 w-4" />
-                Send to provider
-              </button>
-            </form>
-          ) : null}
-
-          {adminForms?.refresh && order.providerOrderId ? (
-            <form action={adminForms.refresh}>
-              <input type="hidden" name="id" value={order.id} />
-              <button type="submit" className={quietBtn}>
-                <RefreshCw className="h-4 w-4" />
-                Refresh status
-              </button>
-            </form>
-          ) : null}
-
-          {adminForms?.markRefunded && order.status === "failed" ? (
-            <form action={adminForms.markRefunded}>
-              <input type="hidden" name="id" value={order.id} />
-              <button type="submit" className={quietBtn}>
-                <Undo2 className="h-4 w-4" />
-                Mark refunded
-              </button>
-            </form>
-          ) : null}
-
-          <button type="button" onClick={onClose} className={darkBtn}>
-            Close
-          </button>
-        </>
+        <button type="button" onClick={onClose} className={darkBtn}>
+          Close
+        </button>
       }
     >
       <div className="space-y-3">
@@ -769,12 +1190,22 @@ function OrderDetailsModal({
             label="Phone"
             value={<span className="font-mono">{order.recipientPhone}</span>}
           />
+          {order.originalRecipientPhone ? (
+            <DetailRow
+              label="Bought for"
+              value={
+                <span className="font-mono text-niki-ink/55 line-through">
+                  {order.originalRecipientPhone}
+                </span>
+              }
+            />
+          ) : null}
           <DetailRow label="Network" value={networkLabel(order.network)} />
           <DetailRow label="Size" value={bundleLabel(order.sizeGb)} />
           <DetailRow label="Source" value={order.sourceLabel} />
         </Panel>
 
-        {admin ? (
+        {showsTrade ? (
           <Panel title="Customer">
             {order.buyerName ? <DetailRow label="Name" value={order.buyerName} /> : null}
             {order.buyerPhone ? (
@@ -834,14 +1265,79 @@ function OrderDetailsModal({
           ) : null}
         </Panel>
 
-        {/* Last in the card, and only on an order that is waiting for money.
-            Everything above describes the order; this is the one thing that
-            can still change what happens to it. */}
+        {/* Only on an order that is waiting for money. Everything above
+            describes the order; this is the one thing that can still change
+            what happens to it. */}
         {canSettle ? (
           <SettlementPanel order={order} forms={adminForms!} onSettled={onClose} />
         ) : null}
 
-        {canReorder ? <ReorderPanel order={order} reorder={adminForms!.reorder!} /> : null}
+        {hasActions ? (
+          <div className="rounded-2xl bg-white p-2 ring-1 ring-niki-edge">
+            <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-niki-ink/45">
+              Actions
+            </p>
+            <div className="divide-y divide-niki-edge/70">
+              {canReorder ? (
+                <ActionRow
+                  icon={RotateCcw}
+                  label="Re-order"
+                  caption="Buy this bundle from the provider again"
+                  tone="primary"
+                  onClick={() => setView("reorder")}
+                />
+              ) : null}
+
+              {canRefresh ? (
+                <ActionRow
+                  icon={RefreshCw}
+                  label="Refresh status"
+                  caption="Ask the provider where this order got to"
+                  busy={refreshing}
+                  onClick={() => {
+                    const fd = new FormData();
+                    fd.set("id", order.id);
+                    startRefresh(async () => {
+                      await adminForms!.refresh!(fd);
+                    });
+                  }}
+                />
+              ) : null}
+
+              {canRecredit ? (
+                <ActionRow
+                  icon={ArrowRightLeft}
+                  label="Credit another number"
+                  caption="Cancel this attempt and send it elsewhere"
+                  onClick={() => setView("recredit")}
+                />
+              ) : null}
+
+              {canCancel ? (
+                <ActionRow
+                  icon={Undo2}
+                  label={order.paymentStatus === "paid" ? "Cancel & refund" : "Cancel order"}
+                  caption={
+                    order.paymentStatus === "paid"
+                      ? `Put ${formatMoney(order.price)} back`
+                      : "Nothing was charged for it"
+                  }
+                  tone="danger"
+                  onClick={() => setView("cancel")}
+                />
+              ) : null}
+
+              {canReport ? (
+                <ActionRow
+                  icon={MessageCircle}
+                  label="Report not received"
+                  caption="Open WhatsApp with this order's details"
+                  onClick={onReport!}
+                />
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </div>
     </Shell>
   );
@@ -885,7 +1381,7 @@ function ReportModal({
             target="_blank"
             rel="noopener noreferrer"
             onClick={onClose}
-            className="niki-press inline-flex items-center gap-2 rounded-full bg-niki-success px-5 py-2 text-sm font-semibold text-white"
+            className="niki-press inline-flex items-center gap-2 rounded-full bg-niki-success px-5 py-2.5 text-sm font-semibold text-white"
           >
             <MessageCircle className="h-4 w-4" />
             Open WhatsApp
@@ -893,17 +1389,9 @@ function ReportModal({
         </>
       }
     >
-      <div className="text-center">
-        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-niki-success/10 text-niki-success">
-          <MessageCircle className="h-6 w-6" />
-        </span>
-        <p className="mt-3 font-display text-lg font-bold text-niki-ink">
-          Report this order as not received?
-        </p>
-        <p className="mt-1 text-sm text-niki-ink/60">
-          This will open WhatsApp with the order details so our complaint team can review it.
-        </p>
-      </div>
+      <Prompt icon={MessageCircle} tone="trust" title="Report this order as not received?">
+        This opens WhatsApp with the order details so our complaint team can review it.
+      </Prompt>
 
       <div className="mt-4">
         <Panel title="Order">
@@ -926,10 +1414,10 @@ const iconBtn =
 
 /**
  * The Actions cell for one order row: an eye and a chat bubble, and nothing
- * else. Everything that can be *done* to an order — cancel and refund, report
- * a delivery that never arrived, the admin's dispatch and bookkeeping buttons
- * — lives inside the dialog the eye opens, where there is room to say what
- * each one means. A row of five icons cannot.
+ * else. Everything that can be *done* to an order — re-order, credit another
+ * number, cancel and refund, report a delivery that never arrived — lives
+ * inside the sheet the eye opens, where there is room to say what each one
+ * means. A row of five icons cannot.
  */
 export function OrderActions({
   order,

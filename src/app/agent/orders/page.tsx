@@ -188,11 +188,13 @@ export default async function AgentOrdersPage({
                               status: o.status,
                               paymentStatus: o.paymentStatus,
                               sourceLabel: sourceLabel(o.source),
+                              source: o.source,
                               agentSale: true,
                               commission: o.agentCommission,
                               commissionStatus: o.commissionStatus,
                               createdAt: o.createdAt.toISOString(),
                               updatedAt: o.updatedAt?.toISOString() ?? null,
+                              originalRecipientPhone: o.originalRecipientPhone,
                             } satisfies OrderView
                           }
                           whatsapp={whatsapp}

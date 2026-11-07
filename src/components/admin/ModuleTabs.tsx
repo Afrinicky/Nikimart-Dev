@@ -24,6 +24,7 @@ import {
   SlidersHorizontal,
   Ticket,
   Trophy,
+  Undo2,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -66,6 +67,7 @@ const ICONS = {
   trophy: Trophy,
   gift: Gift,
   receipt: Receipt,
+  refund: Undo2,
   rules: SlidersHorizontal,
   backup: DatabaseBackup,
   sheet: FileSpreadsheet,
