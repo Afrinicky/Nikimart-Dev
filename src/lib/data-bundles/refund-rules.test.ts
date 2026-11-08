@@ -21,8 +21,8 @@ import {
  * Run with: npm test
  */
 
-test("every state short of delivered or already-refunded can be refunded", () => {
-  for (const status of ["pending", "paid", "queued", "processing", "failed"]) {
+test("every state the provider will still let go of can be refunded", () => {
+  for (const status of ["pending", "paid", "queued", "failed"]) {
     assert.equal(canRefundOrder(status), true, status);
   }
 });
@@ -30,6 +30,15 @@ test("every state short of delivered or already-refunded can be refunded", () =>
 test("a delivered or refunded order cannot be refunded", () => {
   assert.equal(canRefundOrder("completed"), false);
   assert.equal(canRefundOrder("refunded"), false);
+});
+
+test("an order the provider is working on cannot be refunded by anybody", () => {
+  // The provider offers no cancellation once it has started: queued is
+  // "accepted, not started", processing is "started". A refund button there
+  // promises something nobody upstream can honour, and risks the bundle
+  // landing anyway — the customer keeping the data and the money both.
+  assert.equal(canRefundOrder("processing"), false);
+  assert.equal(canRefundOrder("queued"), true);
 });
 
 test("a failed order is refundable — the case that used to move no money", () => {
@@ -40,20 +49,6 @@ test("an order stranded by a dispatch that never started is refundable", () => {
   // A re-order flips a failed order to "paid" before dispatching it; a
   // dispatch that cannot start leaves it there. Nothing could refund that.
   assert.equal(canRefundOrder("paid"), true);
-  assert.equal(canRefundOrder("processing"), true);
-});
-
-test("an agent cannot refund an order the provider is delivering now", () => {
-  // They cannot see the provider's own message on the order, and a bundle that
-  // lands anyway would leave the customer with the data and the money both.
-  assert.equal(canRefundOrder("processing", false), false);
-  assert.equal(canRefundOrder("processing", true), true);
-});
-
-test("an agent may still refund every other stranded state", () => {
-  for (const status of ["pending", "paid", "queued", "failed"]) {
-    assert.equal(canRefundOrder(status, false), true, status);
-  }
 });
 
 test("only queued and processing need the provider asked first", () => {
@@ -75,21 +70,28 @@ test("an order already with the provider is not re-credited behind its back", ()
 });
 
 test("re-ordering is refused while the provider still holds the order", () => {
-  assert.equal(canReorderOrder("queued", "paid"), false);
-  assert.equal(canReorderOrder("processing", "paid"), false);
+  assert.equal(canReorderOrder("queued", "paid", true), false);
+  assert.equal(canReorderOrder("processing", "paid", true), false);
+});
+
+test("a processing order the provider never heard of can still be re-ordered", () => {
+  // The dispatcher marks the row processing before it calls out, so a call
+  // that never returned leaves an order with no upstream reference. It cannot
+  // be cancelled and cannot be refreshed, so this is its only way out.
+  assert.equal(canReorderOrder("processing", "paid", false), true);
 });
 
 test("re-ordering covers both of the buttons it replaced", () => {
   // "Send to provider" — paid for, never handed over.
-  assert.equal(canReorderOrder("paid", "paid"), true);
+  assert.equal(canReorderOrder("paid", "paid", false), true);
   // "Order again" — handed over, and failed.
-  assert.equal(canReorderOrder("failed", "paid"), true);
+  assert.equal(canReorderOrder("failed", "paid", true), true);
 });
 
 test("nothing is re-ordered before the money is in", () => {
-  assert.equal(canReorderOrder("failed", "unpaid"), false);
-  assert.equal(canReorderOrder("completed", "paid"), false);
-  assert.equal(canReorderOrder("refunded", "paid"), false);
+  assert.equal(canReorderOrder("failed", "unpaid", true), false);
+  assert.equal(canReorderOrder("completed", "paid", true), false);
+  assert.equal(canReorderOrder("refunded", "paid", true), false);
 });
 
 test("an agent's refund always lands in their own wallet", () => {

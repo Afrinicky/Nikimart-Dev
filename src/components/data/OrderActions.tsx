@@ -1059,10 +1059,12 @@ function OrderDetailsModal({
   //
   // Refunding is no longer queued-only, which was the bug: a failed order
   // offered a different button that moved no money at all, and an order left
-  // on "paid" or "processing" by a dispatch that did not complete offered
-  // nothing whatsoever. Everything short of delivered and already-refunded is
-  // a paid-for order with no data at the other end.
-  const canCancel = canRefundOrder(order.status, admin);
+  // on "paid" by a dispatch that did not complete offered nothing whatsoever.
+  // It is still not offered on "processing" — the provider has started work
+  // and will not cancel, so the refund would be a promise nobody can keep.
+  // Refresh the status instead; a failure can be refunded the moment it is
+  // reported.
+  const canCancel = canRefundOrder(order.status);
   // Re-crediting needs a bundle that is paid for and not with the provider.
   const canRecredit = canRecreditOrder(order.status, order.paymentStatus);
   const canReport = order.status === "completed" && Boolean(whatsapp) && Boolean(onReport);
@@ -1075,7 +1077,8 @@ function OrderDetailsModal({
   // One button for the provider now. It refuses an order that is still with
   // them, so it is offered only where there is nothing in flight to disturb.
   const canReorder =
-    Boolean(adminForms?.reorder) && canReorderOrder(order.status, order.paymentStatus);
+    Boolean(adminForms?.reorder) &&
+    canReorderOrder(order.status, order.paymentStatus, Boolean(order.providerOrderId));
   const canRefresh = Boolean(adminForms?.refresh) && Boolean(order.providerOrderId);
 
   const caption = `${bundleLabel(order.sizeGb)} ${networkLabel(order.network)} · ${order.reference}`;

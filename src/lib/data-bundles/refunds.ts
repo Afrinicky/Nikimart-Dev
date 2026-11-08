@@ -133,12 +133,12 @@ export async function cancelAndRefundOrder(
   if (order.status === "refunded") {
     return { ok: false, error: "That order has already been cancelled and refunded." };
   }
-  if (!canRefundOrder(order.status, opts.by === "admin")) {
+  if (!canRefundOrder(order.status)) {
     return {
       ok: false,
       error:
         order.status === "processing"
-          ? "The provider is delivering this one now. Contact support if it doesn't land."
+          ? "The provider is already delivering this one and won't cancel it. Refresh its status, and if it fails it can be refunded then."
           : "A delivered bundle can't be refunded — the data has already landed.",
     };
   }
@@ -149,10 +149,10 @@ export async function cancelAndRefundOrder(
   // bundle that is already being delivered — the buyer keeps the data and the
   // money both.
   //
-  // Only a *delivery* stops the refund, though. The old version bailed out on
-  // any change at all, so an order that merely moved from queued to processing
-  // came back "the provider has already picked this up" and left the money
-  // stuck with nothing to do about it. Processing is not delivered.
+  // Queued is the only state this can fire from, and it is also the only one
+  // the provider will cancel: once it has started work the order is theirs
+  // until it lands or fails. So anything the re-read turns up other than
+  // queued or failed stops the refund here.
   if (isLiveWithProvider(order.status)) {
     await syncOpenOrders({ references: [order.reference], limit: 1 });
     const now = await dataDb.dataOrder
@@ -166,6 +166,12 @@ export async function cancelAndRefundOrder(
     }
     if (now?.status === "refunded") {
       return { ok: false, error: "That order has already been cancelled and refunded." };
+    }
+    if (now?.status === "processing") {
+      return {
+        ok: false,
+        error: "The provider has just started on this one and won't cancel it now. Refresh its status, and if it fails it can be refunded then.",
+      };
     }
     if (now) order.status = now.status;
   }

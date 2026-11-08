@@ -278,7 +278,7 @@ export async function reorderDataOrder(orderId: string): Promise<DispatchResult>
   if (order.paymentStatus !== "paid") {
     return { ok: false, message: "This order has not been paid for yet." };
   }
-  if (!canReorderOrder(order.status, order.paymentStatus)) {
+  if (!canReorderOrder(order.status, order.paymentStatus, Boolean(order.providerOrderId))) {
     if (order.status === "completed") {
       return { ok: false, message: "This bundle has already been delivered." };
     }
@@ -297,6 +297,10 @@ export async function reorderDataOrder(orderId: string): Promise<DispatchResult>
   // already given a reference to needs that reference cleared, and that is
   // the one guarded flip: two admins on the same row must buy one bundle
   // between them, not two.
+  //
+  // (An order reading "processing" with no reference has no upstream attempt
+  // to clear either — it never got that far — so it falls to the reset below
+  // like any other order that was never handed over.)
   if (order.providerOrderId) {
     const claimed = await dataDb.dataOrder.updateMany({
       where: { id: orderId, status: order.status, providerOrderId: order.providerOrderId },
@@ -324,7 +328,13 @@ export async function reorderDataOrder(orderId: string): Promise<DispatchResult>
     // claim can reach it. And the commissions a failure voided go back on, so
     // a bundle that finally lands pays what it owes.
     const reset = {
-      ...(order.status === "pending" ? { status: "paid" } : {}),
+      // "paid" and "failed" are the two states the dispatcher will claim an
+      // order out of. Anything else that was never handed over has to be put
+      // on one of them first, or the claim finds nothing and the order stays
+      // stuck exactly where it was.
+      ...(order.status === "pending" || order.status === "processing"
+        ? { status: "paid" }
+        : {}),
       ...(order.status === "failed" && order.agentCommission > 0
         ? { commissionStatus: "pending", commissionPaidAt: null }
         : {}),
