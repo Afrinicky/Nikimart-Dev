@@ -618,7 +618,13 @@ behind the same `requireAdmin` guard:
   order: re-order from the provider, refresh its status, credit the bundle to
   another number, or cancel and refund it. A refund goes back to the selling
   agent's wallet or to the buyer's mobile money, and is always the full amount
-  paid; an agent refunding their own sale can only credit their own wallet.
+  paid; an agent refunding their own sale can only credit their own wallet. An
+  order closed before it was ever paid for reads CANCELLED, not REFUNDED —
+  nothing went back. Only AWAITING PAYMENT, QUEUED and FAILED orders can be
+  cancelled at all: one reading PROCESSING is one the provider will not take
+  back, so refresh its status and refund it if it comes back failed. An order
+  still awaiting payment can instead be sent a fresh checkout link —
+  **Collect payment** — which either console can raise.
 - **AFA** — registrations and their approval status.
 - **Agents** — the roster, the application queue, and per agent their wallet,
   ledger, orders and who recruited them.

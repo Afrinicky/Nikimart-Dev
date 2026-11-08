@@ -133,13 +133,16 @@ export async function cancelAndRefundOrder(
   if (order.status === "refunded") {
     return { ok: false, error: "That order has already been cancelled and refunded." };
   }
-  if (!canRefundOrder(order.status, opts.by === "admin")) {
+  if (order.status === "cancelled") {
+    return { ok: false, error: "That order has already been cancelled." };
+  }
+  if (!canRefundOrder(order.status)) {
     return {
       ok: false,
       error:
-        order.status === "processing"
-          ? "The provider is delivering this one now. Contact support if it doesn't land."
-          : "A delivered bundle can't be refunded — the data has already landed.",
+        order.status === "completed"
+          ? "A delivered bundle can't be refunded — the data has already landed."
+          : "This order is still being processed and can't be cancelled yet. Refresh its status; if it comes back failed, it can be refunded then.",
     };
   }
 
@@ -149,10 +152,10 @@ export async function cancelAndRefundOrder(
   // bundle that is already being delivered — the buyer keeps the data and the
   // money both.
   //
-  // Only a *delivery* stops the refund, though. The old version bailed out on
-  // any change at all, so an order that merely moved from queued to processing
-  // came back "the provider has already picked this up" and left the money
-  // stuck with nothing to do about it. Processing is not delivered.
+  // Queued is the only state this can fire from, and it is also the only one
+  // the provider will cancel: once it has started work the order is theirs
+  // until it lands or fails. So anything the re-read turns up other than
+  // queued or failed stops the refund here.
   if (isLiveWithProvider(order.status)) {
     await syncOpenOrders({ references: [order.reference], limit: 1 });
     const now = await dataDb.dataOrder
@@ -167,10 +170,22 @@ export async function cancelAndRefundOrder(
     if (now?.status === "refunded") {
       return { ok: false, error: "That order has already been cancelled and refunded." };
     }
+    if (now?.status === "processing") {
+      return {
+        ok: false,
+        error:
+          "The provider has just started on this one and won't cancel it now. Refresh its status; if it comes back failed, it can be refunded then.",
+      };
+    }
     if (now) order.status = now.status;
   }
 
+  // Whether there is any money in this at all. An order cancelled before it
+  // was ever paid for is closed as CANCELLED, not REFUNDED: nothing went
+  // back, no refund row is written, and the refunds screen and the money-out
+  // total are not made to answer a question nobody asked.
   const paid = order.paymentStatus === "paid" && order.price > 0;
+  const closedAs = paid ? "refunded" : "cancelled";
 
   // An agent refunding their own sale has one destination: their wallet. The
   // choice is the admin's, because sending cedis to a buyer's MoMo is money
@@ -214,7 +229,9 @@ export async function cancelAndRefundOrder(
   const claimed = await dataDb.dataOrder
     .updateMany({
       where: { id: orderId, status: wasStatus },
-      data: { status: "refunded", refundedAt: new Date() },
+      // `refundedAt` dates the reversal, so it is only stamped where there
+      // was one. A cancelled order has no reversal to date.
+      data: { status: closedAs, ...(paid ? { refundedAt: new Date() } : {}) },
     })
     .catch(() => ({ count: 0 }));
   if (claimed.count === 0) {
@@ -231,7 +248,7 @@ export async function cancelAndRefundOrder(
       destination,
       credited: 0,
       owedToBuyer: 0,
-      message: "Order cancelled. Nothing was charged for it, so there is nothing to refund.",
+      message: "Order cancelled. Nothing was charged for it, so there is nothing to send back.",
     };
   }
 
@@ -263,7 +280,7 @@ export async function cancelAndRefundOrder(
       // it back exactly as it was and let whoever pressed the button try again.
       await dataDb.dataOrder
         .updateMany({
-          where: { id: orderId, status: "refunded" },
+          where: { id: orderId, status: closedAs },
           data: { status: wasStatus, refundedAt: null },
         })
         .catch(() => {});

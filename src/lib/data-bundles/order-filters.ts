@@ -28,7 +28,8 @@ export const ORDER_STATUS_FILTERS: OrderStatusFilter[] = [
   { value: "processing", label: "Processing", statuses: ["paid", "processing"] },
   { value: "completed", label: "Delivered", statuses: ["completed"] },
   { value: "failed", label: "Failed", statuses: ["failed"] },
-  { value: "refunded", label: "Cancelled & refunded", statuses: ["refunded"] },
+  { value: "cancelled", label: "Cancelled", statuses: ["cancelled"] },
+  { value: "refunded", label: "Refunded", statuses: ["refunded"] },
 ];
 
 export const ORDER_STATUS_OPTIONS = ORDER_STATUS_FILTERS.map(({ value, label }) => ({

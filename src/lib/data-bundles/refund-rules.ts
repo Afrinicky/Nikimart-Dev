@@ -16,42 +16,38 @@
 /**
  * The states an order can still be refunded from.
  *
+ * The rule is the one the console already shows, so it can be held in the
+ * head: an order reading AWAITING PAYMENT, QUEUED or FAILED can be cancelled,
+ * and nothing else can.
+ *
+ *   • `pending` — nothing has been charged, so cancelling costs nobody
+ *     anything. The sheet calls it "Cancel order" rather than a refund.
+ *   • `queued` — accepted upstream and not started. The one state the
+ *     provider will actually cancel.
+ *   • `failed` — paid for, nothing delivered, nothing in flight.
+ *
  * Not `completed`: a delivered bundle cannot be un-delivered. Not `refunded`:
- * it has already been paid back. Everything else is a paid-for order with no
- * data at the other end, whatever the provider last said about it — including
- * `paid` and `processing`, which were refundable by nothing at all before and
- * are exactly where a dispatch that could not start leaves an order.
+ * it has already been paid back. And not `processing` or `paid`, which both
+ * read as PROCESSING on screen. The provider offers no cancellation once it
+ * has started work, and `paid` wears the same word, so a refund on one and
+ * not the other would be a console nobody can trust. A processing order that
+ * does not land comes back as `failed`, and is refundable the moment it does.
  */
-export const REFUNDABLE_STATUSES = [
-  "pending",
-  "paid",
-  "queued",
-  "processing",
-  "failed",
-] as const;
-
-/** States where the provider might still be mid-delivery, so ask it first. */
-export const LIVE_STATUSES = ["queued", "processing"] as const;
+export const REFUNDABLE_STATUSES = ["pending", "queued", "failed"] as const;
 
 /**
- * The one state only an administrator may refund from.
+ * States where the provider might still be mid-delivery, so ask it first.
  *
- * "Processing" is the provider actively working on the order — unlike
- * "queued", which is accepted and not started. Pulling the money back there
- * risks the bundle landing anyway, and then the customer has the data and the
- * refund both. An admin can see the provider's own message on the order and
- * judge it; an agent cannot, so for them it stays with support.
+ * Only `queued` can also be refunded, but both are re-read before any action:
+ * a status of ours is a memory of what the provider last said, and the one
+ * minute it is out of date is the minute it matters.
  */
-export const ADMIN_ONLY_REFUND_STATUSES = ["processing"] as const;
+export const LIVE_STATUSES = ["queued", "processing"] as const;
 
 export type RefundDestination = "WALLET" | "BUYER_MOMO";
 
-export function canRefundOrder(status: string, byAdmin = true): boolean {
-  if (!(REFUNDABLE_STATUSES as readonly string[]).includes(status)) return false;
-  if (!byAdmin && (ADMIN_ONLY_REFUND_STATUSES as readonly string[]).includes(status)) {
-    return false;
-  }
-  return true;
+export function canRefundOrder(status: string): boolean {
+  return (REFUNDABLE_STATUSES as readonly string[]).includes(status);
 }
 
 export function isLiveWithProvider(status: string): boolean {
@@ -72,11 +68,24 @@ export function canRecreditOrder(status: string, paymentStatus: string): boolean
 /**
  * Buying the bundle from the provider again.
  *
- * Refused while the order is still with them — that is a status to refresh,
- * not a second bundle to buy — and refused on anything delivered or refunded.
+ * Refused on anything delivered or refunded, and refused while the order is
+ * genuinely with the provider — that is a status to refresh, not a second
+ * bundle to buy.
+ *
+ * `processing` with no upstream reference is the exception, and it is not a
+ * hypothetical one: `dispatchDataOrder` marks the row processing *before* it
+ * calls out, so a call that never returned leaves an order reading processing
+ * that the provider has never heard of. It cannot be cancelled (there is
+ * nothing upstream to cancel) and it cannot be refreshed (there is no
+ * reference to read), so re-ordering is the only way out of it.
  */
-export function canReorderOrder(status: string, paymentStatus: string): boolean {
+export function canReorderOrder(
+  status: string,
+  paymentStatus: string,
+  hasProviderOrderId = false,
+): boolean {
   if (paymentStatus !== "paid") return false;
+  if (status === "processing") return !hasProviderOrderId;
   return status === "pending" || status === "paid" || status === "failed";
 }
 

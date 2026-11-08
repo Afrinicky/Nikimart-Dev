@@ -155,6 +155,28 @@ export async function runDataBundleSweep(): Promise<SweepResult> {
   }
 
   // --- 2. Paid but never handed to the provider ---------------------------
+
+  // `dispatchDataOrder` marks a row "processing" before it calls out, so a
+  // call that never returned — a crash, a timeout, a container recycled
+  // mid-flight — leaves an order reading processing that the provider has
+  // never heard of. Nothing could find it again: this sweep looks for paid
+  // and failed orders, and the in-flight sweep below needs an upstream
+  // reference to read. Having no reference is exactly what proves it was
+  // never handed over, so put it back where the dispatcher can claim it.
+  try {
+    await dataDb.dataOrder.updateMany({
+      where: {
+        paymentStatus: "paid",
+        providerOrderId: null,
+        status: "processing",
+        updatedAt: { lt: cutoff },
+      },
+      data: { status: "paid" },
+    });
+  } catch {
+    // Noted below if the tables are missing.
+  }
+
   try {
     const stuck = await dataDb.dataOrder.findMany({
       where: {
