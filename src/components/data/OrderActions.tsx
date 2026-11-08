@@ -1058,12 +1058,12 @@ function OrderDetailsModal({
   // What this order can still have done to it.
   //
   // Refunding is no longer queued-only, which was the bug: a failed order
-  // offered a different button that moved no money at all, and an order left
-  // on "paid" by a dispatch that did not complete offered nothing whatsoever.
-  // It is still not offered on "processing" — the provider has started work
-  // and will not cancel, so the refund would be a promise nobody can keep.
-  // Refresh the status instead; a failure can be refunded the moment it is
-  // reported.
+  // offered a different button that moved no money at all. It is offered on
+  // exactly the three states the pill names — awaiting payment, queued and
+  // failed — and on nothing that reads PROCESSING, because the provider will
+  // not cancel work it has started and an order it has never been given has
+  // nothing to cancel either. Both of those are re-ordered or refreshed
+  // instead, and a failure can be refunded the moment it is reported.
   const canCancel = canRefundOrder(order.status);
   // Re-crediting needs a bundle that is paid for and not with the provider.
   const canRecredit = canRecreditOrder(order.status, order.paymentStatus);

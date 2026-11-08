@@ -618,10 +618,10 @@ behind the same `requireAdmin` guard:
   order: re-order from the provider, refresh its status, credit the bundle to
   another number, or cancel and refund it. A refund goes back to the selling
   agent's wallet or to the buyer's mobile money, and is always the full amount
-  paid; an agent refunding their own sale can only credit their own wallet. An
-  order the provider has started work on (PROCESSING) cannot be cancelled —
-  the provider will not honour it — so refresh the status and refund it if it
-  comes back failed.
+  paid; an agent refunding their own sale can only credit their own wallet.
+  Only AWAITING PAYMENT, QUEUED and FAILED orders can be cancelled — an order
+  reading PROCESSING is one the provider will not take back — so refresh a
+  processing order's status and refund it if it comes back failed.
 - **AFA** — registrations and their approval status.
 - **Agents** — the roster, the application queue, and per agent their wallet,
   ledger, orders and who recruited them.

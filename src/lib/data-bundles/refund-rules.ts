@@ -16,20 +16,24 @@
 /**
  * The states an order can still be refunded from.
  *
- * Not `completed`: a delivered bundle cannot be un-delivered. Not `refunded`:
- * it has already been paid back. And not `processing`: that is the provider
- * actively working on the order, and the provider offers no cancellation at
- * that point — only `queued`, which is accepted and not started, can be
- * pulled back upstream. Offering a refund there would be promising something
- * nobody can deliver, and risking the bundle landing anyway, which leaves the
- * customer with the data and the money both.
+ * The rule is the one the console already shows, so it can be held in the
+ * head: an order reading AWAITING PAYMENT, QUEUED or FAILED can be cancelled,
+ * and nothing else can.
  *
- * What is left is every paid-for order with no data at the other end and
- * nothing in flight to disturb — `paid` and `pending` included, which were
- * refundable by nothing at all before and are exactly where a dispatch that
- * could not start leaves an order.
+ *   • `pending` — nothing has been charged, so cancelling costs nobody
+ *     anything. The sheet calls it "Cancel order" rather than a refund.
+ *   • `queued` — accepted upstream and not started. The one state the
+ *     provider will actually cancel.
+ *   • `failed` — paid for, nothing delivered, nothing in flight.
+ *
+ * Not `completed`: a delivered bundle cannot be un-delivered. Not `refunded`:
+ * it has already been paid back. And not `processing` or `paid`, which both
+ * read as PROCESSING on screen. The provider offers no cancellation once it
+ * has started work, and `paid` wears the same word, so a refund on one and
+ * not the other would be a console nobody can trust. A processing order that
+ * does not land comes back as `failed`, and is refundable the moment it does.
  */
-export const REFUNDABLE_STATUSES = ["pending", "paid", "queued", "failed"] as const;
+export const REFUNDABLE_STATUSES = ["pending", "queued", "failed"] as const;
 
 /**
  * States where the provider might still be mid-delivery, so ask it first.

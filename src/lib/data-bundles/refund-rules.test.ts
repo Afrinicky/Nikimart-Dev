@@ -22,7 +22,7 @@ import {
  */
 
 test("every state the provider will still let go of can be refunded", () => {
-  for (const status of ["pending", "paid", "queued", "failed"]) {
+  for (const status of ["pending", "queued", "failed"]) {
     assert.equal(canRefundOrder(status), true, status);
   }
 });
@@ -32,12 +32,17 @@ test("a delivered or refunded order cannot be refunded", () => {
   assert.equal(canRefundOrder("refunded"), false);
 });
 
-test("an order the provider is working on cannot be refunded by anybody", () => {
+test("nothing that reads PROCESSING can be refunded", () => {
   // The provider offers no cancellation once it has started: queued is
   // "accepted, not started", processing is "started". A refund button there
   // promises something nobody upstream can honour, and risks the bundle
   // landing anyway — the customer keeping the data and the money both.
+  //
+  // `paid` goes with it because the console shows the two as one word. A
+  // refund on one pill and not on an identical pill beside it is a console
+  // nobody can trust, whatever the state underneath happens to be.
   assert.equal(canRefundOrder("processing"), false);
+  assert.equal(canRefundOrder("paid"), false);
   assert.equal(canRefundOrder("queued"), true);
 });
 
@@ -45,10 +50,12 @@ test("a failed order is refundable — the case that used to move no money", () 
   assert.equal(canRefundOrder("failed"), true);
 });
 
-test("an order stranded by a dispatch that never started is refundable", () => {
-  // A re-order flips a failed order to "paid" before dispatching it; a
-  // dispatch that cannot start leaves it there. Nothing could refund that.
-  assert.equal(canRefundOrder("paid"), true);
+test("an order the dispatcher never got to is re-ordered, not refunded", () => {
+  // "paid" means the provider has never heard of it, so there is nothing to
+  // cancel and nothing to refund around: re-order is the way out, and if the
+  // provider will not take it the order lands on "failed", which is.
+  assert.equal(canRefundOrder("paid"), false);
+  assert.equal(canReorderOrder("paid", "paid", false), true);
 });
 
 test("only queued and processing need the provider asked first", () => {

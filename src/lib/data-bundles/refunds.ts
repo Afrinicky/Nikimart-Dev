@@ -137,9 +137,9 @@ export async function cancelAndRefundOrder(
     return {
       ok: false,
       error:
-        order.status === "processing"
-          ? "The provider is already delivering this one and won't cancel it. Refresh its status, and if it fails it can be refunded then."
-          : "A delivered bundle can't be refunded — the data has already landed.",
+        order.status === "completed"
+          ? "A delivered bundle can't be refunded — the data has already landed."
+          : "This order is still being processed and can't be cancelled yet. Refresh its status; if it comes back failed, it can be refunded then.",
     };
   }
 
@@ -170,7 +170,8 @@ export async function cancelAndRefundOrder(
     if (now?.status === "processing") {
       return {
         ok: false,
-        error: "The provider has just started on this one and won't cancel it now. Refresh its status, and if it fails it can be refunded then.",
+        error:
+          "The provider has just started on this one and won't cancel it now. Refresh its status; if it comes back failed, it can be refunded then.",
       };
     }
     if (now) order.status = now.status;
