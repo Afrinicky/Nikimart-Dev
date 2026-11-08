@@ -110,7 +110,11 @@ export async function dataPaymentCovers(reference: string, amountPesewas: number
  */
 export async function settleDataOrder(reference: string): Promise<boolean> {
   const flipped = await dataDb.dataOrder.updateMany({
-    where: { reference, paymentStatus: "unpaid" },
+    // A closed order is not settled, whatever arrives afterwards. A buyer who
+    // pays a link for an order somebody has since cancelled must not be sent
+    // a bundle for it — the capture is visible in Paystack and refunded
+    // there, which is a decision, not something a webhook should make.
+    where: { reference, paymentStatus: "unpaid", status: { notIn: ["cancelled", "refunded"] } },
     data: { paymentStatus: "paid", status: "paid", paidAt: new Date() },
   });
   if (flipped.count === 0) return false; // already settled, or unknown reference
@@ -285,6 +289,9 @@ export async function reorderDataOrder(orderId: string): Promise<DispatchResult>
     if (order.status === "refunded") {
       return { ok: false, message: "This order has been refunded — it can't be sent again." };
     }
+    if (order.status === "cancelled") {
+      return { ok: false, message: "This order was cancelled — it can't be sent again." };
+    }
     // Still with the provider. Re-sending would buy a second bundle for one
     // payment; what is wanted here is the status, not another order.
     return {
@@ -374,7 +381,11 @@ export async function applyProviderStatus(
     select: { status: true },
   });
   if (!order) return null;
-  if (order.status === "completed" || order.status === "refunded") {
+  if (
+    order.status === "completed" ||
+    order.status === "refunded" ||
+    order.status === "cancelled"
+  ) {
     return order.status as DataOrderStatus;
   }
 

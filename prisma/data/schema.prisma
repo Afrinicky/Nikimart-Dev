@@ -101,11 +101,15 @@ model DataOrder {
   buyerEmail     String?
   buyerName      String?
 
-  // pending | paid | queued | processing | completed | failed | refunded
+  // pending | paid | queued | processing | completed | failed | cancelled |
+  // refunded. The last two are both "this order is over", and the difference
+  // is the only thing anybody asks afterwards: did money come back? An order
+  // closed before it was ever paid for is cancelled, so neither the refunds
+  // screen nor the money-out total has to pretend otherwise.
   status        String    @default("pending")
-  // When the money went back. Set on both refund paths — the agent-wallet
-  // credit and the admin's "refunded in Paystack" flag — so the transactions
-  // ledger can date the reversal rather than guessing at the sale's own date.
+  // When the money went back. Stamped only where there was a reversal to
+  // date — never on a cancellation — so the transactions ledger can date it
+  // rather than guessing at the sale's own date.
   refundedAt    DateTime?
   // unpaid | paid — payment is separate from delivery, so a paid-but-undelivered
   // order is visible to the admin as exactly that.

@@ -8,6 +8,9 @@ import {
   BadgeCheck,
   Check,
   ChevronRight,
+  Copy,
+  CreditCard,
+  ExternalLink,
   Eye,
   Loader2,
   MessageCircle,
@@ -26,7 +29,11 @@ import {
   isDataOrderStatus,
   networkLabel,
 } from "@/lib/data-bundles/networks";
-import { cancelOrderAction, recreditOrderAction } from "@/lib/data-bundles/order-actions";
+import {
+  cancelOrderAction,
+  recreditOrderAction,
+  requestOrderPaymentAction,
+} from "@/lib/data-bundles/order-actions";
 import {
   canRecreditOrder,
   canRefundOrder,
@@ -842,6 +849,124 @@ function ReorderPanel({
 }
 
 /**
+ * Asking the buyer for the money again.
+ *
+ * An interrupted checkout leaves a real order with a real price and nothing
+ * against it. Everything the console could already do about that assumed the
+ * money existed somewhere — ask the gateway, settle a claim, record it by
+ * hand — and none of it helps with the ordinary case, where the buyer simply
+ * never finished. This is the one that does: the same checkout, re-opened on
+ * the same reference, to hand over or to complete with the customer there.
+ */
+function CollectPanel({ order }: { order: OrderView }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [link, setLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function create() {
+    setError(null);
+    setCopied(false);
+    setBusy(true);
+    void requestOrderPaymentAction(order.id)
+      .then((result) => {
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        setLink(result.url);
+        router.refresh();
+      })
+      .catch(() => setError("Couldn't open a checkout. Please try again."))
+      .finally(() => setBusy(false));
+  }
+
+  function copy() {
+    if (!link) return;
+    void navigator.clipboard
+      .writeText(link)
+      .then(() => setCopied(true))
+      .catch(() => setError("Couldn't copy it. Select the link and copy it by hand."));
+  }
+
+  return (
+    <>
+      <Prompt icon={CreditCard} tone="primary" title="Collect payment">
+        This re-opens the same {formatMoney(order.price)} checkout on order{" "}
+        {order.reference}. Send it to {order.recipientPhone}&apos;s buyer, or open it with them
+        there — the bundle goes out on its own the moment it settles.
+      </Prompt>
+
+      {error ? <Notice feedback={{ ok: false, message: error }} /> : null}
+
+      {link ? (
+        <div className="animate-fade-up mt-5">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-niki-ink/45">
+            Payment link
+          </p>
+          <input
+            readOnly
+            value={link}
+            onFocus={(e) => e.currentTarget.select()}
+            aria-label="Payment link"
+            className={cn(field, "font-mono text-xs")}
+          />
+          <div className="mt-2.5 flex gap-2">
+            <button
+              type="button"
+              onClick={copy}
+              className="niki-press niki-focus inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-niki-black px-4 py-2.5 text-sm font-semibold text-white"
+            >
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? "Copied" : "Copy link"}
+            </button>
+            <a
+              href={link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="niki-press niki-focus inline-flex flex-1 items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold text-niki-ink/70 ring-1 ring-niki-edge hover:bg-niki-black/5"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open checkout
+            </a>
+          </div>
+          <p className="mt-2.5 text-xs leading-relaxed text-niki-ink/45">
+            The link stays good until it is paid. Nothing has been charged yet, and this order is
+            untouched until the gateway confirms it.
+          </p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={create}
+          disabled={busy}
+          className="niki-press niki-focus mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-niki-orange px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+          {busy ? "Opening a checkout…" : `Create a ${formatMoney(order.price)} payment link`}
+        </button>
+      )}
+
+      <div className="mt-4">
+        <Panel title="Order">
+          <DetailRow
+            label="Order ID"
+            value={<span className="font-mono text-xs">{order.reference}</span>}
+          />
+          <DetailRow
+            label="Bundle"
+            value={`${bundleLabel(order.sizeGb)} ${networkLabel(order.network)}`}
+          />
+          <DetailRow label="Number" value={<span className="font-mono">{order.recipientPhone}</span>} />
+          <DetailRow label="Amount due" value={formatMoney(order.price)} />
+        </Panel>
+      </div>
+    </>
+  );
+}
+
+/**
  * Settling an order the gateway never confirmed.
  *
  * It sits at the foot of the details card and only on an order that reads
@@ -889,11 +1014,12 @@ function SettlementPanel({
   return (
     <div className="rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200">
       <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-700">
-        Payment settlement
+        Unconfirmed payment
       </p>
       <p className="text-sm text-amber-900/80">
-        This order has not been confirmed as paid, so no bundle has been sent. Ask the gateway
-        first — an interrupted checkout is usually a settlement that never ran.
+        No bundle has been sent, because nothing has confirmed this one as paid. Ask the gateway
+        first — an interrupted checkout is usually a settlement that never ran. If the buyer
+        never paid at all, collect it above instead.
       </p>
 
       {claim ? (
@@ -1030,7 +1156,7 @@ function SettlementPanel({
   );
 }
 
-type SheetView = "details" | "cancel" | "recredit" | "reorder" | "done";
+type SheetView = "details" | "cancel" | "recredit" | "reorder" | "collect" | "done";
 
 function OrderDetailsModal({
   order,
@@ -1068,6 +1194,10 @@ function OrderDetailsModal({
   // Re-crediting needs a bundle that is paid for and not with the provider.
   const canRecredit = canRecreditOrder(order.status, order.paymentStatus);
   const canReport = order.status === "completed" && Boolean(whatsapp) && Boolean(onReport);
+  // Awaiting payment, and worth asking for again. Both consoles: the person
+  // who took the order is the one standing in front of the customer.
+  const canCollect =
+    order.status === "pending" && order.paymentStatus !== "paid" && order.price > 0;
   // Awaiting payment, and the console that opened this can do something about
   // it. The agent side passes no admin forms, so it never sees this.
   const canSettle =
@@ -1122,6 +1252,19 @@ function OrderDetailsModal({
     );
   }
 
+  if (view === "collect") {
+    return (
+      <Shell
+        title="Collect payment"
+        caption={caption}
+        onClose={onClose}
+        onBack={() => setView("details")}
+      >
+        <CollectPanel order={order} />
+      </Shell>
+    );
+  }
+
   if (view === "reorder" && adminForms?.reorder) {
     return (
       <Shell
@@ -1168,7 +1311,8 @@ function OrderDetailsModal({
     );
   }
 
-  const hasActions = canReorder || canRefresh || canRecredit || canCancel || canReport;
+  const hasActions =
+    canCollect || canReorder || canRefresh || canRecredit || canCancel || canReport;
 
   return (
     <Shell
@@ -1281,6 +1425,16 @@ function OrderDetailsModal({
               Actions
             </p>
             <div className="divide-y divide-niki-edge/70">
+              {canCollect ? (
+                <ActionRow
+                  icon={CreditCard}
+                  label="Collect payment"
+                  caption={`Re-open the ${formatMoney(order.price)} checkout for the buyer`}
+                  tone="primary"
+                  onClick={() => setView("collect")}
+                />
+              ) : null}
+
               {canReorder ? (
                 <ActionRow
                   icon={RotateCcw}

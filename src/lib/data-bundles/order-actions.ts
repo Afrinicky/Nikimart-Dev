@@ -10,6 +10,7 @@ import {
   type RefundDestination,
   type RefundOutcome,
 } from "@/lib/data-bundles/refunds";
+import { startOrderPayment, type OrderPaymentLink } from "@/lib/data-bundles/order-payment";
 
 /**
  * What either console can do to an order it owns.
@@ -114,6 +115,37 @@ export async function recreditOrderAction(
     agentId: agent.id,
     by: "agent",
   });
+  if (result.ok) refreshAgent();
+  return result;
+}
+
+/**
+ * Re-open the checkout on an order that was never paid for.
+ *
+ * Both consoles, for the same reason the refund is in both: the person who
+ * took the order is the one standing in front of the customer. It settles
+ * nothing itself — the link is handed over, and the order continues down the
+ * ordinary path the moment the gateway confirms it.
+ */
+export async function requestOrderPaymentAction(orderId: string): Promise<OrderPaymentLink> {
+  const id = String(orderId ?? "").trim();
+  if (!id) return { ok: false, error: "That order no longer exists." };
+
+  const user = await requireDataUser();
+
+  if (user.role === "ADMIN") {
+    const result = await startOrderPayment(id);
+    if (result.ok) refreshAdmin();
+    return result;
+  }
+
+  const agent = await getAgentForUser(user.id);
+  if (!agent) return { ok: false, error: "You don't have an agent account." };
+  if (agent.status !== "active") {
+    return { ok: false, error: "Your agent account is suspended. Please contact support." };
+  }
+
+  const result = await startOrderPayment(id, { agentId: agent.id });
   if (result.ok) refreshAgent();
   return result;
 }

@@ -121,6 +121,7 @@ export const DATA_ORDER_STATUSES = [
   "processing",
   "completed",
   "failed",
+  "cancelled",
   "refunded",
 ] as const;
 
@@ -128,6 +129,12 @@ export type DataOrderStatus = (typeof DATA_ORDER_STATUSES)[number];
 
 /**
  * One vocabulary, everywhere.
+ *
+ * CANCELLED and REFUNDED are both "this order is over", and the difference
+ * between them is the only thing anybody asks afterwards: was money sent
+ * back? An order cancelled before it was ever paid for has nothing to refund,
+ * and calling that a refund — which it did — makes the refunds screen and the
+ * money-out total answer a question nobody asked.
  *
  * "Queued" is the one the provider owns: the order has been accepted upstream
  * and is waiting its turn to be sent. It is the only state an order can still
@@ -148,6 +155,7 @@ export const DATA_STATUS_LABELS: Record<DataOrderStatus, string> = {
   processing: "PROCESSING",
   completed: "DELIVERED",
   failed: "FAILED",
+  cancelled: "CANCELLED",
   refunded: "REFUNDED",
 };
 
@@ -160,6 +168,10 @@ export const DATA_STATUS_TONES: Record<DataOrderStatus, string> = {
   processing: "bg-niki-trust/10 text-niki-trust ring-1 ring-niki-trust/30",
   completed: "bg-niki-success/10 text-niki-success ring-1 ring-niki-success/30",
   failed: "bg-niki-danger/10 text-niki-danger ring-1 ring-niki-danger/30",
+  // Closed, and nothing moved. The same quiet grey as a refund, because both
+  // are an order that is over — the difference is whether money came back,
+  // and the word says which.
+  cancelled: "bg-niki-ink/10 text-niki-ink/70 ring-1 ring-niki-ink/20",
   refunded: "bg-niki-ink/10 text-niki-ink/70 ring-1 ring-niki-ink/20",
 };
 

@@ -76,6 +76,8 @@ const STATUS_NOTE: Record<"bundle" | "afa", Record<DataOrderStatus, string>> = {
     completed: "Sent. If the data hasn't shown on the number, dial your network's balance check.",
     failed:
       "This one didn't go through. Nothing stays charged — contact support with the reference below.",
+    cancelled:
+      "This order was cancelled before it was paid for, so nothing was charged. Order again whenever you are ready.",
     refunded: "This order was refunded. The money is on its way back to where it was paid from.",
   },
   afa: {
@@ -87,6 +89,8 @@ const STATUS_NOTE: Record<"bundle" | "afa", Record<DataOrderStatus, string>> = {
     completed: "Approved. The number is registered and agent rates apply to it.",
     failed:
       "This registration wasn't accepted. Nothing stays charged — contact support with the reference below.",
+    cancelled:
+      "This registration was cancelled before it was paid for, so nothing was charged.",
     refunded: "This registration was refunded. The money is on its way back to where it was paid from.",
   },
 };

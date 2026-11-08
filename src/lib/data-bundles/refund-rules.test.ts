@@ -27,9 +27,12 @@ test("every state the provider will still let go of can be refunded", () => {
   }
 });
 
-test("a delivered or refunded order cannot be refunded", () => {
+test("an order that is already over cannot be refunded again", () => {
   assert.equal(canRefundOrder("completed"), false);
   assert.equal(canRefundOrder("refunded"), false);
+  // Cancelled is the closing state of an order nobody ever paid for, so
+  // there is nothing to send back and no second pass at it.
+  assert.equal(canRefundOrder("cancelled"), false);
 });
 
 test("nothing that reads PROCESSING can be refunded", () => {
@@ -99,6 +102,7 @@ test("nothing is re-ordered before the money is in", () => {
   assert.equal(canReorderOrder("failed", "unpaid", true), false);
   assert.equal(canReorderOrder("completed", "paid", true), false);
   assert.equal(canReorderOrder("refunded", "paid", true), false);
+  assert.equal(canReorderOrder("cancelled", "unpaid", false), false);
 });
 
 test("an agent's refund always lands in their own wallet", () => {

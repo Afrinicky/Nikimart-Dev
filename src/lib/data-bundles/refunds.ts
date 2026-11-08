@@ -133,6 +133,9 @@ export async function cancelAndRefundOrder(
   if (order.status === "refunded") {
     return { ok: false, error: "That order has already been cancelled and refunded." };
   }
+  if (order.status === "cancelled") {
+    return { ok: false, error: "That order has already been cancelled." };
+  }
   if (!canRefundOrder(order.status)) {
     return {
       ok: false,
@@ -177,7 +180,12 @@ export async function cancelAndRefundOrder(
     if (now) order.status = now.status;
   }
 
+  // Whether there is any money in this at all. An order cancelled before it
+  // was ever paid for is closed as CANCELLED, not REFUNDED: nothing went
+  // back, no refund row is written, and the refunds screen and the money-out
+  // total are not made to answer a question nobody asked.
   const paid = order.paymentStatus === "paid" && order.price > 0;
+  const closedAs = paid ? "refunded" : "cancelled";
 
   // An agent refunding their own sale has one destination: their wallet. The
   // choice is the admin's, because sending cedis to a buyer's MoMo is money
@@ -221,7 +229,9 @@ export async function cancelAndRefundOrder(
   const claimed = await dataDb.dataOrder
     .updateMany({
       where: { id: orderId, status: wasStatus },
-      data: { status: "refunded", refundedAt: new Date() },
+      // `refundedAt` dates the reversal, so it is only stamped where there
+      // was one. A cancelled order has no reversal to date.
+      data: { status: closedAs, ...(paid ? { refundedAt: new Date() } : {}) },
     })
     .catch(() => ({ count: 0 }));
   if (claimed.count === 0) {
@@ -238,7 +248,7 @@ export async function cancelAndRefundOrder(
       destination,
       credited: 0,
       owedToBuyer: 0,
-      message: "Order cancelled. Nothing was charged for it, so there is nothing to refund.",
+      message: "Order cancelled. Nothing was charged for it, so there is nothing to send back.",
     };
   }
 
@@ -270,7 +280,7 @@ export async function cancelAndRefundOrder(
       // it back exactly as it was and let whoever pressed the button try again.
       await dataDb.dataOrder
         .updateMany({
-          where: { id: orderId, status: "refunded" },
+          where: { id: orderId, status: closedAs },
           data: { status: wasStatus, refundedAt: null },
         })
         .catch(() => {});
